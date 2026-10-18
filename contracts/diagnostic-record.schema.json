@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/diagnostic-record.schema.json",
+  "title": "诊断条目（§6.2 / §7.5 · 含三档证据强度）",
+  "description": "校验报告与自愈回灌共用的诊断条目。`precision` 是**三档证据强度**（第 4 期写入契约）：exact（埋点直记）/ replayed（快照重放推导）/ candidate（静态候选）。回灌给模型时**必须**带上强度，否则模型会照着\"候选行\"改代码。本契约不新增判据、不改 §7.2 的 C1–C9。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "check": {
+      "$ref": "#/$defs/CheckId"
+    },
+    "rule": {
+      "type": "string",
+      "minLength": 1,
+      "description": "规则名（机器可读，如 unknown-global / boundary-jump）"
+    },
+    "slot": {
+      "type": "string",
+      "minLength": 1,
+      "description": "槽位名（§3.2 冻结键名之一，或数据型槽位）；空槽位级的诊断也必须有槽位名"
+    },
+    "line": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "槽位内 1-based 行号；无法定位时为 null（**不得**假装精确）"
+    },
+    "column": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "列号；acorn 后端给得出，其他手段可能为 null"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "面向模型可读的说明（不含 stack trace、不含绝对路径）"
+    },
+    "precision": {
+      "$ref": "#/$defs/Precision"
+    },
+    "context": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContextLine"
+      }
+    }
+  },
+  "required": [
+    "check",
+    "rule",
+    "slot",
+    "line",
+    "message",
+    "precision"
+  ],
+  "$defs": {
+    "Precision": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "replayed",
+        "candidate"
+      ],
+      "title": "三档证据强度（顺序即\"可信度从高到低\"，不得重排）",
+      "description": "exact=埋点直记 · replayed=快照重放推导 · candidate=静态候选（须先读上下文）"
+    },
+    "CheckId": {
+      "type": "string",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9"
+      ],
+      "title": "§7.2 冻结检查号（C1–C9）；扩展检查 X1/X2/C10 见报告 extensions[]"
+    },
+    "ContextLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "isTarget": {
+          "type": "boolean",
+          "description": "该行是否为诊断指向的那一行"
+        }
+      },
+      "required": [
+        "line",
+        "text"
+      ],
+      "title": "上下文行（前后各一行）"
+    }
+  },
+  "x-od-contract": {
+    "id": "diagnostic-record",
+    "rootType": "Diagnostic",
+    "generatedFrom": "contracts/spec/contract-fields.mjs",
+    "frozenBy": "物理解题动画软件 v1.0 自研方案 §3 / §9 / §11.1 / §12"
+  }
+}

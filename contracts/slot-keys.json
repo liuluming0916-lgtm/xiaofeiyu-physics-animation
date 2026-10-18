@@ -1,0 +1,19 @@
+{
+  "frozen": true,
+  "note": "§3.2 冻结键序（8 个，大小写敏感）。顺序不可调换。",
+  "conceptSlotCount": 7,
+  "keys": [
+    "PROBLEM",
+    "STEPS",
+    "ANSWERS",
+    "VIEW",
+    "setup",
+    "stateAt",
+    "drawFrame",
+    "readouts"
+  ],
+  "marker": {
+    "prefix": "/* @slot:",
+    "end": "/* @end */"
+  }
+}

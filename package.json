@@ -1,0 +1,82 @@
+{
+  "name": "physics-animation-studio",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "物理解题动画软件 v1.1 · 解题 → 动画 → 教辅蒸馏（画布不写数值，矢量靠颜色与长度表达）",
+  "main": "electron/main.cjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": "./sdk/runtime/animation-runtime.mjs",
+    "./runtime": "./sdk/runtime/animation-runtime.mjs",
+    "./lint": "./core/lint/contract-lint.mjs",
+    "./dryrun": "./core/dryrun/dry-run.mjs",
+    "./sandbox": "./core/dryrun/worker-sandbox.mjs"
+  },
+  "scripts": {
+    "doctor": "node tools/doctor.mjs",
+    "contracts:gen": "node contracts/generate-contracts.mjs",
+    "contracts:verify": "node contracts/verify-contracts.mjs",
+    "sdk:signatures": "node sdk/generate-signature-summary.mjs",
+    "dryrun": "node core/dryrun/run-suite.mjs",
+    "inject:test": "node tests/negative-injection/run-injection.mjs",
+    "lint:selftest": "node tests/lint-selftest.mjs",
+    "render:check": "node tools/render-check.mjs",
+    "tex:build": "node tools/build-tex-svg.mjs",
+    "template:build": "node template/build-template.mjs",
+    "layout:lint": "node tools/layout-lint.mjs",
+    "budget:check": "node tools/budget-check.mjs",
+    "overview:build": "node tools/build-overview.mjs",
+    "verify": "node tools/verify-all.mjs",
+    "app:start": "node tools/electron-build.mjs --dev",
+    "app:build": "node tools/electron-build.mjs"
+  },
+  "dependencies": {
+    "acorn": "^8.19.0",
+    "better-sqlite3": "13.0.3",
+    "mathjax-full": "^3.2.2"
+  },
+  "build": {
+    "appId": "com.od.physics-animation",
+    "productName": "物理解题动画",
+    "copyright": "v1.1 · 自研",
+    "directories": {
+      "output": "release",
+      "buildResources": "electron/resources"
+    },
+    "files": [
+      "electron/**/*",
+      "core/**/*",
+      "sdk/**/*",
+      "contracts/**/*",
+      "tools/**/*",
+      "template/build/**/*",
+      "web/dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "物理解题动画",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

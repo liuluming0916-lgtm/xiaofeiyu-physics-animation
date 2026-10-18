@@ -1,0 +1,23 @@
+{
+  "format": "od-c7-baseline",
+  "version": 1,
+  "note": "C7 的『第 3 期判定基线』（第 4 期冻结）。第 4 期强化 C7 是**加法**：量级自适应容差 / 可选多时刻 at_t / 符号歧义检测都不得改变这 15 题的判定。本文件由 tests/c7-strengthen-selftest.mjs 逐字比对，**值全部实测自第 3 期收尾时的 tests/reports/*.dryrun.json**（不是手写、也不是从第 4 期的实现反推）。",
+  "source": "tests/reports/*.dryrun.json（第 3 期收尾实测）",
+  "questions": [
+    { "entry": "q01-conveyor-heat", "verdict": "pass", "detail": "4/4 条结论在 at_t 时刻由 readouts 复现", "matched": ["t*@1=t*", "dx@1=dx", "ds@1.5=ds", "Q@1.5=Q"] },
+    { "entry": "q02-incline-arc-projectile", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["v2@0.92=v2", "h@0.92=h", "dx@1.341=dx", "v1@0.3=v1", "tau1@0.3=tau1"] },
+    { "entry": "q03-pursuit", "verdict": "pass", "detail": "4/4 条结论在 at_t 时刻由 readouts 复现", "matched": ["t1@11.2=t1", "v2@11.2=v2", "dsmax@5=dsmax", "dt*@5=dt*"] },
+    { "entry": "q04-oblique-collision", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["t*@0.75=t*", "v1@1.3=v1", "v2@1.3=v2", "px@1.3=px", "py@1.3=py"] },
+    { "entry": "q05-spring-pendulum", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["T1@0.5=T1", "vmax@0.5=vmax", "T2@1=T2", "x@0.25=x", "v@0.25=v"] },
+    { "entry": "q06-pulley-constraint", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["a@0.25=a", "T@0.35=T", "v@0.5=v", "s@0.5=s", "ropeSum@0.05=ropeSum"] },
+    { "entry": "q07-rod-emf", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["tau@1=tau", "E@1=E", "I@1=I", "F@1=F", "v@2=v"] },
+    { "entry": "q08-charged-in-b-field", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["r@1=r", "T@1.5=T", "x@1=x", "y@1=y", "speedRatio@2=speedRatio"] },
+    { "entry": "q09-capacitor-rod-transient", "verdict": "pass", "detail": "4/4 条结论在 at_t 时刻由 readouts 复现", "matched": ["tau@1=tau", "uC@1=uC", "i@1=i", "uC@3=uC"] },
+    { "entry": "q10-pv-isothermal-work", "verdict": "pass", "detail": "3/3 条结论在 at_t 时刻由 readouts 复现", "matched": ["W@4=W", "Q@4=Q", "dU@4=dU"] },
+    { "entry": "q11-refraction-snell", "verdict": "pass", "detail": "4/4 条结论在 at_t 时刻由 readouts 复现", "matched": ["a2@1.2=a2", "v@2=v", "sinRatio@1.5=sinRatio", "a1@1=a1"] },
+    { "entry": "q12-standing-wave", "verdict": "pass", "detail": "5/5 条结论在 at_t 时刻由 readouts 复现", "matched": ["f1@0.5=f1", "lambda@0.5=lambda", "nodeGap@1=nodeGap", "ymid@1.5333=ymid", "vwave@1.5=vwave"] },
+    { "entry": "q13-drag-fall", "verdict": "pass", "detail": "4/4 条结论在 at_t 时刻由 readouts 复现", "matched": ["vt@0.8=vt", "v@0.5=v", "a@0.5=a", "h@0.8=h"] },
+    { "entry": "q14-blocks-relative-slide", "verdict": "pass", "detail": "4/4 条结论在 at_t 时刻由 readouts 复现", "matched": ["t1@1.333=t1", "v1@1.333=v1", "ds_rel@1.333=ds_rel", "margin@3=margin"] },
+    { "entry": "q15-symbolic", "verdict": "pass", "detail": "3/3 条结论在 at_t 时刻由 readouts 复现", "matched": ["E0@0=E0(sym)", "vt@1=vt(sym)", "tau@0.5=vt(sym)"] }
+  ]
+}

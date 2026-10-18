@@ -1,0 +1,37 @@
+{
+  "frozen": true,
+  "note": "§9.1 世界书槽位名 = 目标阶段名；scene_spec 是 v2 旧名，不得进入枚举。",
+  "insertionSlots": [
+    "solve",
+    "scene_code"
+  ],
+  "importAliases": {
+    "scene_spec": "scene_code",
+    "both": [
+      "solve",
+      "scene_code"
+    ]
+  },
+  "enums": {
+    "origin": [
+      "builtin",
+      "user"
+    ],
+    "category": [
+      "solution_skill",
+      "scene_modeling",
+      "both_slot",
+      "user_lore"
+    ],
+    "secondaryLogic": [
+      "AND_ANY",
+      "AND_ALL",
+      "OR",
+      "NOT"
+    ],
+    "priority": [
+      "normal",
+      "high"
+    ]
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "format": "od-tex-svg-manifest",
+  "renderer": "mathjax-full@3.2.2 (tex2svg)",
+  "note": "构建期预渲染；运行期无需 MathJax 本体。字形 path 全局去重后内联。本文件由 tools/build-tex-svg.mjs 生成，请勿手改。",
+  "glyphCount": 1816,
+  "glyphBytes": 754550,
+  "questions": [
+    {
+      "id": "q01-conveyor-heat",
+      "formulas": 11,
+      "bytes": 23797,
+      "glyphs": 91,
+      "glyphBytes": 43888
+    },
+    {
+      "id": "q02-incline-arc-projectile",
+      "formulas": 14,
+      "bytes": 41171,
+      "glyphs": 156,
+      "glyphBytes": 72282
+    },
+    {
+      "id": "q03-pursuit",
+      "formulas": 11,
+      "bytes": 34355,
+      "glyphs": 107,
+      "glyphBytes": 48193
+    },
+    {
+      "id": "q04-oblique-collision",
+      "formulas": 17,
+      "bytes": 46186,
+      "glyphs": 150,
+      "glyphBytes": 63330
+    },
+    {
+      "id": "q05-spring-pendulum",
+      "formulas": 18,
+      "bytes": 36534,
+      "glyphs": 155,
+      "glyphBytes": 71585
+    },
+    {
+      "id": "q06-pulley-constraint",
+      "formulas": 15,
+      "bytes": 34754,
+      "glyphs": 117,
+      "glyphBytes": 52418
+    },
+    {
+      "id": "q07-rod-emf",
+      "formulas": 18,
+      "bytes": 40698,
+      "glyphs": 147,
+      "glyphBytes": 62635
+    },
+    {
+      "id": "q08-charged-in-b-field",
+      "formulas": 13,
+      "bytes": 32929,
+      "glyphs": 124,
+      "glyphBytes": 56574
+    },
+    {
+      "id": "q09-capacitor-rod-transient",
+      "formulas": 15,
+      "bytes": 29182,
+      "glyphs": 114,
+      "glyphBytes": 49004
+    },
+    {
+      "id": "q10-pv-isothermal-work",
+      "formulas": 11,
+      "bytes": 26446,
+      "glyphs": 105,
+      "glyphBytes": 49769
+    },
+    {
+      "id": "q11-refraction-snell",
+      "formulas": 11,
+      "bytes": 30325,
+      "glyphs": 99,
+      "glyphBytes": 40494
+    },
+    {
+      "id": "q12-standing-wave",
+      "formulas": 10,
+      "bytes": 28269,
+      "glyphs": 99,
+      "glyphBytes": 44028
+    },
+    {
+      "id": "q13-drag-fall",
+      "formulas": 15,
+      "bytes": 35340,
+      "glyphs": 142,
+      "glyphBytes": 65633
+    },
+    {
+      "id": "q14-blocks-relative-slide",
+      "formulas": 15,
+      "bytes": 40482,
+      "glyphs": 134,
+      "glyphBytes": 61335
+    },
+    {
+      "id": "q15-symbolic",
+      "formulas": 13,
+      "bytes": 26616,
+      "glyphs": 76,
+      "glyphBytes": 35949
+    }
+  ]
+}

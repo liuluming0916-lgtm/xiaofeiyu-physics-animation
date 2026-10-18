@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/cleaning-rule.schema.json",
+  "title": "清洗规则（§12 条目字段）",
+  "description": "§12 正则兜底规则。按列表从上到下执行；正则在隔离环境运行 + 超时；非法正则即时报错且不落盘。正则合法性无法在 JSON Schema 层表达，由运行时校验。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stage": {
+      "$ref": "#/$defs/CleaningStage"
+    },
+    "pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "正则源文本；保存时用 new RegExp(pattern, flags) 试编译"
+    },
+    "flags": {
+      "type": "string",
+      "description": "正则 flags，允许 gimsuy 的子集"
+    },
+    "replacement": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "stage",
+    "pattern",
+    "flags",
+    "replacement",
+    "enabled"
+  ],
+  "$defs": {
+    "CleaningStage": {
+      "type": "string",
+      "enum": [
+        "read_problem",
+        "solve",
+        "answers",
+        "steps",
+        "scene_code",
+        "worldbook",
+        "distill"
+      ],
+      "title": "§12 stage 枚举（有模型文本产出的阶段）"
+    }
+  },
+  "x-od-contract": {
+    "id": "cleaning-rule",
+    "rootType": "CleaningRule",
+    "generatedFrom": "contracts/spec/contract-fields.mjs",
+    "frozenBy": "物理解题动画软件 v1.0 自研方案 §3 / §9 / §11.1 / §12"
+  }
+}

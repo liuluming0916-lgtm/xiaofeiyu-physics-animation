@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/cleaning-rule-set.schema.json",
+  "title": "清洗规则表（§12 / §16）",
+  "description": "按列表从上到下执行；内置规则保留必需的最小集（剥代码围栏 + 去首尾空白）。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "od-cleaning-rules"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CleaningRule"
+      },
+      "maxItems": 300
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "rules"
+  ],
+  "$defs": {
+    "CleaningRule": {
+      "$ref": "https://open-design.local/contracts/cleaning-rule.schema.json"
+    }
+  },
+  "x-od-contract": {
+    "id": "cleaning-rule-set",
+    "rootType": "CleaningRuleSet",
+    "generatedFrom": "contracts/spec/contract-fields.mjs",
+    "frozenBy": "物理解题动画软件 v1.0 自研方案 §3 / §9 / §11.1 / §12"
+  }
+}

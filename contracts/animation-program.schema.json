@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/animation-program.schema.json",
+  "title": "AnimationProgram（唯一事实来源）",
+  "description": "§3.6 AnimationProgram。slots 恰好含 §3.2 的 8 个冻结键名，缺一不可；键名大小写敏感；required 覆盖全部 8 项且顺序即冻结键序。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "od-animation-program"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "templateVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "模板版本，Provenance 口径之一"
+    },
+    "sdkVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PROBLEM": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "STEPS": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "ANSWERS": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "VIEW": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "setup": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "stateAt": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "drawFrame": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        },
+        "readouts": {
+          "type": "string",
+          "minLength": 1,
+          "title": "槽位代码/正文（非空字符串；空串视为该槽位缺失，不得静默通过）"
+        }
+      },
+      "required": [
+        "PROBLEM",
+        "STEPS",
+        "ANSWERS",
+        "VIEW",
+        "setup",
+        "stateAt",
+        "drawFrame",
+        "readouts"
+      ],
+      "title": "§3.2 冻结键序（8 个，大小写敏感）"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "templateVersion",
+    "sdkVersion",
+    "slots"
+  ],
+  "$defs": {
+    "SlotKeyName": {
+      "type": "string",
+      "enum": [
+        "PROBLEM",
+        "STEPS",
+        "ANSWERS",
+        "VIEW",
+        "setup",
+        "stateAt",
+        "drawFrame",
+        "readouts"
+      ],
+      "title": "§3.2 冻结键名"
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "生成模型标识，未接模型时可写 \"handwritten\""
+        },
+        "promptHash": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Prompt 集合哈希（本期手写题为 \"handwritten\""
+        },
+        "worldbookHash": {
+          "type": "string",
+          "minLength": 1,
+          "description": "世界书集合哈希（本期为 \"handwritten\""
+        },
+        "generatedAt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ISO 8601 时间戳"
+        },
+        "sdkVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "templateVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "model",
+        "promptHash",
+        "worldbookHash",
+        "generatedAt"
+      ],
+      "title": "Provenance（必须烧录进导出 HTML）"
+    }
+  },
+  "x-od-contract": {
+    "id": "animation-program",
+    "rootType": "AnimationProgram",
+    "generatedFrom": "contracts/spec/contract-fields.mjs",
+    "frozenBy": "物理解题动画软件 v1.0 自研方案 §3 / §9 / §11.1 / §12"
+  }
+}

@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 第 3 期前端基础样式。§15 的交互硬要求里"所有可聚焦元素有清晰 focus 环"
+   在这一层统一兜底，避免每个组件各自实现一遍而漏掉。 */
+@layer base {
+  :focus-visible {
+    outline: 2px solid theme('colors.blue.600');
+    outline-offset: 2px;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+    /* 第 8 期（用户定案）：内容用宋体 + Times New Roman。
+       `Times New Roman` 在前 ⇒ 拉丁与数字用 Times，汉字回退宋体。 */
+    font-family: 'Times New Roman', 'SimSun', STSong, 'Songti SC', Georgia, serif;
+  }
+
+  /* 控件仍用黑体：宋体做按钮在屏幕上笔画太细、边界不清（用户选的是"更清楚的那个"方案） */
+  button,
+  input,
+  select,
+  textarea {
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  }
+}
+
+/* ── 构建期预渲染公式（与 15 个成品页同一套 MathJax 产物） ──────────────
+   对齐规则照抄模板页：MathJax 的基线对齐写在 <mjx-container style="vertical-align: …"> 上，
+   `markdown.tsx` 会把它接到外层 span，这里只管不去破坏它。 */
+@layer components {
+  .tex-svg {
+    display: inline-block;
+    line-height: 0;
+    max-width: 100%;
+  }
+
+  .tex-svg svg {
+    max-width: 100%;
+    height: auto;
+    /* 长公式不要撑破容器（物理题里 \frac 套 \frac 很容易超宽） */
+    overflow: visible;
+  }
+
+  /* 独立行公式：居中 + 一点上下留白 */
+  .tex-block {
+    @apply my-3 text-center;
+  }
+
+  /* 未预渲染的兜底：**明确标出来**，不静默降级成"看起来像公式的东西"。
+     用琥珀色底 + 等宽字体，与正文区分，并带 title 提示"未预渲染"。 */
+  .tex-raw {
+    @apply rounded bg-amber-50 px-1 font-mono text-[0.92em] text-amber-900;
+    border-bottom: 1px dashed theme('colors.amber.400');
+  }
+
+  /* ── 设置页的表单基础样式（第 5 期） ──────────────────────────────
+     第 5 期落地的世界书管理器有 14 个字段控件；把这些重复的类名收成两个组件类，
+     避免"每个控件各写一遍、其中几个漏了 focus 环"。第 6 期的 Prompt / 清洗 /
+     端点编辑器可以直接复用。 */
+  .input {
+    @apply mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs text-slate-800;
+  }
+
+  .label {
+    @apply block text-[11px] font-medium text-slate-600;
+  }
+}

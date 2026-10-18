@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/endpoint.schema.json",
+  "title": "端点与分阶段模型配置（§11.1）",
+  "description": "§11.1 字段 + §11.2 校验规则的可表达部分。HTTPS/无凭据/无查询参数/无片段/id 合法且不重复/≤300 项/apiKeyModelId 必须指向已存在端点且不得成环/stageModels 引用必须存在/distill 视觉门控——这些是跨字段约束，JSON Schema 层只表达字段形状；跨字段部分由 contracts/validate.mjs 的 validateEndpointConfig 实现（第 3 期第 1 步补齐；逐条取证见 tests/contract-validator-selftest.mjs）。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Endpoint"
+      },
+      "maxItems": 300
+    },
+    "stageModels": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": "阶段 → 端点 id；未配置的阶段为 null"
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "端点 id → 明文 Key（本机配置文件；永不写入日志/导出包/复现包）"
+    },
+    "keysEncrypted": {
+      "type": "boolean",
+      "default": false,
+      "description": "§11.2 扩展位：keys 预留 encrypted:true 分支（本期不实现，字段形状先冻结）"
+    },
+    "configVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "导入时校验版本，不支持版本明确拒绝"
+    }
+  },
+  "required": [
+    "endpoints",
+    "stageModels",
+    "keys"
+  ],
+  "$defs": {
+    "PipelineStage": {
+      "type": "string",
+      "enum": [
+        "read_problem",
+        "solve",
+        "answers",
+        "steps",
+        "scene_code",
+        "dry_run",
+        "repair",
+        "worldbook",
+        "distill"
+      ],
+      "title": "§2.3 主链路阶段枚举（stageModels 的键）"
+    },
+    "Endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "description": "只能字母/数字/点/下划线/连字符"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseURL": {
+          "type": "string",
+          "minLength": 1,
+          "description": "必须 HTTPS；http://127.0.0.1 与 http://localhost 例外（本地推理）"
+        },
+        "defaultModel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visionModel": {
+          "type": "string",
+          "description": "可选；留空则用 defaultModel 做视觉请求"
+        },
+        "apiKeyModelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "supportsJsonMode": {
+          "type": "boolean"
+        },
+        "supportsVision": {
+          "type": "boolean"
+        },
+        "enableThinking": {
+          "type": "boolean"
+        },
+        "preserveThinking": {
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000
+        }
+      },
+      "required": [
+        "id",
+        "displayName",
+        "baseURL",
+        "defaultModel",
+        "apiKeyModelId",
+        "supportsJsonMode",
+        "supportsVision",
+        "enableThinking",
+        "preserveThinking",
+        "timeoutMs"
+      ],
+      "title": "端点"
+    }
+  },
+  "x-od-contract": {
+    "id": "endpoint",
+    "rootType": "EndpointConfig",
+    "generatedFrom": "contracts/spec/contract-fields.mjs",
+    "frozenBy": "物理解题动画软件 v1.0 自研方案 §3 / §9 / §11.1 / §12"
+  }
+}

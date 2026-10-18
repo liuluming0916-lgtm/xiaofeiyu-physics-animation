@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────
+# .gitignore（第 9 期 · v1.1.2 开源版）
+#
+# 原则：**仓库里只放"人写的源码"**。凡是"跑一条命令就能重建"的、
+# 或者"不该随仓库分发"的（第三方素材、用户数据、密钥、产物），一律不入库。
+#
+# ⚠ 两条写 .gitignore 的硬规矩（都踩过）：
+#   ① **行尾不许写注释** —— `path  # 说明` 里的 `# 说明` 会被当成模式的一部分，
+#      于是 `ai-rules/keys.json` 这种"带注释的写法"根本挡不住密钥（实测漏了两个）。
+#      注释只能单独占一行。
+#   ② 换行由 `.gitattributes` 统一成 LF，不靠 `core.autocrlf` —— 见那个文件的说明。
+# ─────────────────────────────────────────────────────────────
+
+# ── 依赖 ──
+node_modules/
+web/node_modules/
+.pnpm-store/
+
+# ── 构建与发布产物（跑 tools/ 下脚本可重建）──
+release/
+web/dist/
+template/build/
+*.zip
+
+# ── 运行期数据 ──
+exports/
+observability/
+distill-sessions/
+*.db
+*.db-journal
+
+# ── ★ 密钥：永不入库（单独占行，别加注释）──
+ai-rules/keys.json
+
+# ── 用户层词条（用户自己的私有内容，不是源码）──
+ai-rules/worldbook/
+
+# ── 第三方教学素材：不随仓库分发（版权原因，见 README §20.10）──
+第5期世界书知识库参照/
+笔记电子版/
+测试用题目/
+_retired-worldbook/
+
+# ── 本机缓存与工具目录 ──
+.npm-cache/
+DB.Browser/
+.preview-cache/
+_preview-history/
+_preview-label-avoid/
+tests/reports/
+tests/.tmp/
+
+# ── 日志与临时探针 ──
+*.log
+
+# ── 编辑器 / 系统 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

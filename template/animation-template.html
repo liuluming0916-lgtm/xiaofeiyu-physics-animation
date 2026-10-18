@@ -1,0 +1,1891 @@
+<!doctype html>
+<!--
+  物理解题动画 · 模板页骨架（§3.1 / §13 / §29 M29）
+
+  构建方式：template/build-template.mjs 读取本文件，注入两段内容后产出单文件 HTML：
+    · OD_RUNTIME 占位符    ← sdk/runtime/animation-runtime.mjs（去掉 export 的浏览器版）
+    · OD_PROGRAM 占位符    ← AnimationProgram 的 slots（8 键名，数据型为 JSON）
+
+  ⚠ 这里**故意不写完整的占位符**（不写那对注释定界符）：构建脚本按字面量全局替换，
+    写在这里会把 60 KB 的运行时代码也塞进这段注释里 —— 每个成品页白白多 60 KB，
+    而且一旦运行时源码里出现 HTML 注释的结束标记，还会把注释提前闭合。
+    占位符的真实写法见下方 script 块内。
+    （本文件此前就踩过这个坑：成品页 340 KB 里有 62 KB 是注释里重复注入的运行时。
+      写这段说明时我又踩了第二个坑：说明文字里直接写出注释结束标记，注释当场被截断 —— 已改写。）
+
+  硬性要求（§3.1）：
+    · 三栏，顺序不可调换：左 .col-problem（原题）/ 中 .col-steps（分步解析）/ 右 .col-animation
+    · 解析栏禁止内部滚动；公式容器不得出现横向溢出（scrollWidth - clientWidth === 0）
+    · 必须有数据面板：当前步骤标题 + 说明 + 实时读数网格
+    · 播放控件在模板页内：播放/暂停、上一步、下一步、重置、时间轴滑块、倍速下拉（0.25×–4×）
+    · 模板页自包含：无外部请求
+  视觉口径（设计系统 seed）：
+    · 背景 / 表面 / 文字 / 弱化 / 描边 / 强调 六个 OKLch token 绑在 :root
+    · 显示字体 = 衬线（题面与步骤标题，教科书感）；正文 = 系统无衬线；数字 = 等宽
+    · 强调色每屏最多两次（当前步骤标记 + 主播放按钮）
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>物理解题动画 · __OD_TITLE__</title>
+<style>
+  :root {
+    /* 六个 token：唯一允许出现颜色字面量的地方 */
+    --bg:      oklch(98.2% 0.004 250);
+    --surface: oklch(100% 0 0);
+    --fg:      oklch(25.5% 0.021 250);
+    --muted:   oklch(52% 0.017 250);
+    --border:  oklch(90.5% 0.008 250);
+    --accent:  oklch(47% 0.088 235);
+
+    --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+    --fg-soft:     color-mix(in oklch, var(--fg) 5%, transparent);
+    --warn:        oklch(52% 0.13 70);
+
+    /* ── 字体（用户 2026-10-17 定案：汉字宋体、英文与数字 Times New Roman）──
+       写法是 `Times New Roman` 在前、`SimSun` 在后：
+       浏览器**逐字符**回退，所以拉丁字母与数字用 Times、汉字回退到宋体，
+       一行 CSS 同时满足两条要求（反过来写，汉字与英文都会用宋体的拉丁字形，Times 白配了）。
+       ⚠ 宋体在 11–12px 会发虚，所以 §下面把内容区的最小字号抬到 12px，且正文用 14–15.5px。 */
+    --font-display: 'Times New Roman', 'SimSun', STSong, 'Songti SC', 'Noto Serif SC', Georgia, serif;
+    --font-body:    'Times New Roman', 'SimSun', STSong, 'Songti SC', 'Noto Serif SC', Georgia, serif;
+    --font-mono:    ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+    /* 交互控件（按钮 / 页签 / 开关）保留黑体：宋体做控件在屏幕上太细，认不出边界。
+       这是用户选的"更清楚的那个"方案。 */
+    --font-ui:      -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+
+    --fs-problem: 15.5px;
+    --fs-step-title: 16px;
+    --fs-body: 14px;
+    --fs-meta: 12px;
+    --scale: 1;           /* 讲解模式预留位（§22 第 5 条）：只暴露变量，不做 UI */
+    /* 第 7 期：图表高度 + "画布以外要占掉的竖向空间"（页头 + 内边距 + 栏头 + 播放条 +
+       开关行 + 图表头/脚 + 间隙）。画布宽度按它封顶，保证"画布 + 曲线图"能在视口里
+       同时出现、不出滚动条（用户 2026-10-17：教学时不方便）。 */
+    --chart-h: 168px;
+    /* 476 = 页头 56 + 栏头 30 + 播放条 56 + 开关行 44 + 图表头 34 + 图表脚 22 +
+       两段间隙 10 + 版心上下内边距 34 + 预留 40px 余量（宁可画布小一点，也别出滚动条）。
+       如果哪天还是出滚动条，只需要调这一个数。 */
+    --chrome-h: 476px;
+    --gap-xs: 6px;
+    --gap-sm: 10px;
+    --gap-md: 16px;
+    --gap-lg: 24px;
+    --radius: 8px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* 控件用黑体（--font-ui）：宋体做按钮/页签，屏幕上笔画太细、边界不清 */
+  button, select, input { font: inherit; font-family: var(--font-ui); color: inherit; }
+  button { cursor: pointer; }
+  h1, h2, h3 { margin: 0; font-weight: 600; }
+
+  /* ── 页头 ───────────────────────────────────────────────── */
+  .pagehead {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in oklch, var(--bg) 94%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .pagehead-inner {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: var(--gap-md); padding: 11px 22px; max-width: 1600px; margin-inline: auto;
+  }
+  .pagehead h1 { font-family: var(--font-display); font-size: 17px; letter-spacing: -0.01em; }
+  .pagehead .meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .pagehead .prov { color: var(--muted); }
+
+  /* 栏位显隐开关（§15 的"不重复主 CTA"之外的第二层：让用户自己决定看什么） */
+  .head-right { display: flex; align-items: center; gap: var(--gap-md); }
+  .colswitch { display: flex; align-items: center; gap: 11px; font-family: var(--font-ui); font-size: 12px; color: var(--muted); }
+  .colswitch label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+  .colswitch label:hover { color: var(--fg); }
+  .colswitch input { accent-color: var(--accent); width: 13px; height: 13px; }
+  .colswitch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 860px) { .colswitch { display: none; } }
+
+  /* ── 三栏（可显隐）─────────────────────────────────────────
+     ⚠ 为什么用 flex 而不是 grid：三栏要能**自由隐藏**，隐藏后剩下的栏要自动变大。
+     grid 的 `grid-template-columns` 是**固定轨道数**——把某一栏 display:none 之后，
+     它的轨道还占着位置，只剩一条空列；flex 则是按"还在流里的子项"分配主轴，
+     隐藏一栏 ⇒ 另外两栏按 5:7:10 的同比例自动吃满。*/
+  .board {
+    display: flex;
+    gap: var(--gap-lg);
+    max-width: 1600px;
+    margin-inline: auto;
+    padding: 14px 22px 20px;
+    align-items: flex-start;
+  }
+  /* 两栏：左 = 导读（原题 + 分步解析合并，选项卡切换，34%）；右 = 动画与图表（其余全部）。
+     用户 2026-10-17 裁决：把"原题 / 分步解析"合并成左侧单一导读栏，
+     右侧大平层完整留给 16:9 画布与它下面的整宽曲线图。
+     ⚠ 不再用 position: sticky —— 右侧现在很高（画布 + 控件 + 图表），
+       粘住会让它的下半部分永远滚不出来。整页滚动最简单也最不会出错。 */
+  .col-text { flex: 0 0 34%; min-width: 0; }
+  .col-animation { flex: 1 1 auto; min-width: 0; }
+  @media (max-width: 1180px) {
+    .board { flex-direction: column; align-items: stretch; }
+    .col-text, .col-animation { flex: none; width: 100%; }
+  }
+
+  /* ── 导读栏的选项卡 ──────────────────────────────────────── */
+  .col-text {
+    display: flex; flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  /* ⚠ 必须显式写：`.col-text` 自己声明了 display:flex，而作者样式优先于浏览器
+     对 `[hidden]` 的默认 display:none —— 不写这一条，"隐藏导读栏"会**静默失效**。*/
+  .col-text[hidden] { display: none; }
+  /* 选项卡那一行：左边页签（可换行）＋右边"动画联动"总开关。
+     用户 2026-10-17：「直接在页面中加一个选项，功能就是能不能锁住」，随后又要求
+     名字更浅显直白 + 取消后两栏要**彻底解耦**。所以这颗勾选是唯一的总开关，
+     不再靠"点页签就偷偷锁住"那种隐含规则。 */
+  .text-head {
+    display: flex; align-items: center; gap: var(--gap-sm);
+    padding-right: 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--fg-soft);
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; flex: 1 1 auto; min-width: 0; }
+  .follow {
+    display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+    font-family: var(--font-ui);
+    font-size: 12px; color: var(--muted); white-space: nowrap;
+    padding: 4px 8px; border-radius: 6px; cursor: pointer; user-select: none;
+  }
+  .follow:hover { color: var(--fg); background: var(--surface); }
+  .follow input { accent-color: var(--accent); width: 13px; height: 13px; }
+  .follow input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tab {
+    min-height: 26px; padding: 0 9px; font-size: 12px;
+    font-family: var(--font-ui);
+    border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: var(--muted);
+  }
+  .tab:hover { background: var(--surface); color: var(--fg); }
+  .tab[aria-selected='true'] {
+    background: var(--surface); border-color: var(--border);
+    color: var(--fg); font-weight: 600;
+  }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tab-body { padding: 12px 12px 14px; }
+  .tab-panel[hidden] { display: none; }
+  .tab-meta { margin: 0 0 8px; }
+  /* 合并后一页只有一步，步骤卡片的"卡片感"就成了卡片套卡片：
+     改成一条强调竖线 + 无边框，读起来是"一节"而不是"一张卡"。
+     仍然可点（点了跳到该步关键帧），焦点环保留。 */
+  .col-text .problem { padding: 0 2px 2px; border: 0; background: transparent; }
+  .col-text .step {
+    border: 0; border-left: 2px solid var(--border);
+    border-radius: 0; background: transparent;
+    padding: 1px 2px 1px 12px;
+  }
+  .col-text .step:hover { border-left-color: color-mix(in oklch, var(--fg) 30%, var(--border)); }
+  .col-text .step[aria-current='true'] { border-left-color: var(--accent); }
+
+  .colhead {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--gap-sm); margin-bottom: 10px;
+  }
+  .colhead h2 {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  }
+  .colhead .count { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+  /* ── 原题栏 ─────────────────────────────────────────────── */
+  .problem {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 18px 20px;
+    font-family: var(--font-display);
+    font-size: var(--fs-problem);
+    line-height: 1.78;
+  }
+  .problem p { margin: 0 0 12px; }
+  .problem p:last-child { margin-bottom: 0; }
+  .given {
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 6px 14px;
+  }
+
+  /* ── 解析栏（禁止内部滚动，整页滚动） ───────────────────── */
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step {
+    text-align: left; width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 13px 15px 15px;
+    transition: border-color 0.16s ease, background 0.16s ease;
+  }
+  .step:hover { border-color: color-mix(in oklch, var(--fg) 28%, var(--border)); }
+  .step[aria-current='true'] {
+    border-left-color: var(--accent);
+    background: color-mix(in oklch, var(--accent) 5%, var(--surface));
+  }
+  .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .step-title { font-family: var(--font-display); font-size: var(--fs-step-title); font-weight: 600; }
+  .step-time {
+    flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .step-tex { margin-top: 9px; color: var(--fg); }
+  .step-tex .tex { overflow-x: clip; overflow-wrap: anywhere; }
+
+  /* ── 动画栏 ─────────────────────────────────────────────── */
+  .stage {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  /* 画布恒为 16:9（与 §14 的 GIF 960×540 同比例）。
+     ⚠ 不再写死像素高度：写死之后"栏宽随显隐变化"时画面会被横向压扁，
+     而 canvas 的绘制缓冲是按 clientWidth 重建的（见 animation-runtime render()），
+     所以宽高比只能交给 aspect-ratio 表达，不能钉死 height。*/
+  /* 上下两段：上 = 画布 + 播放/开关，下 = 联动图表（整宽横条）。
+     ⚠ 为什么图表放在**下方整宽**而不是右侧竖条：用户 2026-10-17 看效果后裁决
+       "曲线图挪到原动画说明的地方"（原数据面板就在这个位置）。
+       放下面还有一个好处：画布宽度不再被竖条分走，动画能占满整栏。 */
+  /* 上下两段：上 = 画布 + 播放/开关，下 = 联动图表（整宽横条）。
+     ⚠ 为什么图表放在**下方整宽**而不是右侧竖条：用户 2026-10-17 看效果后裁决
+       "曲线图挪到原动画说明的地方"（原数据面板就在这个位置，现已删除）。
+       放下面还有两个好处：画布宽度不被竖条分走；图表横向越宽，时间轴越好读。 */
+  .stage-wrap { display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .stage { min-width: 0; display: flex; flex-direction: column; }
+  /* 画布恒为 16:9，但**宽度按视口高度封顶** ——
+     用户 2026-10-17：「曲线图的高度 + 动画画布的高度不应该使得网页出现滚动条，
+     教学时候不太方便」。所以画布不再无脑吃满整栏宽度：可用高度不够时它等比变小
+     （min(100%, (视口高 − 画布以外占掉的) × 16/9)），宽度变 → 高度按 16:9 跟着变。
+     ⚠ 只能这么写：`aspect-ratio` + `max-height` 会让盒子比 16:9 更扁（比例失真），
+       而 canvas 的绘制缓冲是按 clientWidth/clientHeight 重建的，扁了就是真扁。 */
+  .stage-canvas {
+    display: block;
+    width: min(100%, max(320px, calc((100vh - var(--chrome-h)) * 16 / 9)));
+    margin-inline: auto;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    background: var(--surface);
+  }
+  .stage .transport, .stage .tools { flex: 0 0 auto; }
+
+  /* ── 联动图表（动画下方整宽横条，§13.4）──────────────────────
+     独立画布 + 独立坐标系：图表不再借用物理世界坐标，因此不会被 AutoView 的取景
+     推到动画身上（这是"图表贴着动画"的根因，见 animation-runtime 第 98–107 行）。*/
+  .chart-panel {
+    min-width: 0;
+    display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .chart-panel[hidden] { display: none; }
+  .chart-head {
+    display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-sm);
+    padding: 7px 8px 7px 11px; border-bottom: 1px solid var(--border);
+  }
+  .chart-title {
+    font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+    white-space: nowrap;
+  }
+  .chart-picks { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+  .chart-pick {
+    min-height: 24px; padding: 0 9px; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface); color: var(--muted);
+  }
+  .chart-pick:hover { border-color: color-mix(in oklch, var(--fg) 30%, var(--border)); color: var(--fg); }
+  .chart-pick[aria-pressed="true"] {
+    border-color: var(--accent); color: var(--accent);
+    background: var(--accent-soft); font-weight: 600;
+  }
+  .chart-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* 图表高度固定：整宽横条下高度必须由我们定死，否则会被 flex 拉成一片空画布。
+     168px 是跟画布一起"挤进一屏"算出来的（见 --chrome-h 的注释）。 */
+  .chart-canvas { display: block; width: 100%; height: var(--chart-h); }
+  .chart-foot {
+    margin: 0; padding: 3px 11px 6px;
+    font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+  }
+  @media (max-width: 1180px) {
+    .chart-canvas { height: 148px; }
+  }
+
+  .transport {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-sm);
+    padding: 10px 12px; border-top: 1px solid var(--border);
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 36px; min-width: 40px; padding: 0 12px;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface); color: var(--fg);
+    font-size: 13px; font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { background: var(--fg-soft); border-color: color-mix(in oklch, var(--fg) 30%, var(--border)); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: oklch(99% 0 0); }
+  .btn-primary:hover { background: color-mix(in oklch, var(--accent) 86%, black); border-color: color-mix(in oklch, var(--accent) 86%, black); }
+  .btn-icon { padding: 0; width: 40px; }
+  .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+  .scrub { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 180px; }
+  .scrub input[type='range'] { flex: 1; accent-color: var(--accent); min-height: 24px; }
+  .timecode { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rate { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .rate select {
+    min-height: 36px; padding: 0 8px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface); font-size: 13px; color: var(--fg);
+  }
+
+  .tools {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+    padding: 9px 12px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .tools fieldset { display: flex; align-items: center; gap: 8px; border: 0; margin: 0; padding: 0; }
+  .tools legend { display: none; }
+  .tools label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--fg); }
+  .tools input[type='checkbox'] { accent-color: var(--accent); width: 15px; height: 15px; }
+  .tools .sep { width: 1px; height: 18px; background: var(--border); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* ── 矢量图例（第 8 期「方案 A」）───────────────────────────────
+     画面里不再写任何文字（说明/数值/矢量标签都不写），所以"这个箭头是什么"
+     必须由**画布外**的图例回答：颜色 + 长度。
+     色值必须与 `sdk/runtime/animation-runtime.mjs` 的 `DEFAULT_THEME` 一致，
+     门禁 ㊲ 会逐字比对（硬编码两处就会漂，漂了等于没有图例）。 */
+  .vsw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
+  .legend-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+    padding: 7px 12px 9px; border-top: 1px dashed var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .legend-row b { font-weight: 600; color: var(--fg); }
+  .legend-row .item { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* 运行期提示（空壳 / 装载失败）——数据面板删除后它仍必须存在 */
+  .notice {
+    margin-top: 12px; padding: 9px 12px; border-radius: var(--radius);
+    background: color-mix(in oklch, var(--warn) 10%, var(--surface));
+    border: 1px solid color-mix(in oklch, var(--warn) 34%, var(--border));
+    color: color-mix(in oklch, var(--warn) 78%, var(--fg));
+    font-size: 12px;
+  }
+  .notice[hidden] { display: none; }
+
+  /* ── 公式渲染 ──────────────────────────────────────────────
+     首选：构建期 MathJax 预渲染的 SVG（.tex-svg）
+     兜底：内置 ODTex 行内渲染（.tex-fallback） */
+  .tex { font-family: var(--font-display); white-space: normal; }
+  .tex-svg { display: inline-block; vertical-align: -0.24em; line-height: 0; }
+  .tex-svg svg { max-width: 100%; height: auto; }
+  .tex-fallback i { font-style: italic; }
+  .tex-fallback sup, .tex-fallback sub { font-size: 0.72em; }
+  .tex-fallback .frac {
+    display: inline-flex; flex-direction: column; vertical-align: -0.42em;
+    text-align: center; margin: 0 0.16em; line-height: 1.08;
+  }
+  .tex-fallback .frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 0.22em; }
+  .tex-fallback .frac > span:last-child { padding: 0 0.22em; }
+  .tex-fallback .op { padding: 0 0.14em; }
+  .tex .raw, .raw { font-family: var(--font-mono); font-size: 0.9em; }
+  #od-mathjax-glyphs { position: absolute; width: 0; height: 0; overflow: hidden; }
+</style>
+</head>
+<body>
+<!--__OD_TEX_GLYPHS__-->
+<header class="pagehead" data-od-id="pagehead">
+  <div class="pagehead-inner">
+    <h1 data-od-id="page-title">__OD_TITLE__</h1>
+    <div class="head-right">
+      <div class="colswitch" data-od-id="col-toggles" role="group" aria-label="栏位显示">
+        <label><input type="checkbox" data-col="text" checked /> 导读</label>
+        <label><input type="checkbox" data-col="animation" checked /> 动画</label>
+      </div>
+      <span class="meta" data-od-id="page-meta">
+        <span data-od-id="meta-steps">— 步</span> ·
+        <span data-od-id="meta-duration">— s</span> ·
+        <span class="prov" data-od-id="meta-provenance">__OD_PROVENANCE__</span>
+      </span>
+    </div>
+  </div>
+</header>
+
+<main class="board" id="board">
+  <section class="col-text" data-od-id="col-text" aria-label="题目与解析">
+    <div class="text-head" data-od-id="text-head">
+      <!-- 选项卡：原题 + 每步一个（由 buildTabs 按 STEPS 生成） -->
+      <div class="tabs" data-od-id="text-tabs" role="tablist" aria-label="题目与解析切换" data-follow="on"></div>
+      <!-- "动画联动"总开关（原来叫"跟随"，用户 2026-10-17 要求换成更直白的名字）：
+           勾上 = 两栏联动：点页签会跳到该步关键帧、播放/拖时间轴也会自动翻页签；
+           取消 = 两栏**彻底解耦**：点页签只换文字，动画一动不动；播放也不翻页签。
+           状态同时写在 text-tabs 的 data-follow 上，所以门禁能直接断言。 -->
+      <label class="follow" title="勾上：点页签会跳到该步动画，播放也会自动翻页签；取消：两栏彻底分开、互不影响">
+        <input type="checkbox" data-od-id="follow-toggle" checked /> 动画联动
+      </label>
+    </div>
+    <div class="tab-body">
+      <div class="tab-panel" data-od-id="col-problem" role="tabpanel">
+        <p class="count tab-meta" data-od-id="problem-mode">—</p>
+        <div class="problem" data-od-id="problem-body"></div>
+        <div class="given" data-od-id="problem-given" hidden></div>
+      </div>
+      <div class="tab-panel" data-od-id="col-steps" role="tabpanel" hidden>
+        <p class="count tab-meta" data-od-id="steps-count">— 步</p>
+        <div class="steps" data-od-id="steps-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="col-animation" data-od-id="col-animation" aria-labelledby="h-animation">
+    <div class="colhead">
+      <h2 id="h-animation">动画与图表</h2>
+      <span class="count" data-od-id="animation-view">世界坐标</span>
+    </div>
+
+    <div class="stage-wrap" data-od-id="stage-wrap">
+      <div class="stage" data-od-id="stage">
+        <canvas class="stage-canvas" data-od-id="stage-canvas" width="960" height="540" aria-label="物理解题动画画布"></canvas>
+
+      <div class="transport" data-od-id="transport" role="group" aria-label="播放控制">
+        <button class="btn btn-icon" data-od-id="btn-prev-step" type="button" title="上一步（跳到该步起点）" aria-label="上一步">⏮</button>
+        <button class="btn btn-primary" data-od-id="btn-play" type="button" aria-label="播放">播放</button>
+        <button class="btn btn-icon" data-od-id="btn-next-step" type="button" title="下一步（跳到该步终点）" aria-label="下一步">⏭</button>
+        <button class="btn btn-icon" data-od-id="btn-reset" type="button" title="重置到 t = 0" aria-label="重置">⟲</button>
+
+        <div class="scrub">
+          <input type="range" data-od-id="timeline" min="0" max="1" step="0.001" value="0" aria-label="时间轴" />
+          <span class="timecode" data-od-id="timecode">0.00 / 0.00 s</span>
+        </div>
+
+        <div class="rate">
+          <label for="rate-select">倍速</label>
+          <select id="rate-select" data-od-id="rate-select">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="tools" data-od-id="vector-tools">
+        <fieldset>
+          <legend>矢量开关</legend>
+          <label><input type="checkbox" data-mask="velocity" checked /> <span class="vsw" style="background:#2e7d32"></span> 速度</label>
+          <label><input type="checkbox" data-mask="acceleration" checked /> <span class="vsw" style="background:#15529e"></span> 加速度</label>
+          <label><input type="checkbox" data-mask="force" checked /> <span class="vsw" style="background:#b3382f"></span> 受力</label>
+        </fieldset>
+        <span class="sep" aria-hidden="true"></span>
+        <fieldset>
+          <legend>辅助</legend>
+          <label><input type="checkbox" data-mask="trace" checked /> 轨迹虚线</label>
+          <label><input type="checkbox" data-mask="grid" checked /> 坐标网格</label>
+          <label><input type="checkbox" data-mask="chart" checked /> 曲线图</label>
+        </fieldset>
+      </div>
+
+      <!-- 矢量图例（画布外；第 8 期方案 A：画面里不再写文字，含义靠颜色 + 长度） -->
+      <div class="legend-row" data-od-id="vector-legend">
+        <b>矢量说明</b>
+        <span class="item"><span class="vsw" style="background:#2e7d32"></span> 绿 = 速度</span>
+        <span class="item"><span class="vsw" style="background:#15529e"></span> 蓝 = 加速度</span>
+        <span class="item"><span class="vsw" style="background:#b3382f"></span> 红 = 受力</span>
+        <span class="item"><span class="vsw" style="background:#6b5aa6"></span> 紫 = 辅助（分量/位移）</span>
+        <span class="item">箭头越长 = 数值越大（<b>每一类各自比较</b>）</span>
+        <span class="item">某一时刻该量极小 ⇒ 画成一个点</span>
+        <span class="item">过长时按画面收缩（不裁切）</span>
+        <span class="item">画面不写数值，读数看曲线图</span>
+      </div>
+
+      <aside class="chart-panel" data-od-id="chart-panel" aria-label="联动图表" hidden>
+        <div class="chart-head">
+          <span class="chart-title" data-od-id="chart-title">曲线图</span>
+          <button class="btn btn-icon" data-od-id="btn-chart-close" type="button" title="隐藏曲线图" aria-label="隐藏曲线图">✕</button>
+        </div>
+        <div class="chart-picks" data-od-id="chart-picks" role="group" aria-label="选择曲线图纵轴物理量"></div>
+        <canvas class="chart-canvas" data-od-id="chart-canvas" aria-label="所选物理量随时间变化的曲线"></canvas>
+        <p class="chart-foot" data-od-id="chart-foot">—</p>
+      </aside>
+    </div>
+
+    <!-- 运行期提示：数据面板已按第 7 期裁决删除（用户 2026-10-17："这部分'动画说明'删掉不要"），
+         但空壳 / 装载失败的提示必须留下 —— 否则出问题时页面一片空白，比什么都难查。 -->
+    <div class="notice" data-od-id="runtime-notice" hidden></div>
+  </section>
+</main>
+
+<script>
+/*__OD_RUNTIME__*/
+</script>
+
+<script>
+/*__OD_LABEL_AVOID__*/
+</script>
+
+<script>
+/*__OD_TEX_RENDERER__*/
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var PROGRAM_DATA = /*__OD_PROGRAM__*/;
+  var RT = window.ODRuntime;
+
+  /* §3.2 的 8 个冻结键名（宿主注入 `program` 时用来校验，见 contracts/host-protocol.md §3） */
+  var SLOT_KEYS = ['PROBLEM', 'STEPS', 'ANSWERS', 'VIEW', 'setup', 'stateAt', 'drawFrame', 'readouts'];
+  /* 重入闸：`program` 注入要重新 boot，而 boot 本身会给宿主发 ready，避免并发重入 */
+  var booting = false;
+  /* 宿主消息监听**只挂一次**（挂在脚本初始化处，见文件末尾）。
+     早先的写法是在 boot 成功后调用 bindHost()，那有个致命后果：
+     **空壳模板永远 boot 不成功 ⇒ 永远收不到宿主的 `program` 消息 ⇒ 路径 B 完全不可用。** */
+  var hostBound = false;
+  /* state 心跳的定时器句柄：重复 boot 时必须清掉上一个，否则会有多个心跳并发 */
+  var stateTimer = null;
+
+  var els = {
+    problemBody: document.querySelector('[data-od-id="problem-body"]'),
+    problemGiven: document.querySelector('[data-od-id="problem-given"]'),
+    problemMode: document.querySelector('[data-od-id="problem-mode"]'),
+    stepsList: document.querySelector('[data-od-id="steps-list"]'),
+    stepsCount: document.querySelector('[data-od-id="steps-count"]'),
+    metaSteps: document.querySelector('[data-od-id="meta-steps"]'),
+    metaDuration: document.querySelector('[data-od-id="meta-duration"]'),
+    canvas: document.querySelector('[data-od-id="stage-canvas"]'),
+    btnPlay: document.querySelector('[data-od-id="btn-play"]'),
+    btnPrev: document.querySelector('[data-od-id="btn-prev-step"]'),
+    btnNext: document.querySelector('[data-od-id="btn-next-step"]'),
+    btnReset: document.querySelector('[data-od-id="btn-reset"]'),
+    timeline: document.querySelector('[data-od-id="timeline"]'),
+    timecode: document.querySelector('[data-od-id="timecode"]'),
+    rate: document.querySelector('[data-od-id="rate-select"]'),
+    masks: Array.prototype.slice.call(document.querySelectorAll('[data-mask]')),
+    /* 联动图表（动画下方整宽横条）：画布、标题、量选择、读数脚注、关闭按钮 */
+    chartPanel: document.querySelector('[data-od-id="chart-panel"]'),
+    chartCanvas: document.querySelector('[data-od-id="chart-canvas"]'),
+    chartTitle: document.querySelector('[data-od-id="chart-title"]'),
+    chartPicks: document.querySelector('[data-od-id="chart-picks"]'),
+    chartFoot: document.querySelector('[data-od-id="chart-foot"]'),
+    btnChartClose: document.querySelector('[data-od-id="btn-chart-close"]'),
+    /* 三栏显隐（页头两个复选框：导读 / 动画） */
+    board: document.getElementById('board'),
+    colInputs: Array.prototype.slice.call(document.querySelectorAll('[data-col]')),
+    /* 导读栏选项卡（原题 + 每步一个）与「动画联动」总开关 */
+    tabs: document.querySelector('[data-od-id="text-tabs"]'),
+    followToggle: document.querySelector('[data-od-id="follow-toggle"]'),
+    tabProblem: document.querySelector('[data-od-id="col-problem"]'),
+    tabSteps: document.querySelector('[data-od-id="col-steps"]'),
+    notice: document.querySelector('[data-od-id="runtime-notice"]'),
+    /* 页头元素：宿主注入 `program` 后用它把"空壳模板"改成真实题目身份（见 applyProgram） */
+    pageTitle: document.querySelector('[data-od-id="page-title"]'),
+    metaProvenance: document.querySelector('[data-od-id="meta-provenance"]')
+  };
+
+  var player = null;
+  var SIM = null;
+  var STEPS = [];
+  var answers = [];
+  var stepEls = [];
+  var lastFrame = null;
+  /* 导出时画布的原始 style（prepare/restore 成对使用，见文件末尾的 ODExportHook） */
+  var exportPrevStyle = '';
+
+  /* ── 公式渲染：三级降级链 ──────────────────────────────────────────
+     ① 构建期 MathJax 预渲染命中 → 直接内联真 MathJax SVG（首选，§2.2 的观感）
+     ② 未命中 → 内置 ODTex 行内渲染器（离线兜底，覆盖分式/上下标/希腊字母）
+     ③ 再不行 → 原文（可见但不美观，绝不空白）
+     预渲染结果来自 tools/build-tex-svg.mjs；运行期不依赖 MathJax 本体。 */
+  var TEX_SVG = (PROGRAM_DATA.texSvg && PROGRAM_DATA.texSvg.formulas) || {};
+  var TEX_SVG_RENDERER = (PROGRAM_DATA.texSvg && PROGRAM_DATA.texSvg.renderer) || null;
+
+  function preRenderedSvg(key) {
+    var markup = TEX_SVG[key];
+    if (!markup) return null;
+    var host = document.createElement('span');
+    host.className = 'tex tex-svg';
+    host.setAttribute('title', key);
+    // MathJax 输出的是受信静态标记（构建期生成），这里只做一次容器替换。
+    // 关键一点：MathJax 把基线对齐写在 <mjx-container style="vertical-align: …"> 上，
+    // 剥掉容器后必须把它接续到我们的 span 上，否则公式会与正文基线错位。
+    var vertical = /vertical-align:\s*([^;"]+)/.exec(markup);
+    host.style.verticalAlign = vertical ? vertical[1].trim() : '-0.24em';
+    host.innerHTML = markup
+      .replace(/^<mjx-container[^>]*>/, '')
+      .replace(/<\/mjx-container>$/, '');
+    return host;
+  }
+
+  function tex(text) {
+    var rendered = preRenderedSvg(text);
+    if (rendered) return rendered;
+    var out = window.ODTex ? window.ODTex.toHtml(text) : null;
+    if (out) {
+      var span = document.createElement('span');
+      span.className = 'tex tex-fallback';
+      span.setAttribute('title', text);
+      span.appendChild(out);
+      return span;
+    }
+    var raw = document.createElement('span');
+    raw.className = 'raw';
+    raw.textContent = text;
+    return raw;
+  }
+
+  /**
+   * ── 第 8 期：**混排渲染**（解释 + 公式 + 解释 + 公式）──
+   *
+   * 旧实现把整段 step.tex 当成**一条公式**交给 tex()：
+   * 于是"木板向左滑动，摩擦力 $f=\\mu mg$ 方向向左"这种混排文本被整体送进公式渲染器 ——
+   * 汉字被当成数学符号（于是"一字一行"），碰上一处不配对的右花括号还会渲染出英文报错
+   * "Extra close brace or missing open brace"。用户在导出页看到的就是这个。
+   *
+   * 现在按 $…$ 切段：文字用文本节点（浏览器自动折行），公式各自走 tex()。
+   * 规则与 web/src/lib/tex-mix.ts 同一套（含"中文句子被 $ 包住就当文字"的守卫）：
+   * 那个模块有门禁在产物上真跑，这里是同源实现（模板页是单文件、不能 import）。
+   */
+  var CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+  var PROSE_PUNCT_RE = /[，。；：？！、]/;
+
+  function looksLikeProse(body) {
+    var s = String(body || '').trim();
+    if (!s) return false;
+    var withoutGroups = s.replace(/\\[a-zA-Z]+\s*\{[^{}]*\}/g, '');
+    if (CJK_RE.test(withoutGroups)) return true;
+    if (PROSE_PUNCT_RE.test(withoutGroups)) return true;
+    if (s.length > 120 && !/\\[a-zA-Z]/.test(s)) return true;
+    return false;
+  }
+
+  function texMixed(text, host) {
+    var target = host || document.createElement('span');
+    var raw = String(text || '').trim();
+    if (!raw) return target;
+    var normalized = raw.split('$$').join('$');
+    var re = /\$([^$\n]+)\$/g;
+    var last = 0;
+    var m;
+    var any = false;
+    while ((m = re.exec(normalized)) !== null) {
+      any = true;
+      if (m.index > last) target.appendChild(document.createTextNode(normalized.slice(last, m.index)));
+      var body = (m[1] || '').trim();
+      if (looksLikeProse(body)) target.appendChild(document.createTextNode(body));
+      else target.appendChild(tex(body));
+      last = m.index + m[0].length;
+    }
+    if (!any) return tex(normalized, target);
+    if (last < normalized.length) target.appendChild(document.createTextNode(normalized.slice(last)));
+    return target;
+  }
+
+  /** 当前页公式渲染方式（用于运行期提示与 Provenance 一致性检查） */
+  function mathStatus() {
+    var keys = Object.keys(TEX_SVG);
+    var missing = [];
+    var text = String((PROGRAM_DATA.slots && PROGRAM_DATA.slots.PROBLEM) || '');
+    var parts = text.split(/(\$[^$\n]+\$)/g);
+    for (var i = 0; i < parts.length; i += 1) {
+      var p = parts[i];
+      if (p && p.length > 2 && p.charAt(0) === '$' && p.charAt(p.length - 1) === '$') {
+        var inner = p.slice(1, -1).trim();
+        if (!TEX_SVG[inner]) missing.push(inner);
+      }
+    }
+    return { renderer: TEX_SVG_RENDERER, total: keys.length, missing: missing };
+  }
+
+  function showNotice(message) {
+    els.notice.textContent = message;
+    els.notice.hidden = false;
+  }
+
+  function buildProblem() {
+    // ⚠ 题目正文在载荷的 slots 下（`payload.slots.PROBLEM`），没有顶层 PROBLEM 字段。
+    // 之前写成 PROGRAM_DATA.PROBLEM 会让左栏整栏空白。
+    var text = String((PROGRAM_DATA.slots && PROGRAM_DATA.slots.PROBLEM) || '');
+    els.problemBody.innerHTML = '';
+    text.split(/\n{2,}/).forEach(function (paragraph) {
+      var p = document.createElement('p');
+      var parts = paragraph.split(/(\$[^$]+\$)/g);
+      parts.forEach(function (part) {
+        if (!part) return;
+        if (part.length > 2 && part[0] === '$' && part[part.length - 1] === '$') {
+          p.appendChild(tex(part.slice(1, -1)));
+        } else {
+          p.appendChild(document.createTextNode(part));
+        }
+      });
+      els.problemBody.appendChild(p);
+    });
+    if (SIM && SIM.axes && SIM.axes.length) {
+      els.problemGiven.hidden = false;
+      els.problemGiven.innerHTML = '';
+      SIM.axes.forEach(function (axis) {
+        var item = document.createElement('span');
+        item.textContent = axis.label + ' / ' + (axis.unit || '—');
+        els.problemGiven.appendChild(item);
+      });
+    }
+  }
+
+  function buildSteps() {
+    els.stepsList.innerHTML = '';
+    stepEls = STEPS.map(function (step, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'step';
+      button.setAttribute('data-od-id', 'step-' + (index + 1));
+      button.setAttribute('aria-current', 'false');
+
+      var head = document.createElement('div');
+      head.className = 'step-head';
+      var title = document.createElement('span');
+      title.className = 'step-title';
+      title.textContent = step.title;
+      var time = document.createElement('span');
+      time.className = 'step-time';
+      time.textContent = step.t0.toFixed(2) + '–' + step.t1.toFixed(2) + ' s';
+      head.appendChild(title);
+      head.appendChild(time);
+      button.appendChild(head);
+
+      var body = document.createElement('div');
+      body.className = 'step-tex';
+      body.appendChild(texMixed(step.tex));   // 第 8 期：混排（解释 + 公式），不再整段当公式
+      button.appendChild(body);
+
+      button.addEventListener('click', function () { seek(step.t0); });
+      els.stepsList.appendChild(button);
+      return button;
+    });
+    els.stepsCount.textContent = STEPS.length + ' 步';
+    els.metaSteps.textContent = STEPS.length + ' 步';
+  }
+
+  /**
+   * 当前时刻落在第几步。
+   *
+   * ⚠ 必须用「t ≥ 该步 t0」的**左闭**判定，并且从后往前找：
+   * 之前写成 `t0 - ε ≤ t ≤ t1 + ε` 且从前往后找，于是恰好停在边界（t = 该步 t1 = 下一步 t0）时
+   * 永远返回**上一步**，导致"下一步"按钮点一下之后再点就没反应（本题集 15 题全中）。
+   */
+  function indexOfStep(t) {
+    for (var i = STEPS.length - 1; i >= 0; i -= 1) {
+      if (t >= STEPS[i].t0 - 1e-9) return i;
+    }
+    return 0;
+  }
+
+  /**
+   * 高亮"当前时刻落在第几步"。
+   *
+   * 第 7 期：原来这里还要往"数据面板"里写步标题、步区间、本步结论与逐步读数卡片；
+   * 用户 2026-10-17 看效果后裁决把那整块删掉（"这部分'动画说明'删掉不要"），
+   * 位置让给联动图表。于是这里**只保留步骤高亮**这一件仍需要在纯动画页上生效的事。
+   */
+  function paintPanel(_frame, stepIndex) {
+    stepEls.forEach(function (el, i) { el.setAttribute('aria-current', i === stepIndex ? 'true' : 'false'); });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     联动图表（§13.4 / M15）
+     ──────────────────────────────────────────────────────────────
+     数据源 = 与画布**同一份** `readouts(t)` 采样（Dry-Run 也读它，§7.5）。
+     横轴恒为 t；纵轴可在本题的读数里切换（"任意自定义量"就在这儿）。
+
+     ⚠ 为什么不沿用 `Draw.axisBox` / `Draw.chart`：那两个原语的坐标是**物理世界坐标**，
+       而 AutoView 又**有意**把它们排除在包络外（animation-runtime 第 98–107 行，算进去
+       会把主画面压到 ~45%）。结果是模型写下的图表坐标没有任何版面含义 —— q01 的图从
+       x=3.35 开始、皮带画到 4.70，图表就直接压在动画身上。这里改成独立画布 + 独立
+       坐标系，位置由 flex 版面决定，与物理坐标彻底解耦。
+
+     性能：序列只在装载时采样一次（180 点），逐帧只画游标；**不**在每帧重采样。
+     ══════════════════════════════════════════════════════════════ */
+  var CHART_SAMPLES = 180;
+  var CHART_INK = {
+    axis: '#c9d2db',
+    grid: '#eef1f4',
+    text: '#5d6b7a',
+    curve: '#1f6fb2',
+    fill: 'rgba(31,111,178,0.13)',
+    cursor: '#b3382f'
+  };
+
+  var chart = {
+    series: null, // { keys, byKey: { key: { label, unit, values: [] } }, duration }
+    ordered: [],  // 展示顺序（SIM.axes 优先）
+    key: null,    // 当前纵轴
+    note: ''      // 无法画图时的说明
+  };
+
+  /** 逐点采样 readouts(t)，得到每个物理量的时间序列 */
+  function buildChartSeries() {
+    var dur = player.duration;
+    if (!(dur > 0) || !player.program) return null;
+    var keys = [];
+    var byKey = {};
+    var total = CHART_SAMPLES + 1;
+    for (var i = 0; i < total; i += 1) {
+      var t = (dur * i) / CHART_SAMPLES;
+      var items = [];
+      try {
+        items = RT.normalizeReadouts(player.program.readouts(t, player.program.stateAt(t))) || [];
+      } catch (err) {
+        items = [];
+      }
+      for (var j = 0; j < items.length; j += 1) {
+        var it = items[j];
+        if (!it || !it.key) continue;
+        var v = it.value;
+        if (typeof v !== 'number' || !isFinite(v)) continue;
+        if (!byKey[it.key]) {
+          byKey[it.key] = {
+            label: it.label || it.key,
+            unit: it.unit || '',
+            values: new Array(total)
+          };
+          keys.push(it.key);
+        }
+        byKey[it.key].values[i] = v;
+      }
+    }
+    // 有缺点的量直接丢掉 —— 断线的曲线比没有曲线更容易骗人
+    keys = keys.filter(function (k) {
+      var vals = byKey[k].values;
+      for (var m = 0; m < vals.length; m += 1) {
+        if (typeof vals[m] !== 'number' || !isFinite(vals[m])) return false;
+      }
+      return true;
+    });
+    /* 全程不变的量也不画：一条水平直线不携带任何信息，却会让人以为"这题配了张图"
+       （典型：传送带速度 u 恒为 2 m/s）。§13.4 要的是"某个量**随时间**怎么变"。 */
+    keys = keys.filter(function (k) {
+      var vals = byKey[k].values;
+      var lo = Math.min.apply(null, vals);
+      var hi = Math.max.apply(null, vals);
+      var scale = Math.max(Math.abs(hi), Math.abs(lo), 1);
+      return hi - lo > scale * 1e-9;
+    });
+    if (!keys.length) return null;
+    return { keys: keys, byKey: byKey, duration: dur };
+  }
+
+  /** 展示顺序：先按 SIM.axes 声明的顺序，再接上没声明的读数 */
+  function preferredChartKeys(series) {
+    var out = [];
+    var declared = (SIM && SIM.axes) || [];
+    for (var i = 0; i < declared.length; i += 1) {
+      var k = declared[i] && declared[i].key;
+      if (k && series.byKey[k] && out.indexOf(k) === -1) out.push(k);
+    }
+    for (var j = 0; j < series.keys.length; j += 1) {
+      if (out.indexOf(series.keys[j]) === -1) out.push(series.keys[j]);
+    }
+    return out;
+  }
+
+  /**
+   * 默认纵轴：优先用 VIEW 里的 `SIM.chart` 声明（§13.4 的"注入时说明"，
+   * 第 7.1 期由模型/用户按题给出），没声明就退回 SIM.axes 的第一个量。
+   */
+  function defaultChartKey(series, ordered) {
+    var hint = SIM && SIM.chart;
+    if (hint && typeof hint === 'object' && typeof hint.key === 'string' && series.byKey[hint.key]) {
+      return hint.key;
+    }
+    return ordered.length ? ordered[0] : null;
+  }
+
+  /** 默认是否显示：`SIM.chart === false` 或 `{ show: false }` 表示"这题不需要曲线图" */
+  /**
+   * 曲线图**默认打开**（用户 2026-10-18 裁决："①一律默认开"）。
+   *
+   * 唯一的例外是**作者显式声明**没有图：`SIM.chart === false` 或 `SIM.chart.show === false`
+   * —— 那是这道题自己的事实，不是"上次的操作"。
+   * （旧实现里"上次关过"会通过偏好把它关回去，于是新题也看不到图；那条路已在第 8 期切断。）
+   */
+  function defaultChartVisible() {
+    var hint = SIM && SIM.chart;
+    if (hint === false) return false;
+    if (hint && typeof hint === 'object' && hint.show === false) return false;
+    return true;
+  }
+
+  function buildChartPicks() {
+    if (!els.chartPicks) return;
+    els.chartPicks.innerHTML = '';
+    chart.ordered.slice(0, 6).forEach(function (key) {
+      var item = chart.series.byKey[key];
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chart-pick';
+      btn.setAttribute('data-od-id', 'chart-pick-' + String(key).replace(/[^a-zA-Z0-9_-]/g, '_'));
+      btn.setAttribute('aria-pressed', key === chart.key ? 'true' : 'false');
+      btn.textContent = item.label || key;
+      btn.addEventListener('click', function () {
+        chart.key = key;
+        for (var i = 0; i < els.chartPicks.children.length; i += 1) {
+          els.chartPicks.children[i].setAttribute('aria-pressed', els.chartPicks.children[i] === btn ? 'true' : 'false');
+        }
+        draw();
+        persist();
+      });
+      els.chartPicks.appendChild(btn);
+    });
+  }
+
+  /** 图表面板的显隐（必须在 player.render() **之前**执行，否则画布尺寸与版面不一致一帧） */
+  function syncChartPanel() {
+    if (!els.chartPanel) return;
+    var show = !!(chart.series && chart.key) && !!(player && player.state && player.state.mask.chart !== false);
+    if (els.chartPanel.hidden === show) els.chartPanel.hidden = !show;
+  }
+
+  function chartValueAt(key, t) {
+    var s = chart.series;
+    if (!s) return null;
+    var vals = s.byKey[key].values;
+    var n = vals.length - 1;
+    if (!(s.duration > 0)) return vals[0];
+    var x = (t / s.duration) * n;
+    var i = Math.max(0, Math.min(n - 1, Math.floor(x)));
+    var f = x - i;
+    return vals[i] + (vals[i + 1] - vals[i]) * f;
+  }
+
+  /** 优先用**当前帧的真实读数**（与数据面板逐字一致），拿不到才退化成插值 */
+  function currentChartValue(key, t) {
+    if (lastFrame && lastFrame.readouts) {
+      for (var i = 0; i < lastFrame.readouts.length; i += 1) {
+        var it = lastFrame.readouts[i];
+        if (it && it.key === key && typeof it.value === 'number' && isFinite(it.value)) return it.value;
+      }
+    }
+    return chartValueAt(key, t);
+  }
+
+  /** Nice Numbers 刻度（与 SDK 的 AutoView 同一套口味：1 / 2 / 5 × 10ⁿ） */
+  function niceStep(span, count) {
+    var raw = span / Math.max(1, count);
+    if (!(raw > 0) || !isFinite(raw)) return 1;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var norm = raw / mag;
+    var mult = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return mult * mag;
+  }
+
+  function niceScale(min, max, count) {
+    if (!(max > min)) {
+      var pad0 = Math.abs(min) * 0.1 || 1;
+      min -= pad0;
+      max += pad0;
+    }
+    var step = niceStep(max - min, count);
+    var lo = Math.floor(min / step) * step;
+    var hi = Math.ceil(max / step) * step;
+    var ticks = [];
+    for (var v = lo; v <= hi + step * 1e-6; v += step) ticks.push(Number(v.toFixed(10)));
+    return { min: lo, max: hi, step: step, ticks: ticks };
+  }
+
+  function fmtTick(v, step) {
+    if (!isFinite(v)) return '—';
+    var a = Math.abs(v);
+    if (a !== 0 && (a < 1e-3 || a >= 1e5)) return v.toExponential(1).replace('e+', 'e');
+    var dec = step >= 1 ? 0 : Math.min(3, Math.max(0, Math.ceil(-Math.log(step) / Math.LN10)));
+    return v.toFixed(dec);
+  }
+
+  function drawChart() {
+    if (!chart.series || !chart.key || !els.chartPanel || els.chartPanel.hidden) return;
+    var cv = els.chartCanvas;
+    if (!cv) return;
+    var w = cv.clientWidth;
+    var h = cv.clientHeight;
+    if (!(w > 60 && h > 60)) return;
+
+    var dpr = window.devicePixelRatio || 1;
+    var bw = Math.round(w * dpr);
+    var bh = Math.round(h * dpr);
+    if (cv.width !== bw || cv.height !== bh) {
+      cv.width = bw;
+      cv.height = bh;
+    }
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var item = chart.series.byKey[chart.key];
+    var vals = item.values;
+    var vmin = Math.min.apply(null, vals);
+    var vmax = Math.max.apply(null, vals);
+    var pad = (vmax - vmin) * 0.08;
+    if (!(pad > 0)) pad = Math.max(Math.abs(vmax) * 0.1, 1e-6);
+    var scale = niceScale(vmin - pad, vmax + pad, 3);
+
+    var padL = 38;
+    var padR = 10;
+    var padT = 12;
+    var padB = 20;
+    var pw = w - padL - padR;
+    var ph = h - padT - padB;
+    if (!(pw > 20 && ph > 20)) return;
+
+    var dur = chart.series.duration;
+    function X(t) { return padL + (dur > 0 ? (t / dur) * pw : 0); }
+    function Y(v) { return padT + ph - ((v - scale.min) / (scale.max - scale.min)) * ph; }
+
+    ctx.font = '10px ui-monospace, Consolas, monospace';
+
+    // y 刻度 + 水平网格
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 1;
+    scale.ticks.forEach(function (v) {
+      var y = Y(v);
+      ctx.strokeStyle = CHART_INK.grid;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + pw, y);
+      ctx.stroke();
+      ctx.fillStyle = CHART_INK.text;
+      ctx.fillText(fmtTick(v, scale.step), padL - 5, y);
+    });
+
+    // x 刻度（时间）+ 垂直网格
+    var xs = niceScale(0, dur, 3);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    xs.ticks.forEach(function (tv) {
+      if (tv < -1e-9 || tv > dur + 1e-9) return;
+      var x = X(tv);
+      ctx.strokeStyle = CHART_INK.grid;
+      ctx.beginPath();
+      ctx.moveTo(x, padT);
+      ctx.lineTo(x, padT + ph);
+      ctx.stroke();
+      ctx.fillStyle = CHART_INK.text;
+      ctx.fillText(fmtTick(tv, xs.step), x, padT + ph + 4);
+    });
+
+    // 坐标框（只画左轴与横轴，留出干净的右上角）
+    ctx.strokeStyle = CHART_INK.axis;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + ph);
+    ctx.lineTo(padL + pw, padT + ph);
+    ctx.stroke();
+
+    // 步骤分界 = 事件时刻辅助线（§13.4）
+    ctx.save();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = CHART_INK.axis;
+    for (var s = 1; s < STEPS.length; s += 1) {
+      var xs0 = X(STEPS[s].t0);
+      ctx.beginPath();
+      ctx.moveTo(xs0, padT);
+      ctx.lineTo(xs0, padT + ph);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 曲线 + 面积
+    ctx.beginPath();
+    for (var i = 0; i < vals.length; i += 1) {
+      var ti = (dur * i) / (vals.length - 1);
+      var xi = X(ti);
+      var yi = Y(vals[i]);
+      if (i === 0) ctx.moveTo(xi, yi);
+      else ctx.lineTo(xi, yi);
+    }
+    ctx.strokeStyle = CHART_INK.curve;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.lineTo(X(dur), padT + ph);
+    ctx.lineTo(X(0), padT + ph);
+    ctx.closePath();
+    ctx.fillStyle = CHART_INK.fill;
+    ctx.fill();
+
+    // 游标：与画布同一个 t（同步的判据就是这个"同一次重绘"）
+    var tc = player.state.t;
+    var xc = X(tc);
+    ctx.strokeStyle = CHART_INK.cursor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(xc, padT);
+    ctx.lineTo(xc, padT + ph);
+    ctx.stroke();
+
+    var vc = currentChartValue(chart.key, tc);
+    if (vc !== null && isFinite(vc)) {
+      var yc = Y(vc);
+      ctx.beginPath();
+      ctx.arc(xc, yc, 2.6, 0, Math.PI * 2);
+      ctx.fillStyle = CHART_INK.cursor;
+      ctx.fill();
+      ctx.fillStyle = CHART_INK.cursor;
+      ctx.textBaseline = 'bottom';
+      ctx.textAlign = xc > padL + pw - 46 ? 'right' : 'left';
+      ctx.fillText(RT.format(vc, '', 3), xc + (ctx.textAlign === 'right' ? -4 : 4), yc - 4);
+    }
+
+    // 标题与脚注（脚注给"当前值 + 单位"，与读数面板同源）
+    if (els.chartTitle) els.chartTitle.textContent = (item.label || chart.key) + ' – t';
+    if (els.chartFoot) {
+      els.chartFoot.textContent = vc === null ? '—' : RT.format(vc, item.unit || '', 3);
+    }
+  }
+
+  /* ── 栏位显隐（导读 / 动画）─────────────────────────────────
+     用 [hidden] 把整栏移出流；因为 .board 是 flex，剩下的栏会自动吃满。*/
+  var COLUMN_SELECTORS = {
+    text: '[data-od-id="col-text"]',
+    animation: '[data-od-id="col-animation"]'
+  };
+
+  function currentColumns() {
+    var pref = { text: true, animation: true };
+    els.colInputs.forEach(function (input) {
+      pref[input.getAttribute('data-col')] = !!input.checked;
+    });
+    return pref;
+  }
+
+  /* ── 导读栏选项卡（第 7 期：原题 + 分步解析合并进左栏）────────────
+     切换规则（用户 2026-10-17 定稿，开关名叫「动画联动」）：
+       · 「动画联动」是**唯一**的总开关，它决定两栏是否**双向**联动：
+           勾上 → 点页签会跳到该步关键帧；播放/拖时间轴也会自动翻页签；
+           取消 → 两栏**彻底解耦**，两个方向都断开：
+                  点页签只换文字（动画一动不动），播放/拖时间轴也不翻页签；
+       · 装载那一刻先不联动（followArmed=false），第一眼停在"原题"，
+         第一次动时间之后才交给时间轴。 */
+  var followMode = true;
+  var followArmed = false;
+  var activeTab = null;
+
+  /** 联动 / 解耦的唯一入口：页面的「动画联动」勾选与代码里的主动开关都走这里 */
+  function setFollow(on) {
+    followMode = !!on;
+    if (els.tabs) els.tabs.setAttribute('data-follow', followMode ? 'on' : 'off');
+    if (els.followToggle) els.followToggle.checked = followMode;
+  }
+
+  /** 用户动了时间 ⇒ 允许页签跟随（**不**改变「动画联动」勾选本身） */
+  function armFollow() {
+    followArmed = true;
+  }
+
+  var followBound = false;
+  function bindFollowToggle() {
+    if (followBound || !els.followToggle) return;
+    followBound = true;
+    els.followToggle.addEventListener('change', function () {
+      setFollow(els.followToggle.checked);
+      /* 一勾上就立刻按当前时间去对一次，别等到下一帧才动 */
+      if (followMode && STEPS.length) {
+        armFollow();
+        activateTab('step-' + indexOfStep(player ? player.state.t : 0));
+      }
+    });
+  }
+
+  function buildTabs() {
+    if (!els.tabs) return;
+    els.tabs.innerHTML = '';
+    var items = [{ key: 'problem', label: '原题', stepIndex: -1 }];
+    STEPS.forEach(function (step, index) {
+      items.push({ key: 'step-' + index, label: '第 ' + (index + 1) + ' 步', stepIndex: index });
+    });
+    items.forEach(function (item) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tab';
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('data-od-id', 'tab-' + item.key);
+      btn.setAttribute('data-tab', item.key);
+      btn.setAttribute('aria-selected', 'false');
+      btn.textContent = item.label;
+      btn.addEventListener('click', function () {
+        activateTab(item.key);
+        /* ⚠ 只有「动画联动」勾着时才跳动画。
+           解耦状态（取消勾选）下点页签**只换文字**，动画一动不动 ——
+           这是用户 2026-10-17 明确指出的："这个开关应该是决定两栏是否彻底解耦的"。 */
+        if (followMode && item.stepIndex >= 0 && STEPS[item.stepIndex]) seek(STEPS[item.stepIndex].t0);
+      });
+      els.tabs.appendChild(btn);
+    });
+  }
+
+  /**
+   * 切到某一页：`problem` = 原题，`step-<i>` = 第 i 步。
+   * 步骤卡片**只显示当前这一步**（其余 hidden 移出流），这样一页就是一步，不会出现
+   * "选项卡选了第 2 步、下面却列着 5 步"的自相矛盾。
+   */
+  function activateTab(key) {
+    activeTab = key;
+    if (els.tabProblem) els.tabProblem.hidden = key !== 'problem';
+    if (els.tabSteps) els.tabSteps.hidden = key === 'problem';
+    stepEls.forEach(function (el, i) {
+      el.hidden = key === 'problem' || key !== 'step-' + i;
+    });
+    if (els.tabs) {
+      Array.prototype.forEach.call(els.tabs.children, function (btn) {
+        btn.setAttribute('aria-selected', btn.getAttribute('data-tab') === key ? 'true' : 'false');
+      });
+    }
+  }
+
+  function applyColumns(pref) {
+    Object.keys(COLUMN_SELECTORS).forEach(function (key) {
+      var el = document.querySelector(COLUMN_SELECTORS[key]);
+      if (!el) return;
+      var on = !pref || pref[key] !== false;
+      el.hidden = !on;
+      var input = document.querySelector('[data-col="' + key + '"]');
+      if (input) input.checked = on;
+    });
+  }
+
+  /* 重入闸：宿主注入 `program` 会再跑一次 bootInner，不设闸会挂两套监听 */
+  var colBound = false;
+  function bindColumnToggles() {
+    if (colBound) return;
+    colBound = true;
+    els.colInputs.forEach(function (input) {
+      input.addEventListener('change', function () {
+        applyColumns(currentColumns());
+        // 栏宽变了 ⇒ 画布尺寸变了 ⇒ 必须重画（render() 会按新的 clientWidth 重新取景）
+        if (player) draw();
+        persist();
+      });
+    });
+    if (els.btnChartClose) {
+      els.btnChartClose.addEventListener('click', function () {
+        if (!player) return;
+        player.state.mask.chart = false;
+        els.masks.forEach(function (input) {
+          if (input.getAttribute('data-mask') === 'chart') input.checked = false;
+        });
+        draw();
+        persist();
+      });
+    }
+  }
+
+  function draw() {
+    // 先在"版面定下来之后"渲染：图表面板一收一放会改画布宽度，顺序反了会差一帧。
+    syncChartPanel();
+    var out = player.render();
+    lastFrame = out;
+    var stepIndex = indexOfStep(player.state.t);
+    player.state.stepIndex = stepIndex;
+    els.timeline.value = String(player.state.t);
+    els.timecode.textContent = player.state.t.toFixed(2) + ' / ' + player.duration.toFixed(2) + ' s';
+    /* 跟随模式：播放/拖时间轴推进时自动翻到当前那一步
+       （「动画联动」取消 = 两栏解耦，页签不动；装载首帧 followArmed 为假，所以停在"原题"） */
+    if (followMode && followArmed && STEPS.length) {
+      var wantTab = 'step-' + stepIndex;
+      if (activeTab !== wantTab) activateTab(wantTab);
+    }
+    /* 第 7 期：逐步读数卡片随"数据面板"一起删除了（用户裁决），数字改由图表游标承担。 */
+    paintPanel(out, stepIndex);
+    drawChart();
+    return out;
+  }
+
+  function seek(t) {
+    player.state.t = Math.min(Math.max(t, 0), player.duration);
+    draw();
+  }
+
+  function setPlaying(next) {
+    player.state.playing = next;
+    els.btnPlay.textContent = next ? '暂停' : '播放';
+    els.btnPlay.setAttribute('aria-label', next ? '暂停' : '播放');
+  }
+
+  var lastTs = 0;
+  function loop(ts) {
+    if (player.state.playing) {
+      var dt = lastTs ? (ts - lastTs) / 1000 : 0;
+      lastTs = ts;
+      var next = player.state.t + dt * player.state.rate;
+      if (next >= player.duration) {
+        next = player.duration;
+        setPlaying(false);
+      }
+      player.state.t = next;
+      draw();
+    } else {
+      lastTs = 0;
+    }
+    window.requestAnimationFrame(loop);
+  }
+
+  function bindControls() {
+    els.btnPlay.addEventListener('click', function () {
+      /**
+       * ⚠ 第 8 期：**"差一帧也算到达结尾"**。
+       * 旧条件只判 `t >= duration`：拖到 3.19（时长 3.20）时点播放，
+       * 第一帧就跨过终点、立刻自动停 ⇒ 用户看到的是"播放键没反应"。
+       * 现在留出约一帧的余量（按当前倍速折算），靠近结尾一律从头播。
+       */
+      var guard = Math.max(0.03, 0.05 * (player.state.rate || 1));
+      if (player.state.t >= player.duration - guard) player.state.t = 0;
+      /* 用户按了播放 ⇒ 允许页签跟随时间（不改「动画联动」勾选） */
+      armFollow();
+      setPlaying(!player.state.playing);
+      draw();
+    });
+    els.btnReset.addEventListener('click', function () {
+      armFollow();
+      setPlaying(false);
+      seek(0);
+    });
+    els.btnPrev.addEventListener('click', function () {
+      armFollow();
+      var i = indexOfStep(player.state.t);
+      // 已在本步起点 ⇒ 退回上一步起点；否则先回到本步起点
+      var target = i > 0 && Math.abs(player.state.t - STEPS[i].t0) < 1e-6 ? i - 1 : i;
+      seek(STEPS[target].t0);
+    });
+    els.btnNext.addEventListener('click', function () {
+      armFollow();
+      var i = indexOfStep(player.state.t);
+      // 末步 ⇒ 跳到动画结尾；其余 ⇒ 跳到本步终点（也就是下一步起点）
+      seek(i >= STEPS.length - 1 ? player.duration : STEPS[i + 1].t0);
+    });
+    els.timeline.addEventListener('input', function () {
+      /* 拖动时间轴 ⇒ 用户动的是时间 ⇒ 允许跟随 */
+      armFollow();
+      setPlaying(false);
+      seek(Number(els.timeline.value));
+    });
+    els.rate.addEventListener('change', function () {
+      player.state.rate = Number(els.rate.value);
+      persist();
+    });
+    els.masks.forEach(function (input) {
+      input.addEventListener('change', function () {
+        player.state.mask[input.getAttribute('data-mask')] = input.checked;
+        persist();
+        draw();
+      });
+    });
+    window.addEventListener('resize', function () { draw(); });
+    window.addEventListener('keydown', function (event) {
+      if (event.target && /INPUT|SELECT|TEXTAREA/.test(event.target.tagName)) return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        els.btnPlay.click();
+      } else if (event.code === 'ArrowRight') {
+        seek(player.state.t + 0.02);
+      } else if (event.code === 'ArrowLeft') {
+        seek(player.state.t - 0.02);
+      }
+    });
+  }
+
+  /* ────────────────── 偏好存储（第 8 期重做，用户裁决）──────────────────
+   *
+   * 用户原话："用户没有'记忆'需求，每次打开播放器都应该在最初的位置。"
+   *
+   * 旧实现在这里吃了两次亏（都被用户抓到了）：
+   *   ① 键是 `od-animation-prefs:` + `document.title`，而**动画页里装的是空壳模板**，
+   *      它的标题是一句固定文案 ⇒ **所有题目、所有启动共用同一份记忆**，永远不过期；
+   *   ② 记忆里含"当前时刻 t"，于是下次打开被恢复到上次停下的地方；
+   *      若那个位置在**结尾附近**，一点播放第一帧就撞终点 ⇒ 表现为"播放键没反应"。
+   *
+   * 现在的口径（用户逐条拍板）：
+   *   · **每次启动服务换一把钥匙**（宿主下发 `launchId`）⇒ 关掉黑窗重开必然干净；
+   *   · 同一次启动内刷新页面，开关仍然保留（用户要的"刷新不丢"）；
+   *   · **时间轴永远从 0 开始**（`t` 不再写入/读出存储）；
+   *   · 启动时顺手清掉旧版留下的、没有版本标记的键（只清自己前缀，绝不动别人的）。
+   */
+  var PREF_PREFIX = 'od-animation-prefs:';
+  var PREF_VERSION = 'v2';
+  var LAUNCH_ID = 'standalone';
+  function storeKey() {
+    return PREF_PREFIX + PREF_VERSION + ':' + LAUNCH_ID + ':' + document.title;
+  }
+  function purgeLegacyPrefs() {
+    try {
+      var ls = window.localStorage;
+      var doomed = [];
+      for (var i = 0; i < ls.length; i += 1) {
+        var k = ls.key(i);
+        if (!k) continue;
+        if (k.indexOf(PREF_PREFIX) !== 0) continue;
+        if (k.indexOf(PREF_PREFIX + PREF_VERSION + ':') === 0) continue;
+        doomed.push(k);
+      }
+      for (var j = 0; j < doomed.length; j += 1) ls.removeItem(doomed[j]);
+      /* ⚠ 兜底：有些环境（以及我们的测试桩）没有实现 `length`/`key()`，
+         枚举会一条都扫不到。旧格式的键形状我们是**确切知道**的
+         （`od-animation-prefs:` + 文档标题），所以再显式删一次。 */
+      var exactLegacy = PREF_PREFIX + document.title;
+      ls.removeItem(exactLegacy);
+      if (doomed.indexOf(exactLegacy) < 0) doomed.push(exactLegacy);
+      return doomed.length;
+    } catch (err) {
+      return 0;
+    }
+  }
+  function persist() {
+    if (!player) return;
+    try {
+      window.localStorage.setItem(
+        storeKey(),
+        JSON.stringify({
+          rate: player.state.rate,
+          mask: player.state.mask,
+          /* ⚠ 第 8 期：**不再存 `t`**（用户裁决"每次打开都在最初位置"）。
+             存了它就会把"上次停在结尾"带到下一次，于是播放键看起来是坏的。 */
+          chart: { key: chart.key },
+          cols: currentColumns()
+        })
+      );
+    } catch (err) {
+      /* 隐私模式下静默忽略 */
+    }
+  }
+  function restore() {
+    var raw = null;
+    try {
+      raw = window.localStorage.getItem(storeKey());
+    } catch (err) {
+      return;
+    }
+    if (!raw) return;
+    try {
+      var pref = JSON.parse(raw);
+      if (pref.rate) {
+        player.state.rate = pref.rate;
+        els.rate.value = String(pref.rate);
+      }
+      if (pref.mask) {
+        Object.keys(pref.mask).forEach(function (key) { player.state.mask[key] = pref.mask[key]; });
+        els.masks.forEach(function (input) {
+          var key = input.getAttribute('data-mask');
+          if (key in pref.mask) input.checked = pref.mask[key];
+        });
+      }
+      /* 上次选的曲线量：只在这个量本题确实存在时才恢复（换题/改题后不能瞎选） */
+      if (pref.chart && typeof pref.chart.key === 'string' && chart.series && chart.series.byKey[pref.chart.key]) {
+        chart.key = pref.chart.key;
+      }
+      /* 三栏显隐 */
+      if (pref.cols) applyColumns(pref.cols);
+      /* ⚠ 第 8 期：**不再恢复时间**，每次装载都从 0 开始（用户裁决） */
+      player.state.t = 0;
+      if (typeof pref.t === 'number') {
+        /* 旧格式里可能还带着 t：读到也**故意忽略**，不留后门 */
+      }
+    } catch (err) {
+      /* 忽略损坏的偏好 */
+    }
+  }
+
+  /* 宿主控制协议从端（§13.2 定稿版；完整字段与时序见 contracts/host-protocol.md） */
+  function postToHost(type, payload) {
+    if (window.parent === window) return;
+    try {
+      window.parent.postMessage(Object.assign({ source: 'od-template', type: type }, payload || {}), '*');
+    } catch (err) {
+      /* 跨源时忽略 */
+    }
+  }
+
+  /**
+   * 宿主运行时注入 8 个槽位（协议 §3 的路径 B）。
+   *
+   * ⚠ 若本页已经**内联**了 PROGRAM_DATA（路径 A：导出成品页），则**拒绝覆盖**：
+   *   内联的那份才是"屏幕上看到的 = 导出的"那份（§13.1）；运行期覆盖会让两者不一致。
+   *   此时回一条 error 说明原因，不改动现场。
+   */
+  function applyProgram(msg) {
+    if (PROGRAM_DATA && PROGRAM_DATA.slots) {
+      postToHost('error', {
+        code: 'program-already-inlined',
+        message: '本页已内联 AnimationProgram（成品页），运行时注入被忽略以保持"导出 = 屏幕所见"。',
+      });
+      return false;
+    }
+    var slots = msg.slots;
+    var okSlots =
+      slots &&
+      typeof slots === 'object' &&
+      SLOT_KEYS.every(function (k) {
+        return typeof slots[k] === 'string' && slots[k].length > 0;
+      }) &&
+      Object.keys(slots).length === SLOT_KEYS.length;
+    if (!okSlots) {
+      postToHost('error', {
+        code: 'bad-program',
+        message: 'program.slots 必须恰好含 8 个非空字符串槽位（§3.2）。',
+      });
+      return false;
+    }
+    if (!RT) {
+      postToHost('error', { code: 'runtime-missing', message: '运行时未注入（window.ODRuntime 未定义）。' });
+      return false;
+    }
+    /**
+     * ⚠ 第 8 期：**偏好钥匙随每次启动变化**（用户裁决"每次打开都要干净"）。
+     * 宿主在 program 消息里下发 `launchId`；没有它（双击导出的单文件页）就用 standalone。
+     */
+    if (typeof msg.launchId === 'string' && msg.launchId) LAUNCH_ID = msg.launchId;
+    PROGRAM_DATA = {
+      slots: slots,
+      mode: msg.mode || 'NUMERIC',
+      texSvg: msg.texSvg || null,
+      /* C2：Dry-Run 算出的标注避让表（没有就是 null ⇒ 播放器不挪任何字） */
+      labelAvoid: msg.labelAvoid || null,
+    };
+    // 公式索引是在脚本顶部从**旧的** PROGRAM_DATA 推导的，注入后必须重算，
+    // 否则宿主注入的公式 SVG 不会被用到（会退回 ODTex/原文降级链）。
+    TEX_SVG = (PROGRAM_DATA.texSvg && PROGRAM_DATA.texSvg.formulas) || {};
+    TEX_SVG_RENDERER = (PROGRAM_DATA.texSvg && PROGRAM_DATA.texSvg.renderer) || null;
+
+    /**
+     * ★ 把页头从"空壳模板"改成真实题目身份（第 3 期交付后补）。
+     *
+     * 为什么需要：空壳模板的 `<h1>` 与 meta 是**构建期的静态文本**
+     * （"空壳模板（等待宿主注入 slots）" / "未注入题目"）。
+     * 注入成功后若不改，用户看到的仍然是一个自称空壳的页面 ——
+     * **分不清"注入成功了"还是"注入失败、停在了空壳状态"**。
+     * 这条歧义正是用户验收时当场提出来的问题（详见 README 13.12）。
+     *
+     * `id` / `title` 是协议里 `program` 消息的**可选**字段（§3 已补记）：
+     * 给了就用来更新页头；没给则退化为"宿主注入的题目"，绝不显示"空壳"。
+     */
+    var pageTitle = els.pageTitle;
+    if (pageTitle) pageTitle.textContent = msg.title || '宿主注入的题目';
+    var prov = els.metaProvenance;
+    if (prov) {
+      var bits = [];
+      if (msg.id) bits.push(msg.id);
+      bits.push('模板 v' + ((PROGRAM_DATA && PROGRAM_DATA.templateVersion) || ''));
+      bits.push('运行时注入');
+      prov.textContent = bits.join(' · ');
+    }
+    var notice = els.notice;
+    if (notice) notice.hidden = true;
+
+    boot();
+    return true;
+  }
+
+  function bindHost() {
+    if (hostBound) return;
+    hostBound = true;
+    window.addEventListener('message', function (event) {
+      var data = event.data || {};
+      // 只接受宿主发来的消息。§13.2 草案未规定 `source` 字段：
+      //   · 带 source 但不是 od-host ⇒ 忽略（不是发给我的）；
+      //   · 不带 source ⇒ 接受（向后兼容草案）。
+      if (data.source && data.source !== 'od-host') return;
+      switch (data.type) {
+        case 'program':
+          applyProgram(data);
+          break;
+        case 'play': setPlaying(true); break;
+        case 'pause': setPlaying(false); break;
+        case 'toggle': els.btnPlay.click(); break;
+        case 'seek': if (typeof data.t === 'number') { setPlaying(false); seek(data.t); } break;
+        case 'setRate':
+          if (typeof data.rate === 'number') {
+            player.state.rate = data.rate;
+            els.rate.value = String(data.rate);
+          }
+          break;
+        case 'showStep':
+          if (typeof data.index === 'number' && STEPS[data.index]) seek(STEPS[data.index].t0);
+          break;
+        case 'setVectorMask':
+          Object.keys(player.state.mask).forEach(function (key) {
+            if (data[key] !== undefined) player.state.mask[key] = !!data[key];
+          });
+          els.masks.forEach(function (input) {
+            var key = input.getAttribute('data-mask');
+            if (data[key] !== undefined) input.checked = !!data[key];
+          });
+          draw();
+          break;
+        case 'setTheme':
+          /* §13.2 的 setTheme：把主题落到 <html data-theme="…">，样式由 CSS 变量接管。
+             ⚠ 第 3 期只做"能设置"这一层（可被门禁断言）；完整主题配色随第 6 期设置页。 */
+          if (typeof data.theme === 'string' && data.theme) {
+            document.documentElement.setAttribute('data-theme', data.theme);
+          }
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  function boot() {
+    // 重入闸（协议 §3）：宿主注入 `program` 会再次调用 boot()。
+    // 没有这道闸的话，注入路径会与首帧的 boot() 并发跑，出现两套 player / 两套事件监听。
+    if (booting) return;
+    booting = true;
+    try {
+      bootInner();
+    } finally {
+      booting = false;
+    }
+  }
+
+  function bootInner() {
+    if (!RT) {
+      showNotice('运行时未注入：本文件的构建链不完整，请重新运行 template:build。（若你打开的是 template/build/animation-template.html，那是**故意留空的空壳模板**，成品请从 ../../物理动画原型总览.html 进入。）');
+      postToHost('error', { code: 'runtime-missing', message: 'window.ODRuntime 未定义' });
+      return;
+    }
+    if (!PROGRAM_DATA.slots) {
+      // 空壳（路径 B）：宿主会用 `program` 消息注入。这里**只提示、不报错**。
+      showNotice('这是**空壳模板**（不含题目）：构建链正常，只是还没拿到 AnimationProgram 的 8 个槽位。' +
+        '要看成品的 15 道题，请打开 ../../物理动画原型总览.html，或直接双击 template/build/q01-conveyor-heat.html 这类题目页；' +
+        '第 3 期宿主通过 postMessage 发一条 `program` 消息即可让本页播放（见 contracts/host-protocol.md）。');
+      postToHost('error', { code: 'no-program', message: '空壳模板，等待宿主注入 program' });
+      return;
+    }
+    try {
+      var assembly = RT.assembleProgramSource(PROGRAM_DATA.slots, { mode: PROGRAM_DATA.mode || 'NUMERIC' });
+      /* eslint-disable-next-line no-new-func */
+      var factory = new Function('runtime', assembly + '\nreturn buildProgram;')(RT.sandboxBundle());
+      /* ── 标注避让（C2）：把 Dry-Run 算好的偏移表交给播放器 ──
+         `labelAvoidApply` 是 `sdk/runtime/label-avoid.mjs` 里那份**唯一**的实现
+         （规划器与渲染器共用同一套 key 规则，否则"表里有的、画的时候找不到"）。
+         表没有或模块没注入时，播放器照常工作（避让是增强，不是前提）。 */
+      player = RT.createPlayerFromFactory(factory, {
+        canvas: els.canvas,
+        dpr: window.devicePixelRatio || 1,
+        labelAvoid: PROGRAM_DATA.labelAvoid || null,
+        labelAvoidApply: window.ODLabelAvoid && window.ODLabelAvoid.applyLabelAvoid ? window.ODLabelAvoid.applyLabelAvoid : null,
+      });
+    } catch (err) {
+      showNotice('动画程序未能装载：' + (err && err.message ? err.message : err));
+      postToHost('error', { code: 'load-failed', message: String((err && err.message) || err) });
+      return;
+    }
+
+    SIM = player.program.SIM;
+    STEPS = player.program.STEPS || [];
+    answers = player.program.ANSWERS || [];
+
+    /*
+      ⚠ 第 8 期（用户截图为证）：**时长无效时必须当场说清楚**，不能留一个按了没反应的播放键。
+
+      实测现象：时间轴显示 0.00 / 0.00 s、点"播放"毫无动静，而拖时间轴又能让画面动。
+      根因是 player.duration 取到 0（或非有限数）：
+        · loop() 里 next >= player.duration 立刻成立 ⇒ 一按播放就被 setPlaying(false) 停掉；
+        · els.timeline.max 被写成 0/无效 ⇒ 只有 seek 的赋值还能推动一帧。
+      这类"看起来像按钮坏了"的问题光看画面查不出来 —— 所以这里主动报错。
+    */
+    if (!(typeof player.duration === 'number' && isFinite(player.duration) && player.duration > 0)) {
+      var whyDuration =
+        '时长无效（SIM.duration = ' +
+        String(SIM && SIM.duration) +
+        '）：播放键不会动 —— 播放器一推进就越过终点。' +
+        '请在 VIEW 里写 SIM = { duration: <秒> }，并让它等于 STEPS 末步的 t1。';
+      showNotice(whyDuration);
+      postToHost('error', { code: 'bad-duration', message: whyDuration });
+    }
+
+    els.metaDuration.textContent = player.duration.toFixed(2) + ' s';
+    els.problemMode.textContent = PROGRAM_DATA.mode === 'SYMBOLIC' ? '符号驱动（旧产物）'
+    : PROGRAM_DATA.mode === 'NUMERIC' ? '数值驱动（旧产物）'
+    : '数值/符号 · 按条目自动';
+    /* 只有时长有效时才写 max/step：max=0 会让滑块的取值范围退化，拖起来像"没反应" */
+    if (player.duration > 0) {
+      els.timeline.max = String(player.duration);
+      els.timeline.step = String(Math.min(0.01, player.duration / 400));
+    }
+
+    var math = mathStatus();
+    if (math.renderer) {
+      els.canvas.setAttribute(
+        'data-math-renderer',
+        math.renderer + ' · ' + math.total + ' 条公式已预渲染' + (math.missing.length ? ' · 缺 ' + math.missing.length + ' 条（已降级）' : ''),
+      );
+    }
+
+    buildProblem();
+    buildSteps();
+    bindControls();
+    // 注意：`bindHost()` **不在这里**调用 —— 它在脚本初始化处已挂过一次（见文件末尾）。
+    // 挂在这里会让空壳模板收不到 `program` 消息（boot 提前 return）。
+
+    /* 联动图表：序列只在装载时采样一次（180 点），逐帧只画游标 */
+    chart.series = buildChartSeries();
+    if (chart.series) {
+      chart.ordered = preferredChartKeys(chart.series);
+      chart.key = defaultChartKey(chart.series, chart.ordered);
+    }
+    /* 曲线图开关默认态：VIEW 里 `SIM.chart === false`（纯几何/静态题）默认不画 */
+    player.state.mask.chart = defaultChartVisible();
+    els.masks.forEach(function (input) {
+      if (input.getAttribute('data-mask') === 'chart') input.checked = player.state.mask.chart;
+    });
+
+    bindColumnToggles();
+    /* 启动时两栏一律可见 —— 不读复选框来推初始态：DOM 的 checked 属性与属性值在
+       某些环境下并不同步，读错的后果是**整栏消失**（比"多显示一栏"严重得多）。
+       用户上次的显隐由下面 restore() 里的 pref.cols 覆盖。 */
+    applyColumns({ text: true, animation: true });
+    /* 导读栏选项卡：建好后停在"原题"。「动画联动」默认勾上（用户口径：连不连由这颗开关定），
+       但装载这一刻 followArmed 还是假 —— 第一眼应该是题，不是第 3 步。 */
+    buildTabs();
+    activateTab('problem');
+    setFollow(true);
+    bindFollowToggle();
+    restore();
+    /* 量选择按钮必须在 restore() 之后建：aria-pressed 要反映最终选中的那个量 */
+    if (chart.series) buildChartPicks();
+    setPlaying(false);
+    draw();
+    if (!chart.series && els.chartFoot) {
+      // 本题没有可画的数值读数（纯符号题等）：如实说明，不留一块空白面板
+      els.chartFoot.textContent = '本题无随时间变化的数值量';
+    }
+
+    // ⚠ 必须在这里启动动画帧循环。`loop()` 自己会重新排帧，但**首帧**得有人调度，
+    // 否则点"播放"只是把 playing 置为 true，没有任何东西去推进时间轴。
+    window.requestAnimationFrame(loop);
+
+    postToHost('ready', { duration: player.duration, stepCount: STEPS.length });
+    if (stateTimer) window.clearInterval(stateTimer);
+    var emit = function () {
+      postToHost('state', {
+        t: player.state.t,
+        duration: player.duration,
+        playing: player.state.playing,
+        rate: player.state.rate,
+        stepIndex: player.state.stepIndex,
+        readouts: lastFrame ? lastFrame.readouts : []
+      });
+    };
+    stateTimer = window.setInterval(emit, 250);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     导出钩子（GIF 逐帧抓取用）
+     ──────────────────────────────────────────────────────────────
+     ⚠ 这**不是** §13.2 协议的一部分：协议是那 11 条 postMessage 消息；
+       这里只是同源页面之间直接调用的函数，供导出器把画布钉到指定尺寸并同步取像素。
+
+     为什么非要有它：GIF 要 960×540 的**精确像素**，而画布的绘制缓冲是按 clientWidth
+     重建的（见 animation-runtime 的 render()）—— 靠 postMessage 指定不了渲染尺寸；
+     而且"seek 完立刻取像素"必须**同步**，消息往返（或等 250ms 的心跳）根本跟不上逐帧。
+     ══════════════════════════════════════════════════════════════ */
+  window.ODExportHook = {
+    available: function () {
+      return !!(player && RT);
+    },
+    duration: function () {
+      return player ? player.duration : 0;
+    },
+    stepCount: function () {
+      return STEPS.length;
+    },
+    chartVisible: function () {
+      return !!(els.chartPanel && !els.chartPanel.hidden);
+    },
+    /** 把画布钉到 w×h 的 CSS 盒子（比例由调用方保证 16:9），并挪出视口免得闪 */
+    prepare: function (w, h) {
+      if (!els.canvas) return null;
+      exportPrevStyle = els.canvas.getAttribute('style') || '';
+      els.canvas.style.position = 'absolute';
+      els.canvas.style.left = '-99999px';
+      els.canvas.style.top = '0';
+      els.canvas.style.width = w + 'px';
+      els.canvas.style.height = h + 'px';
+      els.canvas.style.maxWidth = 'none';
+      els.canvas.style.marginInline = '0';
+      return { width: w, height: h };
+    },
+    /** 还原画布样式并重画一帧 */
+    restore: function () {
+      if (!els.canvas) return;
+      if (exportPrevStyle) els.canvas.setAttribute('style', exportPrevStyle);
+      else els.canvas.removeAttribute('style');
+      exportPrevStyle = '';
+      if (player) draw();
+    },
+    /** 同步渲染到 t（不播放），返回画布本身，调用方直接读像素 */
+    renderAt: function (t) {
+      if (!player) return null;
+      setPlaying(false);
+      seek(Number(t) || 0);
+      return els.canvas;
+    },
+    canvas: function () {
+      return els.canvas;
+    },
+  };
+
+  /* ⚠ 宿主监听必须在**任何 boot 之前**挂上：空壳模板 boot 会提前 return，
+     只有先挂监听，宿主才可能通过 `program` 消息把槽位注入进来（协议 §3 的路径 B）。 */
+  bindHost();
+
+  /* 第 8 期：启动时**一次性清掉旧版偏好**（用户允许）。
+     旧键是 `od-animation-prefs:<标题>`（没有版本段）——它们把"停在结尾""图表被关"带进了新会话；
+     不清的话，改完代码用户还是会先吃一次旧状态。只清自己的前缀，绝不动别人的键。 */
+  purgeLegacyPrefs();
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  /**
+   * ★★ 空壳必须**主动**报一次 `ready`，否则"宿主等 ready / 模板等 program"会**死锁**。
+   *
+   * 为什么：`ready` 原先只在 `boot()` 成功之后发（在 bootInner 末尾），
+   * 而空壳的 `boot()` 会**提前 return**（还没有 slots）⇒ 空壳永远不发 `ready`；
+   * 宿主又规定"收到 `ready` 才发 `program`" ⇒ **两边互相等，永远卡住**。
+   * 用户在浏览器里看到的就是"正在等待模板页就绪…" + 空壳模板，永远不动。
+   *
+   * 语义上"就绪"指的是**页面已能接收控制**，而空壳在挂上 `bindHost()` 之后就已经能接收了 ——
+   * 所以"尚未拿到题目"不等于"未就绪"。
+   *
+   * ⚠ 对成品页（路径 A）无害：那时 slots 已内联，上面的 `boot()` 已经发过一次
+   *   `ready`（带真实时长与步骤数），这一条**同样的 type 会被后补的信息覆盖掉**；
+   *   而且成品页**不接受**运行时注入（`program-already-inlined`），所以多一点也无妨。
+   *   为了让成品页不发这条多余的信号，这里只在"确实没有 slots"时才补发。
+   */
+  if (!(typeof PROGRAM_DATA !== 'undefined' && PROGRAM_DATA && PROGRAM_DATA.slots)) {
+    postToHost('ready', { duration: 0, stepCount: 0, shell: true });
+  }
+})();
+</script>
+</body>
+</html>

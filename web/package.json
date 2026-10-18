@@ -1,0 +1,33 @@
+{
+  "name": "physics-animation-studio-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "第 3 期前端（M14 播放器宿主 + §15 解题页/动画页）。独立于根 package.json：后端仍保持零新增运行时依赖。",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.app.json",
+    "transpile": "tsc -p tsconfig.build.json",
+    "bundle": "rollup -c",
+    "build": "npm run typecheck && npm run transpile && npm run bundle"
+  },
+  "dependencies": {
+    "gifenc": "^1.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.3",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "fdir": "^6.5.0",
+    "postcss": "^8.4.49",
+    "rollup": "^4.24.0",
+    "rollup-plugin-postcss": "^4.0.2",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
+  }
+}

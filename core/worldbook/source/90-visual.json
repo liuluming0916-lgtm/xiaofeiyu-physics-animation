@@ -1,0 +1,71 @@
+{
+  "format": "od-worldbook",
+  "version": 1,
+  "entries": [
+    {
+      "id": "wb_visual_conventions",
+      "title": "画面视觉约定（坐标 / 颜色 / 一屏画完）",
+      "origin": "builtin",
+      "category": "scene_modeling",
+      "enabled": true,
+      "constant": false,
+      "recursive": false,
+      "keys": [
+        "世界坐标",
+        "坐标系",
+        "正方向",
+        "像素",
+        "比例尺",
+        "颜色"
+      ],
+      "secondary_keys": {
+        "logic": "AND_ANY",
+        "list": []
+      },
+      "concepts": [],
+      "tags": [],
+      "elements": [],
+      "insertion_slot": [
+        "scene_code"
+      ],
+      "order": 200,
+      "priority": "high",
+      "content": "# 画面视觉约定\n\n## 判据\n任何生成动画的题都适用（动画槽的通用约定）。\n\n## 约定\n- 世界坐标：x 向右、y 向上，单位米；用米量，不用像素、不用屏幕尺寸。\n- 一屏画完：主体居中，关键标注留出余量；视口交给 AutoView 自动定。\n- 颜色由系统按 category 决定（速度绿、加速度蓝、受力红、辅助紫），不用自己指定。\n- 元素名用 Draw.text 放在旁边，画面中央留给运动和几何关系。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 所有坐标都是米，没有像素量与像素比例。\n- [ ] 箭头给 category 与 mag，不写 color 与 scale。\n- [ ] 画面元素都在可视范围内，没有被裁掉。",
+      "code_examples": [
+        "setup: `\n  const SCALE = 1.0;   // 1 世界单位 = 1 米，不做像素换算\n`"
+      ]
+    },
+    {
+      "id": "wb_scene_stages",
+      "title": "阶段表与状态组织（多段过程的骨架）",
+      "origin": "builtin",
+      "category": "scene_modeling",
+      "enabled": true,
+      "constant": false,
+      "recursive": false,
+      "keys": [
+        "阶段表",
+        "阶段",
+        "转折点",
+        "边界",
+        "多过程"
+      ],
+      "secondary_keys": {
+        "logic": "AND_ANY",
+        "list": []
+      },
+      "concepts": [],
+      "tags": [],
+      "elements": [],
+      "insertion_slot": [
+        "scene_code"
+      ],
+      "order": 201,
+      "priority": "high",
+      "content": "# 阶段表与状态组织\n\n## 判据\n过程被切成多段、要与\"上一步/下一步\"对齐，或同时有多个物体在动。\n\n## 约定\n- 阶段表就是 STAGES = [{ t0, t1, label }]：每段边界对准一个真实事件，末段 t1 等于 SIM.duration。\n- 边界时刻在 setup() 里先算好（Phys.roots 或解析式），用 RETURN 导出，stateAt 读同一个数。\n- 每个会动的物体一个 state 字段（如 xBlock、xBoard），箭头从各自中心出发。\n- 相邻两段在边界处位置相等；速度只在有冲量时跳变。\n- 边界在画面上要有可见标记（细虚线或短标注），让人对得上步骤跳转。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] STEPS 的 t0/t1 与 STAGES 一一对应，末段 t1 = SIM.duration（C5）。\n- [ ] 每个边界在 drawFrame 里画出来，画面不凭空变向。\n- [ ] stateAt 全程有定义且 O(1)：查表或解析式。",
+      "code_examples": [
+        "setup: `\n  const STAGES = [{ t0: 0, t1: 1.0 }, { t0: 1.0, t1: 2.0 }];\n  RETURN('STAGES', STAGES);\n`"
+      ]
+    }
+  ]
+}

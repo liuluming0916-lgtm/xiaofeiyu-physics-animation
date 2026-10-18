@@ -1,0 +1,23 @@
+{
+  "frozen": true,
+  "note": "三档证据强度（第 4 期写入契约）。顺序即\"可信度从高到低\"，不得重排；回灌给模型时必须带上 guidance，否则模型会照着\"候选行\"改代码（§14.5 风险 3）。",
+  "sourceOfTruth": "contracts/spec/diagnostic.mjs",
+  "contract": "contracts/diagnostic-record.schema.json",
+  "precisions": [
+    {
+      "id": "exact",
+      "label": "精确",
+      "guidance": "行号由运行时埋点直接记录，可以按它定位并修改。"
+    },
+    {
+      "id": "replayed",
+      "label": "重放定位",
+      "guidance": "行号由快照重放推导，通常正确，但可能与真正的出错语句相差一行，请结合上下文判断。"
+    },
+    {
+      "id": "candidate",
+      "label": "候选",
+      "guidance": "这只是静态分析给出的候选行（未能定位到确切语句），请先阅读整段代码再改动，不要机械地只改这一行。"
+    }
+  ]
+}

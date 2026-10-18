@@ -1,0 +1,71 @@
+{
+  "format": "od-contracts-manifest",
+  "version": 1,
+  "generator": "contracts/generate-contracts.mjs",
+  "sourceOfTruth": "contracts/spec/",
+  "templateVersion": "1.0.0",
+  "sdkVersion": "1.0.0",
+  "frozenBy": "物理解题动画软件 v1.0 自研方案 §3.2 / §3.3 / §9.1 / §11.1 / §12",
+  "contracts": [
+    {
+      "id": "animation-program",
+      "root": "AnimationProgram",
+      "schema": "contracts/animation-program.schema.json",
+      "types": "contracts/types/animation-program.d.ts",
+      "schemaSha256": "34920685e184db94cd5f49cc8ed4913cb6f83e297eac9a661e13728d66c560d3",
+      "typesSha256": "3157746e93e12ad673ac902e5e02f6229e1bec20789f4cb5e4ea80d191b2a6f2"
+    },
+    {
+      "id": "worldbook-entry",
+      "root": "WorldbookEntry",
+      "schema": "contracts/worldbook-entry.schema.json",
+      "types": "contracts/types/worldbook-entry.d.ts",
+      "schemaSha256": "eb03929c7306c78ad9b624e3109198de1e35128d9fb5021e80afeb61a368566c",
+      "typesSha256": "452c95603abd1e09deab653b875bad6d2bcad8310b5eac4d88fd7f96c72e8b8c"
+    },
+    {
+      "id": "cleaning-rule",
+      "root": "CleaningRule",
+      "schema": "contracts/cleaning-rule.schema.json",
+      "types": "contracts/types/cleaning-rule.d.ts",
+      "schemaSha256": "fd6e59ac761da6abc30ddeaf6ec3562f614fba43784efc90abccd272303f3e70",
+      "typesSha256": "cb906a01abc8919700a25ee7c65b93ec8920664809e1d462e36952f31e23d9e5"
+    },
+    {
+      "id": "cleaning-rule-set",
+      "root": "CleaningRuleSet",
+      "schema": "contracts/cleaning-rule-set.schema.json",
+      "types": "contracts/types/cleaning-rule-set.d.ts",
+      "schemaSha256": "f2384747d542fab345d6178632a29c4ea719a050c62f05a0d93f5f27e9b24ef8",
+      "typesSha256": "b02af87d5dfa3f670d502b3862c1e92946409524907e0b488e3cc69c4e388ed2"
+    },
+    {
+      "id": "endpoint",
+      "root": "EndpointConfig",
+      "schema": "contracts/endpoint.schema.json",
+      "types": "contracts/types/endpoint.d.ts",
+      "schemaSha256": "025680eb15c18138222be4f25514796bd1771c10135b10e3c9b791b1978434f6",
+      "typesSha256": "38169700ff2c05518e55891cca671356e24f1b910aa7f00b48bf912e0c39474d"
+    },
+    {
+      "id": "diagnostic-record",
+      "root": "Diagnostic",
+      "schema": "contracts/diagnostic-record.schema.json",
+      "types": "contracts/types/diagnostic-record.d.ts",
+      "schemaSha256": "4f3782b2fcc3f09041140143db14157fcaa928fbeb33f335cef177bd96dcbb06",
+      "typesSha256": "cd82a112de51953803eaa3e13223ee92f22b6e392fe8182c844942df473d93dd"
+    },
+    {
+      "id": "worldbook-pack",
+      "root": "WorldbookPack",
+      "schema": "contracts/worldbook-pack.schema.json",
+      "types": "contracts/types/worldbook-pack.d.ts",
+      "schemaSha256": "c44faab01ed4b9029c72a24b8aa2c7eb458b2ee28dcdf16a4b4acc6b8a63c7f3",
+      "typesSha256": "9c82e2707db0009364b2d3a17ef6c4d7099b7ea7c21485eb141b85538529f6dd"
+    }
+  ],
+  "slotKeys": "contracts/slot-keys.json",
+  "worldbookSlotNames": "contracts/worldbook-slot-names.json",
+  "diagnosticEvidence": "contracts/diagnostic-evidence.json",
+  "contractHash": "bd64199099b6a3d6d0b4c42d8c41b167c601f1c21b1a09c24380bc1ee2f93c26"
+}

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>物理解题动画 · 第 1 期回归题集（15 道）</title>
+<style>
+  :root {
+    --bg: oklch(98.2% 0.004 250); --surface: oklch(100% 0 0); --fg: oklch(25.5% 0.021 250);
+    --muted: oklch(52% 0.017 250); --border: oklch(90.5% 0.008 250); --accent: oklch(47% 0.088 235);
+    --font-display: 'Songti SC', 'Source Han Serif SC', 'Noto Serif SC', STSong, Georgia, serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: 1.6; }
+  header { border-bottom: 1px solid var(--border); background: color-mix(in oklch, var(--bg) 94%, transparent); position: sticky; top: 0; }
+  .wrap { max-width: 1040px; margin-inline: auto; padding: 18px 22px; }
+  h1 { font-family: var(--font-display); font-size: 21px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  .card { border-bottom: 1px solid var(--border); }
+  .card-link { display: grid; grid-template-columns: 44px 1fr auto; gap: 16px; align-items: center; padding: 14px 0; color: inherit; text-decoration: none; }
+  .card-link:hover .title { text-decoration: underline; text-underline-offset: 3px; }
+  .card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .idx { font-family: var(--font-mono); color: var(--muted); font-size: 13px; }
+  .title { font-family: var(--font-display); font-size: 16px; display: block; }
+  .point { color: var(--muted); font-size: 12.5px; display: block; margin-top: 2px; }
+  .verdict { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .verdict.pass { color: oklch(45% 0.1 155); }
+  .verdict.fail { color: oklch(47% 0.16 28); }
+  .verdict.pass-with-warnings { color: oklch(50% 0.12 70); }
+  footer { color: var(--muted); font-size: 12px; padding: 22px 0 40px; }
+  code { font-family: var(--font-mono); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>物理解题动画 · 第 1 期回归题集</h1>
+    <p class="sub">§19.5 手写 15 道题 · 模板 v1.0.0 · SDK v1.0.0 · 契约 bd64199099b6 · Dry-Run 判定：15/15 全通过</p>
+  </div>
+</header>
+<main class="wrap">
+  <ul>
+      <li class="card" data-od-id="gallery-q01-conveyor-heat">
+        <a class="card-link" href="../../template/build/q01-conveyor-heat.html">
+          <span class="idx">01</span>
+          <span class="body">
+            <span class="title">传送带共速与摩擦生热</span>
+            <span class="point">阶段切分 + 自检条款</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q02-incline-arc-projectile">
+        <a class="card-link" href="../../template/build/q02-incline-arc-projectile.html">
+          <span class="idx">02</span>
+          <span class="body">
+            <span class="title">斜面→圆弧→平抛</span>
+            <span class="point">多阶段连续（C6）</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q03-pursuit">
+        <a class="card-link" href="../../template/build/q03-pursuit.html">
+          <span class="idx">03</span>
+          <span class="body">
+            <span class="title">追及相遇</span>
+            <span class="point">双对象同时间轴</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q04-oblique-collision">
+        <a class="card-link" href="../../template/build/q04-oblique-collision.html">
+          <span class="idx">04</span>
+          <span class="body">
+            <span class="title">两球斜碰的动量分解</span>
+            <span class="point">二维动量守恒 + 碰撞自检</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q05-spring-pendulum">
+        <a class="card-link" href="../../template/build/q05-spring-pendulum.html">
+          <span class="idx">05</span>
+          <span class="body">
+            <span class="title">弹簧振子与单摆</span>
+            <span class="point">周期性 + 循环截断</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q06-pulley-constraint">
+        <a class="card-link" href="../../template/build/q06-pulley-constraint.html">
+          <span class="idx">06</span>
+          <span class="body">
+            <span class="title">绳-滑轮连接体</span>
+            <span class="point">几何约束</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q07-rod-emf">
+        <a class="card-link" href="../../template/build/q07-rod-emf.html">
+          <span class="idx">07</span>
+          <span class="body">
+            <span class="title">导体棒切割磁感线</span>
+            <span class="point">电磁 + 电路量</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q08-charged-in-b-field">
+        <a class="card-link" href="../../template/build/q08-charged-in-b-field.html">
+          <span class="idx">08</span>
+          <span class="body">
+            <span class="title">带电粒子在磁场中的圆周</span>
+            <span class="point">微观时间放慢</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q09-capacitor-rod-transient">
+        <a class="card-link" href="../../template/build/q09-capacitor-rod-transient.html">
+          <span class="idx">09</span>
+          <span class="body">
+            <span class="title">电容充电暂态</span>
+            <span class="point">非力学 stateAt（RC 暂态）</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q10-pv-isothermal-work">
+        <a class="card-link" href="../../template/build/q10-pv-isothermal-work.html">
+          <span class="idx">10</span>
+          <span class="body">
+            <span class="title">p–V 等温膨胀做功面积</span>
+            <span class="point">热学 + 面积着色</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q11-refraction-snell">
+        <a class="card-link" href="../../template/build/q11-refraction-snell.html">
+          <span class="idx">11</span>
+          <span class="body">
+            <span class="title">平面折射（斯涅尔定律）</span>
+            <span class="point">光学 + 光线 SDK</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q12-standing-wave">
+        <a class="card-link" href="../../template/build/q12-standing-wave.html">
+          <span class="idx">12</span>
+          <span class="body">
+            <span class="title">驻波与干涉</span>
+            <span class="point">波场快照</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q13-drag-fall">
+        <a class="card-link" href="../../template/build/q13-drag-fall.html">
+          <span class="idx">13</span>
+          <span class="body">
+            <span class="title">空气阻力落体</span>
+            <span class="point">Phys.integrate 预计算查表</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q14-blocks-relative-slide">
+        <a class="card-link" href="../../template/build/q14-blocks-relative-slide.html">
+          <span class="idx">14</span>
+          <span class="body">
+            <span class="title">板块相对滑动</span>
+            <span class="point">摩擦突变 + 几何外包</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+      <li class="card" data-od-id="gallery-q15-symbolic">
+        <a class="card-link" href="../../template/build/q15-symbolic.html">
+          <span class="idx">15</span>
+          <span class="body">
+            <span class="title">纯符号题（导体棒指数衰减）</span>
+            <span class="point">SYMBOLIC 模式</span>
+          </span>
+          <span class="verdict pass">C1–C9 全通过</span>
+        </a>
+      </li>
+  </ul>
+  <footer>
+    每题页均为<strong>单文件自包含 HTML</strong>：双击即可离线播放，无外部请求。
+    时间轴可拖拽、倍速可切、三类矢量分别开关；开关状态写入 <code>localStorage</code>。
+    公式由内置 <code>ODTex</code> 行内渲染器渲染（离线兜底；MathJax 3.2.2 SVG 内联件落盘后，一处替换即可切换）。
+  </footer>
+</main>
+</body>
+</html>
