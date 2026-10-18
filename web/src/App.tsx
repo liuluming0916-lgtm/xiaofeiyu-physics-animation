@@ -60,15 +60,15 @@ export function App() {
             <NavButton active={page === 'animation'} onClick={() => setPage('animation')} disabled={!programSlots}>
               动画
             </NavButton>
+            {/* 第 9 期 v1.1.2：**设置页回到发布包**（里面有世界书管理器 / 词条编辑 / 导入导出）。
+                规则页仍然只有开发期有——它需要单独起本机规则服务，不是给用户用的。 */}
+            <NavButton active={page === 'settings'} onClick={() => setPage('settings')}>
+              设置
+            </NavButton>
             {!RELEASE && (
-              <>
-                <NavButton active={page === 'settings'} onClick={() => setPage('settings')}>
-                  设置
-                </NavButton>
-                <NavButton active={page === 'rules'} onClick={() => setPage('rules')}>
-                  规则
-                </NavButton>
-              </>
+              <NavButton active={page === 'rules'} onClick={() => setPage('rules')}>
+                规则
+              </NavButton>
             )}
             <NavButton active={page === 'distill'} onClick={() => setPage('distill')}>
               蒸馏
@@ -119,7 +119,7 @@ export function App() {
             <DistillPage />
           ) : !RELEASE && page === 'rules' ? (
             <RulesPage />
-          ) : !RELEASE && page === 'settings' ? (
+          ) : page === 'settings' ? (
             <SettingsPage />
           ) : (
             /* 发布版：未知页码（理论上到不了）也退回解题页，不白屏 */

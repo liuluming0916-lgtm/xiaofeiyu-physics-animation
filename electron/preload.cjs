@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     packaged: process.env.OD_BUILTIN_BUNDLE === '1',
     platform: process.platform,
-    version: '1.1.0',
+    version: '1.1.2',
     /** 导出目录的绝对路径（不存在时主进程会创建） */
     exportDir: () => ipcRenderer.invoke('od:export-dir'),
     /** 打开导出目录（资源管理器） */

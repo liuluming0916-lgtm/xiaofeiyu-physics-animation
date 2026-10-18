@@ -268,7 +268,7 @@ function buildMenu() {
             dialog.showMessageBox({
               type: 'info',
               title: '关于',
-              message: '物理解题动画 v1.1.0',
+              message: '物理解题动画 v1.1.2',
               detail:
                 '解题 → 动画 → 教辅蒸馏。\n' +
                 '画布不写数值，矢量靠颜色与长度表达（绿=速度 / 蓝=加速度 / 红=受力）。\n' +

@@ -82,8 +82,20 @@ async function main() {
     check('★ rollup 里用 `OD_RELEASE=1` 注入编译期常量', rollupCfg.includes("__OD_RELEASE__") && rollupCfg.includes("process.env.OD_RELEASE === '1'"));
 
     const app = readFileSync(join(WEB, 'src', 'App.tsx'), 'utf8');
-    check('★ 导航里的两页被 `!RELEASE` 守着（不是 CSS 藏起来）', /\{!RELEASE && \(\s*<>/.test(app));
-    check('★ 页面渲染分支也被守着（漏一处就等于没删）', app.includes("!RELEASE && page === 'rules'") && app.includes("!RELEASE && page === 'settings'"));
+    /**
+     * ⚠ 第 9 期 v1.1.2：设置页**从发布包回到了产物**（词条编辑对用户开放），
+     *   所以『两页都被守着』不再成立。现在的口径是：**规则页仍被守、设置页不被守**，
+     *   而且两者都靠编译期常量，不是 CSS 藏。
+     */
+    check('★ 规则页导航仍被 !RELEASE 守着（开发期专用）', /\{!RELEASE && \(\s*<NavButton active=\{page === 'rules'\}/.test(app));
+    check(
+      '★ 设置页导航不再被 !RELEASE 守着（v1.1.2 对用户开放）',
+      !/\{!RELEASE && \(\s*<>\s*<NavButton active=\{page === 'settings'\}/.test(app),
+    );
+    check(
+      '★ 页面渲染分支：规则页被守、设置页不被守（漏一处就等于没删）',
+      app.includes("!RELEASE && page === 'rules'") && !app.includes("!RELEASE && page === 'settings'"),
+    );
     check('类型声明存在（tsc 不会因为未知常量报错）', readFileSync(join(WEB, 'src', 'globals.d.ts'), 'utf8').includes('declare const __OD_RELEASE__'));
   }
 
@@ -109,12 +121,20 @@ async function main() {
     check('★ 对照组：蒸馏页与齿轮在开发构建里都在', KEPT_MARKERS.every((m) => dev.includes(m)), KEPT_MARKERS.filter((m) => !dev.includes(m)).join(' / '));
   }
 
-  console.log('\n『C』发布构建：**产物里搜不到**这两页');
+  console.log('\n『C』发布构建：规则页搜不到、设置页在（v1.1.2 起）');
   {
     check('发布构建成功', build({ release: true }));
     const rel = readBundle();
     const found = markersIn(rel);
-    check('★ 发布构建产物里**一个标记都搜不到**', found.length === 0, `仍残留：${found.join(' / ')}`);
+    /**
+     * ⚠ 第 9 期 v1.1.2：口径变了，而且是**产品决定**不是放水。
+     *
+     * 第 8 期把「设置」与「规则」两页一起摇掉，前提是"用户不需要改词条"。
+     * v1.1.2 起**词条编辑 / 导入导出对用户开放**，而世界书管理器就在设置页里
+     * ⇒ 设置页必须进发布包。**规则页仍然只给开发期**（它要单独起本机规则服务）。
+     */
+    check('★ 发布构建产物里**没有** RulesPage（开发期页面不外露）', !found.includes('RulesPage'), `仍残留：${found.join(' / ')}`);
+    check('★ 发布构建产物里**有** SettingsPage（v1.1.2：词条编辑对用户开放）', found.includes('SettingsPage'));
     check('★ 编译期常量已被完全替换（没有残留 `__OD_RELEASE__`）', !rel.includes('__OD_RELEASE__'));
     check('发布产物更小（两页的代码真的被摇掉了）', statSync(BUNDLE).size < devBytes, `${statSync(BUNDLE).size} vs ${devBytes}`);
     console.log(`      dev ${Math.round(devBytes / 1024)} KB → release ${Math.round(statSync(BUNDLE).size / 1024)} KB`);

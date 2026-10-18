@@ -32,7 +32,9 @@ const NODE = resolveNodeBin().bin;
 const releaseDir = join(PROJECT_ROOT, 'release');
 const baseName = '物理解题动画';
 const basePkg = join(releaseDir, baseName); // v1.0 绿色版：Electron 运行时的来源
-const targetName = `${baseName}-v1.1`;
+/* 目录名跟 package.json 版本走 —— 写死 v1.1 会在发 1.1.2 时悄悄骗人 */
+const PKG_VERSION = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf8')).version;
+const targetName = `${baseName}-v${PKG_VERSION}`;
 const targetPkg = join(releaseDir, targetName);
 const payload = join(targetPkg, 'resources', 'app');
 

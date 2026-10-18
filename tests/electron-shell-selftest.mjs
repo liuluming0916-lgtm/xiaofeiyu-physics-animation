@@ -17,7 +17,7 @@
  * 用法：node tests/electron-shell-selftest.mjs
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { PROJECT_ROOT, isCliEntry } from '../tools/paths.mjs';
@@ -179,11 +179,21 @@ async function main() {
      * 现在打包脚本自己会重跑发布构建并硬校验；这里再兜一道，
      * 覆盖"有人手动改过 dist 又重打包"的情形。
      */
-    const packaged = join(PROJECT_ROOT, 'release', '物理解题动画', 'resources', 'app', 'web', 'dist', 'assets', 'app.js');
+    /**
+   * ⚠ 第 9 期 v1.1.2：原来这里**写死读 v1.0 的目录**（`release/物理解题动画`），
+   *   于是"打包产物里有什么"其实在说 v1.0 的事，跟刚打出来的 v1.1.2 无关。
+   *   现在按版本号挑**最新的**绿色版；一个都没有就跳过这组断言（不假装通过）。
+   */
+  const appJsOf = (dir) => join(PROJECT_ROOT, 'release', dir, 'resources', 'app', 'web', 'dist', 'assets', 'app.js');
+  const candidates = readdirSync(join(PROJECT_ROOT, 'release'))
+    .filter((d) => d.startsWith('物理解题动画'))
+    .sort((a, b) => b.localeCompare(a, 'zh'));
+  const packedDir = candidates.find((d) => existsSync(appJsOf(d)));
+  const packaged = packedDir ? appJsOf(packedDir) : null;
     if (existsSync(packaged)) {
       const js = readFileSync(packaged, 'utf8');
       console.log(`      打包产物 app.js ${(js.length / 1024).toFixed(0)} KB`);
-      check('★ 打包产物里没有 SettingsPage（发布版才有资格出厂）', !js.includes('SettingsPage'));
+      check('★ 打包产物里**有** SettingsPage（v1.1.2 起：词条编辑/导入导出对用户开放）', js.includes('SettingsPage'));
       check('★ 打包产物里没有 RulesPage', !js.includes('RulesPage'));
       check('★ 打包产物里仍有蒸馏页与齿轮（删两页没把别的删掉）', js.includes('DistillPage') && js.includes('连接设置'));
     } else {
