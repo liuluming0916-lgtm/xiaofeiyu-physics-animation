@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConnectionDialog } from '../components/ConnectionDialog'
+import { OpenLogNotice } from '../components/OpenLogNotice'
 import { DEMO_QUESTION_LIST } from '../lib/demo-questions'
 import { STAGE_CHAIN, STAGE_LABEL, precisionLabel, type RepairBanner } from '../lib/run-stream'
 import { api } from '../lib/rules-api'
@@ -132,6 +133,9 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      {/* v1.1.7：公测日志告知（第一次进解题页弹一次；勾了「不再弹出」就永久关掉） */}
+      <OpenLogNotice />
+
       {/* ───────── 左：输入 ───────── */}
       <section className="space-y-4">
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

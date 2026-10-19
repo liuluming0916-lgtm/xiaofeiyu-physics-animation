@@ -24,7 +24,7 @@ template/build/
 
 # ── 运行期数据 ──
 exports/
-observability/
+/observability/
 distill-sessions/
 *.db
 *.db-journal

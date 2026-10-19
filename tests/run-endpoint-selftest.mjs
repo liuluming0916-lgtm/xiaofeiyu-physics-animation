@@ -119,6 +119,8 @@ async function withService(dir, fn) {
     port: 0,
     root: dir,
     serveStatic: false,
+    /* v1.1.7：开源日志跟着临时目录走 —— 自检不许往仓库根写日志 */
+    openLogDir: join(dir, '开源日志'),
     streamImpl: fakeStream(),
     dryRunImpl: fakeDryRun(),
   });

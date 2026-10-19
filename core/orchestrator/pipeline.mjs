@@ -824,6 +824,14 @@ export async function* runPipeline(input) {
           apiKey: snapshot.apiKey,
           /* 自愈时重写的是动画代码 ⇒ 属于 scene_code 阶段，思考要开 */
           stage: 'scene_code',
+          /**
+           * v1.1.7：把"第几轮修复"传下去。
+           *
+           * 为什么加这一个字段：开源日志要分清"首次生成代码"与"第 2 轮修复重写" ——
+           * 否则同一道题里会出现五六条一模一样的 `scene_code` 对话，读日志的人分不出哪条是修出来的。
+           * 纯上下文信息，不改变任何行为（不传也没有任何实现依赖它）。
+           */
+          round: roundNo,
           messages: assembled.messages,
           signal: ac.signal,
           vision: false,

@@ -28,13 +28,18 @@ import { PROJECT_ROOT } from './paths.mjs';
 import { PIPELINE_STAGES } from '../contracts/spec/frozen-keys.mjs';
 import { RULES_ROOT, describeJsonError, loadRulesWorkspace, readRulesIndex } from '../core/rules/index.mjs';
 import {
+  appVersion,
   buildReproPack,
   commitRun,
+  createRunLog,
   listReproPacks,
+  OPEN_LOG_DIRNAME,
   readRun,
   readRuns,
   resolveObsDir,
+  resolveOpenLogDir,
   summarize,
+  writeOpenLog,
 } from '../core/observability/index.mjs';
 import { collectSecrets } from '../core/security/index.mjs';
 import {
@@ -77,6 +82,8 @@ import {
   saveEndpoints,
   setKey,
   setStageModel,
+  /** v1.1.7：开源日志要记录"发给模型的原始消息 + 模型返回的全文" ⇒ 包一层默认网关 */
+  streamChatCompletion,
   testConnection,
 } from '../core/gateway/index.mjs';
 import { getPrompt } from '../core/prompts/templates.mjs';
@@ -317,6 +324,11 @@ export function createRulesService({
   serveStatic: serveStaticFiles = true,
   obsDir = null,
   historyDbPath = null,
+  /**
+   * v1.1.7「开源日志」的落点。默认 `<程序目录>/开源日志`（打包形态由主进程注入
+   * `OD_OPEN_LOG_DIR`）；测试传临时目录，绝不往仓库里写日志。
+   */
+  openLogDir = null,
   /** 测试注入口：默认用真实网关与真 Dry-Run，门禁里可换成假实现（**只为可测性，不改产品行为**） */
   streamImpl = null,
   dryRunImpl = null,
@@ -326,6 +338,8 @@ export function createRulesService({
   const OBS_DIR = obsDir ?? resolveObsDir();
   /** 历史库（M23）：默认 `data/history.db`，可用 `OD_HISTORY_PATH` 或构造参数改（测试用） */
   const HISTORY_PATH = historyDbPath;
+  /** v1.1.7：开源日志目录（没显式给就按"程序目录/开源日志"解析） */
+  const OPEN_LOG_DIR = openLogDir ?? resolveOpenLogDir();
 
   /**
    * ── `POST /api/run`：把"真跑一遍"接上（第 8 期收尾补的第 9 步）──
@@ -466,17 +480,74 @@ export function createRulesService({
       }
     };
 
+    /**
+     * ── v1.1.7「开源日志」：从这一刻开始记 ──
+     *
+     * 用户的要求是"每次都导出，不只是报错时导出"，所以采集器**在跑之前**就建好，
+     * 收尾放在 `finally` 里 —— 成功、失败、被取消、抛异常，四种死法都要留下现场。
+     *
+     * 记的四样（用户点名，一样不多、一样不少）：
+     *   ① 门禁哪条拦住 → `dryrun_done` 的 `checks`（含 detail / offenders / diagnostics）
+     *   ② 用户与大模型的对话 → 下面包住的 `streamImpl`（消息原文 + 返回全文）
+     *   ③ 动画代码 → `dryrun_done.program.slots`（8 个槽位）
+     *   ④ 解题过程 → 各阶段的 `stage_delta` 正文（solve / steps / answers）
+     */
+    const runLog = createRunLog({
+      appVersion: appVersion(),
+      problem: { text: String(problem.text ?? ''), imageCount: images.length },
+      model: endpoint.defaultModel ?? null,
+      endpoint: endpoint.displayName ?? endpoint.id ?? null,
+      devMode: config.devMode === true,
+    });
+
+    /**
+     * 包一层网关拿"对话"。
+     *
+     * 为什么在网关这一层、而不是在编排里加埋点：
+     *   · 编排每次调模型都走 `streamImpl`，包一层就**天然覆盖**主链路与自愈轮次，
+     *     不用在 6 个阶段 + 修复循环里各写一遍（写漏一处就少一段对话）；
+     *   · 不改流水线的纯事件流语义 —— 它照旧只吐事件，记录是外挂的。
+     *
+     * ⚠ 失败也要记：模型报错时"我们发了什么、它回了什么错"恰恰是最该看的。
+     */
+    const capture = (impl) => async (args) => {
+      const t0 = Date.now();
+      const meta = {
+        stage: args?.stage ?? null,
+        round: Number.isFinite(args?.round) ? args.round : null,
+        messages: args?.messages ?? [],
+      };
+      try {
+        const result = await impl(args);
+        runLog.call({ ...meta, output: result?.text ?? '', ms: Date.now() - t0 });
+        return result;
+      } catch (err) {
+        runLog.call({
+          ...meta,
+          output: null,
+          ms: Date.now() - t0,
+          error: { kind: err?.kind ?? err?.name ?? 'error', message: err?.message ?? String(err) },
+        });
+        throw err;
+      }
+    };
+
     try {
       const pipeline = runPipeline({
         problem: { text: String(problem.text ?? ''), images },
         images,
         config,
         signal: ac.signal,
-        ...(streamImpl ? { streamImpl } : {}),
+        /* 恒传包过的实现：默认就是真实网关，注入口（测试）也照样被记录 */
+        streamImpl: capture(streamImpl ?? streamChatCompletion),
         ...(dryRunImpl ? { dryRunImpl } : {}),
       });
-      for await (const ev of pipeline) write(ev);
+      for await (const ev of pipeline) {
+        runLog.event(ev);
+        write(ev);
+      }
     } catch (err) {
+      runLog.thrown(err);
       write(
         makeEvent(
           'stage_error',
@@ -493,6 +564,24 @@ export function createRulesService({
       );
       write(makeEvent('run_done', { verdict: 'error', ms: 0, cancelled: false }, 10000));
     } finally {
+      /**
+       * ── v1.1.7：**每次**都导出一份开源日志（成功 / 失败 / 取消 都一样）──
+       *
+       * 放在 `finally` 而不是"成功后"：报错与取消恰恰是最需要看现场的时候。
+       * 写盘失败**绝不能让业务跟着挂**（用户已经拿到结果了），所以整段兜住。
+       */
+      try {
+        const record = runLog.finish({ cancelled: closed });
+        const saved = writeOpenLog(record, {
+          dir: OPEN_LOG_DIR,
+          /* 程序目录只读（装进 Program Files 就会这样）时退到用户数据目录，别把日志弄丢 */
+          fallbackDir: join(OBS_DIR, OPEN_LOG_DIRNAME),
+          secrets: collectSecrets({ dir }),
+        });
+        if (!saved.ok) console.warn(`[open-log] 导出失败：${saved.code} ${saved.message}`);
+      } catch (e) {
+        console.warn(`[open-log] 导出异常（不影响本次解题）：${e?.message ?? e}`);
+      }
       if (!closed) {
         try {
           res.end();

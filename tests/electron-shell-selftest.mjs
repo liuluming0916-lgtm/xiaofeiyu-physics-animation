@@ -195,7 +195,16 @@ async function main() {
       console.log(`      打包产物 app.js ${(js.length / 1024).toFixed(0)} KB`);
       check('★ 打包产物里**有** SettingsPage（v1.1.2 起：词条编辑/导入导出对用户开放）', js.includes('SettingsPage'));
       check('★ 打包产物里没有 RulesPage', !js.includes('RulesPage'));
-      check('★ 打包产物里仍有蒸馏页与齿轮（删两页没把别的删掉）', js.includes('DistillPage') && js.includes('连接设置'));
+      /**
+       * ⚠ v1.1.7 修正了一条**过时的断言**：原来这里要求"打包产物里仍有 DistillPage"。
+       *
+       * v1.1.5 起用户裁决：发布版把「蒸馏」锁成「写卡助手」占位（可见、不可点），
+       * 页面分支用 `!RELEASE` 守着 ⇒ Rollup 把 `DistillPage` **整页摇掉**。
+       * 也就是说"产物里还有 DistillPage"已经不是目标，而是**被修掉的毛病**。
+       * 留着旧断言会逼着后人把页面加回去，所以改成断言**它不在**。
+       */
+      check('★ 蒸馏页在发布包里**不存在**（v1.1.5 起锁成「写卡助手」占位）', !js.includes('DistillPage'));
+      check('★ 删两页没把别的删掉：连接设置齿轮与导出入口仍在', js.includes('连接设置') && js.includes('open-connection'));
     } else {
       console.log('      （没有 release/ 产物，跳过这一节）');
     }
