@@ -16,6 +16,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { RulesPage } from './pages/RulesPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SolvePage } from './pages/SolvePage'
+import { requestExport } from './lib/export-bus'
 import { useApp } from './state/store'
 
 type Page = 'solve' | 'animation' | 'settings' | 'rules' | 'distill'
@@ -74,6 +75,43 @@ export function App() {
             <NavButton active={page === 'distill'} onClick={() => setPage('distill')}>
               蒸馏
             </NavButton>
+            {/*
+              ⚠ 第 9 期 v1.1.5（用户 2026-10-19）：**导出变成导航栏的一个键**，排在「蒸馏」右边。
+              这样动画页顶部那一整行工具栏可以彻底删掉，把高度让给画布。
+              它只发请求（export-bus），真正的导出仍在动画页里做 —— 那里才有 iframe 的画布句柄。
+            */}
+            <details className="relative">
+              <summary
+                className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 select-none hover:bg-slate-100"
+                title="导出网页 / GIF（需先在动画页生成）"
+              >
+                导出 ▾
+              </summary>
+              <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
+                <button
+                  type="button"
+                  className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                  onClick={() => {
+                    setPage('animation')
+                    requestExport('page')
+                  }}
+                >
+                  导出网页
+                  <span className="block text-[11px] text-slate-500">双击即播的单文件，烧录出处信息</span>
+                </button>
+                <button
+                  type="button"
+                  className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                  onClick={() => {
+                    setPage('animation')
+                    requestExport('gif')
+                  }}
+                >
+                  导出 GIF
+                  <span className="block text-[11px] text-slate-500">25 fps / 960×540，不含曲线图</span>
+                </button>
+              </div>
+            </details>
           </nav>
         </div>
       </header>

@@ -34,6 +34,7 @@ import {
   frameTimes,
   readScaled,
 } from '../lib/gif-encode.js'
+import { onExportRequest } from '../lib/export-bus'
 import { useApp } from '../state/store'
 
 /**
@@ -420,88 +421,21 @@ export function AnimationPage() {
     }
   }, [exportHook, slug])
 
+  /**
+   * 第 9 期 v1.1.5：导出请求来自**导航栏**（见 lib/export-bus.ts）。
+   * 导航栏只发请求，画布句柄在这里，所以导出动作也留在这里做。
+   */
+  useEffect(
+    () =>
+      onExportRequest((kind) => {
+        if (kind === 'page') void exportPage()
+        else void exportGif()
+      }),
+    [exportPage, exportGif],
+  )
+
   return (
     <div className="space-y-4">
-      {/* ── 导出（M17）：网页 / GIF ── */}
-      {/*
-        ⚠ 第 9 期 v1.1.5（用户 2026-10-19）：**导出收成一个按钮**，放在这一栏的右侧，
-        点开才出现「导出网页 / 导出 GIF」。原来那条"导出 + 两个按钮 + 一长串说明"常年占一行，
-        把画布往下压 —— 而这一版的核心目标是"尽量放大画布"。
-        用 <details> 而不是自建弹层：不需要额外的 state 与点外关闭逻辑，键盘也能用。
-      */}
-      <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
-        <details className="relative">
-          <summary
-            className={`cursor-pointer list-none rounded-md border border-slate-300 px-3 py-1.5 text-sm select-none hover:bg-slate-50 ${
-              !st.programSlots || busy !== null ? 'cursor-not-allowed text-slate-400' : ''
-            }`}
-            title="导出网页或 GIF"
-          >
-            导出 ▾
-          </summary>
-          <div className="absolute right-0 z-20 mt-1 w-56 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
-            <button
-              type="button"
-              className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50 disabled:text-slate-400"
-              disabled={!st.programSlots || busy !== null}
-              onClick={() => void exportPage()}
-            >
-              导出网页
-              <span className="block text-[11px] text-slate-500">双击即播的单文件，烧录出处信息</span>
-            </button>
-            <button
-              type="button"
-              className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50 disabled:text-slate-400"
-              disabled={!st.programSlots || busy !== null}
-              onClick={() => void exportGif()}
-            >
-              导出 GIF
-              <span className="block text-[11px] text-slate-500">25 fps / 960×540，不含曲线图</span>
-            </button>
-          </div>
-        </details>
-        <span className="text-xs text-slate-500">
-          {busy
-            ? busy.kind === 'gif'
-              ? `正在逐帧渲染… ${busy.done} / ${busy.total}`
-              : '正在打包单文件页…'
-            : '网页 = 双击即播的单文件；GIF = 25 fps / 960×540（不含曲线图）'}
-        </span>
-        {result && (
-          <span className={result.ok ? 'text-xs text-emerald-700' : 'text-xs text-red-700'}>
-            {result.text}
-            {/*
-              第 9 期：**不再给 `http://127.0.0.1:<端口>` 链接**。
-              那个端口每次启动都变（旧链接一关就失效），而且它同源、`will-navigate` 会放行 ——
-              万一同窗口导航过去，主窗口就离开了单页应用。现在改走壳子的 `shell.openPath`：
-              打开的是**本地文件本身**，不依赖端口，也不会让窗口跑掉。
-              浏览器里（演示源）没有 `window.OD_SHELL`，这两个按钮就不出现。
-            */}
-            {result.file && typeof window.OD_SHELL?.openExportFile === 'function' && (
-              <button
-                type="button"
-                className="ml-2 underline hover:text-emerald-900"
-                onClick={() => {
-                  void window.OD_SHELL?.openExportFile?.(result.file as string)
-                }}
-              >
-                打开文件
-              </button>
-            )}
-            {typeof window.OD_SHELL?.openExportDir === 'function' && (
-              <button
-                type="button"
-                className="ml-2 underline hover:text-emerald-900"
-                onClick={() => {
-                  void window.OD_SHELL?.openExportDir?.()
-                }}
-              >
-                打开导出文件夹
-              </button>
-            )}
-          </span>
-        )}
-      </div>
 
       {/* ⚠ 第 7 期：这里原来是一条"宿主控制条"（播放 / 上一帧 / 下一帧 / 时间轴 / 倍速 / 五个显示开关）。
           用户 2026-10-17 裁决：「最上面这一栏删掉，控制面板只要下面演示动画里的」——
@@ -592,6 +526,17 @@ export function AnimationPage() {
         与屏幕上看到的才是同一个东西。本期 iframe 指向构建产物{' '}
         <code className="rounded bg-slate-100 px-1">{TEMPLATE_URL}</code>。
       </p>
+
+      {/* 导出状态/结果：原来在顶部工具栏里，v1.1.5 起挪到页面最下面（平时不看） */}
+      {(busy || result) && (
+        <p className={result && !result.ok ? 'text-xs text-red-700' : 'text-xs text-slate-500'}>
+          {busy
+            ? busy.kind === 'gif'
+              ? `正在逐帧渲染… ${busy.done} / ${busy.total}`
+              : '正在打包单文件页…'
+            : result?.text}
+        </p>
+      )}
     </div>
   )
 }
