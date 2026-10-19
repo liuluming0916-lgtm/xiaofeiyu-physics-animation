@@ -151,8 +151,8 @@ for (var i = 0; i <= 96; i = i + 1) {
   var ph = 2 * Math.PI * i / 96;
   ring.push([r * Math.sin(ph), r * (1 - Math.cos(ph))]);
 }
-Draw.trace(ring, { color: '#9aa7b4', dash: [5, 4], width: 1.0 });
-Draw.circle([0, r], r, { stroke: '#ccd4dc', width: 1.0, dash: [3, 4] });
+Draw.trace(ring, { color: '#9aa7b4', dash: true, width: 1.0 });
+Draw.circle([0, r], r, { stroke: '#ccd4dc', width: 1.0, dash: true });
 Draw.circle([0, r], 0.16, { fill: '#1d2733', stroke: '#1d2733' });
 Draw.text(-0.45, r, '圆心 (0, r)', { size: 11, color: '#5d6b7a', align: 'right' });
 
@@ -165,7 +165,7 @@ for (var j = 0; j <= steps; j = j + 1) {
 }
 Draw.curve(trail, { color: '#1f6fb2', width: 2.4 });
 
-Draw.line([0, r], [state.x, state.y], { dash: [3, 3], color: '#5d6b7a', width: 1.1 });
+Draw.line([0, r], [state.x, state.y], { dash: true, color: '#5d6b7a', width: 1.1 });
 Draw.dimension([0, r], [state.x, state.y], { kind: 'linear', text: 'r = ' + Phys.format(r, 'm', 3) });
 
 Draw.circle([state.x, state.y], 0.20, { fill: '#2a6f8f', stroke: '#2a6f8f' });
@@ -174,8 +174,8 @@ Draw.arrow([state.x, state.y], [state.fx, state.fy], { category: 'force', subtyp
 /* 向心加速度 a = v²/r，方向始终指向圆心——本题的核心物理量，之前漏画 */
 Draw.arrow([state.x, state.y], [state.ax, state.ay], { category: 'acceleration', label: 'a = v²/r', mag: Math.hypot(state.ax, state.ay) });
 
-Draw.line([-1.1, 0], [r + 1.1, 0], { dash: [4, 4], color: '#ccd4dc', width: 1.0 });
-Draw.line([0, -1.1], [0, 2 * r + 1.1], { dash: [4, 4], color: '#ccd4dc', width: 1.0 });
+Draw.line([-1.1, 0], [r + 1.1, 0], { dash: true, color: '#ccd4dc', width: 1.0 });
+Draw.line([0, -1.1], [0, 2 * r + 1.1], { dash: true, color: '#ccd4dc', width: 1.0 });
 Draw.text(0.22, -0.60, '入射点 (0,0) 沿 +x', { size: 11, color: '#1d2733', align: 'left' });
 Draw.text(0.22, 1.15, '磁场垂直纸面向里（×）', { size: 11, color: '#3a4a5a', align: 'left' });
 

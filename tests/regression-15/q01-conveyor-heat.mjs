@@ -131,7 +131,7 @@ Draw.ground(-0.6, trackEnd + 0.25, y0 - r, { color: '#2b3440' });
    at() 只允许在 drawFrame 里用，放进 stateAt 会变成"每帧重算全时段"，C1 会拦。 */
 var tracePts = [];
 for (var tq = 0; tq <= 32; tq = tq + 1) { tracePts.push([context.at(SIM.duration * tq / 32).x, y0 + r + 0.24]); }
-Draw.trace(tracePts, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 Draw.box([state.x, y0 + r + 0.24], 0.34, 0.34, { angleDeg: 0 });
 Draw.text(state.x, y0 + r + 0.68, 'm', { size: 13, color: '#1d2733' });
@@ -160,8 +160,8 @@ if (state.ds > 1e-6) {
   Draw.dimension([state.x, y0 + r * 4.0], [state.beltX, y0 + r * 4.0], {
     kind: 'linear', text: 'Δs = ' + Phys.format(state.ds, 'm', 3)
   });
-  Draw.line([state.x, y0 + r + 0.42], [state.x, y0 + r * 4.0], { dash: [3, 3], color: '#9aa7b4' });
-  Draw.line([state.beltX, y0 + r + 0.42], [state.beltX, y0 + r * 4.0], { dash: [3, 3], color: '#9aa7b4' });
+  Draw.line([state.x, y0 + r + 0.42], [state.x, y0 + r * 4.0], { dash: true, color: '#9aa7b4' });
+  Draw.line([state.beltX, y0 + r + 0.42], [state.beltX, y0 + r * 4.0], { dash: true, color: '#9aa7b4' });
 }
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。

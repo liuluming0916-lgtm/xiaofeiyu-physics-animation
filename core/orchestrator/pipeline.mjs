@@ -36,7 +36,8 @@ import {
 import { getPrompt, assemblePrompt, buildJudgementVocab } from '../prompts/index.mjs';
 import { triggerWorldbook, mergeWorldbookStages, worldbookHashOf } from '../worldbook/index.mjs';
 import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../worldbook/concepts.mjs';
-import { WORLDBOOK_CONCEPTS } from '../../contracts/spec/frozen-keys.mjs';
+import { WORLDBOOK_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
+import { parseAnswersSlot } from '../../sdk/runtime/animation-runtime.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
 import { dryRun } from '../dryrun/dry-run.mjs';
 import {
@@ -46,6 +47,7 @@ import {
   deliveryShape,
   shouldContinue,
   involvesCodeSlots,
+  planC7Alias,
   REPAIR_MAX_ROUNDS,
 } from '../repair/index.mjs';
 import { PHASE5_STAGES, MODEL_STAGES, makeEvent } from './events.mjs';
@@ -658,6 +660,19 @@ export async function* runPipeline(input) {
     const repairRounds = [];
     let cancelledDuringRepair = false;
     let repairStoppedReason = null;
+    /**
+     * 失败签名（v1.1.5）：连续两轮"同一个错误"就不再做第三轮盲改。
+     * 每轮都是独立请求、没有记忆；同一个错误重复出现，说明模型没抓到根因，
+     * 再发一轮大概率还是同一改法 —— 省下这一轮，走确定性修复或带告警交付。
+     */
+    const failureSignature = (r) =>
+      (r?.checks ?? [])
+        .filter((c) => c.blocking && c.status === 'fail')
+        .map((c) => `${c.id}:${c.detail ?? c.message ?? ''}`)
+        .sort()
+        .join('|');
+    let lastFailSignature = failureSignature(report);
+    let sameFailRounds = 0;
     /** `repair_done` 只推一次：要么在"找不到可重发槽位"的分支里推过，要么在循环之后推 */
     let repairEmittedDone = false;
 
@@ -680,7 +695,72 @@ export async function* runPipeline(input) {
     const repairStageIndex = PHASE5_STAGES.indexOf('repair');
     const repairTotal = PHASE5_STAGES.length;
 
-    for (let round = 0; round < maxRounds; round += 1) {
+    /**
+     * ── 确定性快修（v1.1.5 · 用户 2026-10-19 拍板）──
+     *
+     * 纯符号答案的 C7 失败，绝大多数只是"答案名和读数名没对上"：
+     * 把**答案自己的符号**原样加成一条读数（value: 0），再跑一遍 C7 就能过。
+     * 这一步不调模型、不写死任何物理名对照表；只有"全部阻塞失败都是 C7"时才尝试。
+     */
+    let aliasApplied = false;
+    if (maxRounds > 0 && report.verdict !== 'pass') {
+      let answers = [];
+      try {
+        answers = parseAnswersSlot(program.slots.ANSWERS ?? '');
+      } catch {
+        answers = [];
+      }
+      const alias = planC7Alias({ slots: program.slots, report, answers });
+      if (alias.ok) {
+        const next = await runDryRun(alias.slots);
+        if (next.report.verdict === 'pass') {
+          try {
+            const source = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${alias.slots[k] ?? ''}\n/* @end */`).join('\n');
+            const rebuilt = buildProgramFromText(source, {
+              regexRules: snapshot.regexRules,
+              provenance: program.provenance,
+            });
+            const beforeSlots = program.slots;
+            program = rebuilt.program;
+            lineMap = rebuilt.lineMap;
+            buildDiagnostics = rebuilt.diagnostics;
+            report = next.report;
+            const updated = ['readouts'];
+            const roundRecord = {
+              round: 1,
+              requested: ['readouts'],
+              updated,
+              kept: Object.keys(beforeSlots).filter((k) => !updated.includes(k)),
+              unchanged: Object.keys(beforeSlots).filter((k) => beforeSlots[k] === program.slots[k]),
+              triggeringChecks: ['C7'],
+              diagnostics: [],
+              verdict: 'pass',
+              ms: 0,
+              note: '确定性修复：把答案符号原样加成读数（未调用模型）',
+            };
+            repairRounds.push(roundRecord);
+            aliasApplied = true;
+            yield emit('stage_start', {
+              stage: 'repair',
+              index: repairStageIndex,
+              total: repairTotal,
+              round: 1,
+              maxRounds,
+              slots: updated,
+              note: '确定性修复',
+            });
+            yield emit('stage_done', { stage: 'repair', round: 1, chars: 0, ms: 0, chunks: 0, merged: true, updated });
+            yield emit('repair_round', roundRecord);
+            yield emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics, round: 1 });
+            repairStoppedReason = '确定性修复通过（未调用模型）';
+          } catch {
+            /* 重建失败：保持原程序，退回到正常的模型修复 */
+          }
+        }
+      }
+    }
+
+    for (let round = 0; !aliasApplied && round < maxRounds; round += 1) {
       const decision = shouldContinue({
         verdict: report.verdict,
         round,
@@ -728,6 +808,7 @@ export async function* runPipeline(input) {
           plan,
           report,
           slots: program.slots,
+          previousRounds: repairRounds,
           codeSlot: involvesCodeSlots(plan.slots),
         });
         const resolved = { repairTask };
@@ -826,6 +907,17 @@ export async function* runPipeline(input) {
       // B6：每轮的诊断快照一起推给前端
       yield emit('repair_round', roundRecord);
       yield emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics, round: roundNo });
+
+      const sig = failureSignature(report);
+      if (sig === lastFailSignature) sameFailRounds += 1;
+      else {
+        sameFailRounds = 0;
+        lastFailSignature = sig;
+      }
+      if (report.verdict !== 'pass' && sameFailRounds >= 2) {
+        repairStoppedReason = `连续 ${sameFailRounds} 轮同一错误，停止盲改（避免重复同样的改动）`;
+        break;
+      }
 
       if (report.cancelled) {
         cancelledDuringRepair = true;

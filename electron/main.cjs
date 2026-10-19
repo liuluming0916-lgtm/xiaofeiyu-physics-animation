@@ -268,9 +268,9 @@ function buildMenu() {
             dialog.showMessageBox({
               type: 'info',
               title: '关于',
-              message: '物理解题动画 v1.1.2',
+              message: '物理解题动画 v1.1.5',
               detail:
-                '解题 → 动画 → 教辅蒸馏。\n' +
+                '解题 → 动画（「写卡助手」暂未开放）。\n' +
                 '画布不写数值，矢量靠颜色与长度表达（绿=速度 / 蓝=加速度 / 红=受力）。\n' +
                 `数据目录：${userDataDir()}`,
             }),

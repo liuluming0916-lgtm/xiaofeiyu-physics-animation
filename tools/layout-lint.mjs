@@ -86,18 +86,37 @@ function check(file, kind = 'app') {
     if (/\.steps\s*\{[^}]*overflow(-y)?\s*:\s*(auto|scroll)/.test(html)) problems.push('.steps 出现内部滚动');
   }
 
-  /* 第 7 期版式定案（§13.4 / §14 / §15）——这三条都是"改回去就会挂"的结构钉：
-     ① 画布比例必须是 16:9 且**不许**写死像素高度（写死 ⇒ 栏宽一变画面就被压扁，
-        而 canvas 的绘制缓冲是按 clientWidth 重建的，压扁了就真的变形）；
-     ② 图表是独立面板，必须能被 [hidden] 收起（§13.4"可显隐"）；
-     ③ 三栏容器必须是 flex —— grid 的轨道是固定条数，隐藏一栏会留下一条空列，
+  /* 第 7 期版式定案（§13.4 / §14 / §15）；第 9 期 v1.1.5 按用户裁决改了口径：
+     ① 画布**不再锁 16:9**（用户 2026-10-19 方案 B：比例尺优先，GIF 让步）——
+        宽度吃满右栏；高度**吃栏高**（用户同日二次拍板「高度也吃栏高，不写死」），
+        由 `.col-animation → .stage-wrap → .stage → canvas` 的 flex 链分配，
+        不再写 `100vh − --chrome-h` 这种硬账。GIF 仍按 §14 的 960×540 输出。
+     ② 画布**不许写死像素高度**（`min-height` 只允许做窄屏兜底；`height: Npx` 一律不许）。
+     ③ 图表是独立面板，必须能被 [hidden] 收起（§13.4"可显隐"）。
+     ④ 曲线图 v1.1.5 搬进左栏（用户 2026-10-19 截图裁决），**不再占右栏画布的位置**；
+        它必须出现在 col-text 之内、col-animation 之前。
+     ⑤ 三栏容器必须是 flex —— grid 的轨道是固定条数，隐藏一栏会留下一条空列，
         "剩余两栏自动变大"就不成立。*/
   if (isApp) {
-    if (!/\.stage-canvas\s*\{[^}]*aspect-ratio\s*:\s*16\s*\/\s*9/.test(html)) {
-      problems.push('.stage-canvas 缺少 aspect-ratio: 16 / 9（画布会随栏宽失真）');
+    if (/\.stage-canvas\s*\{[^}]*\baspect-ratio\b/.test(html)) {
+      problems.push('.stage-canvas 又锁了 aspect-ratio（v1.1.5 方案 B 已裁决不锁 16:9）');
     }
-    if (/\.stage-canvas\s*\{[^}]*\bheight\s*:\s*\d+(?:\.\d+)?px/.test(html)) {
-      problems.push('.stage-canvas 写死了像素高度（应交给 aspect-ratio 表达比例）');
+    if (!/\.stage-canvas\s*\{[^}]*\bwidth\s*:\s*100%/.test(html)) {
+      problems.push('.stage-canvas 没有吃满栏宽（width: 100%，v1.1.5 方案 B）');
+    }
+    if (!/\.stage-canvas\s*\{[^}]*\bflex\s*:\s*1/.test(html)) {
+      problems.push('.stage-canvas 没有用 flex 吃满右栏剩余高度（v1.1.5「高度也吃栏高」）');
+    }
+    if (
+      !/\.col-animation\s*\{[^}]*display\s*:\s*flex[^}]*flex-direction\s*:\s*column/.test(html) ||
+      !/\.stage-wrap\s*\{[^}]*flex\s*:\s*1/.test(html) ||
+      !/\.stage\s*\{[^}]*flex\s*:\s*1/.test(html)
+    ) {
+      problems.push('画布高度链断了（.col-animation / .stage-wrap / .stage 必须都是 flex:1 的竖向链）');
+    }
+    /* ⚠ `min-height: 240px` 是窄屏兜底，不算"写死高度"；只拦精确的 `height: Npx`。 */
+    if (/\.stage-canvas\s*\{[^}]*[;{\s]height\s*:\s*\d+(?:\.\d+)?px/.test(html)) {
+      problems.push('.stage-canvas 写死了像素高度（高度应交由右栏 flex 链分配）');
     }
     if (!/\.chart-panel\[hidden\]\s*\{\s*display\s*:\s*none/.test(html)) {
       problems.push('.chart-panel 缺少 [hidden] 规则（曲线图无法隐藏）');
@@ -105,13 +124,16 @@ function check(file, kind = 'app') {
     if (!/\.board\s*\{[^}]*display\s*:\s*flex/.test(html)) {
       problems.push('.board 不是 flex（隐藏栏位后剩余栏不会自动变大）');
     }
-    /* ④ 曲线图必须在**画布之后**（用户 2026-10-17："曲线图挪到原动画说明的地方"= 动画下方）。
-       用文档顺序判：chart-panel 出现得比 stage-canvas 早 ⇒ 位置被改回去了。 */
+    /* ⑤ 曲线图在左栏（col-text）里、动画栏（col-animation）之前。
+       用户 2026-10-19 截图裁决：放左下空白处，不占右栏画布位置。 */
     {
-      const canvasAt = html.indexOf('data-od-id="stage-canvas"');
+      const textAt = html.indexOf('data-od-id="col-text"');
       const chartAt = html.indexOf('data-od-id="chart-panel"');
-      if (canvasAt < 0 || chartAt < 0) problems.push('缺少画布或图表面板');
-      else if (chartAt < canvasAt) problems.push('曲线图出现在画布之前（应位于动画下方）');
+      const animationAt = html.indexOf('data-od-id="col-animation"');
+      if (textAt < 0 || chartAt < 0 || animationAt < 0) problems.push('缺少导读栏 / 图表面板 / 动画栏之一');
+      else if (!(textAt < chartAt && chartAt < animationAt)) {
+        problems.push('曲线图不在左栏底部（应位于 col-text 内、col-animation 之前）');
+      }
     }
   }
 

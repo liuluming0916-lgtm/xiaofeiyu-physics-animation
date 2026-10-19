@@ -133,7 +133,7 @@ var N = 48;
 var sx = function (x) { return ox + scaleX * x; };
 var sy = function (y) { return oy + scaleY * y; };
 
-Draw.line([ox - 0.1, oy], [ox + scaleX * context.L + 0.15, oy], { color: '#9aa7b4', width: 1.2, dash: [5, 4] });
+Draw.line([ox - 0.1, oy], [ox + scaleX * context.L + 0.15, oy], { color: '#9aa7b4', width: 1.2, dash: true });
 
 var nodes = [];
 var antinodes = [];
@@ -144,7 +144,7 @@ antinodes.push(context.L * 0.25);
 antinodes.push(context.L * 0.75);
 for (var a = 0; a < antinodes.length; a = a + 1) {
   var axx = sx(antinodes[a]);
-  Draw.line([axx, oy - 0.36], [axx, oy + 0.40], { dash: [3, 3], color: '#a4610d', width: 1.1 });
+  Draw.line([axx, oy - 0.36], [axx, oy + 0.40], { dash: true, color: '#a4610d', width: 1.1 });
   Draw.text(axx, oy + 0.46, '波腹', { size: 11, color: '#a4610d' });
 }
 Draw.dimension([sx(nodes[0]), oy + 0.56], [sx(nodes[1]), oy + 0.56], { kind: 'linear', text: 'λ/2 = ' + Phys.format(context.nodeGap, 'm', 2) });
@@ -165,8 +165,8 @@ for (var e = 0; e <= N; e = e + 1) {
   envTop.push([sx(ex), sy(ey)]);
   envBot.push([sx(ex), sy(-ey)]);
 }
-Draw.trace(envTop, { color: '#9aa7b4', dash: [6, 5], width: 1.1, layer: 0 });
-Draw.trace(envBot, { color: '#9aa7b4', dash: [6, 5], width: 1.1, layer: 0 });
+Draw.trace(envTop, { color: '#9aa7b4', dash: true, width: 1.1, layer: 0 });
+Draw.trace(envBot, { color: '#9aa7b4', dash: true, width: 1.1, layer: 0 });
 
 var pts = [];
 for (var i = 0; i <= N; i = i + 1) {

@@ -244,8 +244,8 @@ for (var tq = 0; tq <= 32; tq = tq + 1) {
   traceA.push([sq.x + nxu * 0.13, sq.y + nyu * 0.13]);
   traceB.push([sq.x2, sq.y2]);
 }
-Draw.trace(traceA, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
-Draw.trace(traceB, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(traceA, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
+Draw.trace(traceB, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 Draw.box(blockC, 0.34, 0.24, { angleDeg: context.theta, fill: '#ffffff', stroke: '#1d2733' });
 Draw.text(blockC[0] + nxu * 0.30, blockC[1] + nyu * 0.30, 'm₁', { size: 12, color: '#1d2733' });
@@ -277,7 +277,7 @@ for (var wi = 0; wi <= 12; wi = wi + 1) {
   wedge.push([apexX + 0.40 * Math.cos(wphi), apexY + 0.40 * Math.sin(wphi)]);
 }
 Draw.curve(wedge, { color: '#a4610d', width: 1.2 });
-Draw.line([apexX - 0.60, apexY], [apexX + 0.28, apexY], { dash: [4, 3], color: '#9aa7b4', width: 1.0 });
+Draw.line([apexX - 0.60, apexY], [apexX + 0.28, apexY], { dash: true, color: '#9aa7b4', width: 1.0 });
 Draw.text(apexX - 0.62, apexY + 0.14, 'θ = 30°', { size: 11, color: '#a4610d', align: 'right' });
 
 /* 说明文字放在左上空白区（斜坡上方），不压住任何图元 */

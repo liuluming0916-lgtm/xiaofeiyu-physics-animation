@@ -33,3 +33,6 @@ export {
   roundBudget,
   involvesCodeSlots,
 } from './plan.mjs';
+
+/** v1.1.5：纯符号 C7 的确定性快修（把答案符号原样加成读数，不调模型） */
+export { planC7Alias, appendReadoutRows } from './c7-alias.mjs';

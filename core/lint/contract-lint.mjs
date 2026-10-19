@@ -128,6 +128,22 @@ export const ARROW_OPTS_NOT_LITERAL =
   '`Draw.arrow` 的第三个参数必须是**对象字面量**（不能是变量）—— 否则静态预检看不到你有没有给 `mag`，' +
   '"同类可比"就失去了保障。';
 
+/* ────────────── 第 9 期：`dash` 的参数口径（用户 2026-10-19 拍板） ──────────────
+ *
+ * 约定：
+ *   · `true`  → 默认虚线（运行时存成 [4, 3]）
+ *   · `false` / 不写 → 实线
+ *   · 数字数组 → 自定义间距
+ *
+ * 为什么这条要进 C1：真实浏览器的 `setLineDash` 只收 `sequence<number>`。
+ * 模型曾写 `dash: true` 以外的值（或这里写错类型），旧运行时原样塞给浏览器，
+ * 抛 TypeError、整帧中断，页面停在 0.00 / 0.00 且只有半张图 —— 静默得可怕。
+ * 运行时已按上面的约定归一化；C1 再把**字面量里的明显错误类型**提前拦下。
+ */
+export const DASH_TYPE_INVALID =
+  '`dash` 只接受 `true`（虚线）/ `false`（实线）/ 数字数组（自定义间距），例如 ' +
+  '`Draw.line(a, b, { dash: true })`；不要写字符串、数字或其它对象。';
+
 
 /* ───────────────────────── 签名清单与名字建议 ───────────────────────── */
 
@@ -557,6 +573,45 @@ export function lintSlot(opts) {
           if (!keys.has('mag')) diagnostics.push(d('arrow-missing-mag', node, ARROW_MAG_REQUIRED));
           if (keys.has('scale')) diagnostics.push(d('arrow-deprecated-scale', keys.get('scale'), ARROW_SCALE_BANNED));
           if (keys.has('color')) diagnostics.push(d('arrow-forbidden-color', keys.get('color'), ARROW_COLOR_BANNED));
+        }
+      }
+
+      /**
+       * 判据 9（第 9 期）：`dash` 的类型口径。
+       * 只查对象字面量里的**字面量**值：布尔 / null / 数组放行；
+       * 字符串、数字、模板字符串、一元表达式等直接报错。
+       * 变量/表达式无法静态判定，交给运行时的 parseDash 兜底（会抛清晰错误）。
+       */
+      if (
+        node.type === 'CallExpression' &&
+        node.callee.type === 'MemberExpression' &&
+        !node.callee.computed &&
+        node.callee.object.type === 'Identifier' &&
+        node.callee.object.name === 'Draw' &&
+        node.callee.property.type === 'Identifier'
+      ) {
+        const method = node.callee.property.name;
+        const optsIndex = { line: 2, circle: 2, arc: 4, curve: 1, trace: 1, ray: 2, chart: 1, ghosts: 1 }[method];
+        if (optsIndex !== undefined) {
+          const opts = node.arguments[optsIndex];
+          if (opts && opts.type === 'ObjectExpression') {
+            for (const prop of opts.properties) {
+              if (prop.type !== 'Property' || prop.computed) continue;
+              const key =
+                prop.key.type === 'Identifier'
+                  ? prop.key.name
+                  : prop.key.type === 'Literal'
+                    ? String(prop.key.value)
+                    : null;
+              if (key !== 'dash') continue;
+              const v = prop.value;
+              const ok =
+                (v.type === 'Literal' && (typeof v.value === 'boolean' || v.value === null)) ||
+                v.type === 'ArrayExpression' ||
+                (v.type === 'Identifier' && v.name === 'undefined');
+              if (!ok) diagnostics.push(d('dash-invalid-type', v, DASH_TYPE_INVALID));
+            }
+          }
         }
       }
 

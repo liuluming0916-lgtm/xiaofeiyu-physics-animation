@@ -14,7 +14,8 @@
  *   · 曲线图画在自己的画布上，**不**再画进动画画布（旧手绘图已移除的防回退）；
  *   · 可切纵轴、可隐藏（§13.4 / 用户裁决"只保留右侧竖条 / 隐藏"）；
  *   · 三栏可自由显隐（隐藏一栏不炸，其余栏仍可用）；
- *   · 画布 16:9（width=960 height=540 + CSS aspect-ratio，且不写死像素高度）。
+ *   · 画布尺寸（v1.1.5 方案 B：不锁 16:9，宽度吃满右栏、高度吃满右栏；
+ *     名义缓冲仍 960×540 供 GIF 用，且不写死像素高度）。
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -360,18 +361,31 @@ export async function main() {
     el(k.doc, 'timecode').textContent,
   );
 
-  /* ── G 画布 16:9 ── */
-  console.log('\n『G』画布 16:9（§14 的 960×540 同比例）');
+  /* ── G 画布尺寸（v1.1.5 用户 2026-10-19：不锁 16:9；高度也吃栏高，不写死） ── */
+  console.log('\n『G』画布尺寸（v1.1.5：不锁 16:9，宽度吃满 + 高度吃满右栏）');
   const cw = Number(page.stageCanvas.getAttribute('width'));
   const ch = Number(page.stageCanvas.getAttribute('height'));
-  check('★ canvas 属性 960×540', cw === 960 && ch === 540, `${cw}×${ch}`);
-  check('比例正好 16:9', Math.abs(cw / ch - 16 / 9) < 1e-9);
-  check('★ CSS 用 aspect-ratio 表达比例', /\.stage-canvas\s*\{[^}]*aspect-ratio\s*:\s*16\s*\/\s*9/.test(page.html));
-  check('★ CSS 没有写死像素高度', !/\.stage-canvas\s*\{[^}]*\bheight\s*:\s*\d+(?:\.\d+)?px/.test(page.html));
-  /* 用户 2026-10-17：画布 + 曲线图必须能在视口里同时出现（教学时不想滚）。
-     判据：画布宽度按 100vh 封顶 + 图表高度是变量而不是被内容撑开。 */
-  check('★ 画布宽度按视口高度封顶（不出滚动条）', /\.stage-canvas\s*\{[^}]*100vh/.test(page.html));
-  check('★ 图表高度是定值变量（--chart-h）', /--chart-h\s*:\s*\d+px/.test(page.html) && /\.chart-canvas\s*\{[^}]*height\s*:\s*var\(--chart-h\)/.test(page.html));
+  check('★ canvas 名义缓冲 960×540（GIF 抓帧口径）', cw === 960 && ch === 540, `${cw}×${ch}`);
+  check('名义缓冲比例正好 16:9', Math.abs(cw / ch - 16 / 9) < 1e-9);
+  check('★ CSS 不再锁 16:9（方案 B 的产品决定）', !/\.stage-canvas\s*\{[^}]*\baspect-ratio\b/.test(page.html));
+  check('★ CSS 吃满栏宽（width: 100%）', /\.stage-canvas\s*\{[^}]*\bwidth\s*:\s*100%/.test(page.html));
+  check(
+    '★ CSS 没有写死像素高度（min-height 兜底不算）',
+    !/\.stage-canvas\s*\{[^}]*[;{\s]height\s*:\s*\d+(?:\.\d+)?px/.test(page.html),
+  );
+  /* 用户 2026-10-19 二次拍板：「高度也吃栏高，不写死」。
+     判据从"按 100vh 算"改成"右栏 flex 高度链"：col-animation → stage-wrap → stage → canvas。 */
+  check(
+    '★ 画布用 flex 吃满右栏剩余高度（不写 100vh 硬账）',
+    /\.col-animation\s*\{[^}]*display\s*:\s*flex[^}]*flex-direction\s*:\s*column/.test(page.html) &&
+      /\.stage-wrap\s*\{[^}]*flex\s*:\s*1/.test(page.html) &&
+      /\.stage\s*\{[^}]*flex\s*:\s*1/.test(page.html) &&
+      /\.stage-canvas\s*\{[^}]*flex\s*:\s*1/.test(page.html),
+  );
+  check(
+    '★ 图表高度是用户定的 230px（--chart-h）',
+    /--chart-h\s*:\s*230px/.test(page.html) && /\.chart-canvas\s*\{[^}]*height\s*:\s*var\(--chart-h\)/.test(page.html),
+  );
 
   /* ── H 15 道题全都能跑，且**时间曲线**已从槽位里清空 ── */
   console.log('\n『H』15 道题逐页跑通；画在世界坐标里的**时间曲线**已清空');
@@ -421,27 +435,27 @@ export async function main() {
     keptCharts.join('、') || '一个都没保留',
   );
 
-  /* ── I 版面位置：曲线图在动画下方整宽；数据面板已删除 ── */
-  console.log('\n『I』曲线图位于动画下方；数据面板已删除、栏目标题已改');
-  check('.stage-wrap 存在（承载"上画布 / 下图表"两段）', /data-od-id="stage-wrap"/.test(page.html));
+  /* ── I 版面位置：曲线图在左栏（导读卡片）底部；数据面板已删除 ── */
+  console.log('\n『I』曲线图位于左栏底部（不占画布位置）；数据面板已删除、栏目标题已改');
+  check('.stage-wrap 存在（承载画布 + 播放/开关/图例）', /data-od-id="stage-wrap"/.test(page.html));
   check('★ 原题与分步解析已合并成左侧单一导读栏（col-text）', /data-od-id="col-text"/.test(page.html));
   check('.board 只剩两栏（导读 + 动画）', !/class="col-problem"/.test(page.html) && !/class="col-steps"/.test(page.html));
   {
-    /* 用户 2026-10-17：「曲线图挪到原动画说明的地方」——那块地方在画布**下面**。
-       用文档顺序判：图表必须出现在画布之后。 */
-    const canvasAt = page.html.indexOf('data-od-id="stage-canvas"');
+    /* 用户 2026-10-19 截图裁决：曲线图搬到左下空白处，不占右栏画布的位置。
+       用文档顺序判：col-text 开标签 < chart-panel < col-animation 开标签。 */
+    const textAt = page.html.indexOf('data-od-id="col-text"');
     const chartAt = page.html.indexOf('data-od-id="chart-panel"');
-    check('★ 曲线图出现在画布之后（= 动画下方）', canvasAt >= 0 && chartAt > canvasAt);
+    const animationAt = page.html.indexOf('data-od-id="col-animation"');
+    check(
+      '★ 曲线图在左栏（col-text 内、col-animation 之前）',
+      textAt >= 0 && chartAt > textAt && chartAt < animationAt,
+    );
   }
-  check('★ .chart-panel 仍不是 .stage 的后代（不会叠在画布上）', (() => {
+  check('★ .chart-panel 不在 .stage 里（不会叠在画布上）', (() => {
     const stageOpen = page.html.indexOf('class="stage" data-od-id="stage"');
     const panelOpen = page.html.indexOf('data-od-id="chart-panel"');
-    if (stageOpen < 0 || panelOpen < 0) return false;
-    // 从 .stage 开标签到 chart-panel 之间必须 div 收支平衡（= stage 已闭合）
-    const between = page.html.slice(stageOpen, panelOpen);
-    const opens = (between.match(/<div\b/g) || []).length;
-    const closes = (between.match(/<\/div>/g) || []).length;
-    return closes >= opens;
+    // 图表在 .stage 开标签之前 ⇒ 不可能是它的后代（HTML 未错位时成立）
+    return stageOpen >= 0 && panelOpen >= 0 && panelOpen < stageOpen;
   })());
   check('★ 数据面板已删除（没有 readouts-grid）', !/data-od-id="readouts-grid"/.test(page.html));
   check(
@@ -449,7 +463,7 @@ export async function main() {
     !/data-od-id="panel-step-title"/.test(page.html) && !/data-od-id="panel-footnote"/.test(page.html),
   );
   check('读数分级样式已随面板删除', !/\.readout\.is-conclusion/.test(page.html));
-  check('栏目标题改成「动画与图表」', /<h2 id="h-animation">动画与图表<\/h2>/.test(page.html));
+  check('栏目标题改成「动画」', /<h2 id="h-animation">动画<\/h2>/.test(page.html));
   check('运行期提示元素仍在（空壳/装载失败要靠它说话）', /data-od-id="runtime-notice"/.test(page.html));
 
   /* ── J 宿主注入路径（路径 B）下图表同样活着 ──

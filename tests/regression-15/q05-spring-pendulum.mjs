@@ -172,7 +172,7 @@ Draw.arrow([blockCenter, y0 - 0.24], [-context.k * state.x, 0], {
 Draw.arrow([blockCenter, y0 + 0.20], [-context.w1 * context.w1 * state.x, 0], {
   category: 'acceleration', label: 'a', mag: Math.abs(context.w1 * context.w1 * state.x)
 });
-Draw.line([wallX + natLen + 0.22, y0 - 0.46], [wallX + natLen + 0.22, y0 + 0.46], { dash: [3, 3], color: '#9aa7b4' });
+Draw.line([wallX + natLen + 0.22, y0 - 0.46], [wallX + natLen + 0.22, y0 + 0.46], { dash: true, color: '#9aa7b4' });
 Draw.text(wallX + natLen + 0.22, y0 - 0.60, '平衡位置', { size: 11, color: '#5d6b7a' });
 Draw.dimension([wallX + natLen + 0.22, y0 + 0.52], [blockCenter, y0 + 0.52], {
   kind: 'linear', text: 'x = ' + Phys.format(state.x, 'm', 3)
@@ -190,7 +190,7 @@ for (var d = -2; d <= 2; d = d + 1) {
 }
 Draw.line([pivotX, pivotY], [bobX, bobY], { color: '#1d2733', width: 1.5 });
 Draw.circle([bobX, bobY], 0.085, { fill: '#ffffff', stroke: '#1d2733', width: 1.5 });
-Draw.line([pivotX, pivotY], [pivotX, pivotY - L - 0.22], { dash: [3, 3], color: '#9aa7b4' });
+Draw.line([pivotX, pivotY], [pivotX, pivotY - L - 0.22], { dash: true, color: '#9aa7b4' });
 Draw.arc([pivotX, pivotY], 0.42, -90, -90 + th * 180 / Math.PI, { color: '#a4610d', width: 1.2, samples: 40 });
 Draw.text(pivotX + 0.30, pivotY - 0.46, 'θ = ' + Phys.format(th, 'rad', 3), { size: 11, color: '#a4610d', align: 'left' });
 
@@ -201,7 +201,7 @@ for (var si = 0; si <= 48; si = si + 1) {
   var sTheta = context.theta0 * Math.cos(context.w2 * st);
   swingTrace.push([pivotX - context.L * Math.sin(sTheta), pivotY - context.L * Math.cos(sTheta)]);
 }
-Draw.trace(swingTrace, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(swingTrace, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 /* 单摆速度：**沿圆弧切向**（之前错用了弹簧振子的水平速度） */
 Draw.arrow([bobX, bobY], [state.vBob * state.tx * 0.16, state.vBob * state.ty * 0.16], {

@@ -129,8 +129,8 @@ var yB = 0.28;                 /* 乙车道中心线 */
    不做等比缩小，否则 121 m 的公路上车只有几个像素。 */
 var sx = function (s) { return -1.10 + 0.055 * s; };
 
-Draw.line([-1.62, yA - 0.18], [6.20, yA - 0.18], { color: '#9aa7b4', width: 1.0, dash: [6, 4] });
-Draw.line([-1.62, yB - 0.18], [6.20, yB - 0.18], { color: '#9aa7b4', width: 1.0, dash: [6, 4] });
+Draw.line([-1.62, yA - 0.18], [6.20, yA - 0.18], { color: '#9aa7b4', width: 1.0, dash: true });
+Draw.line([-1.62, yB - 0.18], [6.20, yB - 0.18], { color: '#9aa7b4', width: 1.0, dash: true });
 Draw.text(-1.55, yA + 0.30, '甲车道', { size: 11, color: '#5d6b7a', align: 'left' });
 Draw.text(-1.55, yB + 0.30, '乙车道', { size: 11, color: '#5d6b7a', align: 'left' });
 
@@ -144,8 +144,8 @@ for (var ti = 0; ti <= 40; ti = ti + 1) {
   traceA.push([sx(tp.sA), yA]);
   traceB.push([sx(tp.xB), yB]);
 }
-Draw.trace(traceA, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
-Draw.trace(traceB, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(traceA, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
+Draw.trace(traceB, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 var marker = sx(0);
 Draw.line([marker, yA - 0.36], [marker, yA + 0.36], { color: '#1d2733', width: 1.4 });

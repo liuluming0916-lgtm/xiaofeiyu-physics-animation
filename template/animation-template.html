@@ -60,14 +60,9 @@
     --fs-body: 14px;
     --fs-meta: 12px;
     --scale: 1;           /* 讲解模式预留位（§22 第 5 条）：只暴露变量，不做 UI */
-    /* 第 7 期：图表高度 + "画布以外要占掉的竖向空间"（页头 + 内边距 + 栏头 + 播放条 +
-       开关行 + 图表头/脚 + 间隙）。画布宽度按它封顶，保证"画布 + 曲线图"能在视口里
-       同时出现、不出滚动条（用户 2026-10-17：教学时不方便）。 */
-    --chart-h: 168px;
-    /* 476 = 页头 56 + 栏头 30 + 播放条 56 + 开关行 44 + 图表头 34 + 图表脚 22 +
-       两段间隙 10 + 版心上下内边距 34 + 预留 40px 余量（宁可画布小一点，也别出滚动条）。
-       如果哪天还是出滚动条，只需要调这一个数。 */
-    --chrome-h: 476px;
+    /* v1.1.5：图表搬到左栏后，高度独立定值（用户 2026-10-19 拍板 230px）。
+       画布高度不再跟它分摊一屏，改由右栏 flex 高度链分配（见 .stage-canvas）。 */
+    --chart-h: 230px;
     --gap-xs: 6px;
     --gap-sm: 10px;
     --gap-md: 16px;
@@ -85,6 +80,11 @@
     font-size: var(--fs-body);
     line-height: 1.62;
     -webkit-font-smoothing: antialiased;
+    /* v1.1.5：整页做成"页头 + 撑满视口的 board"两段，画布的高度才能有确定的参照。
+       ⚠ 不写死 --chrome-h 之类的数字账；高度由 flex 分配。 */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
   /* 控件用黑体（--font-ui）：宋体做按钮/页签，屏幕上笔画太细、边界不清 */
   button, select, input { font: inherit; font-family: var(--font-ui); color: inherit; }
@@ -122,19 +122,27 @@
      隐藏一栏 ⇒ 另外两栏按 5:7:10 的同比例自动吃满。*/
   .board {
     display: flex;
+    flex: 1 1 auto;
     gap: var(--gap-lg);
+    width: 100%;
     max-width: 1600px;
     margin-inline: auto;
     padding: 14px 22px 20px;
-    align-items: flex-start;
+    min-height: 0;
   }
-  /* 两栏：左 = 导读（原题 + 分步解析合并，选项卡切换，34%）；右 = 动画与图表（其余全部）。
-     用户 2026-10-17 裁决：把"原题 / 分步解析"合并成左侧单一导读栏，
-     右侧大平层完整留给 16:9 画布与它下面的整宽曲线图。
-     ⚠ 不再用 position: sticky —— 右侧现在很高（画布 + 控件 + 图表），
-       粘住会让它的下半部分永远滚不出来。整页滚动最简单也最不会出错。 */
-  .col-text { flex: 0 0 34%; min-width: 0; }
-  .col-animation { flex: 1 1 auto; min-width: 0; }
+  /* 两栏（v1.1.5）：
+     左 = 导读（原题 + 分步解析，选项卡切换，34%）+ **联动图表**（搬到卡片底部）；
+     右 = 动画画布 + 播放/开关/图例（其余全部）。
+     ⚠ 左栏 `align-self: flex-start`：它只按"本题最高的一页 + 图表"取高，
+       不跟右栏等高 —— 图表紧贴在内容下面，不靠到屏幕底部。
+     右栏则吃满整栏高度（画布的 flex 高度链从这里开始）。
+     ⚠ 不再用 position: sticky —— 右侧现在很高，粘住会让它的下半部分永远滚不出来。 */
+  .col-text { flex: 0 0 34%; min-width: 0; align-self: flex-start; }
+  .col-animation {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
   @media (max-width: 1180px) {
     .board { flex-direction: column; align-items: stretch; }
     .col-text, .col-animation { flex: none; width: 100%; }
@@ -258,38 +266,33 @@
     border-radius: var(--radius);
     overflow: hidden;
   }
-  /* 画布恒为 16:9（与 §14 的 GIF 960×540 同比例）。
-     ⚠ 不再写死像素高度：写死之后"栏宽随显隐变化"时画面会被横向压扁，
-     而 canvas 的绘制缓冲是按 clientWidth 重建的（见 animation-runtime render()），
-     所以宽高比只能交给 aspect-ratio 表达，不能钉死 height。*/
-  /* 上下两段：上 = 画布 + 播放/开关，下 = 联动图表（整宽横条）。
-     ⚠ 为什么图表放在**下方整宽**而不是右侧竖条：用户 2026-10-17 看效果后裁决
-       "曲线图挪到原动画说明的地方"（原数据面板就在这个位置）。
-       放下面还有一个好处：画布宽度不再被竖条分走，动画能占满整栏。 */
-  /* 上下两段：上 = 画布 + 播放/开关，下 = 联动图表（整宽横条）。
-     ⚠ 为什么图表放在**下方整宽**而不是右侧竖条：用户 2026-10-17 看效果后裁决
-       "曲线图挪到原动画说明的地方"（原数据面板就在这个位置，现已删除）。
-       放下面还有两个好处：画布宽度不被竖条分走；图表横向越宽，时间轴越好读。 */
-  .stage-wrap { display: flex; flex-direction: column; gap: var(--gap-sm); }
-  .stage { min-width: 0; display: flex; flex-direction: column; }
-  /* 画布恒为 16:9，但**宽度按视口高度封顶** ——
-     用户 2026-10-17：「曲线图的高度 + 动画画布的高度不应该使得网页出现滚动条，
-     教学时候不太方便」。所以画布不再无脑吃满整栏宽度：可用高度不够时它等比变小
-     （min(100%, (视口高 − 画布以外占掉的) × 16/9)），宽度变 → 高度按 16:9 跟着变。
-     ⚠ 只能这么写：`aspect-ratio` + `max-height` 会让盒子比 16:9 更扁（比例失真），
-       而 canvas 的绘制缓冲是按 clientWidth/clientHeight 重建的，扁了就是真扁。 */
+  /* v1.1.5（用户 2026-10-19 定方案 B：比例尺优先，GIF 让步）：
+     屏幕上的画布**不再锁 16:9**；宽度吃满右栏，高度也吃满右栏剩余高度。
+     代价是画布比例可能不是 16:9；导出 GIF 仍按 960×540，由前端 `letterboxTo`
+     等比缩放 + 留白（见 web/src/pages/AnimationPage.tsx），不靠容器比例兜底。*/
+  /* 右栏竖排：画布 + 播放条 + 矢量开关 + 图例。
+     ⚠ 曲线图 v1.1.5 已搬到左栏（见 .chart-panel 注释），不再占右栏 —— 画布才吃得到整栏高。 */
+  .stage-wrap { display: flex; flex-direction: column; gap: var(--gap-sm); flex: 1 1 auto; min-height: 0; }
+  .stage { min-width: 0; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  /* v1.1.5 方案 B（用户 2026-10-19 二次拍板：「高度也吃栏高，不写死」）：
+     高度链：.col-animation(flex列) → .stage-wrap(flex:1) → .stage(flex:1) → canvas(flex:1)。
+     ⚠ 不再写 `calc(100vh - --chrome-h)` 这类硬账 —— 高度由栏位分配，窗口/栏宽一变就跟着变。
+     ⚠ canvas 是 replaced element：`flex: 1 1 0` 让它在**有确定高度的**父级里吃剩余空间；
+       `min-height` 只是窄屏（board 变单列、父级高度是 auto）时的兜底，避免塌成 0。
+       绘制缓冲按 clientWidth/clientHeight 重建（animation-runtime render()），尺寸一变就重新取景。 */
   .stage-canvas {
     display: block;
-    width: min(100%, max(320px, calc((100vh - var(--chrome-h)) * 16 / 9)));
-    margin-inline: auto;
-    height: auto;
-    aspect-ratio: 16 / 9;
+    width: 100%;
+    flex: 1 1 0;
+    min-height: 240px;
     background: var(--surface);
   }
-  .stage .transport, .stage .tools { flex: 0 0 auto; }
+  .stage .transport, .stage .tools, .stage .legend-row { flex: 0 0 auto; }
 
-  /* ── 联动图表（动画下方整宽横条，§13.4）──────────────────────
-     独立画布 + 独立坐标系：图表不再借用物理世界坐标，因此不会被 AutoView 的取景
+  /* ── 联动图表（v1.1.5：左栏导读卡片底部，§13.4）────────────────
+     用户 2026-10-19 看截图后裁决：曲线图放到左栏的空白处，**不占右栏画布的位置**，
+     画布因此能整栏吃高。仍然是"曲线图"开关可显隐。
+     独立画布 + 独立坐标系：图表不借用物理世界坐标，不会被 AutoView 的取景
      推到动画身上（这是"图表贴着动画"的根因，见 animation-runtime 第 98–107 行）。*/
   .chart-panel {
     min-width: 0;
@@ -298,6 +301,15 @@
     border-radius: var(--radius); overflow: hidden;
   }
   .chart-panel[hidden] { display: none; }
+  /* 住在导读卡片里：去掉自己的外框，只用一条上边线跟上面的内容分开；
+     ⚠ 不靠 `margin-top:auto` 压到卡片最底 —— 用户要的是"贴着上侧卡片"，
+       卡片高度由当次题目最长的一页决定（见 alignTabBodyToTallest()）。 */
+  .col-text > .chart-panel {
+    flex: 0 0 auto;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+  }
   .chart-head {
     display: flex; align-items: center; flex-wrap: wrap; gap: var(--gap-sm);
     padding: 7px 8px 7px 11px; border-bottom: 1px solid var(--border);
@@ -318,15 +330,12 @@
     background: var(--accent-soft); font-weight: 600;
   }
   .chart-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* 图表高度固定：整宽横条下高度必须由我们定死，否则会被 flex 拉成一片空画布。
-     168px 是跟画布一起"挤进一屏"算出来的（见 --chrome-h 的注释）。 */
+  /* 图表高度是用户 2026-10-19 定的 230px（原 168px 是跟画布"挤一屏"算的）。
+     它已不跟画布争高度，所以写死是**有意的**：各题的曲线区高度一致，游标/刻度好读。 */
   .chart-canvas { display: block; width: 100%; height: var(--chart-h); }
   .chart-foot {
     margin: 0; padding: 3px 11px 6px;
     font-family: var(--font-mono); font-size: 12px; color: var(--muted);
-  }
-  @media (max-width: 1180px) {
-    .chart-canvas { height: 148px; }
   }
 
   .transport {
@@ -456,11 +465,24 @@
         <div class="steps" data-od-id="steps-list"></div>
       </div>
     </div>
+
+    <!-- 联动图表（v1.1.5：用户 2026-10-19 裁决搬到左栏底部，不再占右栏画布的位置）。
+         依旧是"曲线图"开关可显隐；上沿贴着 `.tab-body`（高度由 alignTabBodyToTallest()
+         按本题最长的一页对齐），切页签时图表不会上下跳。 -->
+    <aside class="chart-panel" data-od-id="chart-panel" aria-label="联动图表" hidden>
+      <div class="chart-head">
+        <span class="chart-title" data-od-id="chart-title">曲线图</span>
+        <button class="btn btn-icon" data-od-id="btn-chart-close" type="button" title="隐藏曲线图" aria-label="隐藏曲线图">✕</button>
+      </div>
+      <div class="chart-picks" data-od-id="chart-picks" role="group" aria-label="选择曲线图纵轴物理量"></div>
+      <canvas class="chart-canvas" data-od-id="chart-canvas" aria-label="所选物理量随时间变化的曲线"></canvas>
+      <p class="chart-foot" data-od-id="chart-foot">—</p>
+    </aside>
   </section>
 
   <section class="col-animation" data-od-id="col-animation" aria-labelledby="h-animation">
     <div class="colhead">
-      <h2 id="h-animation">动画与图表</h2>
+      <h2 id="h-animation">动画</h2>
       <span class="count" data-od-id="animation-view">世界坐标</span>
     </div>
 
@@ -520,16 +542,6 @@
         <span class="item">过长时按画面收缩（不裁切）</span>
         <span class="item">画面不写数值，读数看曲线图</span>
       </div>
-
-      <aside class="chart-panel" data-od-id="chart-panel" aria-label="联动图表" hidden>
-        <div class="chart-head">
-          <span class="chart-title" data-od-id="chart-title">曲线图</span>
-          <button class="btn btn-icon" data-od-id="btn-chart-close" type="button" title="隐藏曲线图" aria-label="隐藏曲线图">✕</button>
-        </div>
-        <div class="chart-picks" data-od-id="chart-picks" role="group" aria-label="选择曲线图纵轴物理量"></div>
-        <canvas class="chart-canvas" data-od-id="chart-canvas" aria-label="所选物理量随时间变化的曲线"></canvas>
-        <p class="chart-foot" data-od-id="chart-foot">—</p>
-      </aside>
     </div>
 
     <!-- 运行期提示：数据面板已按第 7 期裁决删除（用户 2026-10-17："这部分'动画说明'删掉不要"），
@@ -599,6 +611,7 @@
     followToggle: document.querySelector('[data-od-id="follow-toggle"]'),
     tabProblem: document.querySelector('[data-od-id="col-problem"]'),
     tabSteps: document.querySelector('[data-od-id="col-steps"]'),
+    tabBody: document.querySelector('.tab-body'),
     notice: document.querySelector('[data-od-id="runtime-notice"]'),
     /* 页头元素：宿主注入 `program` 后用它把"空壳模板"改成真实题目身份（见 applyProgram） */
     pageTitle: document.querySelector('[data-od-id="page-title"]'),
@@ -613,6 +626,8 @@
   var lastFrame = null;
   /* 导出时画布的原始 style（prepare/restore 成对使用，见文件末尾的 ODExportHook） */
   var exportPrevStyle = '';
+  /* 渲染失败只向宿主报一次，避免播放时每帧刷屏；新程序装载时重置 */
+  var renderErrorReported = false;
 
   /* ── 公式渲染：三级降级链 ──────────────────────────────────────────
      ① 构建期 MathJax 预渲染命中 → 直接内联真 MathJax SVG（首选，§2.2 的观感）
@@ -1274,6 +1289,45 @@
     });
   }
 
+  /**
+   * 左栏内容区按"本题最高的一页"留高。
+   *
+   * 为什么需要：曲线图 v1.1.5 贴在 `.tab-body` 下面；页签一换，正文高度就变，
+   * 图表会被顶着上下跳。用户 2026-10-19：「靠上侧卡片对齐……上侧卡片的高度
+   * 对每一题每一步都有可能不一样，所以自适应，按照当次题目卡片最长的一次对齐」。
+   *
+   * 做法：把"原题页"和"每一步"轮流放回文档流量一次 `offsetHeight`（同一帧内恢复，
+   * 用户看不到），取最大值写进 `.tab-body` 的 `min-height`。
+   * ⚠ 量之前必须先清掉旧的 min-height，否则量到的永远不小于上一次的值；
+   *   窗口宽度变了要重量（文字换行会变）。
+   */
+  function alignTabBodyToTallest() {
+    var body = els.tabBody;
+    if (!body || !els.tabProblem || !els.tabSteps || !stepEls.length) return;
+    var prevProblem = els.tabProblem.hidden;
+    var prevSteps = els.tabSteps.hidden;
+    var prevStepHidden = stepEls.map(function (el) { return el.hidden; });
+    body.style.minHeight = '';
+    var tallest = 0;
+
+    els.tabProblem.hidden = false;
+    els.tabSteps.hidden = true;
+    tallest = Math.max(tallest, body.offsetHeight || 0);
+
+    els.tabProblem.hidden = true;
+    els.tabSteps.hidden = false;
+    stepEls.forEach(function (_unused, i) {
+      stepEls.forEach(function (other, j) { other.hidden = j !== i; });
+      tallest = Math.max(tallest, body.offsetHeight || 0);
+    });
+
+    els.tabProblem.hidden = prevProblem;
+    els.tabSteps.hidden = prevSteps;
+    stepEls.forEach(function (el, i) { el.hidden = prevStepHidden[i]; });
+
+    if (tallest > 0) body.style.minHeight = tallest + 'px';
+  }
+
   /* 重入闸：宿主注入 `program` 会再跑一次 bootInner，不设闸会挂两套监听 */
   var colBound = false;
   function bindColumnToggles() {
@@ -1282,6 +1336,8 @@
     els.colInputs.forEach(function (input) {
       input.addEventListener('change', function () {
         applyColumns(currentColumns());
+        /* 导读栏重新显示时，左栏的"最高一页"要重量（隐藏时 offsetHeight 为 0） */
+        alignTabBodyToTallest();
         // 栏宽变了 ⇒ 画布尺寸变了 ⇒ 必须重画（render() 会按新的 clientWidth 重新取景）
         if (player) draw();
         persist();
@@ -1301,24 +1357,46 @@
   }
 
   function draw() {
-    // 先在"版面定下来之后"渲染：图表面板一收一放会改画布宽度，顺序反了会差一帧。
-    syncChartPanel();
-    var out = player.render();
-    lastFrame = out;
-    var stepIndex = indexOfStep(player.state.t);
-    player.state.stepIndex = stepIndex;
-    els.timeline.value = String(player.state.t);
-    els.timecode.textContent = player.state.t.toFixed(2) + ' / ' + player.duration.toFixed(2) + ' s';
-    /* 跟随模式：播放/拖时间轴推进时自动翻到当前那一步
-       （「动画联动」取消 = 两栏解耦，页签不动；装载首帧 followArmed 为假，所以停在"原题"） */
-    if (followMode && followArmed && STEPS.length) {
-      var wantTab = 'step-' + stepIndex;
-      if (activeTab !== wantTab) activateTab(wantTab);
+    try {
+      // 先同步图表面板的显隐（v1.1.5：图表在左栏；一收一放可能改整页高度/滚动条），再取画布尺寸渲染
+      syncChartPanel();
+      var out = player.render();
+      lastFrame = out;
+      var stepIndex = indexOfStep(player.state.t);
+      player.state.stepIndex = stepIndex;
+      els.timeline.value = String(player.state.t);
+      els.timecode.textContent = player.state.t.toFixed(2) + ' / ' + player.duration.toFixed(2) + ' s';
+      /* 跟随模式：播放/拖时间轴推进时自动翻到当前那一步
+         （「动画联动」取消 = 两栏解耦，页签不动；装载首帧 followArmed 为假，所以停在"原题"） */
+      if (followMode && followArmed && STEPS.length) {
+        var wantTab = 'step-' + stepIndex;
+        if (activeTab !== wantTab) activateTab(wantTab);
+      }
+      /* 第 7 期：逐步读数卡片随"数据面板"一起删除了（用户裁决），数字改由图表游标承担。 */
+      paintPanel(out, stepIndex);
+      drawChart();
+      return out;
+    } catch (err) {
+      /**
+       * ⚠ v1.1.5：**渲染失败必须让人看见**，不许留半张图 + 0.00 / 0.00。
+       * 真实事故：模型把虚线写成 `dash: true`，浏览器在 `setLineDash(true)` 处抛错，
+       * 整帧中断、时间码停在页面初值，用户只看到"磁场没有粒子"。
+       * 现在：时间码照常反映时间轴，页面顶部显示原因，并给宿主报一次 render-failed。
+       */
+      var message = String((err && err.message) || err);
+      try {
+        els.timeline.value = String(player.state.t);
+        els.timecode.textContent = player.state.t.toFixed(2) + ' / ' + player.duration.toFixed(2) + ' s';
+      } catch (_ignored) {
+        /* 时间码也写不了就只报错 */
+      }
+      showNotice('这一帧画不出来：' + message);
+      if (!renderErrorReported) {
+        renderErrorReported = true;
+        postToHost('error', { code: 'render-failed', message: message });
+      }
+      return null;
     }
-    /* 第 7 期：逐步读数卡片随"数据面板"一起删除了（用户裁决），数字改由图表游标承担。 */
-    paintPanel(out, stepIndex);
-    drawChart();
-    return out;
   }
 
   function seek(t) {
@@ -1400,7 +1478,11 @@
         draw();
       });
     });
-    window.addEventListener('resize', function () { draw(); });
+    window.addEventListener('resize', function () {
+      /* 栏宽变了 ⇒ 左栏正文换行变 ⇒ 图表上沿要对齐的"最高一页"也要重量 */
+      alignTabBodyToTallest();
+      draw();
+    });
     window.addEventListener('keydown', function (event) {
       if (event.target && /INPUT|SELECT|TEXTAREA/.test(event.target.tagName)) return;
       if (event.code === 'Space') {
@@ -1679,6 +1761,7 @@
       postToHost('error', { code: 'no-program', message: '空壳模板，等待宿主注入 program' });
       return;
     }
+    renderErrorReported = false;
     try {
       var assembly = RT.assembleProgramSource(PROGRAM_DATA.slots, { mode: PROGRAM_DATA.mode || 'NUMERIC' });
       /* eslint-disable-next-line no-new-func */
@@ -1770,6 +1853,8 @@
     setFollow(true);
     bindFollowToggle();
     restore();
+    /* 曲线图贴在左栏正文下面：把正文高度对齐到"本题最高的一页"，切页签时图表不跳。 */
+    alignTabBodyToTallest();
     /* 量选择按钮必须在 restore() 之后建：aria-pressed 要反映最终选中的那个量 */
     if (chart.series) buildChartPicks();
     setPlaying(false);

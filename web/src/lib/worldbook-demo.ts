@@ -87,9 +87,10 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
     ],
     "order": 200,
     "priority": "high",
-    "content": "# 画面视觉约定\n\n## 判据\n任何生成动画的题都适用（动画槽的通用约定）。\n\n## 约定\n- 世界坐标：x 向右、y 向上，单位米；用米量，不用像素、不用屏幕尺寸。\n- 一屏画完：主体居中，关键标注留出余量；视口交给 AutoView 自动定。\n- 颜色由系统按 category 决定（速度绿、加速度蓝、受力红、辅助紫），不用自己指定。\n- 元素名用 Draw.text 放在旁边，画面中央留给运动和几何关系。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 所有坐标都是米，没有像素量与像素比例。\n- [ ] 箭头给 category 与 mag，不写 color 与 scale。\n- [ ] 画面元素都在可视范围内，没有被裁掉。",
+    "content": "# 画面视觉约定\n\n## 判据\n任何生成动画的题都适用（动画槽的通用约定）。\n\n## 约定\n- 世界坐标：x 向右、y 向上，单位米；用米量，不用像素、不用屏幕尺寸。\n- 一屏画完：主体居中，关键标注留出余量；视口交给 AutoView 自动定。\n- 颜色由系统按 category 决定（速度绿、加速度蓝、受力红、辅助紫），不用自己指定。\n- 元素名用 Draw.text 放在旁边，画面中央留给运动和几何关系。\n- 虚线统一写 `dash: true`（如 `Draw.line(a, b, { dash: true })`）；实线不写或写 `dash: false`。只有要自定义虚线间距时才写数字数组（如 `[4, 3]`）；不要写字符串。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 所有坐标都是米，没有像素量与像素比例。\n- [ ] 箭头给 category 与 mag，不写 color 与 scale。\n- [ ] 画面元素都在可视范围内，没有被裁掉。",
     "code_examples": [
-      "setup: `\n  const SCALE = 1.0;   // 1 世界单位 = 1 米，不做像素换算\n`"
+      "setup: `\n  const SCALE = 1.0;   // 1 世界单位 = 1 米，不做像素换算\n`",
+      "drawFrame: `\n  // 虚线：true；实线：不写或 false\n  Draw.line([0, 0.4], [2, 0.4], { dash: true });\n  Draw.line([0, 0], [2, 0], { width: 2 });\n`"
     ]
   },
   {
@@ -202,7 +203,7 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
     ],
     "order": 2,
     "priority": "high",
-    "content": "# 动画元件总览（常驻）：每个元件怎么画\n\n用法：认出元件（题面有传送带就是 `belt`），位置来自 `state.*` 或 `setup` 算好的量。\n下面每行都在校验器里真跑过（C1 + 实跑）。`state` 是 `stateAt(t)` 的返回值；读别的时刻用 `context.at(tt)`，\n但它只能在 `drawFrame` / `readouts` 里用（写在 `stateAt` 里会无限递归）。\n\n> 每个元件的「最常错的地方」在它自己的那张卡里（一行一个元件，按需注入）——这里只留画法，不重复。\n> ⚠ 方案 A 起**画布上不写任何文字**（`Draw.text` / `Draw.latex` / 箭头标签 / 尺寸文字都不显示），标注由画布外的图例承担。\n\n## 力学器材\n- `block` 物块 / 滑块：`Draw.box([state.x, 0.15], 0.4, 0.3)`\n- `board` 长木板 / 小车：`Draw.box([state.xBoard, 0.05], 3.0, 0.1)`\n- `incline` 斜面 / 斜坡：`Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 })`\n- `ground` 地面 / 墙面（斜线阴影）：`Draw.ground(-1.5, 2.5)`\n- `ball` 小球 / 质点：`Draw.circle([state.x, state.y], 0.08)`\n- `arc_track` 圆弧轨道 / 拱桥：`Draw.arc([0, 0], 0.8, -90, 90)`\n- `spring` 弹簧：`Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 })`\n- `pulley` 滑轮：`Draw.pulley([0, 2.4], 0.2)`\n- `rope` 绳 / 细线：`Draw.line([-0.2, 2.4], [-0.2, state.yA])`\n- `rod` 导体棒 / 轻杆：`Draw.line([state.xr, 0], [state.xr, 0.5], { width: 3 })`\n- `stand` 铁架台 / 支架：`Draw.line([-1.2, 0], [-1.2, 2.2], { width: 2 })  Draw.ground(-1.6, 2.4)`\n- `belt` 传送带 / 履带：`Draw.belt([0, 0.2], [4, 0.2], { ticks: 16 })`\n\n## 场与电\n- `circuit` 电路 / 导线 / 电表：`Draw.line([0, 0], [2, 0])  Draw.line([2, 0], [2, 1])  Draw.line([2, 1], [0, 1])  Draw.line([0, 1], [0, 0])  Draw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: Math.abs(state.I), label: 'I', unit: 'A' })`\n- `plates` 平行板 / 极板：`Draw.line([-1, 1.6], [3, 1.6], { width: 3 })  Draw.line([-1, 0.4], [3, 0.4], { width: 3 })`\n- `field_region` 匀强场区（× / · 阵列）：`Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 })`\n- `ray` 光线：`Draw.ray([-1, 0.8], [0, 0.8])`\n- `lens` 透镜：`Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 })`\n- `light_spot` 光斑 / 照射区域：`Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' })`\n\n## 矢量与标注\n- `vector` 矢量箭头（速度/力/加速度）：`Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' })`\n- `trace_path` 轨迹：`Draw.trace([[0, 0], [state.x, state.y]])`\n- `paper_tape` 纸带 / 点迹：`Draw.box([0.5, -0.6], 2.0, 0.12)  Draw.circle([state.d1, -0.6], 0.01)`\n- `ghosts` 频闪残影：`Draw.ghosts([[0, 0.2], [0.5, 0.2], [1.0, 0.2]])`\n- `measuring_tool` 尺寸/角度标注（刻度尺）：`Draw.dimension([0, 0.4], [1, 0.4], { kind: 'linear', text: 'L = 1.0 m' })`\n\n## 图示\n- `axis_box` 坐标轴框（v–t / p–V）：`Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' })`\n- `graph_wave` 波形 / 连续曲线：`Draw.curve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]])`\n- `chart` 图线 + 面积着色：`Draw.chart([[0, 0], [1, 2], [2, 4]], { fill: true, baseline: 0 })`\n- `orbit` 卫星 / 天体轨道：`Draw.arc([0, 0], 1.2, 0, 360)  Draw.circle([state.px, state.py], 0.05)`\n- `cylinder_piston` 气缸 / 活塞：`Draw.box([0, 0.4], 0.24, 0.8)  Draw.box([0, state.xp], 0.2, 0.04)`\n- `gas_tube` 玻璃管 / 水银柱：`Draw.line([0, 0], [0, 1.2])  Draw.line([0.1, 0], [0.1, 1.2])  Draw.box([0.05, state.yh], 0.1, 0.2)`\n- `raw_composite` 复合图形（碰撞/爆炸/火柴人）：`Draw.polygon([[-0.1, 0], [0.1, 0], [0.1, 0.2], [-0.1, 0.2]])`\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 每个元件的位置都来自 `state.*` 或 `setup` 导出的量，没有写死一屏坐标。\n- [ ] `Draw.arrow` 全部带 `mag`（真实量级），`vec` 只给方向；没有 `color` / `scale`。\n- [ ] 跨槽位取值只用 `RETURN` + `context.X`，没有裸引用别的槽位的局部变量。\n",
+    "content": "# 动画元件总览（常驻）：每个元件怎么画\n\n用法：认出元件（题面有传送带就是 `belt`），位置来自 `state.*` 或 `setup` 算好的量。\n下面每行都在校验器里真跑过（C1 + 实跑）。`state` 是 `stateAt(t)` 的返回值；读别的时刻用 `context.at(tt)`，\n但它只能在 `drawFrame` / `readouts` 里用（写在 `stateAt` 里会无限递归）。\n\n> 每个元件的「最常错的地方」在它自己的那张卡里（一行一个元件，按需注入）——这里只留画法，不重复。\n> ⚠ 方案 A 起**画布上不写任何文字**（`Draw.text` / `Draw.latex` / 箭头标签 / 尺寸文字都不显示），标注由画布外的图例承担。\n> 虚线统一写 `{ dash: true }`；实线不写；只有自定义间距才写 `[n, m]`。`Draw.trace` 默认就是虚线。\n\n## 力学器材\n- `block` 物块 / 滑块：`Draw.box([state.x, 0.15], 0.4, 0.3)`\n- `board` 长木板 / 小车：`Draw.box([state.xBoard, 0.05], 3.0, 0.1)`\n- `incline` 斜面 / 斜坡：`Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 })`\n- `ground` 地面 / 墙面（斜线阴影）：`Draw.ground(-1.5, 2.5)`\n- `ball` 小球 / 质点：`Draw.circle([state.x, state.y], 0.08)`\n- `arc_track` 圆弧轨道 / 拱桥：`Draw.arc([0, 0], 0.8, -90, 90)`\n- `spring` 弹簧：`Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 })`\n- `pulley` 滑轮：`Draw.pulley([0, 2.4], 0.2)`\n- `rope` 绳 / 细线：`Draw.line([-0.2, 2.4], [-0.2, state.yA])`\n- `rod` 导体棒 / 轻杆：`Draw.line([state.xr, 0], [state.xr, 0.5], { width: 3 })`\n- `stand` 铁架台 / 支架：`Draw.line([-1.2, 0], [-1.2, 2.2], { width: 2 })  Draw.ground(-1.6, 2.4)`\n- `belt` 传送带 / 履带：`Draw.belt([0, 0.2], [4, 0.2], { ticks: 16 })`\n\n## 场与电\n- `circuit` 电路 / 导线 / 电表：`Draw.line([0, 0], [2, 0])  Draw.line([2, 0], [2, 1])  Draw.line([2, 1], [0, 1])  Draw.line([0, 1], [0, 0])  Draw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: Math.abs(state.I), label: 'I', unit: 'A' })`\n- `plates` 平行板 / 极板：`Draw.line([-1, 1.6], [3, 1.6], { width: 3 })  Draw.line([-1, 0.4], [3, 0.4], { width: 3 })`\n- `field_region` 匀强场区（× / · 阵列）：`Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 })`\n- `ray` 光线：`Draw.ray([-1, 0.8], [0, 0.8])`\n- `lens` 透镜：`Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 })`\n- `light_spot` 光斑 / 照射区域：`Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' })`\n\n## 矢量与标注\n- `vector` 矢量箭头（速度/力/加速度）：`Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' })`\n- `trace_path` 轨迹：`Draw.trace([[0, 0], [state.x, state.y]])`\n- `paper_tape` 纸带 / 点迹：`Draw.box([0.5, -0.6], 2.0, 0.12)  Draw.circle([state.d1, -0.6], 0.01)`\n- `ghosts` 频闪残影：`Draw.ghosts([[0, 0.2], [0.5, 0.2], [1.0, 0.2]])`\n- `measuring_tool` 尺寸/角度标注（刻度尺）：`Draw.dimension([0, 0.4], [1, 0.4], { kind: 'linear', text: 'L = 1.0 m' })`\n\n## 图示\n- `axis_box` 坐标轴框（v–t / p–V）：`Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' })`\n- `graph_wave` 波形 / 连续曲线：`Draw.curve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]])`\n- `chart` 图线 + 面积着色：`Draw.chart([[0, 0], [1, 2], [2, 4]], { fill: true, baseline: 0 })`\n- `orbit` 卫星 / 天体轨道：`Draw.arc([0, 0], 1.2, 0, 360)  Draw.circle([state.px, state.py], 0.05)`\n- `cylinder_piston` 气缸 / 活塞：`Draw.box([0, 0.4], 0.24, 0.8)  Draw.box([0, state.xp], 0.2, 0.04)`\n- `gas_tube` 玻璃管 / 水银柱：`Draw.line([0, 0], [0, 1.2])  Draw.line([0.1, 0], [0.1, 1.2])  Draw.box([0.05, state.yh], 0.1, 0.2)`\n- `raw_composite` 复合图形（碰撞/爆炸/火柴人）：`Draw.polygon([[-0.1, 0], [0.1, 0], [0.1, 0.2], [-0.1, 0.2]])`\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 每个元件的位置都来自 `state.*` 或 `setup` 导出的量，没有写死一屏坐标。\n- [ ] `Draw.arrow` 全部带 `mag`（真实量级），`vec` 只给方向；没有 `color` / `scale`。\n- [ ] 跨槽位取值只用 `RETURN` + `context.X`，没有裸引用别的槽位的局部变量。\n",
     "code_examples": [
       "// 三个最常用元件的最小画法（完整清单见正文）\nstateAt: `\n  return { x: 0.6, yTop: 1.6 };\n`\ndrawFrame: `\n  Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 });\n  Draw.box([state.x, 0.15], 0.4, 0.3);\n  Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 });\n`"
     ]
@@ -816,7 +817,7 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
     ],
     "order": 919,
     "priority": "high",
-    "content": "# 元件·轨迹（矢量与标注）\n\n## 判据\n题面或配图里出现「轨迹」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.4 };\n- drawFrame 里写：Draw.trace([[0, 0], [state.x, state.y]]);\n\n## 这条元件最常错的地方\n另写一条解析曲线当轨迹（与实体位置不一致）；画\"还没发生\"的时段\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+    "content": "# 元件·轨迹（矢量与标注）\n\n## 判据\n题面或配图里出现「轨迹」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.4 };\n- drawFrame 里写：Draw.trace([[0, 0], [state.x, state.y]]);\n\n## 这条元件最常错的地方\n另写一条解析曲线当轨迹（与实体位置不一致）；画\"还没发生\"的时段\n\n## 虚线约定\n`Draw.trace` 默认就是虚线；要显式画一条虚线用 `Draw.line(a, b, { dash: true })`；实线不写或 `dash: false`。只有自定义间距才写 `[n, m]`。\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
     "code_examples": [
       "drawFrame: `\n  Draw.trace([[0, 0], [state.x, state.y]]);\n`"
     ]
@@ -1138,7 +1139,7 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
 export const WORLDBOOK_USER: ReadonlyArray<WorldbookEntryLike> = []
 
 /** 内置库的稳定哈希（`provenance.worldbookHash` 用的同一个算法） */
-export const WORLDBOOK_HASH = "e4487a5bc8155849418bf0b7433eb3df97a4aa3e9e0d7556b009d3f400781cef"
+export const WORLDBOOK_HASH = "1d137527ebd7230f0f8f7ddb3935344c7a7acf0f40e262b6fdb4ab7f1b9614d2"
 
 /**
  * 导出包的格式标识与版本（**从 `core/worldbook/store.mjs` 派生**，不是抄录）。
@@ -1156,19 +1157,19 @@ export const WORLDBOOK_SOURCES: ReadonlyArray<{ name: string; kind: string; coun
     "name": "90-visual.json",
     "kind": "builtin",
     "count": 2,
-    "sha256": "4d7e9de9109b43de14a5817548663a5db6f7514970767344d0f6f8bd0d911821"
+    "sha256": "e7c65d2cc9593e8bb461c3d086ab6dc108d68080e96e6b8e486115472fed9c8a"
   },
   {
     "name": "92-animation-core.json",
     "kind": "builtin",
     "count": 2,
-    "sha256": "1826660eedbe0a7f3fbb8ccf8a2de59440d75b770b7518fe3aaf111e11a2eadf"
+    "sha256": "0877d7586c2ad63028091cef5c96ce1ca3f144a844bc9da0d48dc2bfcb87cdc4"
   },
   {
     "name": "93-elements.json",
     "kind": "builtin",
     "count": 30,
-    "sha256": "5d254205d514a17131f2cef9ce1aa0cc2267ccff38bcf960e843720f07121cd6"
+    "sha256": "9b05b889462b99c54dfd72d825b5d641830f26e096b5904e612319bf510ec25c"
   }
 ]
 
@@ -1194,7 +1195,7 @@ export const WORLDBOOK_COVERAGE: WorldbookCoverageReport = {
  * 这样"生成物"与"消费端的类型"之间不会出现第二份手写接口。
  */
 export const WORLDBOOK_DEMO_EVENT = {
-  "hash": "e4487a5bc8155849418bf0b7433eb3df97a4aa3e9e0d7556b009d3f400781cef",
+  "hash": "1d137527ebd7230f0f8f7ddb3935344c7a7acf0f40e262b6fdb4ab7f1b9614d2",
   "libraryCount": 34,
   "matched": 4,
   "entries": [
@@ -1257,7 +1258,7 @@ export const WORLDBOOK_DEMO_EVENT = {
         "scene_code"
       ],
       "charsBySlot": {
-        "scene_code": 3260
+        "scene_code": 3330
       },
       "unmounted": false,
       "truncated": false,
@@ -1342,7 +1343,7 @@ export const WORLDBOOK_DEMO_EVENT = {
   "warnings": [],
   "charsBySlot": {
     "solve": 0,
-    "scene_code": 5805
+    "scene_code": 5875
   },
   "injectedBySlot": {
     "solve": 0,

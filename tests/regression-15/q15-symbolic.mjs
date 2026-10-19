@@ -131,7 +131,7 @@ var rodX = -0.10 + state.x * 0.62;
    at() 只能在 drawFrame 里用（放进 stateAt 会被 C1 拦）。 */
 var tracePts = [];
 for (var tq = 0; tq <= 24; tq = tq + 1) { tracePts.push([-0.10 + context.at(SIM.duration * tq / 24).x * 0.62, y0 + 0.18]); }
-Draw.trace(tracePts, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.box([rodX, y0 + 0.18], 0.10, 0.32, { fill: '#ffffff', stroke: '#1d2733' });
 Draw.text(rodX, y0 + 0.60, 'm, r', { size: 11, color: '#1d2733' });
 // §18 期 3 的验收条件「纯符号题能播且标注全为符号」落在下面两行的 latex 上：

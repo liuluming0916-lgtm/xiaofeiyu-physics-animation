@@ -54,10 +54,12 @@ export const CHECK_TO_SLOTS = Object.freeze({
   C3: Object.freeze(['stateAt']),
   C4: Object.freeze(['stateAt']),
   C6: Object.freeze(['stateAt']),
-  // C5 时间锚点：是 STEPS 的字段（§8.1 第三行）
-  C5: Object.freeze(['STEPS']),
-  // C7 答案闭环：readouts 给出读数，数值由 stateAt 提供（§8.1 第二行）
-  C7: Object.freeze(['readouts', 'stateAt']),
+  // C5 时间锚点：STEPS 声明时刻，VIEW 声明 duration —— 两边都可能要改
+  C5: Object.freeze(['STEPS', 'VIEW']),
+  // C7 答案闭环：答案名（ANSWERS）、读数（readouts）、数值（stateAt）三方都可能要改。
+  // ⚠ v1.1.5 用户实测：只发 readouts/stateAt 时，模型看不到也不许改 ANSWERS，
+  //   而 C7 的最自然修法恰恰是"改答案的符号名"—— 提示词救不了一份没发出去的代码。
+  C7: Object.freeze(['ANSWERS', 'readouts', 'stateAt']),
   // C8 / C9 是告警（不阻塞），不触发修复；列出来是为了让"表覆盖了所有检查号"可机检
   C8: Object.freeze([]),
   C9: Object.freeze([]),
@@ -66,8 +68,8 @@ export const CHECK_TO_SLOTS = Object.freeze({
 /** §8.1 表的可读版本（供自检比对"实现与方案的表一致"） */
 export const REPAIR_TABLE = Object.freeze([
   { checks: ['C3', 'C4', 'C6'], slots: ['stateAt'], why: '状态量 / 几何 / 边界连续性都只由 stateAt 决定' },
-  { checks: ['C7'], slots: ['readouts', 'stateAt'], why: 'C7 失败 = 读数没复现结论；读数由 readouts 给出、数据由 stateAt 提供' },
-  { checks: ['C5'], slots: ['STEPS'], why: '时间锚点是 STEPS 的字段' },
+  { checks: ['C7'], slots: ['ANSWERS', 'readouts', 'stateAt'], why: 'C7 失败 = 答案的符号名没在读数里复现；名字、读数、数据三方都可能要改' },
+  { checks: ['C5'], slots: ['STEPS', 'VIEW'], why: '时间锚点由 STEPS 声明，总时长由 VIEW 声明，两边要对齐' },
   { checks: ['C1'], slots: [], why: '未知 API：只重发出错的那一个槽位（槽位名取自诊断）' },
   { checks: ['C2'], slots: [], why: '终止性：优先按"最后执行位置"定位槽位' },
   { checks: ['visual'], slots: ['drawFrame'], why: '视觉 / 构图问题只重发 drawFrame' },
@@ -413,9 +415,10 @@ export function renderDiagnostic(d) {
  * @param {object} input.plan `planRepair()` 的结果
  * @param {object} input.report 上一轮的报告
  * @param {Record<string,string>} input.slots 当前槽位
+ * @param {Array<object>} [input.previousRounds] 已经试过的轮次（避免每轮重复同一个改法）
  * @param {boolean} [input.codeSlot] 本次要改的是代码型槽位吗（决定要不要带 SDK 与架构不变量）
  */
-export function buildRepairTask({ problem, plan, report, slots, codeSlot = true }) {
+export function buildRepairTask({ problem, plan, report, slots, previousRounds = [], codeSlot = true }) {
   const parts = [];
 
   parts.push('【原题（不得改动）】', problem ?? '', '');
@@ -435,6 +438,17 @@ export function buildRepairTask({ problem, plan, report, slots, codeSlot = true 
     for (const d of [...diags].sort(comparePrecision)) parts.push(renderDiagnostic(d));
   }
   parts.push('');
+
+  /* 轮次记忆（v1.1.5）：每轮是独立请求，不给"上一轮试过什么"就会原地打转。 */
+  if (Array.isArray(previousRounds) && previousRounds.length) {
+    parts.push('【你已经试过的轮次（本轮不要重复同样的改法）】');
+    for (const r of previousRounds) {
+      const updated = (r.updated ?? r.requested ?? []).join(' / ') || '（未合并成功）';
+      const checks = (r.triggeringChecks ?? []).join(' / ') || '—';
+      parts.push(`· 第 ${r.round} 轮：改了 ${updated}；结果 ${r.verdict ?? '—'}（触发检查：${checks}）`);
+    }
+    parts.push('如果还是同一个错误，说明上一轮的改法没抓到根因：请换一个方向，不要重复提交同样的改动。', '');
+  }
 
   /**
    * 第 8 期 L4a：**给"对的样子"，不只给"错在哪"**。

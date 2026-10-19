@@ -193,6 +193,7 @@ export const ELEMENTS = [
     state: 'return { x: 0.6, y: 0.4 };',
     draw: 'Draw.trace([[0, 0], [state.x, state.y]]);',
     pitfall: '另写一条解析曲线当轨迹（与实体位置不一致）；画"还没发生"的时段',
+    dashNote: '`Draw.trace` 默认就是虚线；要显式画一条虚线用 `Draw.line(a, b, { dash: true })`；实线不写或 `dash: false`。只有自定义间距才写 `[n, m]`。',
   },
   {
     id: 'paper_tape', name: '纸带 / 点迹', group: '矢量与标注',
@@ -371,6 +372,7 @@ function overviewContent() {
   L.push('');
   L.push('> 每个元件的「最常错的地方」在它自己的那张卡里（一行一个元件，按需注入）——这里只留画法，不重复。');
   L.push('> ⚠ 方案 A 起**画布上不写任何文字**（`Draw.text` / `Draw.latex` / 箭头标签 / 尺寸文字都不显示），标注由画布外的图例承担。');
+  L.push('> 虚线统一写 `{ dash: true }`；实线不写；只有自定义间距才写 `[n, m]`。`Draw.trace` 默认就是虚线。');
   L.push('');
   for (const g of groups) {
     L.push(`## ${g}`);
@@ -700,6 +702,7 @@ function elementCardContent(el) {
     '## 这条元件最常错的地方',
     el.pitfall,
     '',
+    ...(el.dashNote ? ['## 虚线约定', el.dashNote, ''] : []),
     '## 两条铁律（所有元件都适用）',
     '- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。',
     '- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。',

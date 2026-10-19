@@ -192,6 +192,10 @@ const STEPS = [
     '㊺ C1 白名单与 C4 位移口径回归（第 8 期用户 AEB 真题：`isFinite` 一族放行 / 建议有边界 / 标注增减不算位移）',
     'tests/c4-annotation-selftest.mjs',
   ],
+  [
+    '㊻ 虚线参数口径取证（第 9 期：dash:true=虚线 / false=实线 / 数组=自定义；非法类型 C1 拦截）',
+    'tests/dash-selftest.mjs',
+  ],
 ];
 
 function canSpawn() {

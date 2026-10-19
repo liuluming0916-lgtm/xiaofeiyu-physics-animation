@@ -3,7 +3,7 @@
 ```
 【SDK 签名摘要 · v1.0.0】按名字精确调用；未登记的函数会被静态预检拒绝。
 — 绘图原语（只推命令，不接触 ctx）—
-· Draw.line(a, b, style?) — 直线段。a/b 为世界坐标 [x,y] 或 {x,y}；style 可选 {width, dash, stroke}
+· Draw.line(a, b, style?) — 直线段。a/b 为世界坐标 [x,y] 或 {x,y}；style 可选 {width, dash, stroke}。**dash: true = 虚线，false/不写 = 实线**；只有要自定义间距时才写数字数组（如 [4, 3]）。
 · Draw.arrow(from, vec, opts?) — 分类矢量箭头。vec 只给**方向**（几何矢量）；长度由 opts.mag 决定：长度 = 该类满量程 × (mag ÷ 该类整段最大 mag)，所以**必须给 mag**（真实物理量，如 |v|、|a|、|F|）。opts.category ∈ velocity|acceleration|force|aux 决定颜色（绿=速度/蓝=加速度/红=受力/紫=辅助）；opts.label 标注、opts.unit 单位。**不要给 scale（已废弃）或 color（由 category 决定）**。
 · Draw.polygon(points, style?) — 多边形/路径。style.hatch ∈ null|"below"|"belowBase" 画斜线阴影
 · Draw.circle(center, r, style?) — 圆：质点、滚轮、场区边界；style.angleDeg 画半径线
@@ -13,8 +13,8 @@
 · Draw.fieldDots(rect, opts?) — 均匀场点/叉阵列。rect={x,y,w,h}；opts.symbol ∈ dot|cross，opts.nx/ny 网格数
 · Draw.dimension(from, to, opts?) — 尺寸/角度标注。opts.kind ∈ linear|angle，opts.text 标注文本
 · Draw.arc(center, r, a0, a1, opts?) — 弧线：轨迹、圆周、角度弧；角度制，逆时针为正
-· Draw.trace(points, opts?) — 轨迹虚线（curve 的实参默认值封装）
-· Draw.curve(points, opts?) — 折线/路径；opts.closed 闭合，opts.fill 填充
+· Draw.trace(points, opts?) — 轨迹虚线（curve 的实参默认值封装；默认就是虚线，不用再给 dash）
+· Draw.curve(points, opts?) — 折线/路径；opts.closed 闭合，opts.fill 填充；opts.dash: true=虚线、false/不写=实线、[n,m]=自定义间距
 · Draw.ghosts(positions, opts?) — 残影快照：一组位置画成同形轮廓
 · Draw.ray(from, to, opts?) — 光线路，带箭头
 · Draw.lens(center, opts?) — 透镜：opts.height 口径、opts.focal 焦距（几何量）

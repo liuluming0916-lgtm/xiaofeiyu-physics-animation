@@ -72,9 +72,20 @@ export function App() {
                 规则
               </NavButton>
             )}
-            <NavButton active={page === 'distill'} onClick={() => setPage('distill')}>
-              蒸馏
-            </NavButton>
+            {/*
+              v1.1.5：发布版把「蒸馏」锁成「写卡助手」占位 —— 按钮可见但不可点，
+              页面分支也用 !RELEASE 守着（Rollup 会把 DistillPage 整页摇掉，F12 也翻不出来）。
+              开发期仍保留「蒸馏」入口，方便继续调这个栏位。
+            */}
+            {RELEASE ? (
+              <NavButton active={false} disabled onClick={() => {}} title="写卡助手 · 暂未开放">
+                写卡助手
+              </NavButton>
+            ) : (
+              <NavButton active={page === 'distill'} onClick={() => setPage('distill')}>
+                蒸馏
+              </NavButton>
+            )}
             {/*
               ⚠ 第 9 期 v1.1.5（用户 2026-10-19）：**导出变成导航栏的一个键**，排在「蒸馏」右边。
               这样动画页顶部那一整行工具栏可以彻底删掉，把高度让给画布。
@@ -154,7 +165,7 @@ export function App() {
             <SolvePage onOpenAnimation={() => setPage('animation')} />
           ) : page === 'animation' ? (
             <AnimationPage />
-          ) : page === 'distill' ? (
+          ) : !RELEASE && page === 'distill' ? (
             <DistillPage />
           ) : !RELEASE && page === 'rules' ? (
             <RulesPage />
@@ -186,17 +197,20 @@ function NavButton({
   disabled,
   onClick,
   children,
+  title,
 }: {
   active: boolean
   disabled?: boolean
   onClick: () => void
   children: React.ReactNode
+  title?: string
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
+      title={title}
       aria-current={active ? 'page' : undefined}
       className={`rounded-md px-3 py-1.5 text-sm ${
         active ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'

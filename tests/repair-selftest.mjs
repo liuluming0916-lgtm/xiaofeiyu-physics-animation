@@ -8,7 +8,7 @@
  *   『A-2』回灌文本：证据强度必须带上、不得含 stack trace / 绝对路径
  *   『A-3』部分重生成：只输出一个槽位也能合并（§8.1 的接口前提）
  *   『B1』注入错误代码 → **自动修复收敛**
- *   『B2』修复轮数**硬上限 3**（连吐多轮坏代码 ⇒ 不再修）
+ *   『B2』同一错误连续两轮即停（不再盲改满 3 轮；3 仍是硬上限）
  *   『B3』**槽位级重生成**（只重发 drawFrame；其余槽位逐字节不变）
  *   『B4』告警横幅交付（三轮不过**仍交付**可播放程序 + 横幅，文案含失败检查号）
  *   『B6』修复过程**对用户可见**（事件流里有 repair 的 start/delta/done 与诊断快照）
@@ -33,6 +33,7 @@ import {
   REPAIR_TABLE,
   CHECK_TO_SLOTS,
   planRepair,
+  planC7Alias,
   buildBanner,
   deliveryShape,
   buildRepairTask,
@@ -239,12 +240,12 @@ export async function main() {
 
     {
       const p = planRepair({ report: report([mk('C7')]), round: 0, slots: {} });
-      check('C7 失败 ⇒ 重发 stateAt + readouts（按冻结键序）', p.slots.join(',') === 'stateAt,readouts', p.slots.join(','));
+      check('C7 失败 ⇒ 重发 ANSWERS + stateAt + readouts（按冻结键序）', p.slots.join(',') === 'ANSWERS,stateAt,readouts', p.slots.join(','));
     }
 
     {
       const p = planRepair({ report: report([mk('C5')]), round: 0, slots: {} });
-      check('C5 失败 ⇒ 只重发 STEPS', p.slots.join(',') === 'STEPS', p.slots.join(','));
+      check('C5 失败 ⇒ 重发 STEPS + VIEW（按冻结键序）', p.slots.join(',') === 'STEPS,VIEW', p.slots.join(','));
     }
 
     {
@@ -299,7 +300,7 @@ export async function main() {
       const p = planRepair({ report: report([mk('C7')]), round: 0, slots });
       check('空槽位被一并纳入重发（§3.2 审计 2：空串视为缺失）', p.slots.includes('PROBLEM'), p.slots.join(','));
       check('空槽位被单独记录（emptySlots），不与"出错槽位"混为一谈', p.emptySlots.join(',') === 'PROBLEM', p.emptySlots.join(','));
-      check('计划里既有"出错槽位"也有"空槽位"（两者都列全）', p.slots.join(',') === 'PROBLEM,stateAt,readouts', p.slots.join(','));
+      check('计划里既有"出错槽位"也有"空槽位"（两者都列全）', p.slots.join(',') === 'PROBLEM,ANSWERS,stateAt,readouts', p.slots.join(','));
     }
 
     {
@@ -484,9 +485,42 @@ export async function main() {
     check('run_start 发的是完整链条（含 repair）', events.find((e) => e.type === 'run_start')?.stages?.includes('repair') === true);
   }
 
+  /* ────────────────────── 『B1b』C7 确定性快修 ────────────────────── */
+
+  console.log('\n『B1b』纯符号 C7 → 确定性快修（不调模型）');
+  {
+    const symbol = '\\vec E+\\vec v\\times\\vec B';
+    const original = sceneCode({
+      ANSWERS: `symbol: ${symbol}\nvalue: null\nunit: V/m\nat_t: 1\nstep: 1\nlatex: ${symbol}=0`,
+      readouts: 'return [{ key: "E-vB", label: "E-vB", value: 0, unit: "V/m" }];',
+    });
+    const failReport = fakeReport({
+      verdict: 'fail',
+      failed: ['C7'],
+      diagnostics: [{ check: 'C7', slot: 'readouts', line: 0, precision: 'exact', reason: `ANSWERS[0] 的 ${symbol} 在 t=1 的 readouts 中不存在` }],
+    });
+    const dryImpl = fakeDryRun([failReport, fakeReport({ verdict: 'pass' })]);
+    const stream = routedStream({
+      sceneCode: original,
+      repair: partialOutput('stateAt', 'return { x: t };'),
+    });
+
+    const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dryImpl }));
+    const runDone = events.find((e) => e.type === 'run_done');
+    const round = events.find((e) => e.type === 'repair_round');
+    const finalSlots = [...events].reverse().find((e) => e.type === 'dryrun_done')?.program?.slots;
+
+    check('确定性快修后判定为 pass', runDone?.verdict === 'pass', runDone?.verdict);
+    check('确定性快修**没有**调用模型', stream.calls.filter((c) => c.stage === 'repair').length === 0);
+    check('Dry-Run 被调用 2 次（首轮 + 补丁验证）', dryImpl.calls.length === 2, String(dryImpl.calls.length));
+    check('记了 1 轮自愈（对用户可见）', runDone?.rounds === 1 && round?.updated?.join(',') === 'readouts', JSON.stringify(round?.updated));
+    check('补丁读数带答案自己的符号', String(finalSlots?.readouts ?? '').includes(JSON.stringify(symbol)));
+    check('收敛时不挂横幅', runDone?.banner === null, JSON.stringify(runDone?.banner));
+  }
+
   /* ────────────────────── 『B2』轮数硬上限 ────────────────────── */
 
-  console.log('\n『B2』修复轮数硬上限 3（连吐坏代码）');
+  console.log('\n『B2』连续两轮同一错误即停（不再盲改满 3 轮）');
   {
     const dryImpl = fakeDryRun(
       fakeReport({ verdict: 'fail', failed: ['C6'], diagnostics: [{ check: 'C6', slot: 'stateAt', line: 5, precision: 'replayed', message: '边界跳变 0.4 m' }] }),
@@ -498,14 +532,16 @@ export async function main() {
 
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dryImpl }));
     const runDone = events.find((e) => e.type === 'run_done');
+    const repairDone = events.find((e) => e.type === 'repair_done');
     const repairCalls = stream.calls.filter((c) => c.stage === 'repair').length;
 
-    check('修复调用恰好 3 次（不是 4 次）', repairCalls === REPAIR_MAX_ROUNDS, String(repairCalls));
-    check('Dry-Run 被调用 4 次（首轮 + 3 轮修复）', dryImpl.calls.length === 4, String(dryImpl.calls.length));
+    check('修复调用恰好 2 次（同一错误连续两轮后停）', repairCalls === 2, String(repairCalls));
+    check('Dry-Run 被调用 3 次（首轮 + 2 轮修复）', dryImpl.calls.length === 3, String(dryImpl.calls.length));
     check('最终判定仍是 fail（不包装成成功）', runDone?.verdict === 'fail', runDone?.verdict);
-    check('rounds = 3', runDone?.rounds === 3, String(runDone?.rounds));
+    check('rounds = 2', runDone?.rounds === 2, String(runDone?.rounds));
     check('converged = false', runDone?.converged === false);
-    check('repair_done 如实报出未收敛', events.find((e) => e.type === 'repair_done')?.converged === false);
+    check('repair_done 如实报出未收敛', repairDone?.converged === false);
+    check('repair_done 报出"同一错误"停止原因', /同一错误/.test(repairDone?.stoppedReason ?? ''), repairDone?.stoppedReason);
   }
 
   /* ────────────────────── 『B3』槽位级重生成 ────────────────────── */
@@ -592,7 +628,7 @@ export async function main() {
     check('有横幅（绝不静默交付）', Boolean(b));
     check('横幅级别是 warning', b?.level === 'warning', b?.level);
     check('横幅文案**含失败检查号**', b?.failedChecks?.includes('C3') && b.failedChecks.includes('C7'), JSON.stringify(b?.failedChecks));
-    check('横幅说明"自动修复了 3 轮"', b?.rounds === 3 && b.message.includes('3 轮'), b?.message);
+    check('横幅说明"自动修复了 2 轮"（同一错误连续两轮即停）', b?.rounds === 2 && b.message.includes('2 轮'), b?.message);
     check('横幅明说"未经通过、请人工复核"', b?.message.includes('人工复核'));
     check('8 槽位齐全 ⇒ 仍交付可播放程序', runDone.delivery.playable === true && b.playable === true);
     check('交付形态是 delivered-candidate（不是 skeleton）', runDone.delivery.mode === 'delivered-candidate');
@@ -795,6 +831,34 @@ export async function main() {
     }).status === 'fail');
   }
 
+  /* ────────────────────── 『D-8』C7 确定性快修 ────────────────────── */
+
+  console.log('\n『D-8』C7 确定性快修：纯符号答案 → 答案符号原样加成读数（不调模型）');
+  {
+    const slots = { readouts: 'return [{ key: "E-vB", label: "E-vB", value: 0, unit: "V/m" }];' };
+    const symbol = '\\vec E+\\vec v\\times\\vec B';
+    const report = fakeReport({
+      verdict: 'fail',
+      failed: ['C7'],
+      diagnostics: [
+        { check: 'C7', slot: 'readouts', line: 0, precision: 'exact', reason: `ANSWERS[0] 的 ${symbol} 在 t=2.3 的 readouts 中不存在` },
+      ],
+    });
+    const answers = [{ symbol, value: null, unit: 'V/m', latex: '\\vec E+\\vec v\\times\\vec B=0' }];
+    const p = planC7Alias({ slots, report, answers });
+    check('纯符号 C7 ⇒ 生成确定性补丁', p.ok === true, p.reason);
+    check('新读数带**答案自己的符号**（不是硬编码映射）', p.slots?.readouts.includes(JSON.stringify(symbol)), p.slots?.readouts);
+    check('新读数的 value 是 0（只用于闭环，不参与物理判断）', /value: 0/.test(p.slots?.readouts ?? ''));
+    check(
+      '有 C7 之外的阻塞失败 ⇒ 不做确定性修复',
+      planC7Alias({ slots, report: fakeReport({ verdict: 'fail', failed: ['C3'], diagnostics: [] }), answers }).ok === false,
+    );
+    check(
+      '数值答案（value 不为 null）⇒ 不做确定性修复',
+      planC7Alias({ slots, report, answers: [{ ...answers[0], value: 1 }] }).ok === false,
+    );
+  }
+
   /* ────────────────────── 『E』15 题 C7 判定与第 3 期一致 ────────────────────── */
 
   console.log('\n『E』15 题 C7 判定与第 3 期**逐题一致**（§14.4 的硬约束）');
@@ -843,7 +907,7 @@ export async function main() {
     const runDone = events.find((e) => e.type === 'run_done');
     check('判定仍是 fail（输出里写"忽略校验"关不掉 C1–C9）', runDone.verdict === 'fail', runDone.verdict);
     check('仍有横幅（不静默）', Boolean(runDone.banner));
-    check('Dry-Run 每次都被真正调用（没有被"直接通过"短路）', dryImpl.calls.length === 4, String(dryImpl.calls.length));
+    check('Dry-Run 每次都被真正调用（首轮 + 2 轮后同一错误即停）', dryImpl.calls.length === 3, String(dryImpl.calls.length));
   }
 
   /* ────────────────────── 汇总 ────────────────────── */

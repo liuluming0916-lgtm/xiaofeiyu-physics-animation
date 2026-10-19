@@ -180,7 +180,7 @@ if (sgn !== 0) {
 
 // —— 全程轨迹（点划虚线）：电流指示点沿回路的行进路线。它与回路导线完全重合，
 //    所以用点线（dash [2,6]）画在导线**之上**，既能看见又不像重复描边。——
-Draw.trace([[0, 0], [w, 0], [w, h], [0, h], [0, 0]], { color: '#c8d0d8', dash: [2, 6], width: 2.0, layer: 0 });
+Draw.trace([[0, 0], [w, 0], [w, h], [0, h], [0, 0]], { color: '#c8d0d8', dash: true, width: 2.0, layer: 0 });
 
 // —— 电流指示点：沿回路走过的弧长就是充电进度 ——
 Draw.circle([state.x, state.y], 0.075, { fill: '#1f6fb2', stroke: '#ffffff', width: 1.2 });

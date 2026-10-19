@@ -131,8 +131,8 @@ Draw.chart(samples, {
 Draw.text(sx(0.5 * (context.V1 + context.V2)) + 0.42, sy(context.p1 * 0.62), 'W = p–V 图下的面积', { size: 12, color: '#2a6f8f', align: 'left' });
 Draw.text(sx(0.5 * (context.V1 + context.V2)) + 0.42, sy(context.p1 * 0.62) - 0.13, 'W = ' + Phys.format(state.W, 'J', 3), { size: 12, color: '#1d2733', align: 'left' });
 
-Draw.line([sx(context.V1), oy], [sx(context.V1), sy(context.p1)], { dash: [3, 3], color: '#9aa7b4' });
-Draw.line([sx(context.V2), oy], [sx(context.V2), sy(context.p2)], { dash: [3, 3], color: '#9aa7b4' });
+Draw.line([sx(context.V1), oy], [sx(context.V1), sy(context.p1)], { dash: true, color: '#9aa7b4' });
+Draw.line([sx(context.V2), oy], [sx(context.V2), sy(context.p2)], { dash: true, color: '#9aa7b4' });
 Draw.circle([sx(context.V1), sy(context.p1)], 0.035, { fill: '#1d2733', stroke: '#1d2733' });
 Draw.circle([sx(context.V2), sy(context.p2)], 0.035, { fill: '#b3382f', stroke: '#b3382f' });
 Draw.text(sx(context.V1) - 0.30, sy(context.p1) + 0.10, 'V₁', { size: 12, color: '#1d2733', align: 'right' });
@@ -152,9 +152,9 @@ for (var tq2 = 0; tq2 <= 14; tq2 = tq2 + 1) {
   var vR = context.V2 + (context.Vmax - context.V2) * tq2 / 14;
   extR.push([sx(vR), sy(context.n * context.R * context.T / vR)]);
 }
-Draw.trace(extL, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
-Draw.trace(extR, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
-Draw.line([cursorX, oy], [cursorX, cursorY], { dash: [4, 3], color: '#a4610d', width: 1.3 });
+Draw.trace(extL, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
+Draw.trace(extR, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
+Draw.line([cursorX, oy], [cursorX, cursorY], { dash: true, color: '#a4610d', width: 1.3 });
 Draw.circle([cursorX, cursorY], 0.055, { fill: '#a4610d', stroke: '#a4610d' });
 Draw.text(cursorX, cursorY + 0.20, '当前状态', { size: 11, color: '#a4610d' });
 

@@ -308,7 +308,7 @@ for (var i = 0; i <= 56; i = i + 1) { var pp = context.psiIn + (context.psiOut -
 Draw.curve(arcPts, { color: '#2b3440', width: 1.8 });
 Draw.circle([context.cx, context.cy], 0.045, { fill: '#5d6b7a', stroke: '#5d6b7a' });
 Draw.text(context.cx + 0.10, context.cy - 0.05, 'C', { size: 11, color: '#5d6b7a', align: 'left' });
-Draw.line([context.cx, context.cy], [context.cx + context.R * Math.sin(context.psiIn), context.cy + context.R * Math.cos(context.psiIn)], { dash: [3, 3], color: '#9aa7b4', width: 1.0 });
+Draw.line([context.cx, context.cy], [context.cx + context.R * Math.sin(context.psiIn), context.cy + context.R * Math.cos(context.psiIn)], { dash: true, color: '#9aa7b4', width: 1.0 });
 /* 半径虚线（C → 弧上入口点）+ 标注：放在圆心右上方，避免压到斜面与轨迹 */
 Draw.text(context.cx + 0.12, context.cy + 0.56, 'R = 0.60 m', { size: 11, color: '#5d6b7a', align: 'left' });
 
@@ -316,7 +316,7 @@ Draw.text(context.cx + 0.12, context.cy + 0.56, 'R = 0.60 m', { size: 11, color:
    注意 at() 只允许在 drawFrame 里用——stateAt 里用会变成"每帧重算全时段"，C1 会拦。 */
 var tracePts = [];
 for (var ti = 0; ti <= 72; ti = ti + 1) { var ts = SIM.duration * ti / 72; var ss = context.at(ts); tracePts.push([ss.x + ss.nx * ss.rOff, ss.y + ss.ny * ss.rOff]); }
-Draw.trace(tracePts, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 /* 滑块（题面为"质量 m 的滑块"，所以画方框而不是小球）：沿**法向**偏移半个厚度贴合轨道，
    方框按轨道切向角转正。三类箭头都以滑块质心为起点（§A.2）。 */
@@ -327,8 +327,8 @@ Draw.box(ball, 0.30, 0.20, { angleDeg: state.tAng * 180 / Math.PI, fill: '#2a6f8
 Draw.arrow(ball, [state.vx * 0.16, state.vy * 0.16], { category: 'velocity', label: 'v', mag: Math.hypot(state.vx, state.vy) });
 Draw.arrow(ball, [state.vx * 0.16, 0], { category: 'aux', subtype: 'component', label: 'vx', mag: Math.abs(state.vx), labelInset: -13 });
 Draw.arrow(ball, [0, state.vy * 0.16], { category: 'aux', subtype: 'component', label: 'vy', mag: Math.abs(state.vy) });
-Draw.line([ball[0] + state.vx * 0.16, ball[1]], [ball[0] + state.vx * 0.16, ball[1] + state.vy * 0.16], { dash: [3, 3], color: '#c8d0d8', width: 1.0 });
-Draw.line([ball[0], ball[1] + state.vy * 0.16], [ball[0] + state.vx * 0.16, ball[1] + state.vy * 0.16], { dash: [3, 3], color: '#c8d0d8', width: 1.0 });
+Draw.line([ball[0] + state.vx * 0.16, ball[1]], [ball[0] + state.vx * 0.16, ball[1] + state.vy * 0.16], { dash: true, color: '#c8d0d8', width: 1.0 });
+Draw.line([ball[0], ball[1] + state.vy * 0.16], [ball[0] + state.vx * 0.16, ball[1] + state.vy * 0.16], { dash: true, color: '#c8d0d8', width: 1.0 });
 
 /* 加速度：斜面段沿面、圆弧段切向+法向、平抛段竖直向下。圆弧段含向心项 v²/R ≈ 87 m/s²，
    与斜面段的 10 m/s² 差一个数量级，必须按阶段换比例尺，否则箭头会横跨整个画布。 */
@@ -344,7 +344,7 @@ if (state.phase < 3 && state.fNormal > 0) {
   });
 }
 
-Draw.line([bx, 0], [bx, context.ayA], { dash: [4, 3], color: '#c8d0d8', width: 1.0 });
+Draw.line([bx, 0], [bx, context.ayA], { dash: true, color: '#c8d0d8', width: 1.0 });
 Draw.text(bx - 0.72, context.ayA * 0.5, 'L = 3.0 m', { size: 11, color: '#5d6b7a' });
 /* θ 角标：在 B 点用世界坐标折线画 120°→180° 的扇形（不用 Draw.arc，避免角度约定歧义） */
 var wedge = [];
@@ -359,7 +359,7 @@ if (state.phase === 3) {
   Draw.line([context.xExit, 0.03], [state.x, 0.03], { color: '#a4610d', width: 1.4 });
   Draw.dimension([context.xExit, 0.20], [state.x, 0.20], { kind: 'linear', text: 'Δx = ' + Phys.format(state.sProj, 'm', 3) });
 }
-Draw.line([context.xExit, 0], [context.xExit, context.yExit], { dash: [3, 3], color: '#9aa7b4', width: 1.0 });
+Draw.line([context.xExit, 0], [context.xExit, context.yExit], { dash: true, color: '#9aa7b4', width: 1.0 });
 Draw.dimension([context.xExit - 0.06, 0], [context.xExit - 0.06, context.yExit], { kind: 'linear', text: 'h = ' + Phys.format(context.h, 'm', 3) });
 
 var labels = ['斜面段', '圆弧段', '平抛段'];

@@ -167,7 +167,7 @@ Draw.text(-0.5, yM, 'R', { size: 13 });
 // 只读探针 context.at(t) 采样全时段；at() 只能在 drawFrame 里用（stateAt 里用 C1 会拦）
 var tracePts = [];
 for (var tq = 0; tq <= 32; tq = tq + 1) { tracePts.push([context.at(SIM.duration * tq / 32).x, yM]); }
-Draw.trace(tracePts, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 // —— 金属棒（长 L，横跨两导轨，自身电阻 r）——
 Draw.box([state.x, yM], 0.07, L, { fill: '#dfe6ec' });

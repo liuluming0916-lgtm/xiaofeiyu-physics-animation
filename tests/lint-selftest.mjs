@@ -33,6 +33,12 @@ const cases = [
   /** 第 8 期用户裁决：stateAt+drawFrame ≤150 取消 ⇒ 160 行**必须放行**（这条是防回退的守门员） */
   ['160 行不再算超长（150 行上限已取消）', 'stateAt', Array.from({ length: 160 }, () => 'var a = 1;').join('\n'), true],
   ['正常工具函数组合', 'drawFrame', 'function seg(from, to) {\n  Draw.line(from, to);\n}\nseg([0, 0], [1, 1]);', true],
+  /* 第 9 期：dash 约定 —— true=虚线 / false=实线 / 数组=自定义；其它类型静态拒绝 */
+  ['dash: true（虚线，按新约定放行）', 'drawFrame', 'Draw.line([0, 0], [1, 1], { dash: true });', true],
+  ['dash: false（实线，放行）', 'drawFrame', 'Draw.line([0, 0], [1, 1], { dash: false });', true],
+  ['dash: [3, 3]（自定义间距，放行）', 'drawFrame', 'Draw.line([0, 0], [1, 1], { dash: [3, 3] });', true],
+  ['dash: "dashed"（字符串，拒绝）', 'drawFrame', 'Draw.line([0, 0], [1, 1], { dash: "dashed" });', false],
+  ['dash: 3（数字，拒绝）', 'drawFrame', 'Draw.curve([[0, 0], [1, 1]], { dash: 3 });', false],
   ['window 引用', 'drawFrame', 'window.alert(1);', false],
   ['document 引用', 'drawFrame', 'document.title = "x";', false],
   ['网络请求', 'drawFrame', 'fetch("https://example.com");', false],

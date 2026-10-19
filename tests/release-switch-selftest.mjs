@@ -73,6 +73,22 @@ function markersIn(text) {
   return PAGE_MARKERS.filter((m) => text.includes(m));
 }
 
+/**
+ * 产物里的中文可能是**字面量**，也可能被 tsc 转成 `\uXXXX` 转义（JSX 文本实参就是这样）。
+ * 判据必须两种都认，否则"页面在不在"会取决于编译器心情。
+ */
+function hasLabel(text, label) {
+  if (text.includes(label)) return true;
+  const esc = (upper) =>
+    [...label]
+      .map((c) => {
+        const hex = c.codePointAt(0).toString(16).padStart(4, '0');
+        return `\\u${upper ? hex.toUpperCase() : hex}`;
+      })
+      .join('');
+  return text.includes(esc(true)) || text.includes(esc(false));
+}
+
 async function main() {
   console.log('发布构建开关取证（第 8 期）\n');
 
@@ -96,6 +112,12 @@ async function main() {
       '★ 页面渲染分支：规则页被守、设置页不被守（漏一处就等于没删）',
       app.includes("!RELEASE && page === 'rules'") && !app.includes("!RELEASE && page === 'settings'"),
     );
+    /* v1.1.5：发布版把「蒸馏」锁成「写卡助手」占位（可见、不可点、页面摇掉） */
+    check(
+      '★ 发布版「写卡助手」是 disabled 占位（不是可点入口）',
+      /RELEASE\s*\?\s*\(\s*<NavButton[\s\S]{0,200}?写卡助手/.test(app) && app.includes('写卡助手 · 暂未开放'),
+    );
+    check('★ 蒸馏页渲染分支被 !RELEASE 守着（发布版会把 DistillPage 摇掉）', app.includes("!RELEASE && page === 'distill'"));
     check('类型声明存在（tsc 不会因为未知常量报错）', readFileSync(join(WEB, 'src', 'globals.d.ts'), 'utf8').includes('declare const __OD_RELEASE__'));
   }
 
@@ -135,6 +157,9 @@ async function main() {
      */
     check('★ 发布构建产物里**没有** RulesPage（开发期页面不外露）', !found.includes('RulesPage'), `仍残留：${found.join(' / ')}`);
     check('★ 发布构建产物里**有** SettingsPage（v1.1.2：词条编辑对用户开放）', found.includes('SettingsPage'));
+    /* v1.1.5：蒸馏页锁成「写卡助手」占位 ⇒ 页面代码与「蒸馏」内文都不该在发布包里 */
+    check('★ 发布构建产物里**没有** DistillPage（写卡助手锁定后整页被摇掉）', !rel.includes('DistillPage'));
+    check('★ 发布构建导航里有「写卡助手」占位（可见但不可点）', hasLabel(rel, '写卡助手'));
     check('★ 编译期常量已被完全替换（没有残留 `__OD_RELEASE__`）', !rel.includes('__OD_RELEASE__'));
     check('发布产物更小（两页的代码真的被摇掉了）', statSync(BUNDLE).size < devBytes, `${statSync(BUNDLE).size} vs ${devBytes}`);
     console.log(`      dev ${Math.round(devBytes / 1024)} KB → release ${Math.round(statSync(BUNDLE).size / 1024)} KB`);
@@ -145,7 +170,7 @@ async function main() {
      *   只做 A1 会把产品做成残废）。
      */
     check('★ 发布产物里**齿轮入口还在**（唯一能填 Key 的地方）', rel.includes('连接设置') && rel.includes('open-connection'));
-    check('★ 对照组：蒸馏页仍在（删两页没有把别的页面一起摇掉）', rel.includes('DistillPage'));
+    check('★ 对照组：解题页与动画页仍在（删两页没有把别的页面一起摇掉）', rel.includes('SolvePage') && rel.includes('AnimationPage'));
     check('发布产物里齿轮没有把 Key 回显到界面（输入框是 password）', rel.includes('type:"password"') || rel.includes('"password"'));
 
     /**

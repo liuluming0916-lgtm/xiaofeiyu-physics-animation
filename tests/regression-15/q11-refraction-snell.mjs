@@ -151,7 +151,7 @@ Draw.line([-halfW, 0], [halfW, 0], { color: '#1d2733', width: 2.2 });
 Draw.text(-halfW + 0.10, 0.20, 'n₁ = 1.00（空气）', { size: 11, color: '#5d6b7a', align: 'left' });
 Draw.text(-halfW + 0.10, -0.30, 'n₂ = 1.50（玻璃）', { size: 11, color: '#2a6f8f', align: 'left' });
 
-Draw.line([0, -halfH], [0, halfH], { dash: [5, 4], color: '#9aa7b4', width: 1.2 });
+Draw.line([0, -halfH], [0, halfH], { dash: true, color: '#9aa7b4', width: 1.2 });
 Draw.text(0.10, halfH - 0.10, '法线', { size: 11, color: '#5d6b7a', align: 'left' });
 
 var span = 1.15;
@@ -162,11 +162,11 @@ Draw.ray([0, 0], refrTo, { color: '#c9a227', width: 1.8 });
 
 var refX = span * Math.sin(context.a1);
 var refY = span * Math.cos(context.a1) * 0.9;
-Draw.ray([0, 0], [refX, refY], { color: '#c9a227', width: 1.0, dash: [4, 4], arrowHead: false });
+Draw.ray([0, 0], [refX, refY], { color: '#c9a227', width: 1.0, dash: true, arrowHead: false });
 Draw.text(refX + 0.06, refY + 0.08, '部分反射', { size: 10, color: '#5d6b7a', align: 'left' });
 
 /* 全程轨迹（点划虚线）：光子走过的路径 = 两条光线。用点线覆盖在光线之上，作为"轨迹"的可开关标记。 */
-Draw.trace([inFrom, [0, 0], refrTo], { color: '#c8d0d8', dash: [2, 6], width: 2.4, layer: 0 });
+Draw.trace([inFrom, [0, 0], refrTo], { color: '#c8d0d8', dash: true, width: 2.4, layer: 0 });
 
 Draw.arc([0, 0], 0.42, 90, 90 + context.a1deg, { color: '#a4610d', width: 1.3, samples: 40 });
 Draw.arc([0, 0], 0.42, -90, -90 + context.a2deg, { color: '#a4610d', width: 1.3, samples: 40 });

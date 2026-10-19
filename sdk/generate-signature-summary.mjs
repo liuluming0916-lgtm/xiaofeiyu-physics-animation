@@ -22,7 +22,11 @@ const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** `Draw.*` 的 40+ 函数说明——与 DrawClass.prototype 的方法名逐一核对 */
 const DRAW_DOCS = {
-  line: ['line(a, b, style?)', '直线段。a/b 为世界坐标 [x,y] 或 {x,y}；style 可选 {width, dash, stroke}'],
+  line: [
+    'line(a, b, style?)',
+    '直线段。a/b 为世界坐标 [x,y] 或 {x,y}；style 可选 {width, dash, stroke}。'
+      + '**dash: true = 虚线，false/不写 = 实线**；只有要自定义间距时才写数字数组（如 [4, 3]）。',
+  ],
   /**
    * ⚠ 第 8 期改了 `Draw.arrow` 的口径（用户 2026-10-17 拍板）。
    *
@@ -47,8 +51,11 @@ const DRAW_DOCS = {
   fieldDots: ['fieldDots(rect, opts?)', '均匀场点/叉阵列。rect={x,y,w,h}；opts.symbol ∈ dot|cross，opts.nx/ny 网格数'],
   dimension: ['dimension(from, to, opts?)', '尺寸/角度标注。opts.kind ∈ linear|angle，opts.text 标注文本'],
   arc: ['arc(center, r, a0, a1, opts?)', '弧线：轨迹、圆周、角度弧；角度制，逆时针为正'],
-  trace: ['trace(points, opts?)', '轨迹虚线（curve 的实参默认值封装）'],
-  curve: ['curve(points, opts?)', '折线/路径；opts.closed 闭合，opts.fill 填充'],
+  trace: ['trace(points, opts?)', '轨迹虚线（curve 的实参默认值封装；默认就是虚线，不用再给 dash）'],
+  curve: [
+    'curve(points, opts?)',
+    '折线/路径；opts.closed 闭合，opts.fill 填充；opts.dash: true=虚线、false/不写=实线、[n,m]=自定义间距',
+  ],
   ghosts: ['ghosts(positions, opts?)', '残影快照：一组位置画成同形轮廓'],
   ray: ['ray(from, to, opts?)', '光线路，带箭头'],
   lens: ['lens(center, opts?)', '透镜：opts.height 口径、opts.focal 焦距（几何量）'],

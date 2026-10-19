@@ -199,8 +199,8 @@ var blockRight = blockLeft + 0.85;
    at() 只能在 drawFrame 里用（放进 stateAt 会被 C1 拦）。 */
 var tBlk = [], tBrd = [];
 for (var tq = 0; tq <= 32; tq = tq + 1) { var sq = context.at(SIM.duration * tq / 32); tBlk.push([sq.xB + sq.dsRel + 0.505, boardY + H + blockH * 0.5]); tBrd.push([sq.xB + context.L * 0.5, boardY + H * 0.5]); }
-Draw.trace(tBlk, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
-Draw.trace(tBrd, { color: '#c8d0d8', dash: [5, 5], width: 1.2, layer: 0 });
+Draw.trace(tBlk, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
+Draw.trace(tBrd, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.polygon(
   [[blockLeft, boardY + H], [blockRight, boardY + H], [blockRight, boardY + H + blockH], [blockLeft, boardY + H + blockH]],
   { fill: '#ffffff', stroke: '#1d2733', layer: 2 }
@@ -250,8 +250,8 @@ Draw.line([state.xB, rulerY], [state.xB + state.dsRel, rulerY], { color: '#a4610
 Draw.dimension([state.xB, rulerY + 0.14], [state.xB + state.dsRel, rulerY + 0.14], {
   kind: 'linear', text: 'Δs = ' + Phys.format(state.dsRel, 'm', 2)
 });
-Draw.line([state.xB, boardY + H], [state.xB, rulerY], { dash: [3, 3], color: '#9aa7b4' });
-Draw.line([state.xB + state.dsRel, boardY + H + blockH], [state.xB + state.dsRel, rulerY], { dash: [3, 3], color: '#9aa7b4' });
+Draw.line([state.xB, boardY + H], [state.xB, rulerY], { dash: true, color: '#9aa7b4' });
+Draw.line([state.xB + state.dsRel, boardY + H + blockH], [state.xB + state.dsRel, rulerY], { dash: true, color: '#9aa7b4' });
 Draw.text(boardLeft, rulerY + 0.38, '板右端余量 = ' + Phys.format(context.L - state.dsRel, 'm', 2) + '（> 0 ⇒ 未滑落）', { size: 11, color: '#5d6b7a', align: 'left' });
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。

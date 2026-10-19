@@ -221,7 +221,7 @@ Draw.text(state.xcm + 0.10, state.ycm + 0.20, '质心 C', { size: 11, color: '#6
 
 // —— 连线方向（法向）参考线：速度分解的基准 ——
 Draw.line([state.x2 - 1.15 * nx, state.y2 - 1.15 * ny],
-  [state.x2 + 1.15 * nx, state.y2 + 1.15 * ny], { dash: [5, 4], color: '#9aa7b4' });
+  [state.x2 + 1.15 * nx, state.y2 + 1.15 * ny], { dash: true, color: '#9aa7b4' });
 
 // —— 碰点标记 ——
 Draw.circle([0, 0], 0.055, { stroke: '#b3382f', width: 2 });
@@ -238,7 +238,7 @@ Draw.text(state.x, state.y + context.r1 + 0.26, state.hit ? '碰后匀速' : '�
 // —— 球 1：速度矢量 + 法向/切向分解（箭头只吃几何矢量，物理量记在 mag/unit）——
 Draw.arrow([state.x, state.y], [state.vx * sc, state.vy * sc], { category: 'velocity', label: 'v₁', mag: state.speed, unit: 'm/s' });
 var ax = state.x, ay = state.y - 0.66;
-Draw.line([ax - 0.45 * nx, ay - 0.45 * ny], [ax + 0.95 * nx, ay + 0.95 * ny], { dash: [4, 3], color: '#c9a227' });
+Draw.line([ax - 0.45 * nx, ay - 0.45 * ny], [ax + 0.95 * nx, ay + 0.95 * ny], { dash: true, color: '#c9a227' });
 Draw.arrow([ax, ay], [state.vn * nx * sc, state.vn * ny * sc], { category: 'aux', label: 'v₁ₙ', mag: Math.abs(state.vn), unit: 'm/s' });
 Draw.arrow([ax, ay], [state.vt * tx * sc, state.vt * ty * sc], { category: 'aux', label: 'v₁ₜ', mag: Math.abs(state.vt), unit: 'm/s' });
 Draw.text(ax, ay - 0.32, '球 1：沿连线方向 + 切向分解', { size: 11, color: '#5d6b7a' });
@@ -246,7 +246,7 @@ Draw.text(ax, ay - 0.32, '球 1：沿连线方向 + 切向分解', { size: 11, c
 // —— 球 2：碰前静止，碰后只有法向分量 ——
 Draw.arrow([state.x2, state.y2], [state.vx2 * sc, state.vy2 * sc], { category: 'velocity', label: 'v₂', mag: state.speed2, unit: 'm/s' });
 var bx = state.x2, by = state.y2 + 0.66;
-Draw.line([bx - 0.95 * nx, by - 0.95 * ny], [bx + 0.45 * nx, by + 0.45 * ny], { dash: [4, 3], color: '#c9a227' });
+Draw.line([bx - 0.95 * nx, by - 0.95 * ny], [bx + 0.45 * nx, by + 0.45 * ny], { dash: true, color: '#c9a227' });
 Draw.arrow([bx, by], [state.vn2 * nx * sc, state.vn2 * ny * sc], { category: 'aux', label: 'v₂ₙ', mag: Math.abs(state.vn2), unit: 'm/s' });
 Draw.text(bx, by + 0.32, '球 2：只有法向分量', { size: 11, color: '#5d6b7a' });`,
 

@@ -28,6 +28,34 @@ function assertFiniteNumber(v, where) {
   if (!isFiniteNumber(v)) throw new TypeError(`${where} 必须是有限数值，收到 ${String(v)}`);
 }
 
+/**
+ * 虚线样式（v1.1.5 用户 2026-10-19 定稿）：
+ *   · `true`  → 默认虚线 `[4, 3]`（模型最自然的写法）
+ *   · `false` / `null` / 不写 → 实线（记录里存 `null`）
+ *   · 数字数组 → 自定义虚线间距（只接受有限正数；空数组 = 实线）
+ *   · 其它类型（字符串、数字、对象…）→ 抛 TypeError，由 C1 / Dry-Run 报出来。
+ *
+ * 为什么必须在这里做：真实浏览器的 `setLineDash` 只收 `sequence<number>`，
+ * 传 `true` 会抛 TypeError，整帧直接中断（用户实测：页面停在 0.00 / 0.00）。
+ * 只靠"模型记住数组写法"是不够的 —— 约定要由 API 兜住，并在门禁里报错。
+ */
+function parseDash(dash, where) {
+  if (dash === undefined || dash === null || dash === false) return null;
+  if (dash === true) return [4, 3];
+  if (Array.isArray(dash)) {
+    if (!dash.length) return null;
+    return dash.map((v, i) => {
+      if (!isFiniteNumber(v) || v <= 0) {
+        throw new TypeError(`${where}.dash[${i}] 必须是有限正数（当前 ${String(v)}）`);
+      }
+      return v;
+    });
+  }
+  throw new TypeError(
+    `${where}.dash 只接受 true（虚线）/ false（实线）/ 数字数组（自定义间距）；当前是 ${typeof dash}: ${String(dash)}`,
+  );
+}
+
 function toPoint(p, where) {
   if (Array.isArray(p)) {
     assertFiniteNumber(p[0], `${where}[0]`);
@@ -630,7 +658,7 @@ export class Draw {
       y1: p.y,
       x2: q.x,
       y2: q.y,
-      dash: style?.dash ?? null,
+      dash: parseDash(style?.dash, 'Draw.line(style)'),
       width: style?.width ?? 1.6,
       color: this._color(style),
       layer: 0,
@@ -707,7 +735,7 @@ export class Draw {
       fill: style.fill ?? null,
       stroke: style.stroke ?? null,
       width: style.width ?? 1.4,
-      dash: style.dash ?? null,
+      dash: parseDash(style.dash, 'Draw.circle(style)'),
       angleDeg: style.angleDeg ?? null,
       layer: style.layer ?? 0,
     });
@@ -830,7 +858,7 @@ export class Draw {
       r,
       a0Deg: a0,
       a1Deg: a1,
-      dash: opts.dash ?? null,
+      dash: parseDash(opts.dash, 'Draw.arc(opts)'),
       width: opts.width ?? 1.4,
       color: opts.color ?? this.theme.guide,
       samples: opts.samples ?? 96,
@@ -854,7 +882,7 @@ export class Draw {
       points: pts,
       closed: opts.closed ?? false,
       fill: opts.fill ?? null,
-      dash: opts.dash ?? null,
+      dash: parseDash(opts.dash, 'Draw.curve(opts)'),
       width: opts.width ?? 1.5,
       color: opts.color ?? this.theme.body,
       layer: opts.layer ?? 0,
@@ -888,7 +916,7 @@ export class Draw {
       x2: q.x,
       y2: q.y,
       arrowHead: opts.arrowHead ?? true,
-      dash: opts.dash ?? null,
+      dash: parseDash(opts.dash, 'Draw.ray(opts)'),
       color: opts.color ?? this.theme.light,
       width: opts.width ?? 1.5,
       layer: opts.layer ?? 1,
@@ -953,7 +981,7 @@ export class Draw {
       baseline: opts.baseline ?? 0,
       fill: opts.fill ?? null,
       stroke: opts.stroke ?? this.theme.accent,
-      dash: opts.dash ?? null,
+      dash: parseDash(opts.dash, 'Draw.chart(opts)'),
       cursor: opts.cursor ?? null,
       color: opts.color ?? this.theme.accent,
       layer: opts.layer ?? 1,
@@ -1934,7 +1962,8 @@ export function replayToCanvas(ctx, records, transform, opts = {}) {
    */
   const arrowOffsets = computeArrowStackOffsets(records);
   for (const rec of records) {
-    ctx.setLineDash(rec.dash ?? []);
+    /* 保险：真实浏览器只接受数字数组；老记录/异常记录一律按实线画，绝不让 setLineDash 崩整帧 */
+    ctx.setLineDash(Array.isArray(rec.dash) ? rec.dash : []);
     switch (rec.op) {
       case 'line': {
         const a = T(rec.x1, rec.y1);

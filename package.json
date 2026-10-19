@@ -1,9 +1,9 @@
 {
   "name": "physics-animation-studio",
-  "version": "1.1.2",
+  "version": "1.1.5",
   "private": true,
   "type": "module",
-  "description": "物理解题动画软件 v1.1.2 · 解题 → 动画 → 教辅蒸馏（画布不写数值，矢量靠颜色与长度表达）",
+  "description": "物理解题动画软件 v1.1.5 · 解题 → 动画 → 写卡助手（画布不写数值，矢量靠颜色与长度表达）",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=20"
@@ -41,7 +41,7 @@
   "build": {
     "appId": "com.od.physics-animation",
     "productName": "物理解题动画",
-    "copyright": "v1.1 · 自研",
+    "copyright": "v1.1.5 · 自研",
     "directories": {
       "output": "release",
       "buildResources": "electron/resources"

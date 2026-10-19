@@ -147,13 +147,13 @@ var vSc = 0.10;    // 几何缩放：1 m/s ↔ 0.10 m
 
 // —— 地面与下落基准线 ——
 Draw.ground(-2.1, 2.5, 0, { color: '#2b3440' });
-Draw.line([xLine, 0], [xLine, context.H + 0.12], { dash: [5, 4], color: '#9aa7b4' });
-Draw.line([xLine - 0.25, context.H], [xLine + 0.55, context.H], { dash: [4, 3], color: '#9aa7b4' });
+Draw.line([xLine, 0], [xLine, context.H + 0.12], { dash: true, color: '#9aa7b4' });
+Draw.line([xLine - 0.25, context.H], [xLine + 0.55, context.H], { dash: true, color: '#9aa7b4' });
 Draw.text(xLine + 0.60, context.H, '初始高度 H', { size: 11, color: '#5d6b7a', align: 'left' });
 
 // —— 小球 ——
 // 全程轨迹（点划虚线）：小球的下落路径。它与已有的竖直基准线重合，故用点线覆盖以示"轨迹"。
-Draw.trace([[xLine, context.H], [xLine, 0]], { color: '#c8d0d8', dash: [2, 6], width: 2.2, layer: 0 });
+Draw.trace([[xLine, context.H], [xLine, 0]], { color: '#c8d0d8', dash: true, width: 2.2, layer: 0 });
 Draw.circle([xLine, state.y], 0.10, { fill: '#ffffff', stroke: '#2b3440', width: 1.6 });
 Draw.text(xLine, state.y + 0.22, 'm', { size: 12 });
 

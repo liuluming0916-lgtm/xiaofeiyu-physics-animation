@@ -338,8 +338,12 @@ console.log('\n『D-3』第 5/5.7 期：读题与判定（read_problem · 执行
     rp.system.includes('判不出来就写"无"') && rp.system.includes('不要为了凑答案硬选'),
   );
   check(
-    'read_problem：动画元件要求"依据图里实际画出来的"（不是题目提到了什么）',
-    rp.system.includes('依据图里实际画出来的'),
+    'read_problem：动画元件要求"图片 + 题面一起看"（纯文字题按题面判）',
+    rp.system.includes('图片 + 题面') && rp.system.includes('不要因为没有图就写"无"'),
+  );
+  check(
+    'read_problem：不再把"没图"当成判"无"的理由（v1.1.5 文字题实测回归）',
+    !rp.system.includes('没有图或图里没有就写"无"'),
   );
 
   /* ── 词表注入（单源真相：contracts/worldbook-concepts.json 派生） ── */
