@@ -423,24 +423,43 @@ export function AnimationPage() {
   return (
     <div className="space-y-4">
       {/* ── 导出（M17）：网页 / GIF ── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <span className="text-xs font-medium text-slate-700">导出</span>
-        <button
-          type="button"
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:text-slate-400"
-          disabled={!st.programSlots || busy !== null}
-          onClick={() => void exportPage()}
-        >
-          导出网页
-        </button>
-        <button
-          type="button"
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:text-slate-400"
-          disabled={!st.programSlots || busy !== null}
-          onClick={() => void exportGif()}
-        >
-          导出 GIF
-        </button>
+      {/*
+        ⚠ 第 9 期 v1.1.5（用户 2026-10-19）：**导出收成一个按钮**，放在这一栏的右侧，
+        点开才出现「导出网页 / 导出 GIF」。原来那条"导出 + 两个按钮 + 一长串说明"常年占一行，
+        把画布往下压 —— 而这一版的核心目标是"尽量放大画布"。
+        用 <details> 而不是自建弹层：不需要额外的 state 与点外关闭逻辑，键盘也能用。
+      */}
+      <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <details className="relative">
+          <summary
+            className={`cursor-pointer list-none rounded-md border border-slate-300 px-3 py-1.5 text-sm select-none hover:bg-slate-50 ${
+              !st.programSlots || busy !== null ? 'cursor-not-allowed text-slate-400' : ''
+            }`}
+            title="导出网页或 GIF"
+          >
+            导出 ▾
+          </summary>
+          <div className="absolute right-0 z-20 mt-1 w-56 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
+            <button
+              type="button"
+              className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50 disabled:text-slate-400"
+              disabled={!st.programSlots || busy !== null}
+              onClick={() => void exportPage()}
+            >
+              导出网页
+              <span className="block text-[11px] text-slate-500">双击即播的单文件，烧录出处信息</span>
+            </button>
+            <button
+              type="button"
+              className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50 disabled:text-slate-400"
+              disabled={!st.programSlots || busy !== null}
+              onClick={() => void exportGif()}
+            >
+              导出 GIF
+              <span className="block text-[11px] text-slate-500">25 fps / 960×540，不含曲线图</span>
+            </button>
+          </div>
+        </details>
         <span className="text-xs text-slate-500">
           {busy
             ? busy.kind === 'gif'
