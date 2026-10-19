@@ -79,6 +79,11 @@ step: 3`,
 
     VIEW: String.raw`SIM = {
   duration: 11.2,
+  /* v1.1.9：bodies 用**画面坐标**（与 drawFrame 的 sx() 同一个映射），否则 121 m 的位移会把箭头拉出画布。 */
+  bodies: [
+    { id: 'carA', at: (s) => [-1.10 + 0.055 * s.sA, 0.88] },
+    { id: 'carB', at: (s) => [-1.10 + 0.055 * s.xB, 0.28] }
+  ],
   continuityKeys: ['xA', 'xB'],
   /* C10 扩展：两车都不得越出画幅所覆盖的公路范围（相遇点 103.85 m、乙最远 121.4 m） */
   regions: [
@@ -158,11 +163,7 @@ Draw.text(carA, yA - 0.30, '甲', { size: 11, color: '#1d2733' });
 Draw.box([carB, yB], 0.34, 0.22, { angleDeg: 0, fill: '#ffffff', stroke: '#2a6f8f' });
 Draw.text(carB, yB - 0.30, '乙', { size: 11, color: '#2a6f8f' });
 
-Draw.arrow([carA, yA + 0.18], [state.vA, 0], { category: 'velocity', label: 'v 甲', mag: state.vA });
-Draw.arrow([carB, yB + 0.18], [state.vB, 0], { category: 'velocity', label: 'v 乙', mag: state.vB });
-if (state.vB > 0) {
-  Draw.arrow([carB, yB - 0.14], [context.a, 0], { category: 'acceleration', label: 'a', mag: Math.abs(context.a) });
-}
+/* v/a 由 bodies 自动生成（画面坐标下的速度/加速度，方向与真实一致）。 */
 
 /* 相遇事件：t ≥ t₁ 后在相遇点留下标记 */
 if (state.caught) {

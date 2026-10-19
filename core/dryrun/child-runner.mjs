@@ -12,7 +12,15 @@
  * 这样即使扫描中途崩溃，父进程也已经拿到崩溃前的帧（用于 C3/C4 的诊断）。
  */
 
-import { buildProgramSource, resolveDuration, normalizeReadouts, PhysRef, CommandBuffer, Draw } from '../../sdk/runtime/animation-runtime.mjs';
+import {
+  buildProgramSource,
+  resolveDuration,
+  normalizeReadouts,
+  emitKinematicArrows,
+  PhysRef,
+  CommandBuffer,
+  Draw,
+} from '../../sdk/runtime/animation-runtime.mjs';
 
 const MARKER = '__OD_SCAN__';
 
@@ -45,9 +53,18 @@ function errorOf(err, phase) {
 }
 
 function summarize(program, duration) {
+  const sim = program.SIM;
   return {
     MODE: program.MODE,
-    SIM: program.SIM ? { duration: program.SIM.duration, axes: program.SIM.axes ?? null } : null,
+    SIM: sim
+      ? {
+          duration: sim.duration,
+          axes: sim.axes ?? null,
+          /* v1.1.9：bodies 的 `at` 是函数，JSON 化会把它丢掉；报告里只留 id，判据在 VM 内跑。 */
+          bodies: Array.isArray(sim.bodies) ? sim.bodies.map((b) => ({ id: b?.id ?? null, label: b?.label ?? null })) : null,
+          phases: Array.isArray(sim.phases) ? sim.phases : null,
+        }
+      : null,
     PROBLEM: typeof program.PROBLEM === 'string' ? program.PROBLEM.slice(0, 2000) : '',
     STEPS: program.STEPS ?? null,
     ANSWERS: program.ANSWERS ?? null,
@@ -129,6 +146,8 @@ async function main() {
       const state = program.stateAt(time, program.buffer, program.Draw, rt);
       program.buffer.reset();
       program.drawFrame(time, state, program.buffer, program.Draw, rt);
+      /* v1.1.9：与 sampleFrame / render 共用同一个注入函数（Worker 后端也必须画本地 v/a）。 */
+      emitKinematicArrows(program, time);
       const records = program.buffer.records.map(stripFns);
       const readouts = normalizeReadouts(program.readouts(time, state, program.buffer, program.Draw, rt));
       frames.push({ t: time, state: stripState(state), records, envelope: program.buffer.envelope(), commandCount: records.length });

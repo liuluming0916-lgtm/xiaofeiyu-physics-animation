@@ -1450,7 +1450,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
       ...over,
     });
     const L1 = 'Draw.box([state.x, 0.1], 0.4, 0.3);';
-    const L2 = 'Draw.arrow([state.x, 0.4], [1, 0], { mag: state.v, category: "velocity", label: "v" });';
+    const L2 = 'Draw.arrow([state.x, 0.4], [1, 0], { mag: state.u, category: "aux", label: "u" });';
     const r = triggerWorldbook({
       entries: [
         mkEx({ id: 'dup_a', code_examples: [`${L1}   // 画物块\n${L2}`] }),

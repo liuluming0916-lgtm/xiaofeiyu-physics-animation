@@ -95,6 +95,8 @@ export function makeRuntimeBundle() {
     normalizeReadouts: Runtime.normalizeReadouts,
     buildProgramSource: Runtime.buildProgramSource,
     normalizeDataSlot: Runtime.normalizeDataSlot,
+    /* v1.1.9：本地 v/a 箭头注入（Worker 与同进程回退必须共用同一份） */
+    emitKinematicArrows: Runtime.emitKinematicArrows,
   };
 }
 
@@ -271,6 +273,7 @@ export function executeProgram(slots, opts = {}) {
     '      state = program.stateAt(time);',
     '      program.buffer.reset();',
     '      program.drawFrame(time, state);',
+    '      runtime.emitKinematicArrows(program, time);',
     '      readouts = runtime.normalizeReadouts(program.readouts(time, state));',
     '    } catch (e) {',
     "      out.error = { phase: 'scan@t=' + time.toFixed(4), kind: 'runtime', message: String(e && e.message ? e.message : e) };",
@@ -329,6 +332,11 @@ export function executeProgram(slots, opts = {}) {
     '  var out = {};',
     '  for (var k in sim) {',
     '    var v = sim[k];',
+    '    if (k === "bodies" && Object.prototype.toString.call(v) === "[object Array]") {',
+    '      /* v1.1.9：at() 是函数，JSON 化会丢；报告只留 id，判据在 VM 内算。 */',
+    '      out.bodies = v.map(function (b) { return { id: b && b.id != null ? String(b.id) : null, label: b && b.label != null ? b.label : null }; });',
+    '      continue;',
+    '    }',
     '    if (v === null || typeof v === "number" || typeof v === "string" || typeof v === "boolean") { out[k] = v; continue; }',
     '    if (typeof v !== "object") continue;',
     '    try { out[k] = JSON.parse(JSON.stringify(v)); } catch (e) { /* 不可序列化的键跳过 */ }',

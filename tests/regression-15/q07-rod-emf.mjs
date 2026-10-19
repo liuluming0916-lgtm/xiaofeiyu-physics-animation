@@ -90,6 +90,10 @@ step: 4`,
 
     VIEW: `SIM = {
   duration: 2.0,
+  /* v1.1.9：导体棒中心（yM = L/2，与 drawFrame 的 yM 一致）。 */
+  bodies: [
+    { id: 'rod', at: (s) => [s.x, context.L / 2] }
+  ],
   /* C10 扩展：导体棒必须始终横跨在两导轨之间（导轨画到 x = 5.4，棒高恒为 y = 0.2） */
   regions: [
     { label: '导体棒不滑出导轨', x: [-0.45, 5.35], y: [0.19, 0.21] }
@@ -173,9 +177,8 @@ Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.box([state.x, yM], 0.07, L, { fill: '#dfe6ec' });
 Draw.text(state.x, yM, 'r', { size: 12 });
 
-// —— 速度矢量与安培力矢量：安培力方向直接取 state.f（由代码算出，恒与 v 反向）——
+// —— 安培力矢量（v 由 bodies 自动生成）——
 // 箭头只吃几何矢量（物理量 × 几何缩放，scale=1），物理量记在 mag/unit
-Draw.arrow([state.x, yM], [state.v * 0.28, 0], { category: 'velocity', label: 'v', mag: state.v, unit: 'm/s' });
 Draw.arrow([state.x, yM + 0.04], [state.f * 2.2, 0], { category: 'force', subtype: 'ampere', label: 'F', mag: Math.abs(state.f), unit: 'N' });
 
 // —— 回路电流方向：由代码算出的 state.cur 的符号决定 ——

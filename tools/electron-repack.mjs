@@ -221,8 +221,42 @@ function main() {
   overlayPayload();
   checkPayload();
 
+  /**
+   * ── v1.1.7：程序目录里必须有「开源日志」文件夹（用户点名要求）──
+   *
+   * 为什么由打包脚本建、而不是等首次运行时自动建：
+   *   ① 用户拿到手的压缩包里就该看得见这个文件夹（否则"日志在哪"要靠猜）；
+   *   ② `cloneRuntime()` 是 `robocopy /MIR`，手放的文件夹活不过一次重新打包 ——
+   *      这种"下次就没了"的产物必须由脚本产出（与 `启动并诊断.bat` 同一条理由）。
+   */
+  const logDir = join(targetPkg, '开源日志');
+  mkdirSync(logDir, { recursive: true });
+  /**
+   * ⚠ 空文件夹在 zip 里会被丢掉（`tar -a` 与 `Compress-Archive` 都不写空目录项，
+   *   实测过），于是解压出来"开源日志"就没了。放一个**隐藏的** 0 字节占位文件，
+   *   让目录条目留在压缩包里；它对用户不可见（`attrib +h`），也不占空间。
+   */
+  try {
+    const keep = join(logDir, '.keep');
+    writeFileSync(keep, '');
+    spawnSync('attrib', ['+h', keep], { stdio: 'ignore' });
+  } catch (e) {
+    console.warn(`  ⚠ 占位文件没写成（zip 里可能丢空目录）：${e.message}`);
+  }
+  console.log(`\n✓ 日志落点已就位：开源日志/（每次跑题自动导出 html + json）`);
+
+  const wantZip = process.argv.includes('--zip');
+  if (wantZip) {
+    const zipOut = join(releaseDir, `${targetName}-win-x64.zip`);
+    console.log(`\n压缩 → ${zipOut}`);
+    rmSync(zipOut, { force: true });
+    const r = spawnSync('tar', ['-a', '-c', '-f', zipOut, '-C', releaseDir, targetName], { stdio: 'inherit' });
+    if (r.status !== 0) throw new Error(`压缩失败（exit ${r.status}）`);
+    console.log(`  ✓ ${(statSync(zipOut).size / 1024 / 1024).toFixed(1)} MB`);
+  }
+
   console.log(`\n✓ 绿色版已生成：release\\${targetName}`);
-  console.log('  下一步压缩成 zip（体积约 130 MB，需要一点时间）。');
+  if (!wantZip) console.log('  下一步压缩成 zip：加 --zip 参数重跑（约 130 MB，需要一点时间）。');
 }
 
 try {

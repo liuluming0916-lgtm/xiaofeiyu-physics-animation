@@ -558,7 +558,7 @@
     },
     {
       "id": "wb_el_vector",
-      "title": "元件·矢量箭头（速度/力/加速度）",
+      "title": "元件·矢量箭头（受力 / 辅助）",
       "origin": "builtin",
       "category": "scene_modeling",
       "enabled": true,
@@ -581,9 +581,9 @@
       ],
       "order": 918,
       "priority": "high",
-      "content": "# 元件·矢量箭头（速度/力/加速度）（矢量与标注）\n\n## 判据\n题面或配图里出现「矢量箭头」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.6, vx: 1.2, vy: 0.4 };\n- drawFrame 里写：Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' });\n\n## 这条元件最常错的地方\n缺 `mag`；起点不锚在实体中心、还手写偏移；`mag = 0` 就干脆不画（应该画成一个点）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·矢量箭头（受力 / 辅助）（矢量与标注）\n\n## 判据\n题面或配图里出现「矢量箭头」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.6, f: 3 };\n- drawFrame 里写：Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' });\n\n## 这条元件最常错的地方\n还想自己画 v/a（已改由 `SIM.bodies` 自动生成，C1 会直接打回）；缺 `mag`；起点不锚在实体中心、还手写偏移\n\n## 速度 / 加速度箭头\n**v/a 不再由模型画**。在 `VIEW` 里声明刚体位置：`SIM.bodies = [{ id, at: (state) => [x, y] }]`，运行时会自动画 v（绿）与 a（蓝），并保证箭头与画面里的运动一致。\n· 物体在动就必须声明 `bodies`；静止的题不用。\n· 相变点不在 `STEPS` 边界上时（碰撞、圆弧切平抛），用 `SIM.phases = [{t0,t1}]` 补上。\n· `Draw.arrow` 只留给 `force`（红）与 `aux`（紫：传送带速度、电流、速度分量）。\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
       "code_examples": [
-        "drawFrame: `\n  Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' });\n`"
+        "drawFrame: `\n  Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' });\n`"
       ]
     },
     {

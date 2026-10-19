@@ -89,6 +89,11 @@ step: 4`,
 
     VIEW: `SIM = {
   duration: 1.6,
+  /* v1.1.9：两球质心；碰点 t=0.75 正好是 STEPS 边界，速度跳变由运行时识别（碰后取右侧）。 */
+  bodies: [
+    { id: 'ball1', at: (s) => [s.x, s.y] },
+    { id: 'ball2', at: (s) => [s.x2, s.y2] }
+  ],
   axes: [
     { key: 'v1', label: 'v₁', unit: 'm/s' },
     { key: 'v2', label: 'v₂', unit: 'm/s' },
@@ -235,16 +240,14 @@ Draw.text(state.x2, state.y2, '2', { size: 13 });
 Draw.text(state.x, state.y + context.r1 + 0.26, state.hit ? '碰后匀速' : '碰前匀速',
   { size: 11, color: state.hit ? '#b3382f' : '#20794f' });
 
-// —— 球 1：速度矢量 + 法向/切向分解（箭头只吃几何矢量，物理量记在 mag/unit）——
-Draw.arrow([state.x, state.y], [state.vx * sc, state.vy * sc], { category: 'velocity', label: 'v₁', mag: state.speed, unit: 'm/s' });
+// —— 球 1：法向/切向分解（v₁ 本身由 bodies 自动生成）——
 var ax = state.x, ay = state.y - 0.66;
 Draw.line([ax - 0.45 * nx, ay - 0.45 * ny], [ax + 0.95 * nx, ay + 0.95 * ny], { dash: true, color: '#c9a227' });
 Draw.arrow([ax, ay], [state.vn * nx * sc, state.vn * ny * sc], { category: 'aux', label: 'v₁ₙ', mag: Math.abs(state.vn), unit: 'm/s' });
 Draw.arrow([ax, ay], [state.vt * tx * sc, state.vt * ty * sc], { category: 'aux', label: 'v₁ₜ', mag: Math.abs(state.vt), unit: 'm/s' });
 Draw.text(ax, ay - 0.32, '球 1：沿连线方向 + 切向分解', { size: 11, color: '#5d6b7a' });
 
-// —— 球 2：碰前静止，碰后只有法向分量 ——
-Draw.arrow([state.x2, state.y2], [state.vx2 * sc, state.vy2 * sc], { category: 'velocity', label: 'v₂', mag: state.speed2, unit: 'm/s' });
+// —— 球 2：碰前静止，碰后只有法向分量（v₂ 本身由 bodies 自动生成）——
 var bx = state.x2, by = state.y2 + 0.66;
 Draw.line([bx - 0.95 * nx, by - 0.95 * ny], [bx + 0.45 * nx, by + 0.45 * ny], { dash: true, color: '#c9a227' });
 Draw.arrow([bx, by], [state.vn2 * nx * sc, state.vn2 * ny * sc], { category: 'aux', label: 'v₂ₙ', mag: Math.abs(state.vn2), unit: 'm/s' });

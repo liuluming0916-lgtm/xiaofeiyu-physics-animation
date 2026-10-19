@@ -72,6 +72,10 @@ latex: \frac{(R+r)m}{B^{2}L^{2}}`,
 
     VIEW: String.raw`SIM = {
   duration: 2.0,
+  /* v1.1.9：金属棒中心（画面上 x = -0.10 + 0.62·x，y = 0.48），与 drawFrame 的 rodX/rodY 一致。 */
+  bodies: [
+    { id: 'rod', at: (s) => [-0.10 + s.x * 0.62, 0.48] }
+  ],
   continuityKeys: ['x'],
   axes: [
     { key: 'v', label: 'v（基准）', unit: 'm/s' },
@@ -140,7 +144,7 @@ Draw.text(rodX, y0 + 0.60, 'm, r', { size: 11, color: '#1d2733' });
 // 给了它就只画符号、不缀数值。门禁 render-check 会断言「SYMBOLIC 题的箭头全都带 latex」。
 // 纯符号题也要给 mag：**按基准实例的相对量级**（已知量取 1、倍数关系如实填）。
 // 本题 v 与 F 都随 t 衰减，用它们各自的实时值当量级，同一条尺子上就能看出"谁衰减得更快"。
-Draw.arrow([rodX, y0 + 0.18], [state.v, 0], { category: 'velocity', label: 'v(t)', latex: 'v(t)', mag: Math.abs(state.v) });
+// v(t) 由 bodies 求导自动生成（无文字标注，图例按颜色识别）；下面是安培力。
 Draw.arrow([rodX, y0 + 0.18], [-state.F, 0], { category: 'force', subtype: 'ampere', label: 'F = BIL', latex: 'F = BIL', mag: Math.abs(state.F) });
 Draw.text(rodX + 0.10, y0 + 0.96, '磁场 B 垂直纸面向里（×）', { size: 11, color: '#3a4a5a', align: 'left' });
 

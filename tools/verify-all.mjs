@@ -196,6 +196,14 @@ const STEPS = [
     '㊻ 虚线参数口径取证（第 9 期：dash:true=虚线 / false=实线 / 数组=自定义；非法类型 C1 拦截）',
     'tests/dash-selftest.mjs',
   ],
+  [
+    '㊼ 开源日志取证（v1.1.7：门禁哪条拦住 / 对话原文 / 动画代码 / 解题过程；每次跑都落一对 html+json，且不含 Key）',
+    'tests/open-log-selftest.mjs',
+  ],
+  [
+    '㊽ 本地运动学矢量取证（v1.1.9：bodies 求导 / 边界集含 phases / 碰后取值 / 跳变画点 / 模型 v/a 过滤 / 两条渲染路径同口径）',
+    'tests/kinematic-vectors-selftest.mjs',
+  ],
 ];
 
 function canSpawn() {

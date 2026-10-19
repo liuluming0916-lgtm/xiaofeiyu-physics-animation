@@ -110,6 +110,17 @@ step: 1`,
 
     VIEW: String.raw`SIM = {
   duration: 1.341,
+  /* v1.1.9：滑块质心（沿轨道法向偏移半个厚度，与 drawFrame 的 ball 同一处） */
+  bodies: [
+    { id: 'block', at: (s) => [s.x + s.nx * s.rOff, s.y + s.ny * s.rOff] }
+  ],
+  /* 圆弧→平抛 的真实切换在 tArc≈0.916，**不在** STEPS 边界（0.9/0.95）上。
+     写成函数：VIEW 先于 setup 执行，引用 context 的表达式要到调用时才求值。 */
+  phases: () => [
+    { t0: 0, t1: context.tau1 },
+    { t0: context.tau1, t1: context.tau1 + context.tauArc },
+    { t0: context.tau1 + context.tauArc, t1: SIM.duration }
+  ],
   continuityKeys: ['x', 'y'],
   /* C10 扩展：各阶段的物理合法区域（q02 的三段边界最容易写错）
      圆弧段由「圆心 C=(2.0196, 1.5)、R=0.6、ψ∈[180°,240°]」定界：
@@ -323,17 +334,14 @@ Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 var ball = [state.x + state.nx * state.rOff, state.y + state.ny * state.rOff];
 Draw.box(ball, 0.30, 0.20, { angleDeg: state.tAng * 180 / Math.PI, fill: '#2a6f8f', stroke: '#1d2733' });
 
-/* 速度：切向分解，虚线补齐矩形 */
-Draw.arrow(ball, [state.vx * 0.16, state.vy * 0.16], { category: 'velocity', label: 'v', mag: Math.hypot(state.vx, state.vy) });
+/* 速度：切向分解，虚线补齐矩形。
+   v 箭头本身由 bodies 自动生成；这里只画两个**分量**（aux，紫）。 */
 Draw.arrow(ball, [state.vx * 0.16, 0], { category: 'aux', subtype: 'component', label: 'vx', mag: Math.abs(state.vx), labelInset: -13 });
 Draw.arrow(ball, [0, state.vy * 0.16], { category: 'aux', subtype: 'component', label: 'vy', mag: Math.abs(state.vy) });
 Draw.line([ball[0] + state.vx * 0.16, ball[1]], [ball[0] + state.vx * 0.16, ball[1] + state.vy * 0.16], { dash: true, color: '#c8d0d8', width: 1.0 });
 Draw.line([ball[0], ball[1] + state.vy * 0.16], [ball[0] + state.vx * 0.16, ball[1] + state.vy * 0.16], { dash: true, color: '#c8d0d8', width: 1.0 });
 
-/* 加速度：斜面段沿面、圆弧段切向+法向、平抛段竖直向下。圆弧段含向心项 v²/R ≈ 87 m/s²，
-   与斜面段的 10 m/s² 差一个数量级，必须按阶段换比例尺，否则箭头会横跨整个画布。 */
-var aScale = state.phase === 2 ? 0.0042 : 0.045;
-Draw.arrow(ball, [state.ax * aScale, state.ay * aScale], { category: 'acceleration', label: 'a', mag: Math.hypot(state.ax, state.ay) });
+/* 加速度不在这里画：圆弧段的向心项 v²/R ≈ 87 m/s² 由运行时求导得到，比例尺也交给系统归一。 */
 
 /* 受力：重力（竖直向下）+ 支持力（沿法向，斜面段与圆弧段都存在；平抛段为 0）——都从质心出发 */
 Draw.arrow(ball, [0, -0.30], { category: 'force', subtype: 'gravity', label: 'mg', mag: context.mBall * context.g, labelInset: -13 });

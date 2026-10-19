@@ -128,6 +128,22 @@ export const ARROW_OPTS_NOT_LITERAL =
   '`Draw.arrow` 的第三个参数必须是**对象字面量**（不能是变量）—— 否则静态预检看不到你有没有给 `mag`，' +
   '"同类可比"就失去了保障。';
 
+/* ────────────── v1.1.9：v/a 箭头改由运行时本地绘制（用户 2026-10-19 拍板） ──────────────
+ *
+ * 用户压力测试结论：模型手写的速度/加速度箭头**错到不可接受**（方向、符号、缩放、
+ * 与画面里物体的实际运动对不上）。所以这两类不再让模型画：
+ *   · 速度/加速度由 `SIM.bodies` 声明刚体位置，运行时对轨迹求导后统一绘制；
+ *   · 模型只保留 `aux`（传送带速度、电流、分量…）与 `force`。
+ *
+ * 为什么必须硬拦而不是"运行时过滤掉就行"：
+ *   过滤是**沉默修复** —— 模型写错了、画面却对，它永远学不会；换一道题忘了过滤，
+ *   错箭头就又出来了。所以静态闸门报错、自愈轮定向改，和 v1.1.9 的失效模式对齐。
+ */
+export const ARROW_KINEMATIC_FORBIDDEN =
+  '速度/加速度箭头不再由模型绘制：请删掉这支 `Draw.arrow`，改在 `VIEW` 里声明 `SIM.bodies`' +
+  '（`[{ id, at: (state) => [x, y] }]`），运行时会自动画出 v 与 a。' +
+  '`category: "aux"`（传送带速度、电流、分量…）与 `force` 仍然可以画。';
+
 /* ────────────── 第 9 期：`dash` 的参数口径（用户 2026-10-19 拍板） ──────────────
  *
  * 约定：
@@ -573,6 +589,15 @@ export function lintSlot(opts) {
           if (!keys.has('mag')) diagnostics.push(d('arrow-missing-mag', node, ARROW_MAG_REQUIRED));
           if (keys.has('scale')) diagnostics.push(d('arrow-deprecated-scale', keys.get('scale'), ARROW_SCALE_BANNED));
           if (keys.has('color')) diagnostics.push(d('arrow-forbidden-color', keys.get('color'), ARROW_COLOR_BANNED));
+          /* v1.1.9：v/a 两类由运行时求导绘制，模型再写就是**重复/错误**的箭头。 */
+          const catProp = keys.get('category');
+          const catVal = catProp?.value;
+          if (
+            catVal?.type === 'Literal' &&
+            (catVal.value === 'velocity' || catVal.value === 'acceleration')
+          ) {
+            diagnostics.push(d('arrow-kinematic-forbidden', catProp, ARROW_KINEMATIC_FORBIDDEN));
+          }
         }
       }
 

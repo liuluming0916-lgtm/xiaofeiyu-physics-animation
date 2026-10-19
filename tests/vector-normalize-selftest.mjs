@@ -215,8 +215,8 @@ async function main() {
     );
     check('★ 最长的箭头杆 > 60px（不会再"看着像个点"）', Math.max(...expects) > 60, `${Math.max(...expects).toFixed(1)}px`);
   }
-  /* ══ H 覆盖率：62 根箭头**全都**给了 mag ══ */
-  console.log('\n『H』覆盖率：每一根箭头都带真实量级');
+  /* ══ H 覆盖率：模型手画的 35 根箭头**全都**给了 mag；v/a 已移交运行时 ══ */
+  console.log('\n『H』覆盖率：每一根模型手画箭头都带真实量级');
 
   {
     /**
@@ -228,9 +228,11 @@ async function main() {
     const dir = new URL('./regression-15/', import.meta.url);
     let total = 0;
     let withMag = 0;
+    let kinematic = 0;
     const missing = [];
     for (const f of readdirSync(dir).filter((n) => n.endsWith('.mjs')).sort()) {
       const text = readFileSync(new URL(f, dir), 'utf8');
+      if (/category:\s*'(velocity|acceleration)'/.test(text)) kinematic += 1;
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i += 1) {
         if (!/Draw\.arrow\(/.test(lines[i])) continue;
@@ -248,7 +250,9 @@ async function main() {
 
     console.log(`      箭头 ${total} 根 · 带 mag ${withMag} 根`);
     check('★ 每根箭头都给了 mag（不补的话"同类可比"会悄悄失效）', total > 0 && withMag === total, `缺：${missing.join(', ')}`);
-    check('箭头总数与第 8 期摸底一致（62 根）', total === 62, String(total));
+    /* v1.1.9：62 − 28 根 v/a = 35 根（force/aux）。数量变化是迁移，不是漏画。 */
+    check('模型手画箭头 = 35（force/aux）', total === 35, String(total));
+    check('★ 15 道题里没有一处手写 v/a 箭头（已移交 SIM.bodies）', kinematic === 0, `${kinematic} 个文件仍有`);
   }
 
   console.log('\n『F』15 道真题：都能算出比例，且不撑爆取景');

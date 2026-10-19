@@ -106,7 +106,28 @@ async function startService() {
   /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\物理解题动画\导出」，用户找得到 */
   process.env.OD_EXPORT_DIR = exportDir();
   process.env.OD_DISTILL_DIR = path.join(dataDir, 'distill');
-  logLine(`paths · export=${process.env.OD_EXPORT_DIR}`);
+  /**
+   * ── v1.1.7「开源日志」的落点 = **程序目录**（用户点名要求）──
+   *
+   * 它和上面几个刻意相反：那些是内部数据（`%APPDATA%` 深处），而这份日志是
+   * **公测用户要打包发给开发者的**，放在 exe 旁边才找得到、才说得清"在哪个文件夹里"。
+   *
+   * 开发运行时 `app.isPackaged === false` ⇒ 落到仓库根（与源码同级），
+   * 这样本地调的时候也能立刻看到自己刚跑出来的那份。
+   *
+   * ⚠ 安装到 `Program Files` 时程序目录**只读**：写失败会由 `writeOpenLog()`
+   *   退到用户数据目录（那条路在服务端实现），这里 `mkdirSync` 失败也只是不预建，
+   *   不影响任何流程。
+   */
+  const appDir = app.isPackaged ? path.dirname(app.getPath('exe')) : APP_ROOT;
+  process.env.OD_APP_DIR = appDir;
+  process.env.OD_OPEN_LOG_DIR = path.join(appDir, '开源日志');
+  try {
+    fs.mkdirSync(process.env.OD_OPEN_LOG_DIR, { recursive: true });
+  } catch (e) {
+    logLine(`开源日志目录预建失败（不阻断启动）：${e && e.message ? e.message : String(e)}`);
+  }
+  logLine(`paths · export=${process.env.OD_EXPORT_DIR} · openLog=${process.env.OD_OPEN_LOG_DIR}`);
 
   /**
    * ⚠ **Windows 上动态 import 绝对路径必须先转成 `file://` URL**。
@@ -263,15 +284,22 @@ function buildMenu() {
           click: () => shell.openPath(userDataDir()),
         },
         {
+          /* v1.1.7：公测期最常被问的一句是"日志在哪" —— 给它一个直接入口 */
+          label: '开源日志（公测自动导出）',
+          click: () => shell.openPath(process.env.OD_OPEN_LOG_DIR || APP_ROOT),
+        },
+        {
           label: '关于',
           click: () =>
             dialog.showMessageBox({
               type: 'info',
               title: '关于',
-              message: '物理解题动画 v1.1.5',
+              message: '物理解题动画 v1.1.9',
               detail:
                 '解题 → 动画（「写卡助手」暂未开放）。\n' +
                 '画布不写数值，矢量靠颜色与长度表达（绿=速度 / 蓝=加速度 / 红=受力）。\n' +
+                '公测版会自动导出运行日志（门禁 / 对话 / 动画代码 / 解题过程），\n' +
+                `位置：${process.env.OD_OPEN_LOG_DIR || '程序目录\\开源日志'}\n` +
                 `数据目录：${userDataDir()}`,
             }),
         },

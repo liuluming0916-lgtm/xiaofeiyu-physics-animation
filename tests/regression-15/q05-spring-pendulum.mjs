@@ -91,6 +91,11 @@ step: 5`,
 
     VIEW: String.raw`SIM = {
   duration: 2.0,
+  /* v1.1.9：两个刚体（弹簧振子 + 单摆摆球），位置与 drawFrame 画出来的完全一致。 */
+  bodies: [
+    { id: 'block', at: (s) => [s.wallX + 0.77 + s.x, context.y0] },
+    { id: 'bob', at: (s) => [2.85 + context.L * Math.sin(s.theta), 1.62 - context.L * Math.cos(s.theta)] }
+  ],
   axes: [
     { key: 'x', label: 'x 弹簧', unit: 'm' },
     { key: 'v', label: 'v 弹簧', unit: 'm/s' },
@@ -164,14 +169,10 @@ var blockCenter = wallX + natLen + 0.22 + state.x;
 Draw.spring([wallX, y0], [blockCenter - 0.16, y0], { coils: 14, amplitude: 0.075, color: '#2b3440' });
 Draw.box([blockCenter, y0], 0.32, 0.30, { angleDeg: 0 });
 Draw.text(blockCenter, y0 + 0.34, 'm', { size: 12, color: '#1d2733' });
-Draw.arrow([blockCenter, y0], [state.v, 0], { category: 'velocity', label: 'v', mag: Math.abs(state.v) });
 Draw.arrow([blockCenter, y0 - 0.24], [-context.k * state.x, 0], {
   category: 'force', subtype: 'elastic', label: 'F = −kx', mag: Math.abs(context.k * state.x)
 });
-/* 弹簧振子的加速度 a = −ω₁²x（简谐运动的判据），之前漏画 */
-Draw.arrow([blockCenter, y0 + 0.20], [-context.w1 * context.w1 * state.x, 0], {
-  category: 'acceleration', label: 'a', mag: Math.abs(context.w1 * context.w1 * state.x)
-});
+/* 弹簧振子的 a = −ω₁²x 由 bodies 求导自动画出（不必手写）。 */
 Draw.line([wallX + natLen + 0.22, y0 - 0.46], [wallX + natLen + 0.22, y0 + 0.46], { dash: true, color: '#9aa7b4' });
 Draw.text(wallX + natLen + 0.22, y0 - 0.60, '平衡位置', { size: 11, color: '#5d6b7a' });
 Draw.dimension([wallX + natLen + 0.22, y0 + 0.52], [blockCenter, y0 + 0.52], {
@@ -203,14 +204,7 @@ for (var si = 0; si <= 48; si = si + 1) {
 }
 Draw.trace(swingTrace, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
-/* 单摆速度：**沿圆弧切向**（之前错用了弹簧振子的水平速度） */
-Draw.arrow([bobX, bobY], [state.vBob * state.tx * 0.16, state.vBob * state.ty * 0.16], {
-  category: 'velocity', label: 'v 摆', mag: Math.abs(state.vBob)
-});
-/* 单摆的切向加速度（回复力）与绳张力 */
-Draw.arrow([bobX, bobY], [state.aBob * state.tx * 0.075, state.aBob * state.ty * 0.075], {
-  category: 'acceleration', label: 'a 摆', mag: Math.abs(state.aBob)
-});
+/* 单摆的速度与切向加速度都由 bodies 求导自动画出（沿圆弧切向，方向由真实运动决定）。 */
 /* 绳张力 T = mg·cosθ + m·v²/L（单摆的径向力平衡）—— 用真实量级，不再用固定长度示意 */
 Draw.arrow([bobX, bobY], [-0.30 * Math.sin(th), 0.30 * Math.cos(th)], {
   category: 'force', subtype: 'tension', label: 'T',

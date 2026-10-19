@@ -58,7 +58,7 @@ async function main() {
 
   console.log('\n『B』负对照：合规写法**一条诊断都不该有**');
   {
-    check('★ 合规箭头（category + mag + unit）零诊断', rulesOf("Draw.arrow([0,0],[1,0],{category:'velocity',mag:state.v,unit:'m/s'});").length === 0);
+    check('★ 合规箭头（category + mag + unit）零诊断', rulesOf("Draw.arrow([0,0],[1,0],{category:'force',mag:state.f,unit:'N'});").length === 0);
     check('★ `Draw.line` 带 color/scale 不受这条规则影响（规则只管 arrow）', !rulesOf("Draw.line([0,0],[1,0],{color:'#000',scale:0.3});").some((r) => r.startsWith('arrow-')));
     check('`label` / `latex` / `subtype` / `labelInset` 都仍然合法', rulesOf("Draw.arrow([0,0],[1,0],{category:'force',subtype:'gravity',label:'mg',latex:'mg',labelInset:-13,mag:10});").length === 0);
     check('`mag` 写成常数也允许（例如静摩擦恒为 1 N）', rulesOf("Draw.arrow([0,0],[-1,0],{category:'force',mag:1});").length === 0);
@@ -78,7 +78,16 @@ async function main() {
     check('color 的诊断指出颜色由 category 决定', Boolean(c && /category/.test(c.message)));
   }
 
-  console.log('\n『D』仓库自身 15 道题必须**全部干净**（否则规则一上线就红一片）');
+  console.log('\n『D』v1.1.9：v/a 不再允许手写（交给 SIM.bodies 求导）');
+  {
+    check('velocity 字面量 ⇒ arrow-kinematic-forbidden', rulesOf("Draw.arrow([0,0],[1,0],{category:'velocity',mag:1});").includes('arrow-kinematic-forbidden'));
+    check('acceleration 字面量 ⇒ arrow-kinematic-forbidden', rulesOf("Draw.arrow([0,0],[1,0],{category:'acceleration',mag:1});").includes('arrow-kinematic-forbidden'));
+    check('★ aux 不受影响（传送带速度/电流/分量仍然合法）', rulesOf("Draw.arrow([0,0],[1,0],{category:'aux',mag:1});").length === 0);
+    check('★ force 不受影响', rulesOf("Draw.arrow([0,0],[1,0],{category:'force',mag:1});").length === 0);
+    check('诊断文案指向 SIM.bodies（模型能照做）', /SIM\.bodies/.test(diagOf("Draw.arrow([0,0],[1,0],{category:'velocity',mag:1});", 'arrow-kinematic-forbidden')?.message ?? ''));
+  }
+
+  console.log('\n『E』仓库自身 15 道题必须**全部干净**（否则规则一上线就红一片）');
   {
     const { readdirSync, readFileSync } = await import('node:fs');
     const dir = `${PROJECT_ROOT}/tests/regression-15`;
@@ -106,7 +115,12 @@ async function main() {
 
     console.log(`      检查 ${files.length} 个文件 · ${arrowCalls} 处 Draw.arrow`);
     check('★ 15 道题的 drawFrame 里**没有一处**违反箭头口径', offenders.length === 0, offenders.join(' | '));
-    check('箭头总数仍是 62（与矢量归一覆盖率一致）', arrowCalls === 62, String(arrowCalls));
+    /*
+     * v1.1.9：v/a 改由运行时求导绘制，模型手画的箭头只剩 force/aux。
+     * 第 8 期是 62 根（含 28 根 v/a）；现在 35 根，**且 v/a 一根不剩**。
+     * 这两个断言一起看才守得住口径：数量掉到 35 是因为迁移，不是有人漏画。
+     */
+    check('模型手画箭头 = 35（force/aux；v/a 已移交运行时）', arrowCalls === 35, String(arrowCalls));
   }
 
   console.log(`\n${failures.length ? '✗' : '✓'} 箭头参数口径取证：通过 ${passed} 条，失败 ${failures.length} 条`);

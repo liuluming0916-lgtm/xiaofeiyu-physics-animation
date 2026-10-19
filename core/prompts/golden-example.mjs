@@ -1,5 +1,5 @@
 /**
- * 【一页范例】—— 提示词里给模型的**唯一**完整程序样本（第 9 期）。
+ * 【一页范例】—— 提示词里给模型的**唯一**完整程序样本（第 9 期；v1.1.9 改）。
  *
  * 为什么单独一个模块而不是直接写进 `templates.mjs` 的字符串里：
  *   ① **同一份字节**既要给模型看，又要能被门禁真跑一遍。放在这里，提示词 import 它、
@@ -9,12 +9,13 @@
  *      它用**真切分器**（`core/cleaner/marker-split.mjs`）+ **真判据内核**（`core/dryrun/dry-run.mjs`）
  *      跑一遍，红了就不许进提示词。
  *
- * 这份样本刻意做到三件事，每一件都对应一个"会立刻打回"的坑：
+ * 这份样本刻意做到四件事，每一件都对应一个"会立刻打回"的坑：
  *   1. `VIEW` 用**裸赋值** `SIM = {…}`（写 `const SIM = …` 会让外层拿不到 SIM）；
  *   2. 每个槽位**只写函数体**（`setup` 第一行就是 `const`，`readouts` 第一行就是 `return [`）；
- *   3. `setup` 用 `RETURN` 导出、其余槽位用 `context.x` 读（`setup` 里的 `const` 在别的槽位看不见）。
+ *   3. `setup` 用 `RETURN` 导出、其余槽位用 `context.x` 读（`setup` 里的 `const` 在别的槽位看不见）；
+ *   4. **v/a 不自己画**：`SIM.bodies` 声明刚体位置，运行时求导后自动画（v1.1.9 起）。
  *
- * ⚠ 它同时也示范了箭头必须给 `mag`（真实量级）、不写 `color` / `scale`。
+ * ⚠ 仍然示范的：受力箭头给 `mag`、不写 `color` / `scale`。
  */
 export const GOLDEN_EXAMPLE = String.raw`/* @slot:PROBLEM */
 水平传送带以 $u=2\ \mathrm{m/s}$ 向右匀速运行。把质量 $m=1\ \mathrm{kg}$ 的物块从静止轻放在带面左端，物块与带面之间的动摩擦因数 $\mu=0.2$，取 $g=10\ \mathrm{m/s^2}$。
@@ -59,7 +60,14 @@ step: 2
 
 /* @slot:VIEW */
 // 直接对预置变量 SIM 赋值（不写 const/let）
-SIM = { duration: 2.0 };
+// v1.1.9：速度/加速度箭头由运行时对 bodies 求导绘制，模型**不再自己画**。
+// bodies 的 at(state) 返回刚体中心的世界坐标；同一刚体的 v/a 会自动错开画。
+SIM = {
+  duration: 2.0,
+  bodies: [
+    { id: 'block', at: function (s) { return [s.x, 0.34]; } }
+  ]
+};
 /* @end */
 
 /* @slot:setup */
@@ -95,8 +103,8 @@ const runLen = context.u * SIM.duration;
 Draw.belt([-0.15, y0], [runLen + 0.7, y0], { r: r, ticks: 18 });
 Draw.ground(-0.6, runLen + 0.95, y0 - r);
 Draw.box([state.x, y0 + r + 0.24], 0.34, 0.34);
-// 箭头给 category（决定颜色）+ mag（真实量级，让同类箭头长度可比）
-Draw.arrow([state.x, y0 + r + 0.30], [state.v, 0], { category: 'velocity', label: 'v', mag: state.v });
+// 速度/加速度**不在这里画**：VIEW 的 bodies 已经声明了刚体，运行时会自动画 v 与 a。
+// 这里只画「推不出来的量」——摩擦力（受力箭头仍归模型）。
 if (state.f > 1e-9) {
   Draw.arrow([state.x, y0 + r + 0.02], [state.f, 0], { category: 'force', label: 'f', unit: 'N', mag: state.f });
 }

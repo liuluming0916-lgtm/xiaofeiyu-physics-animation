@@ -106,6 +106,11 @@ step: 1`,
 
     VIEW: String.raw`SIM = {
   duration: 0.5,
+  /* v1.1.9：两个物块的质心（m₁ 沿斜面外法向偏移半个厚度，与 drawFrame 的 blockC 一致） */
+  bodies: [
+    { id: 'm1', at: (s) => [s.x - context.sinT * 0.13, s.y + context.cosT * 0.13] },
+    { id: 'm2', at: (s) => [s.x2, s.y2] }
+  ],
   continuityKeys: ['x', 'y', 'y2'],
   /* C10 扩展：把"绳长不变"和"不撞滑轮/不滑出斜面"写进门禁（未声明的题不检查） */
   regions: [
@@ -252,14 +257,7 @@ Draw.text(blockC[0] + nxu * 0.30, blockC[1] + nyu * 0.30, 'm₁', { size: 12, co
 Draw.box([state.x2, state.y2], context.blockH, context.blockH, { angleDeg: 0, fill: '#ffffff', stroke: '#2a6f8f' });
 Draw.text(state.x2 + 0.26, state.y2, 'm₂', { size: 12, color: '#2a6f8f', align: 'left' });
 
-/* 矢量：方向一律由 m₁ 向上、m₂ 向下这一结论给出（速度、加速度各自的比例尺分开取） */
-var VS = 0.14;
-var AS = 0.060;
-Draw.arrow(blockC, [state.v * ux * VS, state.v * uy * VS], { category: 'velocity', label: 'v', mag: Math.abs(state.v) });
-Draw.arrow(blockC, [state.a * ux * AS, state.a * uy * AS], { category: 'acceleration', label: 'a', mag: Math.abs(state.a) });
-/* 绳约束：两物块速度大小相等 —— 补 mag 之后这两根箭头**必然一样长**（这正是"同类可比"的用武之处） */
-Draw.arrow([state.x2, state.y2], [0, -state.v * VS], { category: 'velocity', label: 'v', mag: Math.abs(state.v) });
-Draw.arrow([state.x2, state.y2], [0, -state.a * AS], { category: 'acceleration', label: 'a', mag: Math.abs(state.a) });
+/* v/a 由 bodies 自动生成：m₁ 沿斜面、m₂ 竖直向下（方向由真实运动算出，不再手写正负号）。 */
 
 /* 受力：同一比例尺 FS（T = 9 N、F_N = 8.7 N、m₁g = 10 N、m₂g = 15 N），都从质心出发 */
 var FS = 0.030;

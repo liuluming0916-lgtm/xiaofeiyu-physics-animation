@@ -302,6 +302,305 @@ export function arrowWorldLength(rec, vectorScale) {
 }
 
 /**
+ * ────────────────────────── v1.1.9 · 本地运动学矢量 ──────────────────────────
+ *
+ * 用户 2026-10-19 的压力测试结论：**模型手写的 v/a 箭头错到不可接受**（方向、符号、缩放、
+ * 与画面运动对不上）。所以从 1.1.9 起，速度/加速度箭头**不再由模型画**，改由运行时对
+ * `SIM.bodies` 声明的刚体位置**本地求导**后统一绘制。
+ *
+ * 三条硬口径（用户 2026-10-19 拍板）：
+ *   ① 边界集 = `{0, duration} ∪ STEPS 的所有 t0/t1 ∪ SIM.phases`（宁多勿漏，单侧公式误差 O(h²)）；
+ *   ② 速度在间断点**取碰后（右侧）值**；碰前时刻仍取碰前值；
+ *   ③ 加速度在速度跳变处**画点**（冲量没有有限加速度，画箭头就是撒谎）。
+ *
+ * 数值方法：`stateAt` 可能是纯解析、也可能是 `Phys.interp` 查表（v1.1.9 起为 C¹ Hermite）。
+ * 所以步长分两档：v 用 1e-3（响应快），a 用 8e-3（跨过查表网格，避免"段内 0 / 结点尖峰"）。
+ * 窗外有边界时自动换二阶单侧公式，**差分模板绝不跨边界**。
+ */
+
+/** 由运行时接管、禁止模型手写的两张矢量类别 */
+export const KINEMATIC_CATEGORIES = Object.freeze(['velocity', 'acceleration']);
+
+/** v 的差分步长（s）。解析函数下 1e-3 的相对误差约 1e-6。 */
+export const KINEMATIC_H = 1e-3;
+
+/**
+ * a 的差分步长（s）。
+ *
+ * 从 8 ms 收到 2 ms 的原因：`interp` 已经是 C¹ Hermite，查表题不再需要"跨过网格"的宽窗
+ * （实测 q13：h2=2ms 时 |Δa|≈4e-5）。窗越窄，加速度箭头在**未声明的相变点**附近的
+ * 涂抹就越短（q02 的圆弧→平抛切换不在 STEPS 边界上，8ms 时误差约 40 m/s²，2ms 时约 4 m/s²）。
+ */
+export const KINEMATIC_ACC_H = 2e-3;
+
+/** 判定"速度在这里跳变"的阈值：固定项 + 相对项（平滑边界上的 Δv≈a·h，远小于它）。 */
+export const KINEMATIC_JUMP_ABS = 0.01;
+export const KINEMATIC_JUMP_REL = 0.02;
+
+/** 每个 program 的运动学信息只算一次（边界、跳变标记）。 */
+const KINEMATIC_CACHE = new WeakMap();
+
+/** 读一个点，接受 `[x, y]` 或 `{ x, y }`。 */
+function readPoint(v, where) {
+  const x = Array.isArray(v) ? v[0] : v?.x;
+  const y = Array.isArray(v) ? v[1] : v?.y;
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+    throw new TypeError(`${where} 必须返回 [x, y] 或 {x, y}（当前：${JSON.stringify(v)}）`);
+  }
+  return [x, y];
+}
+
+/** 收集边界：`{0, duration} ∪ STEPS.t0/t1 ∪ SIM.phases.t0/t1`，排序去重。 */
+export function collectKinematicBoundaries(program, duration = resolveDuration(program)) {
+  const list = [0, duration];
+  const push = (v) => {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= -1e-9 && n <= duration + 1e-9) list.push(Math.min(Math.max(n, 0), duration));
+  };
+  for (const s of program?.STEPS ?? []) {
+    push(s?.t0);
+    push(s?.t1);
+  }
+  /**
+   * `SIM.phases` 允许写成**函数**：VIEW 先于 setup 执行，而相变时刻常常是 setup 算出来的
+   * （q02 的 `tArc = tau1 + tauArc`）。函数在 `kinematicsInfo` 里才调用，那时 setup 已完成。
+   */
+  let phases = program?.SIM?.phases;
+  if (typeof phases === 'function') {
+    try {
+      phases = phases();
+    } catch {
+      phases = [];
+    }
+  }
+  for (const p of Array.isArray(phases) ? phases : []) {
+    push(p?.t0);
+    push(p?.t1);
+  }
+  list.sort((a, b) => a - b);
+  const out = [];
+  for (const b of list) if (!out.length || b - out[out.length - 1] > 1e-9) out.push(b);
+  return out;
+}
+
+/** 归一化 `SIM.bodies`；空/缺省返回 `[]`（老程序保持"模型自己画"的旧行为）。 */
+export function normalizeBodies(program) {
+  const raw = program?.SIM?.bodies;
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const b = raw[i];
+    if (!b || typeof b !== 'object') throw new TypeError(`SIM.bodies[${i}] 必须是对象`);
+    if (typeof b.at !== 'function') {
+      throw new TypeError(`SIM.bodies[${i}].at 必须是函数（state)=>[x,y]（当前：${typeof b.at}）`);
+    }
+    out.push({ id: String(b.id ?? `body${i + 1}`), label: b.label ?? null, at: b.at });
+  }
+  return out;
+}
+
+/** 取某时刻某刚体的中心；`stateAt` 可能对越界 t 返回 NaN，先夹到 [0, duration]。 */
+function bodyPoint(program, body, t, duration) {
+  const tt = Math.min(Math.max(t, 0), duration);
+  return readPoint(body.at(program.stateAt(tt)), `SIM.bodies[${body.id}].at`);
+}
+
+/**
+ * 速度与加速度的本地估计。
+ *
+ * @returns {{ x:number, y:number, vx:number, vy:number, ax:number, ay:number, speed:number }}
+ */
+export function derivatives(program, body, t, info, opts = {}) {
+  const { duration, bounds, jumps } = info;
+  const h = opts.h ?? KINEMATIC_H;
+  const h2 = opts.h2 ?? KINEMATIC_ACC_H;
+  const P = (tt) => bodyPoint(program, body, tt, duration);
+
+  const [x, y] = P(t);
+
+  /** 单侧/中心自动切换的速度估计（窗口跨边界就换单侧）。 */
+  function velocityAt(tt) {
+    const b = crossingBoundary(bounds, tt, h);
+    const [x0, y0] = P(tt);
+    if (b === null) {
+      const pm = P(tt - h);
+      const pp = P(tt + h);
+      return [(pp[0] - pm[0]) / (2 * h), (pp[1] - pm[1]) / (2 * h)];
+    }
+    if (sideIsRight(tt, b, duration)) {
+      const p1 = P(tt + h);
+      const p2 = P(tt + 2 * h);
+      // 二阶前向：(−3p0 + 4p1 − p2) / 2h
+      return [(-3 * x0 + 4 * p1[0] - p2[0]) / (2 * h), (-3 * y0 + 4 * p1[1] - p2[1]) / (2 * h)];
+    }
+    const p1 = P(tt - h);
+    const p2 = P(tt - 2 * h);
+    return [(3 * x0 - 4 * p1[0] + p2[0]) / (2 * h), (3 * y0 - 4 * p1[1] + p2[1]) / (2 * h)];
+  }
+
+  /* ── 速度 ── */
+  const bV = crossingBoundary(bounds, t, h);
+  let [vx, vy] = velocityAt(t);
+  /**
+   * 端点跳变（题尾的落点钳位、位置吸附等）：最后一个/第一个窗口被污染时，
+   * 退到画面内侧 4h 处取值 —— 箭头宁可比画面晚 4 ms，也不要在最后一帧缩成半个。
+   */
+  if (bV !== null && (bV <= 1e-12 || bV >= duration - 1e-12) && jumps[info.boundIndex.get(bV)]) {
+    const tEval = bV <= 1e-12 ? Math.min(duration, 4 * h) : Math.max(0, duration - 4 * h);
+    [vx, vy] = velocityAt(tEval);
+  }
+
+  /* ── 加速度：窗口跨边界 → 该边界是跳变就画点（0），否则单侧二阶 ──
+   * 判定半径取 2·h2：落点钳位这类"题尾位置跳一下"的真实时刻可能比声明的 duration
+   * 早 1–2 ms，按 ±h2 判会漏掉，右端点落进跳变里就会算出几百 m/s² 的假加速度。 */
+  const bA = crossingBoundary(bounds, t, 2 * h2);
+  let ax = 0;
+  let ay = 0;
+  if (bA !== null) {
+    const jump = jumps[info.boundIndex.get(bA)] ?? false;
+    if (!jump) {
+      if (sideIsRight(t, bA, duration)) {
+        const p1 = P(t + h2);
+        const p2 = P(t + 2 * h2);
+        const p3 = P(t + 3 * h2);
+        // (2p0 − 5p1 + 4p2 − p3) / h²
+        ax = (2 * x - 5 * p1[0] + 4 * p2[0] - p3[0]) / (h2 * h2);
+        ay = (2 * y - 5 * p1[1] + 4 * p2[1] - p3[1]) / (h2 * h2);
+      } else {
+        const p1 = P(t - h2);
+        const p2 = P(t - 2 * h2);
+        const p3 = P(t - 3 * h2);
+        ax = (2 * x - 5 * p1[0] + 4 * p2[0] - p3[0]) / (h2 * h2);
+        ay = (2 * y - 5 * p1[1] + 4 * p2[1] - p3[1]) / (h2 * h2);
+      }
+    }
+  } else {
+    const pm = P(t - h2);
+    const pp = P(t + h2);
+    ax = (pp[0] - 2 * x + pm[0]) / (h2 * h2);
+    ay = (pp[1] - 2 * y + pm[1]) / (h2 * h2);
+  }
+
+  return { x, y, vx, vy, ax, ay, speed: Math.hypot(vx, vy) };
+}
+
+/** 单侧差分取哪一侧：`t` 在边界上取右侧（碰后）；端点取画面内侧。 */
+function sideIsRight(t, b, duration) {
+  if (t <= 1e-12) return true;
+  if (b >= duration - 1e-12) return false;
+  return t >= b;
+}
+
+/** 窗口 `[t−h, t+h]` 里离 `t` 最近的边界；没有返回 null。 */
+function crossingBoundary(bounds, t, h) {
+  let best = null;
+  let bestD = Infinity;
+  for (const b of bounds) {
+    if (b > t - h && b <= t + h + 1e-12) {
+      const d = Math.abs(b - t);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * 边界 b 处速度是否跳变（用两侧单侧差分判，阈值见 KINEMATIC_JUMP_*）。
+ *
+ * 端点也要判：题尾的落点钳位/位置吸附会让最后一小段位置跳一下（q02 的落点就会跳 ~5 mm），
+ * 不判的话最后一帧的速度箭头会缩水。判到跳变后，`derivatives` 会退到画面内侧 4h 取值。
+ */
+function isVelocityJump(program, body, b, duration) {
+  const h = KINEMATIC_H;
+  const P = (tt) => bodyPoint(program, body, tt, duration);
+  const p0 = P(b);
+  if (b <= 1e-12) {
+    const pr1 = P(h);
+    const pr2 = P(2 * h);
+    const s1 = [(pr1[0] - p0[0]) / h, (pr1[1] - p0[1]) / h];
+    const s2 = [(pr2[0] - pr1[0]) / h, (pr2[1] - pr1[1]) / h];
+    const dv = Math.hypot(s2[0] - s1[0], s2[1] - s1[1]);
+    return dv > KINEMATIC_JUMP_ABS + KINEMATIC_JUMP_REL * Math.max(Math.hypot(...s1), Math.hypot(...s2));
+  }
+  if (b >= duration - 1e-12) {
+    const pl1 = P(duration - h);
+    const pl2 = P(duration - 2 * h);
+    const s1 = [(p0[0] - pl1[0]) / h, (p0[1] - pl1[1]) / h];
+    const s2 = [(pl1[0] - pl2[0]) / h, (pl1[1] - pl2[1]) / h];
+    const dv = Math.hypot(s1[0] - s2[0], s1[1] - s2[1]);
+    return dv > KINEMATIC_JUMP_ABS + KINEMATIC_JUMP_REL * Math.max(Math.hypot(...s1), Math.hypot(...s2));
+  }
+  const pl1 = P(b - h);
+  const pl2 = P(b - 2 * h);
+  const pr1 = P(b + h);
+  const pr2 = P(b + 2 * h);
+  const vlx = (3 * p0[0] - 4 * pl1[0] + pl2[0]) / (2 * h);
+  const vly = (3 * p0[1] - 4 * pl1[1] + pl2[1]) / (2 * h);
+  const vrx = (-3 * p0[0] + 4 * pr1[0] - pr2[0]) / (2 * h);
+  const vry = (-3 * p0[1] + 4 * pr1[1] - pr2[1]) / (2 * h);
+  const dv = Math.hypot(vrx - vlx, vry - vly);
+  const scale = Math.max(Math.hypot(vlx, vly), Math.hypot(vrx, vry));
+  return dv > KINEMATIC_JUMP_ABS + KINEMATIC_JUMP_REL * scale;
+}
+
+/** program 的运动学信息（惰性、缓存）：bodies + 边界 + 每个边界的跳变标记。 */
+export function kinematicsInfo(program) {
+  const cached = KINEMATIC_CACHE.get(program);
+  if (cached) return cached;
+  const bodies = normalizeBodies(program);
+  const duration = resolveDuration(program);
+  const bounds = collectKinematicBoundaries(program, duration);
+  const boundIndex = new Map(bounds.map((b, i) => [b, i]));
+  const jumps = bounds.map(() => false);
+  for (const body of bodies) {
+    bounds.forEach((b, i) => {
+      if (isVelocityJump(program, body, b, duration)) jumps[i] = true;
+    });
+  }
+  const info = { bodies, duration, bounds, boundIndex, jumps };
+  KINEMATIC_CACHE.set(program, info);
+  return info;
+}
+
+/**
+ * 把本地运动学箭头推进当前帧的命令缓冲。
+ *
+ * ⚠ 必须由 `sampleFrame`（干跑/取景）与 `createPlayer.render`（播放/导出）**共用**——
+ * 两条路径各写一份，就会出现"干跑量的和屏幕画的不一致"（第 8 期踩过同款坑）。
+ *
+ * 同时**过滤掉模型手写的 v/a 箭头**（只在该题声明了 bodies 时）：双保险，模型没改习惯也不会双箭头。
+ *
+ * @returns {number} 本帧注入的箭头数
+ */
+export function emitKinematicArrows(program, t) {
+  const info = kinematicsInfo(program);
+  const buffer = program.buffer;
+  if (!info.bodies.length) return 0;
+
+  if (Array.isArray(buffer?.records) && buffer.records.length) {
+    const kept = [];
+    for (const r of buffer.records) {
+      if (r?.op === 'arrow' && KINEMATIC_CATEGORIES.includes(r.category)) continue;
+      kept.push(r);
+    }
+    if (kept.length !== buffer.records.length) buffer.records = kept;
+  }
+
+  let n = 0;
+  for (const body of info.bodies) {
+    const d = derivatives(program, body, t, info);
+    const stackKey = `kin:${body.id}`;
+    program.Draw.arrow([d.x, d.y], [d.vx, d.vy], { category: 'velocity', mag: d.speed, stackKey });
+    program.Draw.arrow([d.x, d.y], [d.ax, d.ay], { category: 'acceleration', mag: Math.hypot(d.ax, d.ay), stackKey });
+    n += 2;
+  }
+  return n;
+}
+
+/**
  * 命令缓冲。`drawFrame` 只能经 `Draw.*` 往这里推记录；
  * Dry-Run 只做计数与数值检查，实时播放与导出渲帧把它回放到 Canvas。
  */
@@ -430,23 +729,42 @@ export class CommandBuffer {
 
 /* ────────────────────────────── 物理计算辅助 ────────────────────────────── */
 
-/** 通用 RK45 积分（§4.3）。放在 setup() 内使用——§7.6 架构不变量。 */
+/**
+ * 通用 RK45 积分（§4.3）。放在 setup() 内使用——§7.6 架构不变量。
+ *
+ * ── v1.1.9：每个采样点**顺带存下导数**（`dy`）──
+ *
+ * 为什么多存一份：`interp` 要从"折线插值"升级成 C¹ 的三次 Hermite（见 `interp`）。
+ * Hermite 需要两端点的**斜率**，而 RK45 本来就算过 `deriv(t_i, y_i)`（就是 `k1`），
+ * 不存下来就得再算一遍。存在这里，模型侧一行代码都不用改。
+ *
+ * 兼容：`dy` 是**附加**字段，老代码只读 `{ t, y }`，不受影响；`interp` 见到没有 `dy` 的表
+ * 自动退回线性插值（例如手写表、或历史导出页里烘焙的旧表）。
+ */
 export function integrate(state0, deriv, t0, t1, opts = {}) {
   const dt = opts.dt ?? (t1 - t0) / 400;
   const samples = [];
+  const record = opts.record !== false;
   let t = t0;
-  let y = Array.isArray(state0) ? state0.slice() : { ...state0 };
+  let y = clonePlain(state0);
   const step = (tn, yn, h) => rk45Step(tn, yn, h, deriv);
 
   while (t < t1 - 1e-12) {
     const h = Math.min(dt, t1 - t);
-    if (opts.record !== false) samples.push({ t, y: Array.isArray(y) ? y.slice() : { ...y } });
+    if (record) samples.push({ t, y: clonePlain(y), dy: clonePlain(deriv(t, y)) });
     const next = step(t, y, h);
     t += h;
     y = next;
   }
-  if (opts.record !== false) samples.push({ t: t1, y: Array.isArray(y) ? y.slice() : { ...y } });
+  if (record) samples.push({ t: t1, y: clonePlain(y), dy: clonePlain(deriv(t1, y)) });
   return { samples, stateAt: () => y };
+}
+
+/** 浅拷贝数值状态（数组或普通对象）。`integrate`/`interp` 共用。 */
+function clonePlain(v) {
+  if (Array.isArray(v)) return v.slice();
+  if (v && typeof v === 'object') return { ...v };
+  return v;
 }
 
 function rk45Step(t, y, h, deriv) {
@@ -466,7 +784,24 @@ function rk45Step(t, y, h, deriv) {
   );
 }
 
-/** 采样表线性/单调插值（§4.3）。O(log n)，可在 stateAt 内安全使用。 */
+/**
+ * 采样表插值（§4.3）。O(log n)，可在 stateAt 内安全使用。
+ *
+ * ── v1.1.9：有斜率就走 C¹ 三次 Hermite，没有就退回线性 ──
+ *
+ * 为什么必须升级：本地求导要从 `stateAt` 的位置算加速度。线性插值出的位置是**分段直线**，
+ * 二阶导数在段内恒为 0、在结点处炸出尖峰 —— 加速度箭头会变成"大部分时候 0、偶尔闪一个巨大箭头"。
+ * Hermite 用两端点的 `{ y, dy }` 做三次插值，位置和速度都连续，二阶差分才稳定。
+ *
+ * 为什么不是"三次样条"：样条要解三对角方程组、还依赖整张表；Hermite 只要相邻两点 + 两个斜率，
+ * 是 O(log n) 的局部的、可在 `stateAt` 里安全调用的版本。斜率由 `integrate` 顺手存下，模型无感。
+ *
+ * 为什么会过冲：普通 Hermite 在数据突变处会 overshoot。这里加了 **Fritsch–Carlson 限幅**
+ * （PCHIP 的做法）：导数方向与割线相反就清零，斜率比过大就按半径 3 收缩。
+ * 对平滑数据几乎不改值，对"表里有台阶"的数据能防住假尖峰。
+ *
+ * 兼容：`dy` 缺失、或该 key 没有数值导数 ⇒ 逐字退回原来的线性插值。
+ */
 export function interp(samples, t, key) {
   if (!samples.length) return NaN;
   if (t <= samples[0].t) return pick(samples[0], key);
@@ -482,12 +817,61 @@ export function interp(samples, t, key) {
   }
   const a = samples[lo];
   const b = samples[hi];
+  const span = b.t - a.t;
+  if (span <= 0) return pick(b, key);
+  const u = (t - a.t) / span;
   const va = pick(a, key);
   const vb = pick(b, key);
-  const span = b.t - a.t;
-  if (span <= 0) return vb;
-  const u = (t - a.t) / span;
+  if (key === undefined) return va + (vb - va) * u; // 整份 y 的对象形态：保持线性
+  const ma = slopeOf(a, key);
+  const mb = slopeOf(b, key);
+  if (Number.isFinite(va) && Number.isFinite(vb) && Number.isFinite(ma) && Number.isFinite(mb)) {
+    return hermiteValue(va, vb, ma, mb, span, u);
+  }
   return va + (vb - va) * u;
+}
+
+/** 从采样点的 `dy` 里取某个分量的斜率；没有就返回 NaN（触发线性回退）。 */
+function slopeOf(sample, key) {
+  const d = sample?.dy;
+  if (!d) return NaN;
+  const v = Array.isArray(d) ? d[key] : d[key];
+  return typeof v === 'number' && Number.isFinite(v) ? v : NaN;
+}
+
+/** 三次 Hermite（带 Fritsch–Carlson 限幅，保证不过冲）。 */
+function hermiteValue(y0, y1, m0, m1, span, s) {
+  const d = (y1 - y0) / span;
+  let a = m0;
+  let b = m1;
+  if (d === 0) {
+    a = 0;
+    b = 0;
+  } else {
+    let ra = a / d;
+    let rb = b / d;
+    if (ra < 0) {
+      a = 0;
+      ra = 0;
+    }
+    if (rb < 0) {
+      b = 0;
+      rb = 0;
+    }
+    const q = ra * ra + rb * rb;
+    if (q > 9) {
+      const tau = 3 / Math.sqrt(q);
+      a = tau * ra * d;
+      b = tau * rb * d;
+    }
+  }
+  const s2 = s * s;
+  const s3 = s2 * s;
+  const h00 = 2 * s3 - 3 * s2 + 1;
+  const h10 = s3 - 2 * s2 + s;
+  const h01 = -2 * s3 + 3 * s2;
+  const h11 = s3 - s2;
+  return h00 * y0 + h10 * span * a + h01 * y1 + h11 * span * b;
 }
 
 function pick(sample, key) {
@@ -693,6 +1077,12 @@ export class Draw {
       scale: opts.scale ?? 1,
       category,
       subtype: opts.subtype ?? null,
+      /**
+       * v1.1.9：本地 v/a 箭头的"错开分组"键。
+       * 同一刚体的 v 与 a 起点相同、类别不同；按 category 分组的话两支会完全重叠。
+       * 给同一个 `stackKey` 就能让它们像"同类箭头"一样错开 ±4px，而不影响模型画的 force/aux。
+       */
+      stackKey: opts.stackKey ?? null,
       label: opts.label ?? null,
       /**
        * §3.4 / §18 期 3：`SYMBOLIC` 模式下画布标注要**用符号**。
@@ -1761,7 +2151,7 @@ export function computeArrowStackOffsets(records) {
     const x = Number(rec.from?.[0]);
     const y = Number(rec.from?.[1]);
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    const key = `${rec.category ?? 'aux'}|${x.toFixed(6)}|${y.toFixed(6)}`;
+    const key = `${rec.stackKey ?? rec.category ?? 'aux'}|${x.toFixed(6)}|${y.toFixed(6)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(rec);
   }
@@ -2441,6 +2831,8 @@ export function sampleFrame(program, t, opts = {}) {
   buffer.reset();
   const state = program.stateAt(t);
   program.drawFrame(t, state);
+  /* v1.1.9：本地运动学矢量（v/a）在这里注入 —— 干跑、取景、播放共用同一处。 */
+  emitKinematicArrows(program, t);
   const records = buffer.records.slice();
   const frame = {
     t,
@@ -2732,6 +3124,8 @@ export function createPlayer(program, opts) {
     buffer.reset();
     const st = program.stateAt(state.t);
     program.drawFrame(state.t, st);
+    /* v1.1.9：与 `sampleFrame` 共用同一个注入函数（防两条路径分叉）。 */
+    emitKinematicArrows(program, state.t);
 
     const visible = buffer.records.filter((r) => {
       if (r.op === 'arrow') return state.mask[r.category] !== false;
@@ -2848,6 +3242,17 @@ export const Runtime = {
   arrowMagnitude,
   arrowLengthPx,
   arrowWorldLength,
+  /* v1.1.9：本地运动学矢量（v/a 由运行时求导绘制） */
+  KINEMATIC_CATEGORIES,
+  KINEMATIC_H,
+  KINEMATIC_ACC_H,
+  KINEMATIC_JUMP_ABS,
+  KINEMATIC_JUMP_REL,
+  collectKinematicBoundaries,
+  normalizeBodies,
+  derivatives,
+  kinematicsInfo,
+  emitKinematicArrows,
   fullEnvelope,
   runnerBundle,
   instantiate,

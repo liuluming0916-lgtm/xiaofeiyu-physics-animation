@@ -81,6 +81,11 @@ step: 5`,
 
     VIEW: String.raw`SIM = {
   duration: 4.06,
+  /* v1.1.9：物块与木板质心。ground=0、H=0.42、blockH=0.52（与 drawFrame 的几何常量一致）。 */
+  bodies: [
+    { id: 'block', at: (s) => [s.xB + s.dsRel + 0.505, 1.10] },
+    { id: 'board', at: (s) => [s.xB + context.L / 2, 0.63] }
+  ],
   continuityKeys: ['xA', 'xB'],
   /* C10 扩展：物块必须始终落在板上（相对位移不得超过板长），且不倒退 */
   regions: [
@@ -228,22 +233,7 @@ if (!state.still) {
   });
 }
 
-/* 加速度：滑动段 a_m = +2、a_M = −2.5；共速段 a = −1；停止后为 0 */
-if (!state.still) {
-  Draw.arrow([blockRight + 0.15, boardY + H + blockH * 0.5], [state.aShow * 0.30, 0], {
-    category: 'acceleration', label: 'a 物块', mag: state.aShow, unit: 'm/s²'
-  });
-  Draw.arrow([boardRight - 1.0, boardY + H + 0.55], [state.aBShow * 0.30, 0], {
-    category: 'acceleration', label: 'a 板', mag: state.aBShow, unit: 'm/s²'
-  });
-}
-
-Draw.arrow([blockRight + 0.15, boardY + H + blockH + 0.62], [state.vA, 0], {
-  category: 'velocity', label: 'v 物块', mag: Math.abs(state.vA)
-});
-Draw.arrow([boardRight - 2.2, boardY + H + 0.30], [state.vB, 0], {
-  category: 'velocity', label: 'v 板', mag: Math.abs(state.vB)
-});
+/* 加速度与速度都由 bodies 求导自动画出（滑动段 a_m=+2 / a_M=−2.5，共速后 a=−1，停止后 0）。 */
 
 var rulerY = 2.20;
 Draw.line([state.xB, rulerY], [state.xB + state.dsRel, rulerY], { color: '#a4610d', width: 1.4 });

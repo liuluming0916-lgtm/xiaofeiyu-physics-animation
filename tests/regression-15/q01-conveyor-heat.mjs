@@ -76,6 +76,10 @@ step: 4`,
 
     VIEW: `SIM = {
   duration: 2.0,
+  /* v1.1.9：v/a 由运行时对刚体位置求导绘制。物块中心 = [x, 0.34]（y0 + r + 0.24）。 */
+  bodies: [
+    { id: 'block', at: (s) => [s.x, 0.34] }
+  ],
   /* C10 扩展：物块必须始终留在带面上（本题带面长 3 m、物块恰好走到带端共速） */
   regions: [
     { label: '物块不滑出带面', x: [-0.01, 3.01] }
@@ -141,18 +145,10 @@ if (state.f > 1e-9) {
     category: 'force', subtype: 'friction', label: 'f = μmg', mag: state.f
   });
 }
-if (state.v > 1e-9) {
-  Draw.arrow([state.x, y0 + r + 0.30], [state.v, 0], {
-    category: 'velocity', label: 'v', mag: state.v
-  });
-}
-if (state.a > 1e-9) {
-  Draw.arrow([state.x, y0 + r + 0.10], [state.a, 0], {
-    category: 'acceleration', label: 'a', mag: state.a
-  });
-}
+/* v/a 不在这里画：VIEW 的 bodies 已声明刚体，运行时自动画 v（绿）与 a（蓝）。 */
+/* 传送带速度是"别人的速度"，不是刚体的运动学量 —— 留在 aux（紫）。 */
 Draw.arrow([runLen * 0.72, y0 + r * 3.0], [context.u, 0], {
-  category: 'velocity', label: 'u', mag: context.u
+  category: 'aux', label: 'u', mag: context.u
 });
 Draw.text(runLen * 0.72, y0 + r * 3.0 + 0.17, '传送带速度 u', { size: 12, color: '#5d6b7a' });
 

@@ -181,12 +181,18 @@ export const ELEMENTS = [
     pitfall: '`polygon` 的 `fill` 是**颜色字符串**（`chart` 的 `fill` 才是开关 `true`）',
   },
   {
-    id: 'vector', name: '矢量箭头（速度/力/加速度）', group: '矢量与标注',
-    state: 'return { x: 0.6, y: 0.6, vx: 1.2, vy: 0.4 };',
+    id: 'vector', name: '矢量箭头（受力 / 辅助）', group: '矢量与标注',
+    state: 'return { x: 0.6, y: 0.6, f: 3 };',
     draw:
-      "Draw.arrow([state.x, state.y], [state.vx, state.vy], " +
-      "{ category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' });",
-    pitfall: '缺 `mag`；起点不锚在实体中心、还手写偏移；`mag = 0` 就干脆不画（应该画成一个点）',
+      "Draw.arrow([state.x, state.y], [1, 0], " +
+      "{ category: 'force', mag: state.f, label: 'F', unit: 'N' });",
+    pitfall: '还想自己画 v/a（已改由 `SIM.bodies` 自动生成，C1 会直接打回）；缺 `mag`；起点不锚在实体中心、还手写偏移',
+    note:
+      '**v/a 不再由模型画**。在 `VIEW` 里声明刚体位置：`SIM.bodies = [{ id, at: (state) => [x, y] }]`，' +
+      '运行时会自动画 v（绿）与 a（蓝），并保证箭头与画面里的运动一致。\n' +
+      '· 物体在动就必须声明 `bodies`；静止的题不用。\n' +
+      '· 相变点不在 `STEPS` 边界上时（碰撞、圆弧切平抛），用 `SIM.phases = [{t0,t1}]` 补上。\n' +
+      '· `Draw.arrow` 只留给 `force`（红）与 `aux`（紫：传送带速度、电流、速度分量）。',
   },
   {
     id: 'trace_path', name: '轨迹', group: '矢量与标注',
@@ -302,8 +308,10 @@ export const CONVENTIONS = `# 动画基本约定（常驻 · 任何题都适用�
 
 ## 正方向（最容易翻车）
 - 解析里定了哪个方向为正，代码里就同一个：向右为正 ⇒ 向左的速度写负值，\`state.v\` 可以是负数。
-- 矢量的 \`vec\` 只表示**方向**（可带负号），**长度由 \`mag\` 决定**（真实量级）：
-  \`state.v = -2\` 时写 \`vec: [state.v, 0]\` + \`mag: Math.abs(state.v)\` —— 箭头朝左、长度 ∝ 2。
+- **v/a 箭头不在这里画**（v1.1.9）：在 \`VIEW\` 里声明 \`SIM.bodies = [{ id, at: (state) => [x, y] }]\`，
+  运行时会自动画 v（绿）与 a（蓝）—— 箭头永远等于画面里物体的实际运动。
+- 只有 \`force\`（红）与 \`aux\`（紫：传送带速度、电流、分量）才用 \`Draw.arrow\`；\`vec\` 只给方向，
+  **长度由 \`mag\` 决定**（真实量级）：\`state.v = -2\` 时写 \`vec: [-1, 0]\` + \`mag: 2\`。
 - 角度：代码里用**弧度**；但 \`Draw.incline\` 的 \`angleDeg\`、\`Draw.arc\` 的 \`a0/a1\` 是**角度制**，两套别混。
 
 ## 单位、常量与时间
@@ -320,13 +328,17 @@ export const CONVENTIONS = `# 动画基本约定（常驻 · 任何题都适用�
 - **符号题（\`value: null\`）照样要画图**：图表数据取 \`setup()\` 里的示意取值，并在图注写"示意"；不要因为没有数值就把图省掉。
 
 ## 生成后自检（必须逐条在代码中体现）
-- [ ] 全片没有像素量；每个 \`Draw.arrow\` 都有 \`category\` 与 \`mag\`，且没有 \`color\` / \`scale\`。
+- [ ] 全片没有像素量；**会动的物体都在 \`SIM.bodies\` 里声明了**，没有手写 v/a 箭头。
+- [ ] 还能画的箭头（force / aux）都带 \`category\` 与 \`mag\`，且没有 \`color\` / \`scale\`。
 - [ ] \`SIM.duration\` 与 \`STEPS\` 末步 \`t1\` 是同一个数（C5）。
 - [ ] \`readouts\` 的每个 \`label\` 都能在 \`ANSWERS.symbol\` 里找到（C7）。
 - [ ] 角度在代码里是弧度；\`incline\` / \`arc\` 的角度制参数单独换算，两套单位没有混用。`;
 
-/** 约定卡的示例：正方向取负值时，vec 给方向、mag 给量级 */
-const CONVENTIONS_EXAMPLE = `// 正方向的正确写法：state.v 为负 ⇒ 箭头朝左，长度仍 ∝ |v|
+/** 约定卡的示例：v/a 不画，声明 bodies；只有推不出来的量才画 aux/force */
+const CONVENTIONS_EXAMPLE = `// v1.1.9 的正确写法：v/a 不画箭头，只声明刚体
+VIEW: \`
+  SIM = { duration: 2, bodies: [{ id: 'block', at: (s) => [s.x, 0.15] }] };
+\`
 setup: \`
   const v0 = 2;
   RETURN('v0', v0);
@@ -339,7 +351,7 @@ drawFrame: \`
   const p = [state.x, 0.15];
   Draw.ground(-2.4, 0.6);
   Draw.box(p, 0.4, 0.3);
-  Draw.arrow(p, [state.v, 0], { category: 'velocity', mag: Math.abs(state.v), label: 'v', unit: 'm/s' });
+  // v 箭头由 bodies 自动生成（绿色、朝左），这里不用写
 \``;
 
 /* ══════════════════════════════ ⑤ 生成 ══════════════════════════════ */
@@ -384,7 +396,7 @@ function overviewContent() {
   }
   L.push('## 生成后自检（必须逐条在代码中体现）');
   L.push('- [ ] 每个元件的位置都来自 `state.*` 或 `setup` 导出的量，没有写死一屏坐标。');
-  L.push('- [ ] `Draw.arrow` 全部带 `mag`（真实量级），`vec` 只给方向；没有 `color` / `scale`。');
+  L.push('- [ ] 会动的物体在 `SIM.bodies` 里声明了（v/a 由运行时自动画）；`Draw.arrow` 只画 force/aux，且都带 `mag`。');
   L.push('- [ ] 跨槽位取值只用 `RETURN` + `context.X`，没有裸引用别的槽位的局部变量。');
   L.push('');
   return L.join('\n');
@@ -409,7 +421,7 @@ function workedContent(w) {
   L.push('## 生成后自检（必须逐条在代码中体现）');
   L.push('- [ ] `SIM.duration` 与 `STEPS` 末步 `t1` 是**同一个字面量**（C5 逐点比对）。');
   L.push('- [ ] `stateAt(t)` 在 `[0, duration]` 全程有定义、且是 O(1)（没有在它里面积分）。');
-  L.push('- [ ] `readouts` 的 `label` 与 `ANSWERS.symbol` 逐字一致，并在 `at_t` 时刻被复现（C7）；箭头都带 `mag`。');
+  L.push('- [ ] `readouts` 的 `label` 与 `ANSWERS.symbol` 逐字一致，并在 `at_t` 时刻被复现（C7）；force/aux 箭头都带 `mag`。');
   L.push('');
   return L.join('\n');
 }
@@ -702,6 +714,7 @@ function elementCardContent(el) {
     '## 这条元件最常错的地方',
     el.pitfall,
     '',
+    ...(el.note ? ['## 速度 / 加速度箭头', el.note, ''] : []),
     ...(el.dashNote ? ['## 虚线约定', el.dashNote, ''] : []),
     '## 两条铁律（所有元件都适用）',
     '- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。',

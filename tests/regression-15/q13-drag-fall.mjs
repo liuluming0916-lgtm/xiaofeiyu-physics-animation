@@ -88,6 +88,10 @@ step: 4`,
 
     VIEW: `SIM = {
   duration: 0.8,
+  /* v1.1.9：小球球心（x 恒定、y 由查表得到）。Phys.integrate 的表带斜率，interp 走 C¹ Hermite。 */
+  bodies: [
+    { id: 'ball', at: (s) => [s.x, s.y] }
+  ],
   axes: [
     { key: 'v', label: 'v', unit: 'm/s' },
     { key: 'a', label: 'a', unit: 'm/s²' },
@@ -157,11 +161,9 @@ Draw.trace([[xLine, context.H], [xLine, 0]], { color: '#c8d0d8', dash: true, wid
 Draw.circle([xLine, state.y], 0.10, { fill: '#ffffff', stroke: '#2b3440', width: 1.6 });
 Draw.text(xLine, state.y + 0.22, 'm', { size: 12 });
 
-// —— 四个矢量：速度（向下）、重力（向下）、空气阻力（向上）、加速度（向下，g − kv/m）——
-Draw.arrow([xLine, state.y], [0, -state.v * vSc], { category: 'velocity', label: 'v', mag: state.v, unit: 'm/s' });
+// —— 四个矢量里的两个受力（重力向下、阻力向上）；v 与 a 由 bodies 求导自动生成 ——
 Draw.arrow([xLine - 0.24, state.y], [0, -state.fGrav * fSc], { category: 'force', subtype: 'gravity', label: 'mg', mag: state.fGrav, unit: 'N' });
 Draw.arrow([xLine + 0.24, state.y], [0, state.fDrag * fSc], { category: 'force', subtype: 'other', label: 'kv', mag: state.fDrag, unit: 'N' });
-Draw.arrow([xLine, state.y + 0.30], [0, -state.a * 0.055], { category: 'acceleration', label: 'a = g − kv/m', mag: state.a, unit: 'm/s²' });
 Draw.text(xLine - 0.34, state.y - 0.30, 'mg', { size: 11, color: '#b3382f', align: 'right' });
 Draw.text(xLine + 0.34, state.y + 0.24, 'kv', { size: 11, color: '#b3382f', align: 'left' });
 

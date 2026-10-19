@@ -146,9 +146,9 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
     ],
     "order": 1,
     "priority": "high",
-    "content": "# 动画基本约定（常驻 · 任何题都适用）\n\n这段代码由机器播放、机器量、机器对答案，所以\"坐标、正方向、单位\"必须**全片一套**。\n\n## 坐标与尺寸\n- **世界坐标**：x 向右、y 向上、单位米；视口由系统算，**不许写像素**（`pixels_per_meter`、`canvas.width`、`getContext` 一律判失败）。\n- 长度就是题面的米数（板长 3 m 就画 3 m）；天文/微观用示意比例，并在图注写\"示意图，未按比例\"。\n- 位置一律由物理量算出来（`Draw.box([state.x, 0.15], …)`），不要写死一屏坐标。\n\n## 正方向（最容易翻车）\n- 解析里定了哪个方向为正，代码里就同一个：向右为正 ⇒ 向左的速度写负值，`state.v` 可以是负数。\n- 矢量的 `vec` 只表示**方向**（可带负号），**长度由 `mag` 决定**（真实量级）：\n  `state.v = -2` 时写 `vec: [state.v, 0]` + `mag: Math.abs(state.v)` —— 箭头朝左、长度 ∝ 2。\n- 角度：代码里用**弧度**；但 `Draw.incline` 的 `angleDeg`、`Draw.arc` 的 `a0/a1` 是**角度制**，两套别混。\n\n## 单位、常量与时间\n- 一律 SI（m、s、kg、N、J、A、V、T）；cm、km/h、eV、cmHg 在 `setup()` 里换算一次并写注释。\n- 题面给的数（`g`、`mu`、`L`、`R`）在 `setup()` 里以**同名常量**出现；没给 `g` 就取 10 并写注释。**不许中途换值**（C7 要拿读数对答案）。\n- `t` 单位秒，范围 `[0, SIM.duration]`；`stateAt(t)` 全程有定义、且 O(1)（解析式或查表，不在里面积分）。\n- `STEPS` 的 `t0/t1` 首尾相接、不重叠，**末步 t1 = SIM.duration**（C5）；这个数写成一个字面量，注释给出算法。\n- **槽位正文从第一行代码开始**：`setup` 的第一行就是 `const …`、`readouts` 的第一行就是 `return [`（函数头与收尾括号由装配器提供）。\n\n## 读数（readouts）\n- 每项 `{ label, value, unit }`；`label` 与 `ANSWERS.symbol` **逐字一致**（C7 就靠它）。\n- 键集合与单位**全时段不变**（C8）；数值必须有限（C3：NaN / Infinity 直接判失败）。\n- 画面上显示数值用 `Phys.format(value, unit)`；中文说明放数据面板，不挂在箭头上。\n- **符号题（`value: null`）照样要画图**：图表数据取 `setup()` 里的示意取值，并在图注写\"示意\"；不要因为没有数值就把图省掉。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 全片没有像素量；每个 `Draw.arrow` 都有 `category` 与 `mag`，且没有 `color` / `scale`。\n- [ ] `SIM.duration` 与 `STEPS` 末步 `t1` 是同一个数（C5）。\n- [ ] `readouts` 的每个 `label` 都能在 `ANSWERS.symbol` 里找到（C7）。\n- [ ] 角度在代码里是弧度；`incline` / `arc` 的角度制参数单独换算，两套单位没有混用。",
+    "content": "# 动画基本约定（常驻 · 任何题都适用）\n\n这段代码由机器播放、机器量、机器对答案，所以\"坐标、正方向、单位\"必须**全片一套**。\n\n## 坐标与尺寸\n- **世界坐标**：x 向右、y 向上、单位米；视口由系统算，**不许写像素**（`pixels_per_meter`、`canvas.width`、`getContext` 一律判失败）。\n- 长度就是题面的米数（板长 3 m 就画 3 m）；天文/微观用示意比例，并在图注写\"示意图，未按比例\"。\n- 位置一律由物理量算出来（`Draw.box([state.x, 0.15], …)`），不要写死一屏坐标。\n\n## 正方向（最容易翻车）\n- 解析里定了哪个方向为正，代码里就同一个：向右为正 ⇒ 向左的速度写负值，`state.v` 可以是负数。\n- **v/a 箭头不在这里画**（v1.1.9）：在 `VIEW` 里声明 `SIM.bodies = [{ id, at: (state) => [x, y] }]`，\n  运行时会自动画 v（绿）与 a（蓝）—— 箭头永远等于画面里物体的实际运动。\n- 只有 `force`（红）与 `aux`（紫：传送带速度、电流、分量）才用 `Draw.arrow`；`vec` 只给方向，\n  **长度由 `mag` 决定**（真实量级）：`state.v = -2` 时写 `vec: [-1, 0]` + `mag: 2`。\n- 角度：代码里用**弧度**；但 `Draw.incline` 的 `angleDeg`、`Draw.arc` 的 `a0/a1` 是**角度制**，两套别混。\n\n## 单位、常量与时间\n- 一律 SI（m、s、kg、N、J、A、V、T）；cm、km/h、eV、cmHg 在 `setup()` 里换算一次并写注释。\n- 题面给的数（`g`、`mu`、`L`、`R`）在 `setup()` 里以**同名常量**出现；没给 `g` 就取 10 并写注释。**不许中途换值**（C7 要拿读数对答案）。\n- `t` 单位秒，范围 `[0, SIM.duration]`；`stateAt(t)` 全程有定义、且 O(1)（解析式或查表，不在里面积分）。\n- `STEPS` 的 `t0/t1` 首尾相接、不重叠，**末步 t1 = SIM.duration**（C5）；这个数写成一个字面量，注释给出算法。\n- **槽位正文从第一行代码开始**：`setup` 的第一行就是 `const …`、`readouts` 的第一行就是 `return [`（函数头与收尾括号由装配器提供）。\n\n## 读数（readouts）\n- 每项 `{ label, value, unit }`；`label` 与 `ANSWERS.symbol` **逐字一致**（C7 就靠它）。\n- 键集合与单位**全时段不变**（C8）；数值必须有限（C3：NaN / Infinity 直接判失败）。\n- 画面上显示数值用 `Phys.format(value, unit)`；中文说明放数据面板，不挂在箭头上。\n- **符号题（`value: null`）照样要画图**：图表数据取 `setup()` 里的示意取值，并在图注写\"示意\"；不要因为没有数值就把图省掉。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 全片没有像素量；**会动的物体都在 `SIM.bodies` 里声明了**，没有手写 v/a 箭头。\n- [ ] 还能画的箭头（force / aux）都带 `category` 与 `mag`，且没有 `color` / `scale`。\n- [ ] `SIM.duration` 与 `STEPS` 末步 `t1` 是同一个数（C5）。\n- [ ] `readouts` 的每个 `label` 都能在 `ANSWERS.symbol` 里找到（C7）。\n- [ ] 角度在代码里是弧度；`incline` / `arc` 的角度制参数单独换算，两套单位没有混用。",
     "code_examples": [
-      "// 正方向的正确写法：state.v 为负 ⇒ 箭头朝左，长度仍 ∝ |v|\nsetup: `\n  const v0 = 2;\n  RETURN('v0', v0);\n`\nstateAt: `\n  const v0 = context.v0;\n  return { x: -v0 * t, v: -v0 };            // 向左运动 ⇒ 速度与位移都为负\n`\ndrawFrame: `\n  const p = [state.x, 0.15];\n  Draw.ground(-2.4, 0.6);\n  Draw.box(p, 0.4, 0.3);\n  Draw.arrow(p, [state.v, 0], { category: 'velocity', mag: Math.abs(state.v), label: 'v', unit: 'm/s' });\n`"
+      "// v1.1.9 的正确写法：v/a 不画箭头，只声明刚体\nVIEW: `\n  SIM = { duration: 2, bodies: [{ id: 'block', at: (s) => [s.x, 0.15] }] };\n`\nsetup: `\n  const v0 = 2;\n  RETURN('v0', v0);\n`\nstateAt: `\n  const v0 = context.v0;\n  return { x: -v0 * t, v: -v0 };            // 向左运动 ⇒ 速度与位移都为负\n`\ndrawFrame: `\n  const p = [state.x, 0.15];\n  Draw.ground(-2.4, 0.6);\n  Draw.box(p, 0.4, 0.3);\n  // v 箭头由 bodies 自动生成（绿色、朝左），这里不用写\n`"
     ]
   },
   {
@@ -203,7 +203,7 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
     ],
     "order": 2,
     "priority": "high",
-    "content": "# 动画元件总览（常驻）：每个元件怎么画\n\n用法：认出元件（题面有传送带就是 `belt`），位置来自 `state.*` 或 `setup` 算好的量。\n下面每行都在校验器里真跑过（C1 + 实跑）。`state` 是 `stateAt(t)` 的返回值；读别的时刻用 `context.at(tt)`，\n但它只能在 `drawFrame` / `readouts` 里用（写在 `stateAt` 里会无限递归）。\n\n> 每个元件的「最常错的地方」在它自己的那张卡里（一行一个元件，按需注入）——这里只留画法，不重复。\n> ⚠ 方案 A 起**画布上不写任何文字**（`Draw.text` / `Draw.latex` / 箭头标签 / 尺寸文字都不显示），标注由画布外的图例承担。\n> 虚线统一写 `{ dash: true }`；实线不写；只有自定义间距才写 `[n, m]`。`Draw.trace` 默认就是虚线。\n\n## 力学器材\n- `block` 物块 / 滑块：`Draw.box([state.x, 0.15], 0.4, 0.3)`\n- `board` 长木板 / 小车：`Draw.box([state.xBoard, 0.05], 3.0, 0.1)`\n- `incline` 斜面 / 斜坡：`Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 })`\n- `ground` 地面 / 墙面（斜线阴影）：`Draw.ground(-1.5, 2.5)`\n- `ball` 小球 / 质点：`Draw.circle([state.x, state.y], 0.08)`\n- `arc_track` 圆弧轨道 / 拱桥：`Draw.arc([0, 0], 0.8, -90, 90)`\n- `spring` 弹簧：`Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 })`\n- `pulley` 滑轮：`Draw.pulley([0, 2.4], 0.2)`\n- `rope` 绳 / 细线：`Draw.line([-0.2, 2.4], [-0.2, state.yA])`\n- `rod` 导体棒 / 轻杆：`Draw.line([state.xr, 0], [state.xr, 0.5], { width: 3 })`\n- `stand` 铁架台 / 支架：`Draw.line([-1.2, 0], [-1.2, 2.2], { width: 2 })  Draw.ground(-1.6, 2.4)`\n- `belt` 传送带 / 履带：`Draw.belt([0, 0.2], [4, 0.2], { ticks: 16 })`\n\n## 场与电\n- `circuit` 电路 / 导线 / 电表：`Draw.line([0, 0], [2, 0])  Draw.line([2, 0], [2, 1])  Draw.line([2, 1], [0, 1])  Draw.line([0, 1], [0, 0])  Draw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: Math.abs(state.I), label: 'I', unit: 'A' })`\n- `plates` 平行板 / 极板：`Draw.line([-1, 1.6], [3, 1.6], { width: 3 })  Draw.line([-1, 0.4], [3, 0.4], { width: 3 })`\n- `field_region` 匀强场区（× / · 阵列）：`Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 })`\n- `ray` 光线：`Draw.ray([-1, 0.8], [0, 0.8])`\n- `lens` 透镜：`Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 })`\n- `light_spot` 光斑 / 照射区域：`Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' })`\n\n## 矢量与标注\n- `vector` 矢量箭头（速度/力/加速度）：`Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' })`\n- `trace_path` 轨迹：`Draw.trace([[0, 0], [state.x, state.y]])`\n- `paper_tape` 纸带 / 点迹：`Draw.box([0.5, -0.6], 2.0, 0.12)  Draw.circle([state.d1, -0.6], 0.01)`\n- `ghosts` 频闪残影：`Draw.ghosts([[0, 0.2], [0.5, 0.2], [1.0, 0.2]])`\n- `measuring_tool` 尺寸/角度标注（刻度尺）：`Draw.dimension([0, 0.4], [1, 0.4], { kind: 'linear', text: 'L = 1.0 m' })`\n\n## 图示\n- `axis_box` 坐标轴框（v–t / p–V）：`Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' })`\n- `graph_wave` 波形 / 连续曲线：`Draw.curve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]])`\n- `chart` 图线 + 面积着色：`Draw.chart([[0, 0], [1, 2], [2, 4]], { fill: true, baseline: 0 })`\n- `orbit` 卫星 / 天体轨道：`Draw.arc([0, 0], 1.2, 0, 360)  Draw.circle([state.px, state.py], 0.05)`\n- `cylinder_piston` 气缸 / 活塞：`Draw.box([0, 0.4], 0.24, 0.8)  Draw.box([0, state.xp], 0.2, 0.04)`\n- `gas_tube` 玻璃管 / 水银柱：`Draw.line([0, 0], [0, 1.2])  Draw.line([0.1, 0], [0.1, 1.2])  Draw.box([0.05, state.yh], 0.1, 0.2)`\n- `raw_composite` 复合图形（碰撞/爆炸/火柴人）：`Draw.polygon([[-0.1, 0], [0.1, 0], [0.1, 0.2], [-0.1, 0.2]])`\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 每个元件的位置都来自 `state.*` 或 `setup` 导出的量，没有写死一屏坐标。\n- [ ] `Draw.arrow` 全部带 `mag`（真实量级），`vec` 只给方向；没有 `color` / `scale`。\n- [ ] 跨槽位取值只用 `RETURN` + `context.X`，没有裸引用别的槽位的局部变量。\n",
+    "content": "# 动画元件总览（常驻）：每个元件怎么画\n\n用法：认出元件（题面有传送带就是 `belt`），位置来自 `state.*` 或 `setup` 算好的量。\n下面每行都在校验器里真跑过（C1 + 实跑）。`state` 是 `stateAt(t)` 的返回值；读别的时刻用 `context.at(tt)`，\n但它只能在 `drawFrame` / `readouts` 里用（写在 `stateAt` 里会无限递归）。\n\n> 每个元件的「最常错的地方」在它自己的那张卡里（一行一个元件，按需注入）——这里只留画法，不重复。\n> ⚠ 方案 A 起**画布上不写任何文字**（`Draw.text` / `Draw.latex` / 箭头标签 / 尺寸文字都不显示），标注由画布外的图例承担。\n> 虚线统一写 `{ dash: true }`；实线不写；只有自定义间距才写 `[n, m]`。`Draw.trace` 默认就是虚线。\n\n## 力学器材\n- `block` 物块 / 滑块：`Draw.box([state.x, 0.15], 0.4, 0.3)`\n- `board` 长木板 / 小车：`Draw.box([state.xBoard, 0.05], 3.0, 0.1)`\n- `incline` 斜面 / 斜坡：`Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 })`\n- `ground` 地面 / 墙面（斜线阴影）：`Draw.ground(-1.5, 2.5)`\n- `ball` 小球 / 质点：`Draw.circle([state.x, state.y], 0.08)`\n- `arc_track` 圆弧轨道 / 拱桥：`Draw.arc([0, 0], 0.8, -90, 90)`\n- `spring` 弹簧：`Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 })`\n- `pulley` 滑轮：`Draw.pulley([0, 2.4], 0.2)`\n- `rope` 绳 / 细线：`Draw.line([-0.2, 2.4], [-0.2, state.yA])`\n- `rod` 导体棒 / 轻杆：`Draw.line([state.xr, 0], [state.xr, 0.5], { width: 3 })`\n- `stand` 铁架台 / 支架：`Draw.line([-1.2, 0], [-1.2, 2.2], { width: 2 })  Draw.ground(-1.6, 2.4)`\n- `belt` 传送带 / 履带：`Draw.belt([0, 0.2], [4, 0.2], { ticks: 16 })`\n\n## 场与电\n- `circuit` 电路 / 导线 / 电表：`Draw.line([0, 0], [2, 0])  Draw.line([2, 0], [2, 1])  Draw.line([2, 1], [0, 1])  Draw.line([0, 1], [0, 0])  Draw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: Math.abs(state.I), label: 'I', unit: 'A' })`\n- `plates` 平行板 / 极板：`Draw.line([-1, 1.6], [3, 1.6], { width: 3 })  Draw.line([-1, 0.4], [3, 0.4], { width: 3 })`\n- `field_region` 匀强场区（× / · 阵列）：`Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 })`\n- `ray` 光线：`Draw.ray([-1, 0.8], [0, 0.8])`\n- `lens` 透镜：`Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 })`\n- `light_spot` 光斑 / 照射区域：`Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' })`\n\n## 矢量与标注\n- `vector` 矢量箭头（受力 / 辅助）：`Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' })`\n- `trace_path` 轨迹：`Draw.trace([[0, 0], [state.x, state.y]])`\n- `paper_tape` 纸带 / 点迹：`Draw.box([0.5, -0.6], 2.0, 0.12)  Draw.circle([state.d1, -0.6], 0.01)`\n- `ghosts` 频闪残影：`Draw.ghosts([[0, 0.2], [0.5, 0.2], [1.0, 0.2]])`\n- `measuring_tool` 尺寸/角度标注（刻度尺）：`Draw.dimension([0, 0.4], [1, 0.4], { kind: 'linear', text: 'L = 1.0 m' })`\n\n## 图示\n- `axis_box` 坐标轴框（v–t / p–V）：`Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' })`\n- `graph_wave` 波形 / 连续曲线：`Draw.curve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]])`\n- `chart` 图线 + 面积着色：`Draw.chart([[0, 0], [1, 2], [2, 4]], { fill: true, baseline: 0 })`\n- `orbit` 卫星 / 天体轨道：`Draw.arc([0, 0], 1.2, 0, 360)  Draw.circle([state.px, state.py], 0.05)`\n- `cylinder_piston` 气缸 / 活塞：`Draw.box([0, 0.4], 0.24, 0.8)  Draw.box([0, state.xp], 0.2, 0.04)`\n- `gas_tube` 玻璃管 / 水银柱：`Draw.line([0, 0], [0, 1.2])  Draw.line([0.1, 0], [0.1, 1.2])  Draw.box([0.05, state.yh], 0.1, 0.2)`\n- `raw_composite` 复合图形（碰撞/爆炸/火柴人）：`Draw.polygon([[-0.1, 0], [0.1, 0], [0.1, 0.2], [-0.1, 0.2]])`\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] 每个元件的位置都来自 `state.*` 或 `setup` 导出的量，没有写死一屏坐标。\n- [ ] 会动的物体在 `SIM.bodies` 里声明了（v/a 由运行时自动画）；`Draw.arrow` 只画 force/aux，且都带 `mag`。\n- [ ] 跨槽位取值只用 `RETURN` + `context.X`，没有裸引用别的槽位的局部变量。\n",
     "code_examples": [
       "// 三个最常用元件的最小画法（完整清单见正文）\nstateAt: `\n  return { x: 0.6, yTop: 1.6 };\n`\ndrawFrame: `\n  Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 });\n  Draw.box([state.x, 0.15], 0.4, 0.3);\n  Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 });\n`"
     ]
@@ -764,7 +764,7 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
   },
   {
     "id": "wb_el_vector",
-    "title": "元件·矢量箭头（速度/力/加速度）",
+    "title": "元件·矢量箭头（受力 / 辅助）",
     "origin": "builtin",
     "category": "scene_modeling",
     "enabled": true,
@@ -787,9 +787,9 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
     ],
     "order": 918,
     "priority": "high",
-    "content": "# 元件·矢量箭头（速度/力/加速度）（矢量与标注）\n\n## 判据\n题面或配图里出现「矢量箭头」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.6, vx: 1.2, vy: 0.4 };\n- drawFrame 里写：Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' });\n\n## 这条元件最常错的地方\n缺 `mag`；起点不锚在实体中心、还手写偏移；`mag = 0` 就干脆不画（应该画成一个点）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+    "content": "# 元件·矢量箭头（受力 / 辅助）（矢量与标注）\n\n## 判据\n题面或配图里出现「矢量箭头」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.6, f: 3 };\n- drawFrame 里写：Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' });\n\n## 这条元件最常错的地方\n还想自己画 v/a（已改由 `SIM.bodies` 自动生成，C1 会直接打回）；缺 `mag`；起点不锚在实体中心、还手写偏移\n\n## 速度 / 加速度箭头\n**v/a 不再由模型画**。在 `VIEW` 里声明刚体位置：`SIM.bodies = [{ id, at: (state) => [x, y] }]`，运行时会自动画 v（绿）与 a（蓝），并保证箭头与画面里的运动一致。\n· 物体在动就必须声明 `bodies`；静止的题不用。\n· 相变点不在 `STEPS` 边界上时（碰撞、圆弧切平抛），用 `SIM.phases = [{t0,t1}]` 补上。\n· `Draw.arrow` 只留给 `force`（红）与 `aux`（紫：传送带速度、电流、速度分量）。\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
     "code_examples": [
-      "drawFrame: `\n  Draw.arrow([state.x, state.y], [state.vx, state.vy], { category: 'velocity', mag: Math.hypot(state.vx, state.vy), label: 'v', unit: 'm/s' });\n`"
+      "drawFrame: `\n  Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' });\n`"
     ]
   },
   {
@@ -1139,7 +1139,7 @@ export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = [
 export const WORLDBOOK_USER: ReadonlyArray<WorldbookEntryLike> = []
 
 /** 内置库的稳定哈希（`provenance.worldbookHash` 用的同一个算法） */
-export const WORLDBOOK_HASH = "1d137527ebd7230f0f8f7ddb3935344c7a7acf0f40e262b6fdb4ab7f1b9614d2"
+export const WORLDBOOK_HASH = "91dffa2676662593cb1486c5969eaf0ba009f0473f96c828fdbcf50efc3e4ab2"
 
 /**
  * 导出包的格式标识与版本（**从 `core/worldbook/store.mjs` 派生**，不是抄录）。
@@ -1163,13 +1163,13 @@ export const WORLDBOOK_SOURCES: ReadonlyArray<{ name: string; kind: string; coun
     "name": "92-animation-core.json",
     "kind": "builtin",
     "count": 2,
-    "sha256": "0877d7586c2ad63028091cef5c96ce1ca3f144a844bc9da0d48dc2bfcb87cdc4"
+    "sha256": "69553f8cdf6f6366005d2eb62f99cdf74709490be06791521f3b380cf3967db6"
   },
   {
     "name": "93-elements.json",
     "kind": "builtin",
     "count": 30,
-    "sha256": "9b05b889462b99c54dfd72d825b5d641830f26e096b5904e612319bf510ec25c"
+    "sha256": "076db3547cabab6ce6e0f4aa7399702b87cf645c9028d251772c2afed7e21a42"
   }
 ]
 
@@ -1195,7 +1195,7 @@ export const WORLDBOOK_COVERAGE: WorldbookCoverageReport = {
  * 这样"生成物"与"消费端的类型"之间不会出现第二份手写接口。
  */
 export const WORLDBOOK_DEMO_EVENT = {
-  "hash": "1d137527ebd7230f0f8f7ddb3935344c7a7acf0f40e262b6fdb4ab7f1b9614d2",
+  "hash": "91dffa2676662593cb1486c5969eaf0ba009f0473f96c828fdbcf50efc3e4ab2",
   "libraryCount": 34,
   "matched": 4,
   "entries": [
@@ -1224,7 +1224,7 @@ export const WORLDBOOK_DEMO_EVENT = {
         "scene_code"
       ],
       "charsBySlot": {
-        "scene_code": 1572
+        "scene_code": 1752
       },
       "unmounted": false,
       "truncated": false,
@@ -1258,7 +1258,7 @@ export const WORLDBOOK_DEMO_EVENT = {
         "scene_code"
       ],
       "charsBySlot": {
-        "scene_code": 3330
+        "scene_code": 3300
       },
       "unmounted": false,
       "truncated": false,
@@ -1343,7 +1343,7 @@ export const WORLDBOOK_DEMO_EVENT = {
   "warnings": [],
   "charsBySlot": {
     "solve": 0,
-    "scene_code": 5875
+    "scene_code": 6025
   },
   "injectedBySlot": {
     "solve": 0,
