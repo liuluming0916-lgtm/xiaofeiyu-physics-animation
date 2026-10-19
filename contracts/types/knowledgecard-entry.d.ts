@@ -1,7 +1,7 @@
 /* eslint-disable */
 // ⚠ 本文件由 contracts/generate-contracts.mjs 自动生成，请勿手改。
 // 来源：contracts/spec/contract-fields.mjs（与 JSON Schema 同源）。
-// 契约 id：worldbook-entry · 依据：物理解题动画软件 v1.0 自研方案
+// 契约 id：knowledgecard-entry · 依据：物理解题动画软件 v1.0 自研方案
 /**
  * §9.1 世界书槽位名 = 目标阶段名
  */
@@ -12,8 +12,8 @@ export type Origin = "builtin" | "user";
 export type Category = "solution_skill" | "scene_modeling" | "both_slot" | "user_lore";
 
 /**
- * 知识卡类型（只含 worldbook 条目：动画规范 / 元件 / 场景）
- * 提示词卡与本地规则卡属于产品层知识卡，但不是 worldbook 条目，不走这个字段。缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。
+ * 知识卡类型（只含 knowledgecard 条目：动画规范 / 元件 / 场景）
+ * 提示词卡与本地规则卡属于产品层知识卡，但不是 knowledgecard 条目，不走这个字段。缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。
  */
 export type EntryKind = "anim_rule" | "element" | "scene";
 
@@ -33,7 +33,7 @@ export interface SecondaryKeys {
 }
 
 /**
- * 考点词表（词表 A；派生自 contracts/worldbook-concepts.json）
+ * 考点词表（词表 A；派生自 contracts/knowledgecard-concepts.json）
  * 解题侧一级触发源。判定：concepts 相交 且（tags 相交 或 tags 为空）。
  */
 export type ConceptId = "uniform_acceleration" | "motion_graphs" | "free_fall_vertical" | "pursuit_encounter" | "relative_motion" | "projectile_motion" | "circular_motion" | "force_analysis" | "dynamic_equilibrium" | "whole_isolate" | "newton_laws" | "dynamics_two_ways" | "connected_bodies" | "spring_force" | "block_board" | "conveyor_belt" | "critical_cases" | "gravitation" | "artificial_satellite" | "relativity" | "work_power" | "kinetic_energy_theorem" | "mechanical_energy_conservation" | "work_energy_relation" | "variable_force_work" | "momentum_theorem" | "momentum_conservation" | "collision" | "man_boat_explosion" | "simple_harmonic" | "mechanical_wave" | "refraction_total_reflection" | "light_wave_nature" | "electrostatics_field" | "charge_in_electric_field" | "capacitor" | "dc_circuit" | "closed_circuit" | "magnetic_field_ampere" | "lorentz_particle" | "combined_fields" | "induction_law" | "induction_circuit_graph" | "rod_energy" | "ac_generation" | "transformer_transmission" | "em_wave" | "molecular_theory" | "gas_laws" | "solids_liquids" | "thermo_laws" | "wave_particle_duality" | "atomic_structure" | "atomic_nucleus" | "exp_mechanics" | "exp_electricity" | "exp_optics_thermal";
@@ -54,7 +54,7 @@ export type ElementId = "block" | "board" | "incline" | "ball" | "arc_track" | "
  * 世界书词条（§9.1 字段冻结）
  * §9.1 词条模型。`insertion_slot` 元素只能是 solve | scene_code（= 目标阶段名）；`scene_spec` 是 v2 旧名，不得进入枚举，仅在导入路径归一化。
  */
-export interface WorldbookEntry {
+export interface KnowledgecardEntry {
   /**
    * 词条 id，同库内不得重复
    * @minLength 1 @pattern ^[A-Za-z0-9._-]+$

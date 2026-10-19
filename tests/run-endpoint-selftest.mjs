@@ -76,7 +76,7 @@ function freshRulesDir({ withEndpoint = false, withKey = false, supportsVision =
       ),
       'utf8',
     );
-    mkdirSync(join(dir, 'worldbook'), { recursive: true });
+    mkdirSync(join(dir, 'knowledgecard'), { recursive: true });
   }
   if (withKey) {
     writeFileSync(join(dir, 'keys.json'), JSON.stringify({ version: 1, keys: { 'ep-local': 'sk-SELFTEST-LEAK-CANARY' } }, null, 2), 'utf8');
@@ -234,7 +234,7 @@ async function main() {
       check('★ 至少收到一帧', frames.length > 0, String(frames.length));
       check('★ 第一帧是 `run_start`', frames[0]?.type === 'run_start', frames[0]?.type);
       check('★ 事件带递增序号 seq', frames.length > 1 ? frames[1].seq > frames[0].seq : true);
-      check('★ 事件类型都在契约枚举里', frames.every((f) => ['run_start', 'stage_start', 'stage_delta', 'stage_done', 'dryrun_done', 'stage_error', 'run_done', 'cancelled', 'repair_round', 'repair_done', 'worldbook_done', 'judgement_done', 'run_label'].includes(f.type)), frames.map((f) => f.type).join(','));
+      check('★ 事件类型都在契约枚举里', frames.every((f) => ['run_start', 'stage_start', 'stage_delta', 'stage_done', 'dryrun_done', 'stage_error', 'run_done', 'cancelled', 'repair_round', 'repair_done', 'knowledgecard_done', 'judgement_done', 'run_label'].includes(f.type)), frames.map((f) => f.type).join(','));
     });
   }
 

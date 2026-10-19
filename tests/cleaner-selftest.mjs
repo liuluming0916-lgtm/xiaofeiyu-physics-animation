@@ -406,7 +406,7 @@ console.log('\n『E』端到端：带围栏与解释文字的模型输出');
   let program = null;
   let diag = null;
   try {
-    const r = buildProgramFromText(text, { provenance: { model: 'handwritten', promptHash: 'test', worldbookHash: 'test', generatedAt: '2026-10-16T00:00:00Z' } });
+    const r = buildProgramFromText(text, { provenance: { model: 'handwritten', promptHash: 'test', knowledgecardHash: 'test', generatedAt: '2026-10-16T00:00:00Z' } });
     program = r.program;
     diag = r.diagnostics;
   } catch (e) {

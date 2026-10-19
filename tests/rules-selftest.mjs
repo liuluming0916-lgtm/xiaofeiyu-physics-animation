@@ -227,12 +227,12 @@ function main() {
       check('未登记的文件 ⇒ 拒绝并点名', hasProblem(r, 'rules.untracked', 'prompts/extra.md'));
 
       // ★ 范围负对照：不归我们管的目录**不许**报未登记（否则用户要去登记别人的文件）
-      writeRaw(dir, 'worldbook/README.md', '# 世界书的说明\n');
+      writeRaw(dir, 'knowledgecard/README.md', '# 世界书的说明\n');
       writeRaw(dir, 'endpoints.json', '{}\n');
       const r2 = loadRulesWorkspace({ dir });
       check(
-        '★ 范围负对照：ai-rules/worldbook/ 与 endpoints.json 不被工作区报成"未登记"',
-        !hasProblem(r2, 'rules.untracked', 'worldbook/README.md') && !hasProblem(r2, 'rules.untracked', 'endpoints.json'),
+        '★ 范围负对照：ai-rules/knowledgecard/ 与 endpoints.json 不被工作区报成"未登记"',
+        !hasProblem(r2, 'rules.untracked', 'knowledgecard/README.md') && !hasProblem(r2, 'rules.untracked', 'endpoints.json'),
       );
       // 但 prompts/extra.md 仍然要报（证明上一条不是"什么都没报"）
       check('（对照）同一批里 prompts/extra.md 仍被点名', hasProblem(r2, 'rules.untracked', 'prompts/extra.md'));
@@ -483,10 +483,10 @@ function main() {
     console.log('\n『G』扫描范围：只认自己那两类');
     {
       const dir = seed();
-      writeRaw(dir, 'worldbook/x.json', '{}');
+      writeRaw(dir, 'knowledgecard/x.json', '{}');
       writeRaw(dir, 'prompts/.solve.md.swp', 'vim 交换文件');
       const rels = listDiskFiles(dir).map((d) => d.rel);
-      check('扫描不含 worldbook/', !rels.some((r) => r.startsWith('worldbook/')));
+      check('扫描不含 knowledgecard/', !rels.some((r) => r.startsWith('knowledgecard/')));
       check('扫描不含点开头的文件（编辑器残留）', !rels.some((r) => r.includes('.solve.md.swp')));
       check('扫描含 prompts/solve.md 与 cleaning.json', rels.includes('prompts/solve.md') && rels.includes('cleaning.json'));
       check('默认上限与 §16 一致（800 KB / 16 MB）', DEFAULT_LIMITS.maxFileBytes === 800 * 1024 && DEFAULT_LIMITS.maxTotalBytes === 16 * 1024 * 1024);

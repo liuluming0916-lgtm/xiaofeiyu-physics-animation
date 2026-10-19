@@ -195,7 +195,7 @@ function main() {
     'resources/app/electron/main.cjs',
     'resources/app/web/dist/index.html',
     'resources/app/tools/rules-service.mjs',
-    'resources/app/core/worldbook/builtin-bundle.generated.mjs',
+    'resources/app/core/knowledgecard/builtin-bundle.generated.mjs',
     'resources/app/template/build/animation-template.html',
   ];
   let missing = 0;

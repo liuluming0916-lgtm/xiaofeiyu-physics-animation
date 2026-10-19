@@ -19,8 +19,8 @@ import { join } from 'node:path';
 
 import { buildStagePrefix } from '../core/prompts/fixed-prefix.mjs';
 import { getPrompt, buildJudgementVocab } from '../core/prompts/templates.mjs';
-import { buildSlotConditional, buildSlotPreview } from '../core/worldbook/engine.mjs';
-import { loadLibrary } from '../core/worldbook/store.mjs';
+import { buildSlotConditional, buildSlotPreview } from '../core/knowledgecard/engine.mjs';
+import { loadLibrary } from '../core/knowledgecard/store.mjs';
 import { renderProgram } from './build-animation-cards.mjs';
 import { PROJECT_ROOT } from './paths.mjs';
 import { readFileSync } from 'node:fs';
@@ -30,14 +30,14 @@ const prefixHash = buildStagePrefix('scene_code').promptHash;
 const q = (await import(new URL('../tests/regression-15/q01-conveyor-heat.mjs', import.meta.url).href)).default;
 const S = q.slots;
 
-const vocab = buildJudgementVocab(JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'worldbook-concepts.json'), 'utf8')));
+const vocab = buildJudgementVocab(JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'knowledgecard-concepts.json'), 'utf8')));
 const judge = { concepts: ['conveyor_belt'], tags: [], elements: ['belt', 'block'] };
 
 /** 按生产链路拼一个阶段的 system / user（第 9 期：前缀**按阶段取**） */
 function compose(id, slot, text) {
   const prompt = getPrompt(id);
   const stagePrefix = buildStagePrefix(id);
-  const wb = slot ? buildSlotPreview({ entries: lib.entries, slot, text, ...judge }).worldbookText : '';
+  const wb = slot ? buildSlotPreview({ entries: lib.entries, slot, text, ...judge }).knowledgecardText : '';
   const cond = buildSlotConditional({ slot: slot ?? 'solve', instruction: prompt.system, instructionLabel: prompt.label, segment: wb });
   const system = [stagePrefix.text, cond.text].filter(Boolean).join('\n\n');
   return { prompt, system, condText: cond.text, prefixText: stagePrefix.text, prefixChars: stagePrefix.text.length, wb, systemChars: system.length };

@@ -1,4 +1,15 @@
 /**
+ * ⚠ **本文件由 `tools/build-knowledgecard-web.mjs` 从 `core/knowledgecard/engine.mjs` 逐字节复制生成，请勿手改。**
+ *
+ * 为什么要复制而不是"再写一份看起来一样的"：设置页的「实时试触发预览器」必须与
+ * 真实请求**逐字节一致**（W10）。让两边跑**同一份字节的代码**，是唯一能结构性保证
+ * 这一点的做法 —— 改本源、忘了改副本，构建期判据会直接失败。
+ *
+ * 开发期改世界书触发/组装逻辑：**改 `core/knowledgecard/engine.mjs`**，然后跑
+ * `node tools/web-build.mjs`（它会重新复制并核对）。
+ */
+
+/**
  * 世界书引擎 · **纯逻辑**（§9.2 触发算法六步 + §9.2 第 5 步的分槽组装）。
  *
  * ── 这个文件为什么必须是"纯"的
@@ -8,11 +19,11 @@
  * （抄一份 = 两个事实来源 = W10"预览器与实际请求逐字一致"永远做不到）。
  *
  * 所以：本文件**只依赖语言本身**（无 `node:` 导入、无 DOM、无网络），
- *      构建期由 `tools/build-worldbook-web.mjs` 把它**逐字节**复制成
- *      `web/src/lib/worldbook-engine.js`，并由 `tools/web-build.mjs` 的判据
+ *      构建期由 `tools/build-knowledgecard-web.mjs` 把它**逐字节**复制成
+ *      `web/src/lib/knowledgecard-engine.js`，并由 `tools/web-build.mjs` 的判据
  *      断言"副本与本源逐字节一致"——**改这里，预览器跟着改**。
  *
- * 因此：**不要在本文件里 import 任何 node: 模块**（`worldbookHash` 之类的
+ * 因此：**不要在本文件里 import 任何 node: 模块**（`knowledgecardHash` 之类的
  * Node 专属能力放在 `index.mjs`）。
  *
  * ── 口径来源（全部照 §9.2 原文，未自行发挥；自行发挥处均标注"实现约定"）
@@ -51,7 +62,7 @@
  * 与其让额度闲置，不如把它挪给**真正缺的**示例 —— 于是正文降到 30000、示例池提到 10000。
  * 同时把单条示例上限从 1200 抬到 2000（58/79 条卡的示例天生就超过 1200），并加**示例去重**。
  */
-export const WORLDBOOK_BUDGET = Object.freeze({
+export const KNOWLEDGECARD_BUDGET = Object.freeze({
   maxDepth: 3,
   maxEntries: 40,
   maxChars: 30000,
@@ -82,7 +93,7 @@ export const WORLDBOOK_BUDGET = Object.freeze({
  *   · `constant: true` 的常驻词条**不带示例** —— 那几条卡片的正文本身就是教学（含完整范文），
  *     再叠一遍示例就是重复吃额度。
  */
-export const WORLDBOOK_EXAMPLE_BUDGET = Object.freeze({
+export const KNOWLEDGECARD_EXAMPLE_BUDGET = Object.freeze({
   /**
    * 单条词条的示例最多占这么多字符（超了整条不给，避免给出半截代码）。
    *
@@ -130,31 +141,31 @@ export const HIT_STRENGTH = Object.freeze({
 });
 
 /** §9.1 世界书槽位名 = 目标阶段名（冻结） */
-export const WORLDBOOK_SLOTS = Object.freeze(['solve', 'scene_code']);
+export const KNOWLEDGECARD_SLOTS = Object.freeze(['solve', 'scene_code']);
 
 /**
- * 知识卡类型顺序（**只含 worldbook 条目**）。
+ * 知识卡类型顺序（**只含 knowledgecard 条目**）。
  *
  * 产品层知识卡有 5 类，但提示词卡走 `core/prompts`、本地规则卡走 `core/cleaner`，
- * 它们不是 worldbook 条目，所以这里只排 anim_rule / element / scene 三种。
+ * 它们不是 knowledgecard 条目，所以这里只排 anim_rule / element / scene 三种。
  * 类型内再按 `order`；`kind` 缺省按 element（旧包兼容）。
  *
- * ⚠ 本文件会被**逐字节复制**到浏览器（`web/src/lib/worldbook-engine.js`），
+ * ⚠ 本文件会被**逐字节复制**到浏览器（`web/src/lib/knowledgecard-engine.js`），
  *   所以不能 import 任何 node: 模块。这份顺序与
- *   `contracts/spec/frozen-keys.mjs` 的 `WORLDBOOK_ENTRY_KINDS` 同源，
+ *   `contracts/spec/frozen-keys.mjs` 的 `KNOWLEDGECARD_ENTRY_KINDS` 同源，
  *   门禁 ㉒ 会断言两者逐字一致。
  */
-export const WORLDBOOK_KIND_ORDER = Object.freeze(['anim_rule', 'element', 'scene']);
+export const KNOWLEDGECARD_KIND_ORDER = Object.freeze(['anim_rule', 'element', 'scene']);
 
 /** 取词条类型；未知/缺省一律按 element（旧包没有 kind） */
 export function kindOfEntry(entry) {
   const k = entry?.kind;
-  return WORLDBOOK_KIND_ORDER.includes(k) ? k : 'element';
+  return KNOWLEDGECARD_KIND_ORDER.includes(k) ? k : 'element';
 }
 
 /** 类型排序键：anim_rule=0 / element=1 / scene=2 */
 function kindRank(entry) {
-  return WORLDBOOK_KIND_ORDER.indexOf(kindOfEntry(entry));
+  return KNOWLEDGECARD_KIND_ORDER.indexOf(kindOfEntry(entry));
 }
 
 /**
@@ -411,14 +422,14 @@ function codeLineSet(text) {
  *
  * 返回空串表示"这条不带示例"，调用方据此不做任何追加 —— 三种情况会返回空串：
  *   ① 没有 `code_examples`；
- *   ② 槽位不在 `WORLDBOOK_EXAMPLE_BUDGET.slots` 里（只有动画槽带）；
+ *   ② 槽位不在 `KNOWLEDGECARD_EXAMPLE_BUDGET.slots` 里（只有动画槽带）；
  *   ③ `constant: true`（常驻卡的正文本身就是教学）。
  *
  * ⚠ 示例是**原样**放进去的：它们已经过了 C1（门禁 ㉒『W17』逐段 lint），
  *   所以这里不要再"加工"——加工过的示例就不再是"跑过的那份"了。
  */
 export function renderExampleBlock(slot, entry) {
-  if (!WORLDBOOK_EXAMPLE_BUDGET.slots.includes(slot)) return '';
+  if (!KNOWLEDGECARD_EXAMPLE_BUDGET.slots.includes(slot)) return '';
   if (entry?.constant === true) return '';
   const list = Array.isArray(entry?.code_examples) ? entry.code_examples.filter((s) => typeof s === 'string' && s.trim()) : [];
   if (!list.length) return '';
@@ -481,7 +492,7 @@ function compareForRetention(a, b) {
  *
  * 这是用户 2026-10-19 决议的顺序：动画规范卡 → 元件卡 → 场景卡。
  * 提示词卡不在这里 —— 它在 `buildSlotConditional` 的 `instructionText` 里，
- * 天然排在 worldbook 段之前。
+ * 天然排在 knowledgecard 段之前。
  */
 function compareForInjection(a, b) {
   const ka = kindRank(a.record.entry);
@@ -579,8 +590,8 @@ export const WAKE_BY_TITLE_FOR_KEYLESS = true;
  * @param {object} [input.budget] 覆盖三重预算（测试用微型预算，生产用默认值）
  * @returns {object} 触发结果（含 `text` / `slots` / `emptySlots` / `truncatedSlots` / `provenance` / `warnings` / `stats`）
  */
-export function triggerWorldbook(input = {}) {
-  const budget = { ...WORLDBOOK_BUDGET, ...(input.budget ?? {}) };
+export function triggerKnowledgecard(input = {}) {
+  const budget = { ...KNOWLEDGECARD_BUDGET, ...(input.budget ?? {}) };
   const all = (Array.isArray(input.entries) ? input.entries : []).filter((e) => e && typeof e === 'object' && e.enabled !== false);
   const source = prepareText(input.text ?? '');
   const warnings = [];
@@ -714,7 +725,7 @@ export function triggerWorldbook(input = {}) {
   const emptySlots = [];
   const truncatedSlots = [];
 
-  for (const slot of WORLDBOOK_SLOTS) {
+  for (const slot of KNOWLEDGECARD_SLOTS) {
     // ① 候选集 = 命中词条中 insertion_slot 含本槽位者
     const candidates = ordered
       .filter((r) => Array.isArray(r.entry.insertion_slot) && r.entry.insertion_slot.includes(slot))
@@ -802,9 +813,9 @@ export function triggerWorldbook(input = {}) {
      * 代入实测：正文 25885 + 示例 10000 = 35885 ≤ 40000 ✓ —— 既不牺牲正文，
      * 示例也能拿满自己那 10000。
      */
-    const totalChars = Number.isFinite(budget.maxTotalChars) ? budget.maxTotalChars : WORLDBOOK_BUDGET.maxTotalChars;
+    const totalChars = Number.isFinite(budget.maxTotalChars) ? budget.maxTotalChars : KNOWLEDGECARD_BUDGET.maxTotalChars;
     const exampleRoom = Math.min(
-      WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot,
+      KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot,
       Math.max(0, totalChars - chars),
     );
     /**
@@ -813,7 +824,7 @@ export function triggerWorldbook(input = {}) {
      */
     const examplePoolNote =
       `正文 ${chars} + 示例 ${exampleRoom} = ${chars + exampleRoom} ≤ 合计 ${totalChars}` +
-      `（示例池 = min(上限 ${WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot}, 合计 ${totalChars} − 正文 ${chars})）`;
+      `（示例池 = min(上限 ${KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot}, 合计 ${totalChars} − 正文 ${chars})）`;
     let examplesChars = 0;
     const examplesIncluded = [];
     const examplesDropped = [];
@@ -898,7 +909,7 @@ export function triggerWorldbook(input = {}) {
     const shareMode = !n || fairShare >= MIN_MERGE_SHARE ? 'fair' : 'priority';
     if (shareMode === 'priority') {
       for (const { c, ex } of withExample) {
-        if (ex.length > WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerEntry) {
+        if (ex.length > KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerEntry) {
           examplesDropped.push(String(c.record.entry.id));
           continue;
         }
@@ -910,7 +921,7 @@ export function triggerWorldbook(input = {}) {
     /** 第一轮：均分（保证没有一条被饿死）；超单条上限的直接没有资格 */
     const pending = [];
     for (const { c, ex } of shareMode === 'priority' ? [] : withExample) {
-      if (ex.length > WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerEntry) {
+      if (ex.length > KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerEntry) {
         examplesDropped.push(String(c.record.entry.id));
         continue;
       }
@@ -943,7 +954,7 @@ export function triggerWorldbook(input = {}) {
         code: 'example-budget-skipped',
         slot,
         message:
-          `本槽有 ${examplesDropped.length} 条词条的示例未注入（单条 ≤${WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerEntry}；` +
+          `本槽有 ${examplesDropped.length} 条词条的示例未注入（单条 ≤${KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerEntry}；` +
           `${examplePoolNote}；` +
           `${n} 条示例候选 ${fairShare >= MIN_MERGE_SHARE ? `均分 → 每条 ${fairShare} 字，余量再按序补齐` : `均分只有 ${fairShare} 字（装不下任何完整示例）⇒ 改为按优先级整条发，发完为止`}）：` +
           examplesDropped.join('、') +
@@ -967,7 +978,7 @@ export function triggerWorldbook(input = {}) {
          */
         message:
           `本槽因三重预算截断 ${dropped.length} 条词条（maxEntries=${budget.maxEntries} / 正文上限 ${budget.maxChars} 字；` +
-          `示例另有 ${WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot} 字、合计 ${Number.isFinite(budget.maxTotalChars) ? budget.maxTotalChars : WORLDBOOK_BUDGET.maxTotalChars} 字，` +
+          `示例另有 ${KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot} 字、合计 ${Number.isFinite(budget.maxTotalChars) ? budget.maxTotalChars : KNOWLEDGECARD_BUDGET.maxTotalChars} 字，` +
           `**示例不吃正文额度**）：` +
           dropped.map((c) => c.record.entry.title ?? c.record.entry.id).join('、'),
       });
@@ -1002,11 +1013,11 @@ export function triggerWorldbook(input = {}) {
 
   /* ── 第 6 步｜溯源记录 ── */
   const injectedIdsBySlot = {};
-  for (const slot of WORLDBOOK_SLOTS) {
+  for (const slot of KNOWLEDGECARD_SLOTS) {
     for (const it of slotResults[slot].injected) (injectedIdsBySlot[it.id] ??= []).push(slot);
   }
   const charsBySlotById = {};
-  for (const slot of WORLDBOOK_SLOTS) {
+  for (const slot of KNOWLEDGECARD_SLOTS) {
     for (const it of slotResults[slot].injected) (charsBySlotById[it.id] ??= {})[slot] = it.chars;
   }
   const droppedIds = new Set(truncatedSlots.flatMap((t) => t.droppedIds));
@@ -1070,8 +1081,8 @@ export function triggerWorldbook(input = {}) {
       judgement: { ...judgement },
       maxDepth: depth,
       budget,
-      charsBySlot: Object.fromEntries(WORLDBOOK_SLOTS.map((s) => [s, slotResults[s].chars])),
-      injectedBySlot: Object.fromEntries(WORLDBOOK_SLOTS.map((s) => [s, slotResults[s].injected.length])),
+      charsBySlot: Object.fromEntries(KNOWLEDGECARD_SLOTS.map((s) => [s, slotResults[s].chars])),
+      injectedBySlot: Object.fromEntries(KNOWLEDGECARD_SLOTS.map((s) => [s, slotResults[s].injected.length])),
     },
   };
 }
@@ -1091,16 +1102,16 @@ export function buildSlotConditional(input = {}) {
   const slot = input.slot ?? 'solve';
   const raw = typeof input.instruction === 'string' ? input.instruction.trim() : '';
   const instructionText = raw ? renderInstructionBlock(input.instructionLabel ?? (slot === 'scene_code' ? '动画代码' : '解题'), raw) : '';
-  const worldbookText = typeof input.segment === 'string' ? input.segment : '';
-  const parts = [instructionText, worldbookText].filter(Boolean);
+  const knowledgecardText = typeof input.segment === 'string' ? input.segment : '';
+  const parts = [instructionText, knowledgecardText].filter(Boolean);
   return {
     text: parts.join('\n\n'),
     // ⚠ 两个组成部分**必须由这里返回**，不要让调用方用 `text.split('\n\n')` 去猜 ——
     //   词条正文里本来就有空行，用分隔符反推会把正文切碎。
     instructionText,
-    worldbookText,
+    knowledgecardText,
     hasInstruction: Boolean(instructionText),
-    hasWorldbook: Boolean(worldbookText),
+    hasKnowledgecard: Boolean(knowledgecardText),
   };
 }
 
@@ -1109,7 +1120,7 @@ export function buildSlotConditional(input = {}) {
  *
  * 返回 `{ text, result }`：`text` 就是会进 system 消息的那一段。
  *
- * ⚠ 第 5.7 期：`concepts / tags / elements` 三个可选输入**必须原样透传给 `triggerWorldbook`**，
+ * ⚠ 第 5.7 期：`concepts / tags / elements` 三个可选输入**必须原样透传给 `triggerKnowledgecard`**，
  *   否则"预览器 = 真实请求"（W10）会在概念分发这条新路径上破掉 ——
  *   预览器不传判定、真实请求传了，两边抽到的词条就不是同一批。
  */
@@ -1124,10 +1135,10 @@ export function buildSlotPreview({
   instruction = null,
   instructionLabel = null,
 }) {
-  const result = triggerWorldbook({ entries, text, budget, concepts, tags, elements });
+  const result = triggerKnowledgecard({ entries, text, budget, concepts, tags, elements });
   const seg = result.text[slot] ?? '';
   const built = buildSlotConditional({ slot, instruction, instructionLabel, segment: seg });
-  return { text: built.text, result, worldbookText: seg, wordCount: built.text.length };
+  return { text: built.text, result, knowledgecardText: seg, wordCount: built.text.length };
 }
 
 /* ────────────────────────────── 触发词撞车（第 5.5 期 P2） ────────────────────────────── */

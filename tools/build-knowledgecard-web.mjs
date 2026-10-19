@@ -2,14 +2,14 @@
 /**
  * 生成前端侧的两份**派生产物**（第 5 期）：
  *
- *   ① `web/src/lib/worldbook-engine.js` —— `core/worldbook/engine.mjs` 的**逐字节副本**
- *   ② `web/src/lib/worldbook-demo.ts`   —— 内置词条 + 覆盖率报告（纯数据）
+ *   ① `web/src/lib/knowledgecard-engine.js` —— `core/knowledgecard/engine.mjs` 的**逐字节副本**
+ *   ② `web/src/lib/knowledgecard-demo.ts`   —— 内置词条 + 覆盖率报告（纯数据）
  *
  * ── 为什么预览器必须用"逐字节副本"而不是"再写一份看起来一样的"
  *
  * W10 的验收原文是"**预览器与实际请求逐字一致**"。第 3、4 期各有一次"桩太弱/判据测错环节"
  * 造成的假绿，所以这一次不用"两处逻辑写得一样"来保证，而是：
- *   编排层与预览器**跑同一份字节的代码**（`core/worldbook/engine.mjs`）；
+ *   编排层与预览器**跑同一份字节的代码**（`core/knowledgecard/engine.mjs`）；
  *   构建期判据（`tools/web-build.mjs`）断言副本与本源逐字节相同。
  * 于是"改了一处忘了另一处"在结构上不可能发生 —— 它连编译都过不去。
  *
@@ -17,32 +17,32 @@
  *   **子步骤**（不是独立门禁步骤），所以它不出现在 `verify-all.mjs` 的 STEPS 里，
  *   而在 `tools/verify-coverage.mjs` 里带着理由豁免（"子步骤"≠"漏挂"）。
  *
- * 用法：node tools/build-worldbook-web.mjs
+ * 用法：node tools/build-knowledgecard-web.mjs
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { PROJECT_ROOT } from './paths.mjs';
-import { PACK_FORMAT, PACK_VERSION, loadLibrary, readCoverageTarget } from '../core/worldbook/store.mjs';
-import { checkCoverage, formatCoverageLine, targetFromFile } from '../core/worldbook/coverage.mjs';
-import { triggerWorldbook } from '../core/worldbook/engine.mjs';
-import { mergeWorldbookStages } from '../core/worldbook/index.mjs';
+import { PACK_FORMAT, PACK_VERSION, loadLibrary, readCoverageTarget } from '../core/knowledgecard/store.mjs';
+import { checkCoverage, formatCoverageLine, targetFromFile } from '../core/knowledgecard/coverage.mjs';
+import { triggerKnowledgecard } from '../core/knowledgecard/engine.mjs';
+import { mergeKnowledgecardStages } from '../core/knowledgecard/index.mjs';
 
-export const ENGINE_SRC = join(PROJECT_ROOT, 'core', 'worldbook', 'engine.mjs');
-export const ENGINE_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'worldbook-engine.js');
+export const ENGINE_SRC = join(PROJECT_ROOT, 'core', 'knowledgecard', 'engine.mjs');
+export const ENGINE_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'knowledgecard-engine.js');
 /**
  * 第 5.7 期：**解析器也要复制到浏览器**。
  *
  * 设置页的预览器要支持"**粘贴一段模型转写 → 自动解析出考点/题型/元件**"（计划 §S5），
- * 而那件事的唯一实现就是 `core/worldbook/concepts.mjs` 的 `parseJudgement`。
+ * 而那件事的唯一实现就是 `core/knowledgecard/concepts.mjs` 的 `parseJudgement`。
  * 若前端另写一份"差不多的解析"，它迟早与本尊漂移 —— 于是"粘贴解析结果"与
  * "真实链路解析结果"就会不一样，而那种不一致**看不出来**。
  * 所以：同一份字节，同一套判据（`expectedConceptsCopy()`）。
  */
-export const CONCEPTS_SRC = join(PROJECT_ROOT, 'core', 'worldbook', 'concepts.mjs');
-export const CONCEPTS_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'worldbook-concepts.js');
-export const DEMO_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'worldbook-demo.ts');
+export const CONCEPTS_SRC = join(PROJECT_ROOT, 'core', 'knowledgecard', 'concepts.mjs');
+export const CONCEPTS_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'knowledgecard-concepts.js');
+export const DEMO_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'knowledgecard-demo.ts');
 
 /**
  * 副本的文件头。
@@ -52,13 +52,13 @@ export const DEMO_OUT = join(PROJECT_ROOT, 'web', 'src', 'lib', 'worldbook-demo.
  *   就绕过了判据。`tools/web-build.mjs` 的产物体检还会再查一遍产物里没有 Node 全局。
  */
 export const ENGINE_BANNER = `/**
- * ⚠ **本文件由 \`tools/build-worldbook-web.mjs\` 从 \`core/worldbook/engine.mjs\` 逐字节复制生成，请勿手改。**
+ * ⚠ **本文件由 \`tools/build-knowledgecard-web.mjs\` 从 \`core/knowledgecard/engine.mjs\` 逐字节复制生成，请勿手改。**
  *
  * 为什么要复制而不是"再写一份看起来一样的"：设置页的「实时试触发预览器」必须与
  * 真实请求**逐字节一致**（W10）。让两边跑**同一份字节的代码**，是唯一能结构性保证
  * 这一点的做法 —— 改本源、忘了改副本，构建期判据会直接失败。
  *
- * 开发期改世界书触发/组装逻辑：**改 \`core/worldbook/engine.mjs\`**，然后跑
+ * 开发期改世界书触发/组装逻辑：**改 \`core/knowledgecard/engine.mjs\`**，然后跑
  * \`node tools/web-build.mjs\`（它会重新复制并核对）。
  */
 
@@ -66,13 +66,13 @@ export const ENGINE_BANNER = `/**
 
 /** 解析器副本的文件头（与引擎副本同一口径：判据比的是含头的完整字节） */
 export const CONCEPTS_BANNER = `/**
- * ⚠ **本文件由 \`tools/build-worldbook-web.mjs\` 从 \`core/worldbook/concepts.mjs\` 逐字节复制生成，请勿手改。**
+ * ⚠ **本文件由 \`tools/build-knowledgecard-web.mjs\` 从 \`core/knowledgecard/concepts.mjs\` 逐字节复制生成，请勿手改。**
  *
  * 为什么要复制：设置页的预览器要支持"粘贴一段模型转写 → 自动解析出考点/题型/元件"，
  * 而**解析的唯一实现**就是本尊。让两边跑同一份字节，是唯一能结构性保证
  * "粘贴解析 = 真实链路解析"的做法；改本源、忘了改副本，构建期判据会直接失败。
  *
- * 开发期改解析逻辑：**改 \`core/worldbook/concepts.mjs\`**，然后跑
+ * 开发期改解析逻辑：**改 \`core/knowledgecard/concepts.mjs\`**，然后跑
  * \`node tools/web-build.mjs\`（它会重新复制并核对）。
  */
 
@@ -116,7 +116,7 @@ function demoProblemText() {
 }
 
 /**
- * 构建期用**真引擎**在真题题面上跑一次世界书，产出一份可直接发给前端的 `worldbook_done` 载荷。
+ * 构建期用**真引擎**在真题题面上跑一次世界书，产出一份可直接发给前端的 `knowledgecard_done` 载荷。
  *
  * 为什么值得这么做：前端跑的是演示源（不调模型），但"世界书依据"这件事**本来就与模型无关**
  * —— 它完全由题面与词条集合决定。所以在构建期用真引擎算一遍，解题页显示的就是**真结果**，
@@ -127,9 +127,9 @@ function demoProblemText() {
 function buildDemoEvent(lib) {
   const problemText = demoProblemText();
   const solutionText = '共速时刻 t* = u / (mu g) = 1.0 s；此过程摩擦生热 Q = mu m g ds = 2.0 J。';
-  const solveRes = triggerWorldbook({ entries: lib.entries, text: problemText });
-  const sceneRes = triggerWorldbook({ entries: lib.entries, text: [problemText, solutionText].join('\n') });
-  const merged = mergeWorldbookStages({ solveRes, sceneRes, entries: lib.entries });
+  const solveRes = triggerKnowledgecard({ entries: lib.entries, text: problemText });
+  const sceneRes = triggerKnowledgecard({ entries: lib.entries, text: [problemText, solutionText].join('\n') });
+  const merged = mergeKnowledgecardStages({ solveRes, sceneRes, entries: lib.entries });
   return {
     hash: merged.hash,
     libraryCount: merged.entries,
@@ -148,23 +148,23 @@ function buildDemoTs() {
   const builtin = lib.builtin;
   const demoEvent = buildDemoEvent(lib);
   const header = `/**
- * ⚠ **本文件由 \`tools/build-worldbook-web.mjs\` 自动生成，请勿手改。**
+ * ⚠ **本文件由 \`tools/build-knowledgecard-web.mjs\` 自动生成，请勿手改。**
  *
  * 来源（唯一事实来源）：
- *   · 内置词条：\`core/worldbook/data/*.json\`（由 \`tools/rewrite-worldbook-entries.mjs\` 写出）
- *   · 覆盖率：\`core/worldbook/coverage.mjs\`
+ *   · 内置词条：\`core/knowledgecard/data/*.json\`（由 \`tools/rewrite-knowledgecard-entries.mjs\` 写出）
+ *   · 覆盖率：\`core/knowledgecard/coverage.mjs\`
  * 生成时机：\`node tools/web-build.mjs\` 的 ⓪ 段（前端打包之前）。
  *
  * ── 说明（v1.1.9 改）
  *
  * 这里是**构建期内置快照**：发行版的内置层读的是编译常量（\`builtin-bundle.generated.mjs\`）。
- * **用户层**（\`ai-rules/worldbook/\`）不在这个文件里 —— 设置页通过 \`/api/worldbook/*\` 读写它。
+ * **用户层**（\`ai-rules/knowledgecard/\`）不在这个文件里 —— 设置页通过 \`/api/knowledgecard/*\` 读写它。
  * 本快照只用于"内置有哪些卡"的初始显示与覆盖关系判断。
- * 预览器的**触发与组装逻辑是真的**（用的是 \`core/worldbook/engine.mjs\` 的逐字节副本）。
+ * 预览器的**触发与组装逻辑是真的**（用的是 \`core/knowledgecard/engine.mjs\` 的逐字节副本）。
  */
 
-/** 词条形状（与 \`contracts/worldbook-entry.schema.json\` 对应；这里只声明 UI 用到的字段） */
-export interface WorldbookEntryLike {
+/** 词条形状（与 \`contracts/knowledgecard-entry.schema.json\` 对应；这里只声明 UI 用到的字段） */
+export interface KnowledgecardEntryLike {
   id: string
   title: string
   origin: string
@@ -189,8 +189,8 @@ export interface WorldbookEntryLike {
   code_examples: string[]
 }
 
-/** 覆盖率报告（\`core/worldbook/coverage.mjs\` 的输出；数字全部由构建期算好） */
-export interface WorldbookCoverageReport {
+/** 覆盖率报告（\`core/knowledgecard/coverage.mjs\` 的输出；数字全部由构建期算好） */
+export interface KnowledgecardCoverageReport {
   total: number
   structuralRate: number
   selfCheckCoverage: number
@@ -210,34 +210,34 @@ export interface WorldbookCoverageReport {
  */
 
 /** 构建期快照：内置词条（\`origin: builtin\`） */
-export const WORLDBOOK_BUILTIN: ReadonlyArray<WorldbookEntryLike> = ${JSON.stringify(builtin, null, 2)}
+export const KNOWLEDGECARD_BUILTIN: ReadonlyArray<KnowledgecardEntryLike> = ${JSON.stringify(builtin, null, 2)}
 
 /**
  * 构建期快照：用户词条（\`origin: user\`）。
  *
- * 本期恒为空数组：用户区的真实内容在 \`ai-rules/worldbook/\` 里，浏览器读不到文件系统。
+ * 本期恒为空数组：用户区的真实内容在 \`ai-rules/knowledgecard/\` 里，浏览器读不到文件系统。
  * 页面里新写的词条只存在内存中（见文件头的诚实声明）。
  */
-export const WORLDBOOK_USER: ReadonlyArray<WorldbookEntryLike> = []
+export const KNOWLEDGECARD_USER: ReadonlyArray<KnowledgecardEntryLike> = []
 
-/** 内置库的稳定哈希（\`provenance.worldbookHash\` 用的同一个算法） */
-export const WORLDBOOK_HASH = ${JSON.stringify(lib.hash)}
+/** 内置库的稳定哈希（\`provenance.knowledgecardHash\` 用的同一个算法） */
+export const KNOWLEDGECARD_HASH = ${JSON.stringify(lib.hash)}
 
 /**
- * 导出包的格式标识与版本（**从 \`core/worldbook/store.mjs\` 派生**，不是抄录）。
+ * 导出包的格式标识与版本（**从 \`core/knowledgecard/store.mjs\` 派生**，不是抄录）。
  *
  * ⚠ 浏览器拿不到 Node 侧的契约文件，所以这两个值必须由构建期写进产物；
- *   \`tools/web-build.mjs\` 会断言它们等于 \`contracts/worldbook-pack.schema.json\` 的
+ *   \`tools/web-build.mjs\` 会断言它们等于 \`contracts/knowledgecard-pack.schema.json\` 的
  *   \`format.const\` / \`version.const\` —— 抄错会让构建失败，而不是让 UI 悄悄导出错格式。
  */
-export const WORLDBOOK_PACK_FORMAT = ${JSON.stringify(PACK_FORMAT)}
-export const WORLDBOOK_PACK_VERSION = ${JSON.stringify(PACK_VERSION)}
+export const KNOWLEDGECARD_PACK_FORMAT = ${JSON.stringify(PACK_FORMAT)}
+export const KNOWLEDGECARD_PACK_VERSION = ${JSON.stringify(PACK_VERSION)}
 
 /** 内置库的载入来源（文件名 + SHA256 + 条数），供设置页显示"这批词条是哪来的" */
-export const WORLDBOOK_SOURCES: ReadonlyArray<{ name: string; kind: string; count: number; sha256: string }> = ${JSON.stringify(lib.sources.map((s) => ({ name: s.name, kind: s.kind, count: s.count, sha256: s.sha256 })), null, 2)}
+export const KNOWLEDGECARD_SOURCES: ReadonlyArray<{ name: string; kind: string; count: number; sha256: string }> = ${JSON.stringify(lib.sources.map((s) => ({ name: s.name, kind: s.kind, count: s.count, sha256: s.sha256 })), null, 2)}
 
 /** 覆盖率报告（第 5 期只交付**机制**；内容覆盖由第 5.5 期完成） */
-export const WORLDBOOK_COVERAGE: WorldbookCoverageReport = ${JSON.stringify(
+export const KNOWLEDGECARD_COVERAGE: KnowledgecardCoverageReport = ${JSON.stringify(
     {
       total: coverage.total,
       structuralRate: coverage.structuralRate,
@@ -251,17 +251,17 @@ export const WORLDBOOK_COVERAGE: WorldbookCoverageReport = ${JSON.stringify(
     },
     null,
     2,
-  )} as WorldbookCoverageReport
+  )} as KnowledgecardCoverageReport
 
 /**
  * 解题页「世界书依据」面板的数据（第 5 期 · §15）。
  *
  * 它是**构建期用真引擎在真题题面上跑出来的**（不是编的）：世界书的命中与组装只取决于
  * 题面与词条集合，与模型无关，所以演示源也能显示真结果。
- * 类型不写在这里 —— 让 TS 从字面量推断，再在 \`run-stream.ts\` 里按 \`WorldbookEvidence\` 校验，
+ * 类型不写在这里 —— 让 TS 从字面量推断，再在 \`run-stream.ts\` 里按 \`KnowledgecardEvidence\` 校验，
  * 这样"生成物"与"消费端的类型"之间不会出现第二份手写接口。
  */
-export const WORLDBOOK_DEMO_EVENT = ${JSON.stringify(demoEvent, null, 2)}
+export const KNOWLEDGECARD_DEMO_EVENT = ${JSON.stringify(demoEvent, null, 2)}
 `;
   return `${header}${body}`;
 }
@@ -282,9 +282,9 @@ export function main() {
 
   const { coverage } = buildLibrarySnapshot();
   console.log(
-    `✓ 世界书前端产物已生成：engine 副本 ${(copy.length / 1024).toFixed(1)} KB → web/src/lib/worldbook-engine.js · ` +
-      `解析器副本 ${(conceptsCopy.length / 1024).toFixed(1)} KB → web/src/lib/worldbook-concepts.js · ` +
-      `演示数据 ${(demo.length / 1024).toFixed(1)} KB → web/src/lib/worldbook-demo.ts`,
+    `✓ 世界书前端产物已生成：engine 副本 ${(copy.length / 1024).toFixed(1)} KB → web/src/lib/knowledgecard-engine.js · ` +
+      `解析器副本 ${(conceptsCopy.length / 1024).toFixed(1)} KB → web/src/lib/knowledgecard-concepts.js · ` +
+      `演示数据 ${(demo.length / 1024).toFixed(1)} KB → web/src/lib/knowledgecard-demo.ts`,
   );
   console.log(`  ${formatCoverageLine(coverage)}`);}
 

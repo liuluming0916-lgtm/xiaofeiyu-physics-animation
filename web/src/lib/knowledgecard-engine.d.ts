@@ -1,10 +1,10 @@
 /**
- * `worldbook-engine.js` 的类型声明（第 5 期）。
+ * `knowledgecard-engine.js` 的类型声明（第 5 期）。
  *
- * ⚠ 这个 `.js` 是 `core/worldbook/engine.mjs` 的**逐字节副本**（由
- *   `tools/build-worldbook-web.mjs` 生成）。TS 靠**本文件**拿到类型：
- *   `moduleResolution: "bundler"` 下 `import … from './worldbook-engine.js'`
- *   会解析到 `worldbook-engine.d.ts`。
+ * ⚠ 这个 `.js` 是 `core/knowledgecard/engine.mjs` 的**逐字节副本**（由
+ *   `tools/build-knowledgecard-web.mjs` 生成）。TS 靠**本文件**拿到类型：
+ *   `moduleResolution: "bundler"` 下 `import … from './knowledgecard-engine.js'`
+ *   会解析到 `knowledgecard-engine.d.ts`。
  *
  * ⚠ 因此本文件是**抄录**，而抄录一定会漂移 —— 由构建期判据兜住：
  *   `tools/web-build.mjs` 断言"这里声明的每个名字都真的在 engine.mjs 里导出"、
@@ -37,7 +37,7 @@ export interface SecondaryKeys {
   list: string[]
 }
 
-export interface WorldbookEntryLike {
+export interface KnowledgecardEntryLike {
   id: string
   title?: string
   origin?: string
@@ -62,7 +62,7 @@ export interface WorldbookEntryLike {
   code_examples?: string[]
 }
 
-export interface WorldbookBudget {
+export interface KnowledgecardBudget {
   maxDepth: number
   maxEntries: number
   maxChars: number
@@ -134,7 +134,7 @@ export interface TriggerResult {
     judgementProvided: boolean
     judgement: { concepts: string[]; tags: string[]; elements: string[] }
     maxDepth: number
-    budget: WorldbookBudget
+    budget: KnowledgecardBudget
     charsBySlot: Record<string, number>
     injectedBySlot: Record<string, number>
   }
@@ -143,9 +143,9 @@ export interface TriggerResult {
 export interface SlotConditional {
   text: string
   instructionText: string
-  worldbookText: string
+  knowledgecardText: string
   hasInstruction: boolean
-  hasWorldbook: boolean
+  hasKnowledgecard: boolean
 }
 
 export interface ConflictHint {
@@ -155,23 +155,23 @@ export interface ConflictHint {
   message: string
 }
 
-export const WORLDBOOK_BUDGET: WorldbookBudget
+export const KNOWLEDGECARD_BUDGET: KnowledgecardBudget
 /**
  * 第 8 期 L3：**示例预算**（独立第二份额度）。
  *
- * 第 8 期定案：正文用 `WORLDBOOK_BUDGET.maxChars`（30000），示例用
+ * 第 8 期定案：正文用 `KNOWLEDGECARD_BUDGET.maxChars`（30000），示例用
  * `maxTotalChars − 正文`（合计 40000），两者**各用各的池子**。
  * （旧口径"示例只吃正文剩下的"等于把示例塞进正文的 30000 里，永远拿不满。）
  */
-export const WORLDBOOK_EXAMPLE_BUDGET: {
+export const KNOWLEDGECARD_EXAMPLE_BUDGET: {
   maxCharsPerEntry: number
   maxCharsPerSlot: number
   slots: readonly string[]
 }
 export const HIT_STRENGTH: Record<string, number>
-export const WORLDBOOK_SLOTS: readonly string[]
-export const WORLDBOOK_KIND_ORDER: readonly ('anim_rule' | 'element' | 'scene')[]
-export function kindOfEntry(entry: WorldbookEntryLike): 'anim_rule' | 'element' | 'scene'
+export const KNOWLEDGECARD_SLOTS: readonly string[]
+export const KNOWLEDGECARD_KIND_ORDER: readonly ('anim_rule' | 'element' | 'scene')[]
+export function kindOfEntry(entry: KnowledgecardEntryLike): 'anim_rule' | 'element' | 'scene'
 export const SLOT_MARKER_LABEL: Record<string, string>
 export const SELF_CHECK_HEADING: string
 export const WAKE_BY_TITLE_FOR_KEYLESS: boolean
@@ -181,30 +181,30 @@ export function parseKey(rawKey: unknown): ParsedKey
 export function matchKey(rawKey: string, text: PreparedText): { hit: boolean; error: string | null }
 export function prepareText(input: unknown): PreparedText
 export function scanKeys(keys: unknown, text: PreparedText): KeyScanResult
-export function evaluateSecondary(entry: WorldbookEntryLike, text: PreparedText, primaryHit: boolean): boolean
+export function evaluateSecondary(entry: KnowledgecardEntryLike, text: PreparedText, primaryHit: boolean): boolean
 export function entryMatches(
-  entry: WorldbookEntryLike,
+  entry: KnowledgecardEntryLike,
   text: PreparedText,
 ): { hit: boolean; primary: KeyScanResult; secondary: boolean; via: string | null; key: string | null }
 export function splitEntryContent(
-  entry: WorldbookEntryLike,
+  entry: KnowledgecardEntryLike,
   slot: string,
 ): { text: string; mode: 'full' | 'by-heading' | 'heading-missing'; warning: string | null }
 export function renderEntryBlock(slot: string, title: string, content: string): string
 /**
- * 第 8 期 L3：渲染一条词条的**示例段**（只在 `WORLDBOOK_EXAMPLE_BUDGET.slots` 里的槽位、
+ * 第 8 期 L3：渲染一条词条的**示例段**（只在 `KNOWLEDGECARD_EXAMPLE_BUDGET.slots` 里的槽位、
  * 且词条不是常驻时返回非空）。返回空串 = 这条不带示例。
  */
-export function renderExampleBlock(slot: string, entry: WorldbookEntryLike): string
+export function renderExampleBlock(slot: string, entry: KnowledgecardEntryLike): string
 export function renderInstructionBlock(label: string, instruction: string): string
-export function triggerWorldbook(input: {
-  entries?: WorldbookEntryLike[]
+export function triggerKnowledgecard(input: {
+  entries?: KnowledgecardEntryLike[]
   text?: string
   /** 第 5.7 期：模型的判定（两侧分发）。三者都可缺省 ⇒ 退化为纯字面 keys 触发 */
   concepts?: string[]
   tags?: string[]
   elements?: string[]
-  budget?: Partial<WorldbookBudget>
+  budget?: Partial<KnowledgecardBudget>
 }): TriggerResult
 export function buildSlotConditional(input: {
   slot?: string
@@ -213,19 +213,19 @@ export function buildSlotConditional(input: {
   segment?: string | null
 }): SlotConditional
 export function buildSlotPreview(input: {
-  entries?: WorldbookEntryLike[]
+  entries?: KnowledgecardEntryLike[]
   slot: string
   text?: string
-  budget?: Partial<WorldbookBudget>
+  budget?: Partial<KnowledgecardBudget>
   instruction?: string | null
   instructionLabel?: string | null
-}): { text: string; result: TriggerResult; worldbookText: string; wordCount: number }
-export function detectConflicts(entries?: WorldbookEntryLike[]): ConflictHint[]
+}): { text: string; result: TriggerResult; knowledgecardText: string; wordCount: number }
+export function detectConflicts(entries?: KnowledgecardEntryLike[]): ConflictHint[]
 /**
  * 触发词撞车检查（第 5.5 期 P2）：只比**主键**、只比"会被注入同一个槽位"的两条词条，
  * 且**只提示不阻断**。上百条词条并存时最容易翻车的地方（短词吃掉长词的题面）。
  */
-export function detectKeyCollisions(entries?: WorldbookEntryLike[]): Array<
+export function detectKeyCollisions(entries?: KnowledgecardEntryLike[]): Array<
   ConflictHint & { keys: string[]; kind: 'same' | 'subset' }
 >
 /**
@@ -234,20 +234,20 @@ export function detectKeyCollisions(entries?: WorldbookEntryLike[]): Array<
  * **元件命中但考点不相交 ⇒ 不命中**（防止"图上有弹簧"就教"弹簧振子"）。
  */
 export function matchByConcepts(
-  entry: WorldbookEntryLike,
+  entry: KnowledgecardEntryLike,
   judgement: { concepts?: string[]; tags?: string[]; elements?: string[] },
 ): { hit: boolean; via: string | null; matched: { concepts: string[]; tags: string[]; elements: string[] } }
 /**
  * 标签撞车（第 5.7 期）：两条词条**考点相交**且共用同一 `tags` 项 ⇒ 提示（不阻断）。
  * 判据里带"考点相交"是因为：考点不相交的两条词条永远不会同时进同一段上下文。
  */
-export function detectTagCollisions(entries?: WorldbookEntryLike[]): Array<
+export function detectTagCollisions(entries?: KnowledgecardEntryLike[]): Array<
   ConflictHint & { tag: string; concepts: string[] }
 >
 /**
  * 元件撞车（第 5.7 期）：两条词条的 `elements` 有交集 ⇒ 提示（不阻断）。
  * 与标签撞车不同，这条**不要求考点相交**：两条词条都教同一个元件怎么画，本身就是作者该知道的事。
  */
-export function detectElementCollisions(entries?: WorldbookEntryLike[]): Array<
+export function detectElementCollisions(entries?: KnowledgecardEntryLike[]): Array<
   ConflictHint & { element: string; concepts: string[] }
 >

@@ -153,7 +153,7 @@ async function main() {
     const found = markersIn(rel);
     /**
      * ⚠ v1.1.9alpha：设置页必须进发布包（它是唯一入口）。
-     *   只看"页面在"不够：页面在而存不了，等于没有这个能力（见 worldbook-save / restore-builtin）。
+     *   只看"页面在"不够：页面在而存不了，等于没有这个能力（见 knowledgecard-save / restore-builtin）。
      */
     check(
       '★ 发布构建产物里**没有** RulesPage / DistillPage（文件已删除，不是摇掉）',
@@ -164,8 +164,8 @@ async function main() {
     check('★ 发布构建里有设置页页签（知识卡 / 提示词卡 / 本地规则卡 / AI 帮写）', rel.includes('settings-tabs') && hasLabel(rel, '知识卡'));
     check('★ 发布构建导航里**没有**「写卡助手」占位（已并入设置页 AI 帮写）', !hasLabel(rel, '写卡助手'));
     /* v1.1.9：设置页要能真的存卡，并且每个发布版都带"恢复本版内置"的入口 */
-    check('★ 发布构建里有「保存到本机」动作（设置页不再只是内存预览）', rel.includes('worldbook-save'));
-    check('★ 发布构建里有「恢复本版内置」动作（每版都必须能一键恢复本版内置）', rel.includes('worldbook-restore-builtin'));
+    check('★ 发布构建里有「保存到本机」动作（设置页不再只是内存预览）', rel.includes('knowledgecard-save'));
+    check('★ 发布构建里有「恢复本版内置」动作（每版都必须能一键恢复本版内置）', rel.includes('knowledgecard-restore-builtin'));
     check('★ 编译期常量已被完全替换（没有残留 `__OD_RELEASE__`）', !rel.includes('__OD_RELEASE__'));
     check('发布产物更小（开发页真的没进发布包）', statSync(BUNDLE).size < devBytes, `${statSync(BUNDLE).size} vs ${devBytes}`);
     console.log(`      dev ${Math.round(devBytes / 1024)} KB → release ${Math.round(statSync(BUNDLE).size / 1024)} KB`);

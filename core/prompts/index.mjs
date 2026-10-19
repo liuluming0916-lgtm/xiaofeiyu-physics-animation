@@ -29,7 +29,7 @@ export {
   getPrompt,
   listPrompts,
   listExtensionPrompts,
-  /** 第 5.7 期：把判定词表（单源真相 = contracts/worldbook-concepts.json）渲染成注入 Prompt 的文本 */
+  /** 第 5.7 期：把判定词表（单源真相 = contracts/knowledgecard-concepts.json）渲染成注入 Prompt 的文本 */
   buildJudgementVocab,
 } from './templates.mjs';
 

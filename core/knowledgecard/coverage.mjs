@@ -36,7 +36,7 @@ export function checkEntryStructure(entry) {
 }
 
 /**
- * 把 `core/worldbook/coverage-target.json`（由 `tools/build-worldbook-targets.mjs` 从书上抽取）
+ * 把 `core/knowledgecard/coverage-target.json`（由 `tools/build-knowledgecard-targets.mjs` 从书上抽取）
  * 转成 `checkCoverage()` 用的 `target` 形状。
  *
  * **一个文件同时承担"目标"与"进度"**：`targets[].entryId` 填了就算覆盖。
@@ -100,7 +100,7 @@ export function checkCoverage({ entries = [], target = null } = {}) {
       ? '题型覆盖台账已退役（第 9 期开源版：不再按第三方教辅的题型记账）——只剩结构合规率这一个口径'
       : covered === null
         ? '缺少已覆盖题型清单（coveredIds）'
-        : `内容覆盖 ${covered}/${declared}，还差 ${declared - covered} 个题型（逐题型映射见 core/worldbook/coverage-target.json）`;
+        : `内容覆盖 ${covered}/${declared}，还差 ${declared - covered} 个题型（逐题型映射见 core/knowledgecard/coverage-target.json）`;
 
   return {
     /** 报告自身也要能解释"这是哪一期的状态" */

@@ -34,9 +34,9 @@ import {
   buildUserMessage,
 } from '../gateway/index.mjs';
 import { getPrompt, assemblePrompt, buildJudgementVocab } from '../prompts/index.mjs';
-import { triggerWorldbook, mergeWorldbookStages, worldbookHashOf } from '../worldbook/index.mjs';
-import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../worldbook/concepts.mjs';
-import { WORLDBOOK_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
+import { triggerKnowledgecard, mergeKnowledgecardStages, knowledgecardHashOf } from '../knowledgecard/index.mjs';
+import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledgecard/concepts.mjs';
+import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
 import { parseAnswersSlot } from '../../sdk/runtime/animation-runtime.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
 import { dryRun } from '../dryrun/dry-run.mjs';
@@ -62,14 +62,14 @@ import { PHASE5_STAGES, MODEL_STAGES, makeEvent } from './events.mjs';
 export function snapshotConfig(config) {
   // ⚠ 第 8 期：`mode` 不再从 config 取（数值/符号按条目走，见下面快照里的注释）
   // `devMode` = 用户的「开发模式（不拦截）」，也进快照（跑一半改它不该影响这一题）
-  const { prompts, endpoint, apiKey, regexRules, wallClockMs, stagedOverrides, maxRepairRounds, worldbookEntries, worldbookBudget, rulesSnapshot, devMode } = config;
+  const { prompts, endpoint, apiKey, regexRules, wallClockMs, stagedOverrides, maxRepairRounds, knowledgecardEntries, knowledgecardBudget, rulesSnapshot, devMode } = config;
 
   /**
    * 世界书集合进快照（第 5 期 · 16.4 第 2 条）。
    *
    * 为什么要**深拷贝 + 冻结**：§16 的热重载语义是"**下一题生效，正在跑的题保持原快照**"。
    * 若只存引用，调用方在解题途中改了词条（或那条 `keys` 数组），这一题的结果就会变 ——
-   * 而 `provenance.worldbookHash` 已经烧进了这一题的产物 ⇒ 哈希与实际注入对不上。
+   * 而 `provenance.knowledgecardHash` 已经烧进了这一题的产物 ⇒ 哈希与实际注入对不上。
    * 第 3 期的 『B』用例正是为了钉住这条语义，这里把世界书也纳进来。
    */
   const cloneEntry = (e) =>
@@ -82,7 +82,7 @@ export function snapshotConfig(config) {
         ? { secondary_keys: Object.freeze({ logic: e.secondary_keys.logic, list: Object.freeze([...(e.secondary_keys.list ?? [])]) }) }
         : {}),
     });
-  const worldbookList = Array.isArray(worldbookEntries) ? worldbookEntries.map(cloneEntry) : [];
+  const knowledgecardList = Array.isArray(knowledgecardEntries) ? knowledgecardEntries.map(cloneEntry) : [];
 
   /**
    * 第 6 期第 2 项：**规则快照里的 Prompt 覆盖**也进本题快照。
@@ -145,11 +145,11 @@ export function snapshotConfig(config) {
      *   （第 5 期之前的行为），后者是提供了但本题一条都没命中。二者在 UI 上必须可区分，
      *   否则"世界书没接上"会被显示成"这道题没有可用规范"。
      */
-    worldbook: Object.freeze({
-      entries: Object.freeze(worldbookList),
-      hash: worldbookHashOf(worldbookList),
-      budget: worldbookBudget ? Object.freeze({ ...worldbookBudget }) : null,
-      source: Array.isArray(worldbookEntries) ? 'provided' : 'empty',
+    knowledgecard: Object.freeze({
+      entries: Object.freeze(knowledgecardList),
+      hash: knowledgecardHashOf(knowledgecardList),
+      budget: knowledgecardBudget ? Object.freeze({ ...knowledgecardBudget }) : null,
+      source: Array.isArray(knowledgecardEntries) ? 'provided' : 'empty',
     }),
     snapshotAt: new Date().toISOString(),
     // 记下调用方传进来的 prompts 字段（第 6 期可编辑 Prompt 时会用到），本期恒为 undefined
@@ -172,10 +172,10 @@ export function snapshotConfig(config) {
  * @param {{ text: string, description?: string, knownConditions?: string }} input.problem 题面（+可选描述）
  * @param {Array<{mime:string, data:Buffer, name?:string}>} [input.images] 题目图片（§11.3 门控在调用前判定）
  * @param {object} input.config 端点等配置（会被 `snapshotConfig` 冻结）
- * @param {object[]} [input.config.worldbookEntries] 世界书词条集合（第 5 期）。
- *   由调用方用 `loadWorldbookOrThrow()` 从 `core/worldbook/data` + `ai-rules/worldbook/` 载入后传入；
+ * @param {object[]} [input.config.knowledgecardEntries] 世界书词条集合（第 5 期）。
+ *   由调用方用 `loadKnowledgecardOrThrow()` 从 `core/knowledgecard/data` + `ai-rules/knowledgecard/` 载入后传入；
  *   **不传 = `source:'empty'`**（第 5 期之前的行为），与"提供了但 0 条命中"是两件不同的事。
- * @param {object} [input.config.worldbookBudget] 覆盖 §9.2 的三重预算（测试用微型预算；生产用默认值）
+ * @param {object} [input.config.knowledgecardBudget] 覆盖 §9.2 的三重预算（测试用微型预算；生产用默认值）
  * @param {AbortSignal} [input.signal] 外部取消
  * @param {Function} [input.dryRunImpl] 可注入（测试用假 Dry-Run 时传）
  * @param {Function} [input.streamImpl] 可注入（测试用假网关时传）
@@ -222,9 +222,9 @@ export async function* runPipeline(input) {
    * 它们在 §9.2 的分槽组装里没有任何候选集。
    */
   const STAGE_SLOT = { solve: 'solve', scene_code: 'scene_code' };
-  /** @type {Record<string, object>} 阶段 → 该阶段的触发结果（逐阶段触发，理由见 worldbook/index.mjs） */
-  const worldbookResults = {};
-  const worldbookSegments = {};
+  /** @type {Record<string, object>} 阶段 → 该阶段的触发结果（逐阶段触发，理由见 knowledgecard/index.mjs） */
+  const knowledgecardResults = {};
+  const knowledgecardSegments = {};
   /** 组装过的 promptHash（固定前缀的属性；供 provenance 回填） */
   let promptHashSeen = null;
   /**
@@ -238,11 +238,11 @@ export async function* runPipeline(input) {
   /**
    * 第 5.7 期：**判定词表的单源真相**。
    *
-   * 词表来自 `contracts/spec/frozen-keys.mjs`（它从 `contracts/worldbook-concepts.json` 派生，
+   * 词表来自 `contracts/spec/frozen-keys.mjs`（它从 `contracts/knowledgecard-concepts.json` 派生，
    * 并有 `contracts/_compile.mjs` 的三条派生断言守着）—— 编排层**不持有第二份副本**。
    */
-  const judgementVocab = buildJudgementVocab(WORLDBOOK_CONCEPTS);
-  const vocabIndex = buildVocabIndex(WORLDBOOK_CONCEPTS);
+  const judgementVocab = buildJudgementVocab(KNOWLEDGECARD_CONCEPTS);
+  const vocabIndex = buildVocabIndex(KNOWLEDGECARD_CONCEPTS);
   /**
    * 第 5.7 期：**本次的判定**（两侧分发的输入）。
    *
@@ -253,10 +253,10 @@ export async function* runPipeline(input) {
   let judgementProblems = [];
   let judgementUnknowns = { concept: [], tag: [], element: [] };
 
-  const worldbookForStage = (stage) => {
+  const knowledgecardForStage = (stage) => {
     const slot = STAGE_SLOT[stage];
-    if (!slot || snapshot.worldbook.entries.length === 0) return { slot: slot ?? 'solve', text: '', result: null };
-    if (worldbookResults[stage]) return { slot, text: worldbookSegments[stage] ?? '', result: worldbookResults[stage] };
+    if (!slot || snapshot.knowledgecard.entries.length === 0) return { slot: slot ?? 'solve', text: '', result: null };
+    if (knowledgecardResults[stage]) return { slot, text: knowledgecardSegments[stage] ?? '', result: knowledgecardResults[stage] };
     /**
      * §9.2 的输入：题面文本 T（+ 上一步解题文本，用于第二遍扫描）**+ 模型的判定 J**（第 5.7 期）。
      *
@@ -278,18 +278,18 @@ export async function* runPipeline(input) {
       slot === 'scene_code' ? outputs.solve : null,
     ].filter((s) => typeof s === 'string' && s.trim());
     const scanText = corpus.join('\n');
-    const result = triggerWorldbook({
-      entries: snapshot.worldbook.entries,
+    const result = triggerKnowledgecard({
+      entries: snapshot.knowledgecard.entries,
       text: scanText,
       // 两侧分发的输入（缺省为空数组 ⇒ 退化为纯字面触发）
       concepts: judgement.concepts,
       tags: judgement.tags,
       elements: judgement.elements,
-      ...(snapshot.worldbook.budget ? { budget: snapshot.worldbook.budget } : {}),
+      ...(snapshot.knowledgecard.budget ? { budget: snapshot.knowledgecard.budget } : {}),
     });
-    worldbookResults[stage] = result;
-    worldbookSegments[stage] = result.text[slot] ?? '';
-    return { slot, text: worldbookSegments[stage], result };
+    knowledgecardResults[stage] = result;
+    knowledgecardSegments[stage] = result.text[slot] ?? '';
+    return { slot, text: knowledgecardSegments[stage], result };
   };
 
   yield emit('run_start', {
@@ -389,14 +389,14 @@ export async function* runPipeline(input) {
          *     （第 5 期起它有了**自己的标签**：此前它与世界书词条共用同一个标记，
          *      导致溯源分不清"这条是词条还是阶段指令"）；
          *   · **命中的世界书词条**（§9.2）→ 条件段里的 `【世界书·…：<title>】` 块，
-         *     文本由引擎渲染好（`worldbookSegment`），编排层**不再自己拼**；
+         *     文本由引擎渲染好（`knowledgecardSegment`），编排层**不再自己拼**；
          *   · **本阶段的输入**（题面 / 前序阶段产物）→ 任务段。
          *
          * 这里刻意**不新写一套组装逻辑**：复用 `assemblePrompt()`，
          * 这样"图片只进任务段""前缀不含题目"这两条不变式由同一个函数保证，
          * 不会出现"编排里另有一套组装、绕过了前缀约束"的漏洞。
          */
-        const wb = worldbookForStage(stage);
+        const wb = knowledgecardForStage(stage);
         const assembled = assemblePrompt({
           problem: {
             text: prompt.buildUser(resolved),
@@ -407,7 +407,7 @@ export async function* runPipeline(input) {
           instructions: prompt.system,
           instructionLabel: prompt.label,
           stageSlot: wb.slot,
-          worldbookSegment: wb.text,
+          knowledgecardSegment: wb.text,
           // 第 9 期：前缀按阶段取 —— 只有写代码的阶段才带模板骨架与 SDK 摘要
           stage,
         });
@@ -504,11 +504,11 @@ export async function* runPipeline(input) {
        *   ② **格式坏掉不抛异常**：进 `problems`，判定退化为空 ⇒ 触发退化为纯字面 keys，其余流程照常；
        *   ③ **空判定合法**：一个考点都没判出来不算错。
        *
-       * ⚠ 留痕是**硬要求**（计划 §5 S4 第 4 项）：`worldbook_done` 要带上"判了哪些考点/题型/元件 + 表外词"。
+       * ⚠ 留痕是**硬要求**（计划 §5 S4 第 4 项）：`knowledgecard_done` 要带上"判了哪些考点/题型/元件 + 表外词"。
        *   没有这条，"模型判错了什么"在 UI 上完全看不见，S1 那种人工复核就没法在真实运行里做。
        */
       if (stage === 'read_problem') {
-        const parsed = parseJudgement(text, { vocab: WORLDBOOK_CONCEPTS, index: vocabIndex });
+        const parsed = parseJudgement(text, { vocab: KNOWLEDGECARD_CONCEPTS, index: vocabIndex });
         judgement = { concepts: parsed.concepts, tags: parsed.tags, elements: parsed.elements };
         judgementProblems = parsed.problems;
         judgementUnknowns = summarizeUnknowns(parsed);
@@ -539,13 +539,13 @@ export async function* runPipeline(input) {
      * ⚠ 事件里**不带**词条正文（每条槽最多 30000 字符正文 + 10000 字符示例，那是给模型的，不是给 UI 的）：
      *   带上标题、命中方式、实际注入槽位、字符数与截断标记就够 §15 的面板用。
      */
-    if (snapshot.worldbook.source === 'provided') {
-      const mergedWb = mergeWorldbookStages({
-        solveRes: worldbookResults.solve ?? null,
-        sceneRes: worldbookResults.scene_code ?? null,
-        entries: snapshot.worldbook.entries,
+    if (snapshot.knowledgecard.source === 'provided') {
+      const mergedWb = mergeKnowledgecardStages({
+        solveRes: knowledgecardResults.solve ?? null,
+        sceneRes: knowledgecardResults.scene_code ?? null,
+        entries: snapshot.knowledgecard.entries,
       });
-      yield emit('worldbook_done', {
+      yield emit('knowledgecard_done', {
         hash: mergedWb.hash,
         libraryCount: mergedWb.entries,
         matched: mergedWb.matched,
@@ -594,7 +594,7 @@ export async function* runPipeline(input) {
           promptHash: promptHashSeen,
           // 第 5 期：不再写 'empty-phase3' 这个**假值**。空集合也算出一个真哈希，
           //   这样"世界书没接上"与"世界书是空的"在产物里可区分（README 的 B2 挂账在此收口）。
-          worldbookHash: snapshot.worldbook.hash,
+          knowledgecardHash: snapshot.knowledgecard.hash,
           generatedAt: new Date().toISOString(),
         },
       });
@@ -814,7 +814,7 @@ export async function* runPipeline(input) {
         const resolved = { repairTask };
         const assembled = assemblePrompt({
           problem: { text: prompt.buildUser(resolved) },
-          worldbookEntries: [{ title: prompt.label, content: prompt.system }],
+          knowledgecardEntries: [{ title: prompt.label, content: prompt.system }],
           // 自愈要重写槽位代码 ⇒ 必须拿**完整前缀**（角色 + 模板骨架 + SDK 摘要）
           stage: 'repair',
         });
@@ -1075,7 +1075,7 @@ function emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics, roun
       mode: report.execution?.mode ?? 'BOTH',
       templateVersion: report.meta?.templateVersion ?? null,
       // 第 5 期：**把 Provenance 一起发出去**。§14 要求导出 HTML 必须烧录它
-      // （模板/SDK 版本 + 模型 + promptHash + worldbookHash），而导出用的正是这份载荷。
+      // （模板/SDK 版本 + 模型 + promptHash + knowledgecardHash），而导出用的正是这份载荷。
       // 少了它，导出产物就无法回答"它是用哪套规则生成的"。
       provenance: program.provenance ?? null,
     },

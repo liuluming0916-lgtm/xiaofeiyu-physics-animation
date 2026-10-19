@@ -35,8 +35,8 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
  *
  * 两类：
  *   ① **非 JS 资源**（`./styles.css` 等）：`tsc` 只转译代码，不会复制 CSS；
- *   ② **构建期生成、但 `tsc` 不会转译的 `.js`**（第 5 期的 `worldbook-engine.js`
- *      —— 它是 `core/worldbook/engine.mjs` 的逐字节副本，故意不是 `.ts`，
+ *   ② **构建期生成、但 `tsc` 不会转译的 `.js`**（第 5 期的 `knowledgecard-engine.js`
+ *      —— 它是 `core/knowledgecard/engine.mjs` 的逐字节副本，故意不是 `.ts`，
  *      这样"预览器与编排跑同一份字节"才是结构性的，而不是"两份写得一样"）。
  *
  * 实现按路径段替换 `.../.build/...` → `.../src/...`，**不做字符串正则**，
@@ -55,7 +55,7 @@ function redirectAssetsToSrc() {
       const idx = dir.lastIndexOf('.build')
       if (idx === -1) return null
       // ⚠ 必须用**完整相对路径**去解析（`resolve`），不能只取 `basename`：
-      //   第 5 期的 `../lib/worldbook-engine.js` 一带上目录就解析不到了 ——
+      //   第 5 期的 `../lib/knowledgecard-engine.js` 一带上目录就解析不到了 ——
       //   而报错是 Rollup 的 "Could not resolve"，完全指不到"这里少拼了一段路径"。
       const srcDir = [...dir.slice(0, idx), 'src', ...dir.slice(idx + 1)].join(sep)
       const fromSrc = resolve(srcDir, source)

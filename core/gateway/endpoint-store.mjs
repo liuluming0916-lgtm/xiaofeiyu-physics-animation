@@ -181,16 +181,20 @@ export function loadEndpointStore({ dir } = {}) {
   }
 
   /**
-   * v1.1.9alpha：`distill` 阶段已删除。旧 `endpoints.json` 里若还有这个键，
-   * 读时丢掉并报警（下一次保存会真正清掉），避免整份配置因 unknown-stage 打不开。
+   * v1.1.9alpha：`distill` 删除、`worldbook` 改名 `knowledgecard`。
+   * 旧 `endpoints.json` 里的这些键读时迁移并报警（下一次保存会真正写回新键），
+   * 避免整份配置因 unknown-stage 打不开。
    */
   const legacy = normalizeLegacyStageModels(parsed?.stageModels);
   for (const d of legacy.dropped) {
     warnings.push({
-      code: 'endpoints.legacy-stage-dropped',
+      code: d.action === 'rename' ? 'endpoints.legacy-stage-migrated' : 'endpoints.legacy-stage-dropped',
       path: `stageModels.${d.stage}`,
-      message: `旧阶段 "${d.stage}" 已删除，已忽略：${d.reason}`,
-      hint: '下一次保存端点配置时会把磁盘上的这个键清掉；无需手工编辑',
+      message:
+        d.action === 'rename'
+          ? `旧阶段 "${d.stage}" 已改名为 "${d.to}"，读时已迁移：${d.reason}`
+          : `旧阶段 "${d.stage}" 已删除，已忽略：${d.reason}`,
+      hint: '下一次保存端点配置时会把磁盘上的旧键清掉；无需手工编辑',
     });
   }
 

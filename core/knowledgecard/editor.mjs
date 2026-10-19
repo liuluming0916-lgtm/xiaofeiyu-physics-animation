@@ -1,14 +1,14 @@
 /**
  * 世界书的**可写入口**（第 6 期第 5 项的补齐 · §9.3 / §9.5 / §16）。
  *
- * 以前 `ai-rules/worldbook/` 只能通过导出包 + 手动放文件来写（README 里写着"需要一个本地服务"）。
+ * 以前 `ai-rules/knowledgecard/` 只能通过导出包 + 手动放文件来写（README 里写着"需要一个本地服务"）。
  * 现在有了本机服务，这一层就是那个"服务端能写"的部分 —— 但它**只写用户目录**：
  *
- *   `core/worldbook/data/`   —— 内置词条，**只读**（升级会换掉）。要改某条 = 生成一份覆盖副本。
- *   `ai-rules/worldbook/`    —— 用户词条与覆盖副本，**这里才可写**。
+ *   `core/knowledgecard/data/`   —— 内置词条，**只读**（升级会换掉）。要改某条 = 生成一份覆盖副本。
+ *   `ai-rules/knowledgecard/`    —— 用户词条与覆盖副本，**这里才可写**。
  *
  * 三条口径：
- *   ① 一个文件 = 一个导出包（`{format:'od-worldbook', version:1, entries:[…]}`），与"导出词条"按钮产出的格式完全一致；
+ *   ① 一个文件 = 一个导出包（`{format:'od-knowledgecard', version:1, entries:[…]}`），与"导出词条"按钮产出的格式完全一致；
  *   ② 写入前先按 §9.1 校验每一条词条（`writeUserPack` 里做），**任何一条不合法就整批不写**；
  *   ③ 文件名只允许 `字母数字._-` 且必须以 `.json` 结尾 —— 挡掉路径穿越（`../x.json`）与隐藏文件。
  */
@@ -22,7 +22,10 @@ import { backupFile } from '../rules/backup.mjs';
 import { planRestoreDefault } from './governance.mjs';
 import {
   PACK_FORMAT,
+  PACK_FORMAT_LEGACY,
+  PACK_FORMATS,
   PACK_VERSION,
+  LEGACY_ENTRY_ID_MAP,
   USER_DIR,
   canonicalizeEntry,
   listUserFiles,
@@ -41,7 +44,7 @@ export function checkPackName(name) {
   const n = String(name ?? '');
   if (!PACK_NAME_RE.test(n) || n.includes('/') || n.includes('\\') || n.startsWith('.')) {
     return err(
-      'worldbook.bad-name',
+      'knowledgecard.bad-name',
       'name',
       `文件名 "${n}" 不合法`,
       '只允许字母数字 . _ -，必须以 .json 结尾，不能带路径（例如 my-entries.json）',
@@ -55,7 +58,7 @@ export function checkPackName(name) {
  *
  * @param {{ dir?: string }} [opts]
  */
-export function listWorldbookPacks({ dir = USER_DIR } = {}) {
+export function listKnowledgecardPacks({ dir = USER_DIR } = {}) {
   const packs = listUserFiles(dir).map(({ name, bytes, path }) => {
     const text = readFileSync(path, 'utf8');
     const parsed = parseEntryFile(text, name);
@@ -72,13 +75,13 @@ export function listWorldbookPacks({ dir = USER_DIR } = {}) {
 }
 
 /** 读某一份包的原文（编辑用） */
-export function readWorldbookPack({ dir = USER_DIR, name } = {}) {
+export function readKnowledgecardPack({ dir = USER_DIR, name } = {}) {
   const bad = checkPackName(name);
   if (bad) return { ok: false, issues: [bad] };
 
   const file = listUserFiles(dir).find((f) => f.name === name);
   if (!file) {
-    return { ok: false, issues: [err('worldbook.not-found', name, `没有这个导出包：${name}`, '先点"新建"或"从内置复制一条"')] };
+    return { ok: false, issues: [err('knowledgecard.not-found', name, `没有这个导出包：${name}`, '先点"新建"或"从内置复制一条"')] };
   }
   const text = readFileSync(file.path, 'utf8');
   const parsed = parseEntryFile(text, name);
@@ -90,7 +93,7 @@ export function readWorldbookPack({ dir = USER_DIR, name } = {}) {
  *
  * @param {{ dir?: string, name: string, text: string }} opts
  */
-export function saveWorldbookPack({ dir = USER_DIR, name, text } = {}) {
+export function saveKnowledgecardPack({ dir = USER_DIR, name, text } = {}) {
   const bad = checkPackName(name);
   if (bad) return { ok: false, issues: [bad] };
 
@@ -100,20 +103,29 @@ export function saveWorldbookPack({ dir = USER_DIR, name, text } = {}) {
     raw = JSON.parse(src);
   } catch (e) {
     const d = describeJsonError(src, e);
-    return { ok: false, issues: [err('worldbook.bad-json', name, d.message, d.hint)] };
+    return { ok: false, issues: [err('knowledgecard.bad-json', name, d.message, d.hint)] };
   }
 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ok: false, issues: [err('worldbook.not-object', name, '导出包必须是一个对象：{format, version, entries}')] };
+    return { ok: false, issues: [err('knowledgecard.not-object', name, '导出包必须是一个对象：{format, version, entries}')] };
   }
-  if (raw.format !== PACK_FORMAT) {
-    return { ok: false, issues: [err('worldbook.bad-format', `${name}:format`, `format 必须是 "${PACK_FORMAT}"，当前 ${JSON.stringify(raw.format)}`)] };
+  if (!PACK_FORMATS.includes(raw.format)) {
+    return {
+      ok: false,
+      issues: [
+        err(
+          'knowledgecard.bad-format',
+          `${name}:format`,
+          `format 必须是 "${PACK_FORMAT}" 或兼容的 "${PACK_FORMAT_LEGACY}"，当前 ${JSON.stringify(raw.format)}`,
+        ),
+      ],
+    };
   }
   if (raw.version !== PACK_VERSION) {
-    return { ok: false, issues: [err('worldbook.bad-version', `${name}:version`, `不支持的版本 ${JSON.stringify(raw.version)}`, `本版只支持 version = ${PACK_VERSION}`)] };
+    return { ok: false, issues: [err('knowledgecard.bad-version', `${name}:version`, `不支持的版本 ${JSON.stringify(raw.version)}`, `本版只支持 version = ${PACK_VERSION}`)] };
   }
   if (!Array.isArray(raw.entries)) {
-    return { ok: false, issues: [err('worldbook.entries.not-array', `${name}:entries`, 'entries 必须是数组')] };
+    return { ok: false, issues: [err('knowledgecard.entries.not-array', `${name}:entries`, 'entries 必须是数组')] };
   }
 
   try {
@@ -127,30 +139,30 @@ export function saveWorldbookPack({ dir = USER_DIR, name, text } = {}) {
     const problems = raw.map((p) => String(p).replace(/user\[(\d+)\]/g, (_, i) => `第 ${Number(i) + 1} 条词条`));
     return {
       ok: false,
-      issues: problems.map((p) => err('worldbook.entry-invalid', name, p, '这一条不会被写入；请按 §9.1 的字段与枚举改')),
+      issues: problems.map((p) => err('knowledgecard.entry-invalid', name, p, '这一条不会被写入；请按 §9.1 的字段与枚举改')),
     };
   }
   return { ok: true, name, count: raw.entries.length };
 }
 
 /** 新建一份空包（entries: []） */
-export function createWorldbookPack({ dir = USER_DIR, name } = {}) {
+export function createKnowledgecardPack({ dir = USER_DIR, name } = {}) {
   const bad = checkPackName(name);
   if (bad) return { ok: false, issues: [bad] };
   if (listUserFiles(dir).some((f) => f.name === name)) {
-    return { ok: false, issues: [err('worldbook.exists', name, `已经有 ${name} 了`, '换个文件名，或直接打开它编辑')] };
+    return { ok: false, issues: [err('knowledgecard.exists', name, `已经有 ${name} 了`, '换个文件名，或直接打开它编辑')] };
   }
-  const r = saveWorldbookPack({ dir, name, text: `${JSON.stringify({ format: PACK_FORMAT, version: PACK_VERSION, entries: [] }, null, 2)}\n` });
+  const r = saveKnowledgecardPack({ dir, name, text: `${JSON.stringify({ format: PACK_FORMAT, version: PACK_VERSION, entries: [] }, null, 2)}\n` });
   if (!r.ok) return r;
   return { ok: true, name, count: 0 };
 }
 
 /** 删除一份包（"恢复默认"= 删掉覆盖副本，内置原样生效） */
-export function deleteWorldbookPack({ dir = USER_DIR, name } = {}) {
+export function deleteKnowledgecardPack({ dir = USER_DIR, name } = {}) {
   const bad = checkPackName(name);
   if (bad) return { ok: false, issues: [bad] };
   const r = removeUserFile(dir, name);
-  if (!r.removed) return { ok: false, issues: [err('worldbook.not-found', name, `没有这个导出包：${name}`)] };
+  if (!r.removed) return { ok: false, issues: [err('knowledgecard.not-found', name, `没有这个导出包：${name}`)] };
   return { ok: true, name };
 }
 
@@ -164,12 +176,12 @@ export function deleteWorldbookPack({ dir = USER_DIR, name } = {}) {
  *   · 整包都是覆盖副本 ⇒ 备份后删掉整个文件（否则会留下一个空包）。
  *
  * 为什么这就是"该版本发布时的内置"：内置层在发行产物里读的是**编译进代码的常量**
- * （`builtin-bundle.generated.mjs`，构建期从 `core/worldbook/data/` 生成）。
+ * （`builtin-bundle.generated.mjs`，构建期从 `core/knowledgecard/data/` 生成）。
  * 所以每个版本装出来的程序，按这个按钮恢复到的就是**它自己那一版**的内置，不会串版。
  *
  * @param {{ dir?: string }} [opts]
  */
-export function restoreBuiltinWorldbook({ dir = USER_DIR } = {}) {
+export function restoreBuiltinKnowledgecard({ dir = USER_DIR } = {}) {
   const builtin = listBuiltinEntries();
   const builtinIds = builtin.entries.map((e) => e.id);
 
@@ -183,7 +195,15 @@ export function restoreBuiltinWorldbook({ dir = USER_DIR } = {}) {
       problems.push(...parsed.problems.map((p) => `${f.name}: ${p}`));
       continue;
     }
-    packs.push({ name: f.name, entries: parsed.entries.map((e) => ({ ...e, origin: 'user' })) });
+    packs.push({
+      name: f.name,
+      entries: parsed.entries.map((e) => {
+        const mapped = LEGACY_ENTRY_ID_MAP[e.id];
+        const out = { ...e, id: mapped ?? e.id, origin: 'user' };
+        if (mapped && out.kind === undefined) out.kind = 'anim_rule';
+        return out;
+      }),
+    });
   }
 
   const plan = planRestoreDefault({
@@ -259,7 +279,7 @@ export function listBuiltinEntries() {
 export function readBuiltinEntry(id) {
   const lib = loadLibrary({ userDir: join(tmpdir(), 'od-no-such-userdir') });
   const e = lib.builtin.find((x) => x.id === id);
-  if (!e) return { ok: false, issues: [err('worldbook.builtin-not-found', 'id', `内置库里没有词条 "${id}"`)] };
+  if (!e) return { ok: false, issues: [err('knowledgecard.builtin-not-found', 'id', `内置库里没有词条 "${id}"`)] };
   return { ok: true, entry: canonicalizeEntry(e) };
 }
 
@@ -273,7 +293,7 @@ export function copyBuiltinEntry({ dir = USER_DIR, id, name } = {}) {
   const r = readBuiltinEntry(id);
   if (!r.ok) return r;
   const fileName = name ?? `${String(id).replace(/[^A-Za-z0-9._-]/g, '_')}.json`;
-  const saved = saveWorldbookPack({
+  const saved = saveKnowledgecardPack({
     dir,
     name: fileName,
     text: `${JSON.stringify({ format: PACK_FORMAT, version: PACK_VERSION, entries: [r.entry] }, null, 2)}\n`,

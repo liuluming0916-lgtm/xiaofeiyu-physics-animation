@@ -86,15 +86,15 @@ import {
 } from '../core/gateway/index.mjs';
 import {
   copyBuiltinEntry,
-  createWorldbookPack,
-  deleteWorldbookPack,
+  createKnowledgecardPack,
+  deleteKnowledgecardPack,
   listBuiltinEntries,
-  listWorldbookPacks,
+  listKnowledgecardPacks,
   readBuiltinEntry,
-  readWorldbookPack,
-  restoreBuiltinWorldbook,
-  saveWorldbookPack,
-} from '../core/worldbook/index.mjs';
+  readKnowledgecardPack,
+  restoreBuiltinKnowledgecard,
+  saveKnowledgecardPack,
+} from '../core/knowledgecard/index.mjs';
 /* 第 7 期 M17：导出产物（网页 / GIF）落盘与清单。
    ⚠ 落盘一律走这个服务的**同一个端口**（§16 的"唯一浏览器↔磁盘通道"）；
      另起端口就得放宽 CORS，Origin 校验等于白做。 */
@@ -105,7 +105,7 @@ import { EXPORT_DIR, exportPageToDisk, listExports, saveExportBinary } from '../
  */
 import { runPipeline } from '../core/orchestrator/pipeline.mjs';
 import { makeEvent, toSseFrame } from '../core/orchestrator/events.mjs';
-import { loadLibrary } from '../core/worldbook/store.mjs';
+import { loadLibrary, migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -321,6 +321,8 @@ export function createRulesService({
   dryRunImpl = null,
 } = {}) {
   const dir = root;
+  // v1.1.9alpha：旧 ai-rules/worldbook/ 的包复制到 ai-rules/knowledgecard/（旧目录保留）
+  migrateLegacyUserDir({ dir: join(dir, 'knowledgecard'), legacyDir: join(dir, 'worldbook') });
   /** 观测目录（M22）：默认 `observability/`，可用 `OD_OBS_DIR` 或构造参数改（测试用） */
   const OBS_DIR = obsDir ?? resolveObsDir();
   /** 历史库（M23）：默认 `data/history.db`，可用 `OD_HISTORY_PATH` 或构造参数改（测试用） */
@@ -422,10 +424,10 @@ export function createRulesService({
     }
 
     /* 世界书：内置 + 用户（用户层永远落盘，打包形态下也一样） */
-    let worldbookEntries = [];
+    let knowledgecardEntries = [];
     try {
-      const lib = loadLibrary({ userDir: join(dir, 'worldbook') });
-      worldbookEntries = [...lib.builtin, ...lib.user];
+      const lib = loadLibrary({ userDir: join(dir, 'knowledgecard') });
+      knowledgecardEntries = [...lib.builtin, ...lib.user];
     } catch {
       /* 世界书读不到不该让整道题失败 —— 它只是上下文增强 */
     }
@@ -435,7 +437,7 @@ export function createRulesService({
       apiKey,
       regexRules: [],
       mode,
-      worldbookEntries,
+      knowledgecardEntries,
       /**
        * 第 8 期：**开发模式（不拦截）**。前端勾上后随 `/api/run` 传 `devMode:true`：
        * 校验照做、报告照写，但 C1–C9 不再拦住交付（也不跑自愈），
@@ -693,7 +695,7 @@ export function createRulesService({
           mode: body.mode,
           model: body.model,
           promptHash: body.promptHash,
-          worldbookHash: body.worldbookHash,
+          knowledgecardHash: body.knowledgecardHash,
           /* C2：避让表随导出烧进页面（可选；旧调用方不传 = 不挪字） */
           labelAvoid: body.labelAvoid ?? null,
           /**
@@ -917,26 +919,26 @@ export function createRulesService({
         return bad(res, [{ code: 'http.method', path, message: `不支持的方法 ${req.method}` }], 405);
       }
 
-      /* ── 世界书（只写 ai-rules/worldbook/；内置只读） ── */
-      if (path.startsWith('/api/worldbook')) {
-        const wbDir = join(dir, 'worldbook');
+      /* ── 世界书（只写 ai-rules/knowledgecard/；内置只读） ── */
+      if (path.startsWith('/api/knowledgecard')) {
+        const wbDir = join(dir, 'knowledgecard');
 
-        if (req.method === 'GET' && path === '/api/worldbook') {
-          const listed = listWorldbookPacks({ dir: wbDir });
+        if (req.method === 'GET' && path === '/api/knowledgecard') {
+          const listed = listKnowledgecardPacks({ dir: wbDir });
           const builtin = listBuiltinEntries();
           return ok(res, { dir: wbDir, ...listed, builtinCount: builtin.count, builtinIds: builtin.entries.map((e) => e.id) });
         }
-        if (req.method === 'GET' && path === '/api/worldbook/builtin') {
+        if (req.method === 'GET' && path === '/api/knowledgecard/builtin') {
           const b = listBuiltinEntries();
           return ok(res, b);
         }
-        const builtinOne = /^\/api\/worldbook\/builtin\/([A-Za-z0-9._-]+)$/.exec(path);
+        const builtinOne = /^\/api\/knowledgecard\/builtin\/([A-Za-z0-9._-]+)$/.exec(path);
         if (req.method === 'GET' && builtinOne) {
           const r = readBuiltinEntry(builtinOne[1]);
           if (!r.ok) return bad(res, r.issues, 404);
           return ok(res, r);
         }
-        if (req.method === 'POST' && path === '/api/worldbook/copy') {
+        if (req.method === 'POST' && path === '/api/knowledgecard/copy') {
           const body = await readJson(req);
           const r = copyBuiltinEntry({ dir: wbDir, id: String(body.id ?? ''), name: body.name });
           if (!r.ok) return bad(res, r.issues, 400);
@@ -949,31 +951,31 @@ export function createRulesService({
          * 部分失败也返回 200 + `ok:false` + `problems`：界面要能把"恢复了几条、哪个文件没动"说清，
          * 不能因为一个坏文件就把已经成功的恢复说成整体失败。
          */
-        if (req.method === 'POST' && path === '/api/worldbook/restore') {
-          return ok(res, restoreBuiltinWorldbook({ dir: wbDir }));
+        if (req.method === 'POST' && path === '/api/knowledgecard/restore') {
+          return ok(res, restoreBuiltinKnowledgecard({ dir: wbDir }));
         }
-        if (req.method === 'POST' && path === '/api/worldbook/packs') {
+        if (req.method === 'POST' && path === '/api/knowledgecard/packs') {
           const body = await readJson(req);
-          const r = createWorldbookPack({ dir: wbDir, name: String(body.name ?? '') });
+          const r = createKnowledgecardPack({ dir: wbDir, name: String(body.name ?? '') });
           if (!r.ok) return bad(res, r.issues, 400);
           return ok(res, r);
         }
-        const packMatch = /^\/api\/worldbook\/packs\/([A-Za-z0-9._-]+)$/.exec(path);
+        const packMatch = /^\/api\/knowledgecard\/packs\/([A-Za-z0-9._-]+)$/.exec(path);
         if (packMatch) {
           const name = packMatch[1];
           if (req.method === 'GET') {
-            const r = readWorldbookPack({ dir: wbDir, name });
+            const r = readKnowledgecardPack({ dir: wbDir, name });
             if (!r.ok) return bad(res, r.issues, 404);
             return ok(res, r);
           }
           if (req.method === 'PUT') {
             const body = await readJson(req);
-            const r = saveWorldbookPack({ dir: wbDir, name, text: String(body.text ?? '') });
+            const r = saveKnowledgecardPack({ dir: wbDir, name, text: String(body.text ?? '') });
             if (!r.ok) return bad(res, r.issues, 400);
             return ok(res, r);
           }
           if (req.method === 'DELETE') {
-            const r = deleteWorldbookPack({ dir: wbDir, name });
+            const r = deleteKnowledgecardPack({ dir: wbDir, name });
             if (!r.ok) return bad(res, r.issues, 400);
             return ok(res, r);
           }

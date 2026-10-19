@@ -13,8 +13,8 @@
  * 用法：node tools/_wb-measure.mjs
  */
 
-import { loadLibrary } from '../core/worldbook/store.mjs';
-import { buildSlotPreview } from '../core/worldbook/engine.mjs';
+import { loadLibrary } from '../core/knowledgecard/store.mjs';
+import { buildSlotPreview } from '../core/knowledgecard/engine.mjs';
 
 const lib = loadLibrary();
 
@@ -45,7 +45,7 @@ for (const p of PROBLEMS) {
   console.log(`\n──────── ${p.name} ────────`);
   let total = 0;
   for (const slot of ['solve', 'scene_code']) {
-    const { worldbookText, result } = buildSlotPreview({
+    const { knowledgecardText, result } = buildSlotPreview({
       entries: lib.entries,
       slot,
       text: p.text,
@@ -57,7 +57,7 @@ for (const p of PROBLEMS) {
     const hits = (result.provenance ?? [])
       .filter((x) => (x.injectedSlots ?? []).includes(slot))
       .map((x) => x.entry_id);
-    const chars = worldbookText.length;
+    const chars = knowledgecardText.length;
     total += chars;
     console.log(
       `  ${slot.padEnd(11)} ${fmt(chars)} 字 · 命中 ${String(hits.length).padStart(2)} 条 · ${hits.join(', ') || '（无）'}`,
@@ -86,13 +86,13 @@ let zero = 0;
 for (const f of files) {
   const mod = await import(pathToFileURL(join(QDIR, f)).href);
   const text = String(mod.default?.slots?.PROBLEM ?? '');
-  const { worldbookText, result } = buildSlotPreview({ entries: lib.entries, slot: 'solve', text });
+  const { knowledgecardText, result } = buildSlotPreview({ entries: lib.entries, slot: 'solve', text });
   const hits = (result.provenance ?? [])
     .filter((x) => (x.injectedSlots ?? []).includes('solve'))
     .map((x) => x.entry_id);
   if (!hits.length) zero += 1;
   for (const id of hits) tally.set(id, (tally.get(id) ?? 0) + 1);
-  console.log(`  ${f.replace('.mjs', '').padEnd(34)} ${String(hits.length).padStart(2)} 张 · ${String(worldbookText.length).padStart(5)} 字 · ${hits.join(', ') || '（无）'}`);
+  console.log(`  ${f.replace('.mjs', '').padEnd(34)} ${String(hits.length).padStart(2)} 张 · ${String(knowledgecardText.length).padStart(5)} 字 · ${hits.join(', ') || '（无）'}`);
 }
 console.log(`\n  一张都没命中的题：${zero} / ${files.length}`);
 console.log('  各规范卡命中题数（低到高，用来判断哪几条该改回常驻）：');

@@ -47,8 +47,11 @@ try {
   driverError = String(e?.message ?? e);
 }
 
-/** 表结构版本（改结构就加 1，`ensureSchema()` 会据此迁移） */
-export const SCHEMA_VERSION = 1;
+/**
+ * 表结构版本（改结构就加 1，`ensureSchema()` 会据此迁移）。
+ * v2：`worldbook_hash` → `knowledgecard_hash`（v1.1.9alpha 改名）。
+ */
+export const SCHEMA_VERSION = 2;
 
 /** 默认库文件（`OD_HISTORY_PATH` 可整个改掉；Electron 壳以后会指到 %APPDATA%） */
 export function historyPath({ path } = {}) {
@@ -119,10 +122,10 @@ export function ensureSchema(db) {
         model            TEXT,
         mode             TEXT,
         prompt_hash      TEXT,
-        worldbook_hash   TEXT,
+        knowledgecard_hash   TEXT,
         image_count      INTEGER DEFAULT 0,
         tokens_est       INTEGER DEFAULT 0,
-        worldbook_matched INTEGER DEFAULT 0,
+        knowledgecard_matched INTEGER DEFAULT 0,
         checks_pass      INTEGER DEFAULT 0,
         checks_warn      INTEGER DEFAULT 0,
         checks_fail      INTEGER DEFAULT 0,
@@ -157,13 +160,28 @@ export function ensureSchema(db) {
       CREATE INDEX IF NOT EXISTS idx_audit_kind ON audit_log (kind);
     `);
 
+    /**
+     * v2 迁移：老库的 runs 表列名还是 `worldbook_hash`。
+     * `CREATE TABLE IF NOT EXISTS` 不会改已有表，所以这里显式 RENAME；
+     * 新库已经是 `knowledgecard_hash`，不会命中。
+     */
+    const cols = db.prepare('PRAGMA table_info(runs)').all().map((c) => c.name);
+    if (cols.includes('worldbook_hash') && !cols.includes('knowledgecard_hash')) {
+      db.exec('ALTER TABLE runs RENAME COLUMN worldbook_hash TO knowledgecard_hash');
+    }
+    if (cols.includes('worldbook_matched') && !cols.includes('knowledgecard_matched')) {
+      db.exec('ALTER TABLE runs RENAME COLUMN worldbook_matched TO knowledgecard_matched');
+    }
+
     const row = db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version');
     if (!row) {
       db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run('schema_version', String(SCHEMA_VERSION));
       return { created: true };
     }
-    // 未来的迁移从这里往下接；现在只有 v1
-    return { created: false, version: Number(row.value) };
+    if (Number(row.value) < SCHEMA_VERSION) {
+      db.prepare('UPDATE meta SET value = ? WHERE key = ?').run(String(SCHEMA_VERSION), 'schema_version');
+    }
+    return { created: false, version: SCHEMA_VERSION };
   });
 
   const r = txn();
@@ -196,12 +214,12 @@ export function recordRun(record, { path, secrets = null, now = null } = {}) {
 
   const insertRun = opened.db.prepare(`
     INSERT OR REPLACE INTO runs
-      (run_id, created_at, entry, verdict, ms, model, mode, prompt_hash, worldbook_hash,
-       image_count, tokens_est, worldbook_matched, checks_pass, checks_warn, checks_fail,
+      (run_id, created_at, entry, verdict, ms, model, mode, prompt_hash, knowledgecard_hash,
+       image_count, tokens_est, knowledgecard_matched, checks_pass, checks_warn, checks_fail,
        failed_ids, stages_json, record_json)
     VALUES
-      (@run_id, @created_at, @entry, @verdict, @ms, @model, @mode, @prompt_hash, @worldbook_hash,
-       @image_count, @tokens_est, @worldbook_matched, @checks_pass, @checks_warn, @checks_fail,
+      (@run_id, @created_at, @entry, @verdict, @ms, @model, @mode, @prompt_hash, @knowledgecard_hash,
+       @image_count, @tokens_est, @knowledgecard_matched, @checks_pass, @checks_warn, @checks_fail,
        @failed_ids, @stages_json, @record_json)
   `);
 
@@ -222,10 +240,10 @@ export function recordRun(record, { path, secrets = null, now = null } = {}) {
       model: safe.model ?? null,
       mode: safe.mode ?? null,
       prompt_hash: safe.promptHash ?? null,
-      worldbook_hash: safe.worldbookHash ?? null,
+      knowledgecard_hash: safe.knowledgecardHash ?? null,
       image_count: Number(safe.imageCount ?? 0) || 0,
       tokens_est: Number(safe.tokens?.est ?? 0) || 0,
-      worldbook_matched: Number(safe.worldbook?.matched ?? 0) || 0,
+      knowledgecard_matched: Number(safe.knowledgecard?.matched ?? 0) || 0,
       checks_pass: Number(checks.pass ?? 0) || 0,
       checks_warn: Number(checks.warn ?? 0) || 0,
       checks_fail: Number(checks.fail ?? 0) || 0,

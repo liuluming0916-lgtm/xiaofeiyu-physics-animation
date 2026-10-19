@@ -6,7 +6,7 @@
  * 而不是靠人工比对。`contracts/verify-contracts.mjs` 会在 CI 里重跑生成并比对哈希。
  */
 
-import { SLOT_KEY_NAMES, WORLDBOOK_INSERTION_SLOTS, WORLDBOOK_ENTRY_KINDS, PIPELINE_STAGES, CLEANING_STAGES, CLEANING_EXCLUDED_STAGES, WORLDBOOK_CONCEPT_IDS, WORLDBOOK_TAG_NAMES, WORLDBOOK_ELEMENT_IDS, WORLDBOOK_TAG_OWNERS, WORLDBOOK_CONCEPTS_FORMAT } from './spec/frozen-keys.mjs';
+import { SLOT_KEY_NAMES, KNOWLEDGECARD_INSERTION_SLOTS, KNOWLEDGECARD_ENTRY_KINDS, PIPELINE_STAGES, CLEANING_STAGES, CLEANING_EXCLUDED_STAGES, KNOWLEDGECARD_CONCEPT_IDS, KNOWLEDGECARD_TAG_NAMES, KNOWLEDGECARD_ELEMENT_IDS, KNOWLEDGECARD_TAG_OWNERS, KNOWLEDGECARD_CONCEPTS_FORMAT } from './spec/frozen-keys.mjs';
 import {
   EVIDENCE_PRECISIONS,
   PRECISION_LABELS,
@@ -166,7 +166,7 @@ function tsFor(desc) {
       return `${parenthesize(tsFor(desc.inner))} | null`;
     case 'ref':
       return desc.typeName === 'InsertionSlot'
-        ? WORLDBOOK_INSERTION_SLOTS.map((s) => JSON.stringify(s)).join(' | ')
+        ? KNOWLEDGECARD_INSERTION_SLOTS.map((s) => JSON.stringify(s)).join(' | ')
         : desc.typeName;
     case 'array':
       return `Array<${parenthesize(tsFor(desc.items))}>`;
@@ -283,7 +283,7 @@ export function compileTypeScript(spec, opts = {}) {
     );
   }
 
-  if (spec.id === 'worldbook-entry') {
+  if (spec.id === 'knowledgecard-entry') {
     body.push(
       '',
       '/** v2 旧槽位名，仅允许在导入路径按别名归一化为 scene_code（§9.1）。 */',
@@ -382,34 +382,34 @@ export function assertContractInvariants(specs) {
   // 顺带：顶层 required 必须包含 slots
   if (!program.required.includes('slots')) problems.push('animation-program: 顶层 required 必须包含 slots');
 
-  const worldbook = specs.find((s) => s.id === 'worldbook-entry');
-  if (!worldbook) {
-    problems.push('缺少 worldbook-entry 契约');
+  const knowledgecard = specs.find((s) => s.id === 'knowledgecard-entry');
+  if (!knowledgecard) {
+    problems.push('缺少 knowledgecard-entry 契约');
   } else {
-    const slotEnum = worldbook.defs.InsertionSlot.values;
-    if (slotEnum.join('|') !== WORLDBOOK_INSERTION_SLOTS.join('|')) {
-      problems.push(`§9.1 违反：insertion_slot 枚举必须是 [${WORLDBOOK_INSERTION_SLOTS.join(', ')}]`);
+    const slotEnum = knowledgecard.defs.InsertionSlot.values;
+    if (slotEnum.join('|') !== KNOWLEDGECARD_INSERTION_SLOTS.join('|')) {
+      problems.push(`§9.1 违反：insertion_slot 枚举必须是 [${KNOWLEDGECARD_INSERTION_SLOTS.join(', ')}]`);
     }
-    const logic = worldbook.defs.SecondaryLogic.values.join('|');
+    const logic = knowledgecard.defs.SecondaryLogic.values.join('|');
     if (logic !== 'AND_ANY|AND_ALL|OR|NOT') {
       problems.push('§9.1 违反：secondary_keys.logic 枚举必须是 AND_ANY|AND_ALL|OR|NOT');
     }
     for (const field of ['id', 'title', 'origin', 'category', 'enabled', 'constant', 'recursive', 'keys', 'secondary_keys', 'insertion_slot', 'order', 'priority', 'content', 'code_examples']) {
-      if (!(field in worldbook.properties)) problems.push(`§9.1 违反：词条缺少字段 ${field}`);
+      if (!(field in knowledgecard.properties)) problems.push(`§9.1 违反：词条缺少字段 ${field}`);
     }
-    const originEnum = worldbook.defs.Origin.values.join('|');
+    const originEnum = knowledgecard.defs.Origin.values.join('|');
     if (originEnum !== 'builtin|user') problems.push('§9.1 违反：origin 枚举必须是 builtin|user');
-    const catEnum = worldbook.defs.Category.values.join('|');
+    const catEnum = knowledgecard.defs.Category.values.join('|');
     if (catEnum !== 'solution_skill|scene_modeling|both_slot|user_lore') {
       problems.push('§9.1 违反：category 枚举与正文不一致');
     }
-    const prioEnum = worldbook.defs.Priority.values.join('|');
+    const prioEnum = knowledgecard.defs.Priority.values.join('|');
     if (prioEnum !== 'normal|high') problems.push('§9.1 违反：priority 枚举必须是 normal|high');
-    const kindEnum = worldbook.defs.EntryKind?.values?.join('|');
-    if (kindEnum !== WORLDBOOK_ENTRY_KINDS.join('|')) {
-      problems.push(`§9.1 违反：kind 枚举必须是 [${WORLDBOOK_ENTRY_KINDS.join(', ')}]（提示词卡/本地规则卡不是 worldbook 条目）`);
+    const kindEnum = knowledgecard.defs.EntryKind?.values?.join('|');
+    if (kindEnum !== KNOWLEDGECARD_ENTRY_KINDS.join('|')) {
+      problems.push(`§9.1 违反：kind 枚举必须是 [${KNOWLEDGECARD_ENTRY_KINDS.join(', ')}]（提示词卡/本地规则卡不是 knowledgecard 条目）`);
     }
-    if (!('kind' in worldbook.properties)) problems.push('§9.1 违反：词条缺少字段 kind');
+    if (!('kind' in knowledgecard.properties)) problems.push('§9.1 违反：词条缺少字段 kind');
 
     /* ── 第 5.7 期：三栏新字段的**派生**断言（§9.1 冻结字段集变更，裁决见 README A26） ──
      *
@@ -418,24 +418,24 @@ export function assertContractInvariants(specs) {
      * 于是"模型判得出、契约存不下"，而且没有任何检查会红。
      * 三条断言把"派生"这件事钉死：
      *   ① 三栏必须都在 properties 里（不许改词表却忘了接契约）；
-     *   ② 每栏的枚举必须**逐字等于**从 `worldbook-concepts.json` 派生的那份清单（顺序也一致）；
+     *   ② 每栏的枚举必须**逐字等于**从 `knowledgecard-concepts.json` 派生的那份清单（顺序也一致）；
      *   ③ 数量必须 > 0（防"空枚举"把一切都判非法，那会让 137 条老库当场全红）。
      */
-    if (WORLDBOOK_CONCEPTS_FORMAT !== 'od-worldbook-concepts') {
-      problems.push(`§9.1 违反：词表文件 format 必须是 od-worldbook-concepts，实际 ${WORLDBOOK_CONCEPTS_FORMAT}`);
+    if (KNOWLEDGECARD_CONCEPTS_FORMAT !== 'od-knowledgecard-concepts') {
+      problems.push(`§9.1 违反：词表文件 format 必须是 od-knowledgecard-concepts，实际 ${KNOWLEDGECARD_CONCEPTS_FORMAT}`);
     }
     const derived = [
-      ['concepts', 'ConceptId', WORLDBOOK_CONCEPT_IDS, '考点词表（词表 A）'],
-      ['tags', 'TagName', WORLDBOOK_TAG_NAMES, '题型标签 / 细考点词表（词表 B）'],
-      ['elements', 'ElementId', WORLDBOOK_ELEMENT_IDS, '实体物理图元 · 动画元件词表'],
+      ['concepts', 'ConceptId', KNOWLEDGECARD_CONCEPT_IDS, '考点词表（词表 A）'],
+      ['tags', 'TagName', KNOWLEDGECARD_TAG_NAMES, '题型标签 / 细考点词表（词表 B）'],
+      ['elements', 'ElementId', KNOWLEDGECARD_ELEMENT_IDS, '实体物理图元 · 动画元件词表'],
     ];
     for (const [field, defName, expect, label] of derived) {
-      if (!(field in worldbook.properties)) {
+      if (!(field in knowledgecard.properties)) {
         problems.push(`§9.1 违反：词条缺少 ${field} 字段（${label}；第 5.7 期新增，见 A26）`);
         continue;
       }
-      const prop = worldbook.properties[field];
-      const def = worldbook.defs[defName];
+      const prop = knowledgecard.properties[field];
+      const def = knowledgecard.defs[defName];
       if (!def || def.kind !== 'enum') {
         problems.push(`§9.1 违反：${field} 必须引用一个 enum 定义（${defName}），实际 ${def?.kind ?? '缺失'}`);
         continue;
@@ -459,13 +459,13 @@ export function assertContractInvariants(specs) {
       }
     }
     // 细考点必须能回答"它属于哪个考点"（运行期跨字段校验消费它；空值会让那条约束无法执行）
-    const ownerless = WORLDBOOK_TAG_NAMES.filter((t) => !(WORLDBOOK_TAG_OWNERS[t] ?? []).length);
+    const ownerless = KNOWLEDGECARD_TAG_NAMES.filter((t) => !(KNOWLEDGECARD_TAG_OWNERS[t] ?? []).length);
     if (ownerless.length) {
       problems.push(`§9.1 违反：有细考点没有归属考点，无法做跨字段校验：${ownerless.join('、')}`);
     }
     // 三栏**不得**进 required（灰度期硬要求：老词条没有这三栏也必须合法，否则内置库当场全红）
     for (const field of ['concepts', 'tags', 'elements']) {
-      if ((worldbook.required ?? []).includes(field)) {
+      if ((knowledgecard.required ?? []).includes(field)) {
         problems.push(
           `§9.1/灰度违反：${field} 不得进 required —— 137 条老词条仍靠 keys 字面命中工作，` +
             `设成必填会让整个内置库当场非法（见 A26 与计划 §2 决定 4）`,
@@ -477,24 +477,24 @@ export function assertContractInvariants(specs) {
   /* ── 第 5 期：世界书导出包（§9.5） ──
    *
    * 这三条防的是"包内词条形状另立一套"：一旦包里自带一份词条字段定义，
-   * 它迟早会与 worldbook-entry 漂移，而 W11（导出→导入→命中集合逐条相同）
-   * 恰恰依赖两边**是同一套字段**。负对照见 tests/worldbook-selftest.mjs『W12-2』。 */
-  const pack = specs.find((s) => s.id === 'worldbook-pack');
+   * 它迟早会与 knowledgecard-entry 漂移，而 W11（导出→导入→命中集合逐条相同）
+   * 恰恰依赖两边**是同一套字段**。负对照见 tests/knowledgecard-selftest.mjs『W12-2』。 */
+  const pack = specs.find((s) => s.id === 'knowledgecard-pack');
   if (!pack) {
-    problems.push('缺少 worldbook-pack 契约（§9.5 导入导出）');
+    problems.push('缺少 knowledgecard-pack 契约（§9.5 导入导出）');
   } else {
-    if (pack.properties?.format?.const !== 'od-worldbook') {
-      problems.push('§9.5 违反：导出包 format 必须常量 "od-worldbook"');
+    if (pack.properties?.format?.const !== 'od-knowledgecard') {
+      problems.push('§9.5 违反：导出包 format 必须常量 "od-knowledgecard"');
     }
     if (pack.properties?.version?.const !== 1) {
       problems.push('§9.5 违反：导出包 version 必须常量 1');
     }
-    const inlineEntry = pack.defs?.WorldbookEntry;
-    if (!inlineEntry || inlineEntry.kind !== 'inline' || inlineEntry.spec?.id !== 'worldbook-entry') {
-      problems.push('§9.5 违反：导出包的 entries 必须引用 worldbook-entry 契约（不得自带一份词条字段定义）');
+    const inlineEntry = pack.defs?.KnowledgecardEntry;
+    if (!inlineEntry || inlineEntry.kind !== 'inline' || inlineEntry.spec?.id !== 'knowledgecard-entry') {
+      problems.push('§9.5 违反：导出包的 entries 必须引用 knowledgecard-entry 契约（不得自带一份词条字段定义）');
     }
-    if (pack.properties?.entries?.items?.typeName !== 'WorldbookEntry') {
-      problems.push('§9.5 违反：导出包的 entries 元素类型必须是 WorldbookEntry');
+    if (pack.properties?.entries?.items?.typeName !== 'KnowledgecardEntry') {
+      problems.push('§9.5 违反：导出包的 entries 元素类型必须是 KnowledgecardEntry');
     }
     if (!Array.isArray(pack.required) || pack.required.join('|') !== 'format|version|entries') {
       problems.push('§9.5 违反：导出包的 required 必须恰好是 format|version|entries');

@@ -1,12 +1,12 @@
 /**
- * ⚠ **手写的类型声明**，对应 `web/src/lib/worldbook-concepts.js` ——
- * 它是 `core/worldbook/concepts.mjs`（第 5.7 期新增的判定解析器）的**逐字节副本**。
+ * ⚠ **手写的类型声明**，对应 `web/src/lib/knowledgecard-concepts.js` ——
+ * 它是 `core/knowledgecard/concepts.mjs`（第 5.7 期新增的判定解析器）的**逐字节副本**。
  *
  * 为什么手写而不是自动生成：这份声明只描述**前端用到的那几个导出**
  * （`parseJudgement` 与它的返回形状）。构建期有一条判据钉住"声明的名字集合 == 真实导出面"
  * （`tools/web-build.mjs`），所以**漏写/多写都会被拦下**——抄录不会漂移。
  *
- * ⚠ 改 `core/worldbook/concepts.mjs` 的导出面时，必须同步改这里，否则构建失败。
+ * ⚠ 改 `core/knowledgecard/concepts.mjs` 的导出面时，必须同步改这里，否则构建失败。
  */
 
 /** 解析出的"表外词"（词表里没有、但模型写了的东西；**如实报出，不许静默丢**） */

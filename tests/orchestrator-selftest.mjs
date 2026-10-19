@@ -251,7 +251,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
   const img = { mime: 'image/png', data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]) };
   const withWb = (over) =>
     baseInput({
-      config: { endpoint: endpoint(), apiKey: 'sk-test', regexRules: [], worldbookEntries: wbEntries },
+      config: { endpoint: endpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardEntries: wbEntries },
       ...over,
     });
 
@@ -308,14 +308,14 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
     // 反例：转写里**没有**"传送带" ⇒ 该词条不该命中
     const streamNo = fakeStream({ scene_code: goodSceneCode(), read_problem: '【物体与姿态】水平面；【物体】物块。' });
     const evNo = await collectEvents(withWb({ images: [img], streamImpl: streamNo, dryRunImpl: fakeDryRun('pass') }));
-    const wbNo = evNo.find((e) => e.type === 'worldbook_done');
+    const wbNo = evNo.find((e) => e.type === 'knowledgecard_done');
     check('反例：转写里没有"传送带"⇒ 该词条不命中', !(wbNo?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'));
 
     // 正例：转写里有"传送带"与"物块" ⇒ 命中（题面本身没有"传送带"三个字）
     const transcript = '【题面复述】水平传送带以速率 u 运行。【物体与姿态】水平传送带；物块轻放其上。';
     const streamYes = fakeStream({ scene_code: goodSceneCode(), read_problem: transcript });
     const evYes = await collectEvents(withWb({ images: [img], streamImpl: streamYes, dryRunImpl: fakeDryRun('pass') }));
-    const wbYes = evYes.find((e) => e.type === 'worldbook_done');
+    const wbYes = evYes.find((e) => e.type === 'knowledgecard_done');
     check(
       '正例：**图片题的图只以转写文字的形式存在**，转写里出现"传送带"⇒ 该词条命中',
       (wbYes?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'),

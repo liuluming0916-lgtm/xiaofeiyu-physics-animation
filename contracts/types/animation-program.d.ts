@@ -20,7 +20,7 @@ export interface Provenance {
    * 世界书集合哈希（本期为 "handwritten"
    * @minLength 1
    */
-  "worldbookHash": string;
+  "knowledgecardHash": string;
   /**
    * ISO 8601 时间戳
    * @minLength 1

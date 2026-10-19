@@ -4,9 +4,9 @@
  *
  * ── 两个目录的分工（第 5.5 期的 P1 改造）
  *
- *   `core/worldbook/source/*.json`   ← **词条写在这里**。按章分文件，格式就是 §9.5 的导出包
+ *   `core/knowledgecard/source/*.json`   ← **词条写在这里**。按章分文件，格式就是 §9.5 的导出包
  *                                       （与运行时库同形，**不另发明一种格式**）。
- *   `core/worldbook/data/*.json`     ← **运行时库**（派生物，**不许手改**）。`loadLibrary()` 读的是它。
+ *   `core/knowledgecard/data/*.json`     ← **运行时库**（派生物，**不许手改**）。`loadLibrary()` 读的是它。
  *
  *   为什么要有这一层：第 5.5 期要写上百条词条。若把它们内联在本脚本里，
  *   每写一个批次都要改同一个几千行的源文件，极易互相踩；而且"内容"与"通道"混在一起，
@@ -22,9 +22,9 @@
  *   ④ 写盘或核对。
  *
  * 用法（从仓库根）：
- *   node tools/rewrite-worldbook-entries.mjs             # 校验 + 写出 data/（默认）
- *   node tools/rewrite-worldbook-entries.mjs --check      # 只比对"盘上的 data/ == 会写出的"，不写盘（门禁 ㉒『W14』用）
- *   node tools/rewrite-worldbook-entries.mjs --prune      # 写盘时顺带删掉 data/ 里已经不该存在的文件（默认只报告，不删）
+ *   node tools/rewrite-knowledgecard-entries.mjs             # 校验 + 写出 data/（默认）
+ *   node tools/rewrite-knowledgecard-entries.mjs --check      # 只比对"盘上的 data/ == 会写出的"，不写盘（门禁 ㉒『W14』用）
+ *   node tools/rewrite-knowledgecard-entries.mjs --prune      # 写盘时顺带删掉 data/ 里已经不该存在的文件（默认只报告，不删）
  *
  * ⚠ `--prune` 默认关闭是刻意的：本仓库没有 git，删除不可逆。看到"data/ 里有不该存在的文件"时，
  *   先确认那是不是你手放的，再决定加不加 `--prune`。
@@ -45,13 +45,13 @@ import {
   readCoverageTarget,
   validateEntry,
   writeFileAtomic,
-} from '../core/worldbook/store.mjs';
-import { planUpgrade } from '../core/worldbook/governance.mjs';
-import { checkCoverage, formatCoverageLine, targetFromFile } from '../core/worldbook/coverage.mjs';
-import { detectKeyCollisions } from '../core/worldbook/engine.mjs';
+} from '../core/knowledgecard/store.mjs';
+import { planUpgrade } from '../core/knowledgecard/governance.mjs';
+import { checkCoverage, formatCoverageLine, targetFromFile } from '../core/knowledgecard/coverage.mjs';
+import { detectKeyCollisions } from '../core/knowledgecard/engine.mjs';
 
 /** 词条源目录（**人/模型写的地方**） */
-export const SOURCE_DIR = join(PROJECT_ROOT, 'core', 'worldbook', 'source');
+export const SOURCE_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'source');
 
 /** 列出源文件（按文件名排序 = 载入顺序提示） */
 export function listSourceFiles(dir = SOURCE_DIR) {
@@ -172,13 +172,13 @@ function main() {
     const drifted = files.filter((f) => !existsSync(f.path) || readFileSync(f.path, 'utf8') !== f.text).map((f) => f.file);
     if (drifted.length) {
       console.error(`\n✗ 盘上的运行时库与从 source/ 会写出的不一致：${drifted.join(', ')}`);
-      console.error('  → 请跑 `node tools/rewrite-worldbook-entries.mjs` 重新生成。**不要手改 data/ 里的 JSON。**');
+      console.error('  → 请跑 `node tools/rewrite-knowledgecard-entries.mjs` 重新生成。**不要手改 data/ 里的 JSON。**');
       process.exitCode = 1;
       return;
     }
     if (stale.length) {
       console.error(`\n✗ data/ 里有 source/ 里已经不存在的文件：${stale.join(', ')}`);
-      console.error('  → 它们会被 loadLibrary 当成正式词条载入。确认后跑 `node tools/rewrite-worldbook-entries.mjs --prune` 删除。');
+      console.error('  → 它们会被 loadLibrary 当成正式词条载入。确认后跑 `node tools/rewrite-knowledgecard-entries.mjs --prune` 删除。');
       process.exitCode = 1;
       return;
     }
@@ -191,7 +191,7 @@ function main() {
     writeFileAtomic(f.path, f.text);
     bytes += statSync(f.path).size;
   }
-  console.log(`\n✓ 已写出运行时库：${files.length} 个文件 · ${entries.length} 条词条 · ${(bytes / 1024).toFixed(1)} KB → core/worldbook/data/`);
+  console.log(`\n✓ 已写出运行时库：${files.length} 个文件 · ${entries.length} 条词条 · ${(bytes / 1024).toFixed(1)} KB → core/knowledgecard/data/`);
   if (stale.length && prune) {
     for (const f of stale) {
       unlinkSync(join(BUILTIN_DIR, f));
@@ -199,7 +199,7 @@ function main() {
     }
   } else if (stale.length) {
     console.log(`  ⚠ data/ 里有 source/ 里已经不存在的文件（未被删除）：${stale.join(', ')}`);
-    console.log('    → 确认无用后跑 `node tools/rewrite-worldbook-entries.mjs --prune`');
+    console.log('    → 确认无用后跑 `node tools/rewrite-knowledgecard-entries.mjs --prune`');
   }
 }
 

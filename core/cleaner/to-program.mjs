@@ -73,7 +73,7 @@ export function checkProgramShape(program) {
  *
  * @param {string} text 模型输出原文
  * @param {object} [opts]
- * @param {object} [opts.provenance] 溯源（model / promptHash / worldbookHash / generatedAt）
+ * @param {object} [opts.provenance] 溯源（model / promptHash / knowledgecardHash / generatedAt）
  * @param {object[]} [opts.regexRules] §12 兜底清洗规则（在切分**之后**做点状修补）
  * @returns {{ program: object, lineMap: object, diagnostics: object[], layout: object }}
  * @throws {ProgramBuildError} 切分出现硬失败时（**不静默产出半成品**）

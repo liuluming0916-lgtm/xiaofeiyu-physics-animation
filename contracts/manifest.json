@@ -12,24 +12,24 @@
       "root": "AnimationProgram",
       "schema": "contracts/animation-program.schema.json",
       "types": "contracts/types/animation-program.d.ts",
-      "schemaSha256": "34920685e184db94cd5f49cc8ed4913cb6f83e297eac9a661e13728d66c560d3",
-      "typesSha256": "3157746e93e12ad673ac902e5e02f6229e1bec20789f4cb5e4ea80d191b2a6f2"
+      "schemaSha256": "0d1c96e929fb1dcbbfe6f7798abde39e00675a7a8cb88fc562ccbab020e06301",
+      "typesSha256": "aaab4de4ba004f1605c0e9f9c510b0384aa2793879c7928af34668c5d404afce"
     },
     {
-      "id": "worldbook-entry",
-      "root": "WorldbookEntry",
-      "schema": "contracts/worldbook-entry.schema.json",
-      "types": "contracts/types/worldbook-entry.d.ts",
-      "schemaSha256": "206c0cae0d9dbf7c5f27cdf695b7c31a3f759b4ea3b014a9fc928bab917e0687",
-      "typesSha256": "25008e4f03fa4213c1905f7b77b5d414b8be9ac4e552e27e0dfc7168308ba1dc"
+      "id": "knowledgecard-entry",
+      "root": "KnowledgecardEntry",
+      "schema": "contracts/knowledgecard-entry.schema.json",
+      "types": "contracts/types/knowledgecard-entry.d.ts",
+      "schemaSha256": "5d103989e87a9bf746486b079410d0547f7e7782117e4d0ede6ebf0f65fea1db",
+      "typesSha256": "6a18ed0ed4d6f29c7ee406857100110cfa14edbb95ce1ed990ee062fc2c06e9f"
     },
     {
       "id": "cleaning-rule",
       "root": "CleaningRule",
       "schema": "contracts/cleaning-rule.schema.json",
       "types": "contracts/types/cleaning-rule.d.ts",
-      "schemaSha256": "56d84e52550e38cade00fec13cb1a4d20790a387589dd7e3e2ff68c6ec925b93",
-      "typesSha256": "7ad331e12aa411b855424b68ac0685092d4547bfc9812488a6bd92047aa4eac7"
+      "schemaSha256": "0aa33290660f67f464d051356c5201bf7959018c28191a7b0cd7cf433513e49c",
+      "typesSha256": "82557ccf0481a746dd46da90564012c6cdfc4449571ff775a6c0e555744a4f34"
     },
     {
       "id": "cleaning-rule-set",
@@ -44,8 +44,8 @@
       "root": "EndpointConfig",
       "schema": "contracts/endpoint.schema.json",
       "types": "contracts/types/endpoint.d.ts",
-      "schemaSha256": "4f15a2e6929af1f2541f898e34f8876df8828dcc96ad8e89aaab159e379eab3f",
-      "typesSha256": "afb5827c762f52db8fa0a2a0d69fe84f50e761f17e32e224734e01ca9c6f37fa"
+      "schemaSha256": "7e0500f7c52ee99b519af9f0ec6a1816ee741975d646394a7e79ea6bbb91e11e",
+      "typesSha256": "59b8f5d7bacfc78faddac8f95d74cc29cf206155ef924c516280d0232d0b2b59"
     },
     {
       "id": "diagnostic-record",
@@ -56,16 +56,16 @@
       "typesSha256": "cd82a112de51953803eaa3e13223ee92f22b6e392fe8182c844942df473d93dd"
     },
     {
-      "id": "worldbook-pack",
-      "root": "WorldbookPack",
-      "schema": "contracts/worldbook-pack.schema.json",
-      "types": "contracts/types/worldbook-pack.d.ts",
-      "schemaSha256": "c44faab01ed4b9029c72a24b8aa2c7eb458b2ee28dcdf16a4b4acc6b8a63c7f3",
-      "typesSha256": "9c82e2707db0009364b2d3a17ef6c4d7099b7ea7c21485eb141b85538529f6dd"
+      "id": "knowledgecard-pack",
+      "root": "KnowledgecardPack",
+      "schema": "contracts/knowledgecard-pack.schema.json",
+      "types": "contracts/types/knowledgecard-pack.d.ts",
+      "schemaSha256": "f9da21753e7457f9f3b67424ff73323ed3d0483ebd1694e656ce5d3d80bfb9bc",
+      "typesSha256": "e159c8f700a7b4ec2ccaa73c42d636dea39e57b55afa835a5efc3061ad40abbb"
     }
   ],
   "slotKeys": "contracts/slot-keys.json",
-  "worldbookSlotNames": "contracts/worldbook-slot-names.json",
+  "knowledgecardSlotNames": "contracts/knowledgecard-slot-names.json",
   "diagnosticEvidence": "contracts/diagnostic-evidence.json",
-  "contractHash": "2918be741b9fe841bab40cf1cd41bce788a0d52e04343c44d68ab49165650a02"
+  "contractHash": "06b986a81b1253c0f89218983f6fdf2343b759906f9e60222e39842b6727790b"
 }

@@ -10,7 +10,7 @@
 import { create } from 'zustand'
 
 import { DEFAULT_MASK, type AnimationSlots, type ProgramMode, type VectorMask } from '../lib/host-protocol'
-import type { EventSourceKind, RepairBanner, RepairCheckSnapshot, RunEvent, WorldbookEvidence } from '../lib/run-stream'
+import type { EventSourceKind, RepairBanner, RepairCheckSnapshot, RunEvent, KnowledgecardEvidence } from '../lib/run-stream'
 
 /** 一轮自愈修复的留档（B6：修复过程对用户可见） */
 export interface RepairRound {
@@ -59,7 +59,7 @@ export interface RunState {
   /** 第 4 期：交付形态（8 槽位齐全才 playable） */
   delivery: { playable: boolean; mode: string; missing: string[] } | null
   /** 第 5 期：世界书依据（命中清单 / 注入槽位 / 空槽与截断）；调用方没提供词条集合时为 null */
-  worldbook: WorldbookEvidence | null
+  knowledgecard: KnowledgecardEvidence | null
   error: { stage: string; kind: string; message: string; hint?: string } | null
   elapsedMs: number
 }
@@ -142,7 +142,7 @@ const EMPTY_RUN: RunState = {
   repairConverged: null,
   banner: null,
   delivery: null,
-  worldbook: null,
+  knowledgecard: null,
   error: null,
   elapsedMs: 0,
 }
@@ -260,10 +260,10 @@ export const useApp = create<AppState>((set) => ({
           run.repairConverged = e.converged
           run.banner = e.banner ?? null
           break
-        case 'worldbook_done':
+        case 'knowledgecard_done':
           // 第 5 期：世界书依据（§15）。**整条载荷留着**：面板要显示命中方式、
           // 实际注入槽位、字符数与"空槽 / 被截断"这两个**必须分开**的状态。
-          run.worldbook = {
+          run.knowledgecard = {
             hash: e.hash,
             libraryCount: e.libraryCount,
             matched: e.matched,

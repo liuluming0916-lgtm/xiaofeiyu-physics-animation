@@ -120,7 +120,7 @@
           "minLength": 1,
           "description": "Prompt 集合哈希（本期手写题为 \"handwritten\""
         },
-        "worldbookHash": {
+        "knowledgecardHash": {
           "type": "string",
           "minLength": 1,
           "description": "世界书集合哈希（本期为 \"handwritten\""
@@ -142,7 +142,7 @@
       "required": [
         "model",
         "promptHash",
-        "worldbookHash",
+        "knowledgecardHash",
         "generatedAt"
       ],
       "title": "Provenance（必须烧录进导出 HTML）"

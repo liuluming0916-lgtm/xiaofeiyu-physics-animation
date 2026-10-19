@@ -263,6 +263,19 @@ async function main() {
         JSON.stringify((legacyLoad.issues ?? []).map((i) => i.code)),
       );
 
+      /* v1.1.9alpha：worldbook 阶段改名 knowledgecard，旧键读时改名保留值 */
+      legacyFile.stageModels = { worldbook: 'ep_local', solve: null };
+      writeFileSync(join(dir, 'endpoints.json'), `${JSON.stringify(legacyFile, null, 2)}\n`, 'utf8');
+      const renamed = loadEndpointStore({ dir });
+      check(
+        '旧 stageModels.worldbook 读时迁移为 knowledgecard（值保留）',
+        renamed.ok === true &&
+          renamed.stageModels.knowledgecard === 'ep_local' &&
+          !('worldbook' in renamed.stageModels) &&
+          renamed.warnings.some((w) => w.code === 'endpoints.legacy-stage-migrated'),
+        JSON.stringify((renamed.issues ?? []).map((i) => i.code)),
+      );
+
       // 合法：全部通过
       const ok = saveEndpoints({ dir, endpoints: [endpoint({ supportsVision: true })], stageModels: { solve: null } });
       check('（对照）合法配置能保存', ok.ok === true, JSON.stringify(ok.issues));

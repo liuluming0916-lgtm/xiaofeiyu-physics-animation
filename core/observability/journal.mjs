@@ -161,13 +161,13 @@ export function summarize(events, { runId = null } = {}) {
     model: null,
     mode: null,
     promptHash: null,
-    worldbookHash: null,
+    knowledgecardHash: null,
     imageCount: 0,
     maxRepairRounds: 0,
     stages: [],
     counts: { stages: 0, done: 0, skipped: 0, error: 0, repairRounds: 0, events: list.length },
     tokens: { estimated: true, method: 'cjk*1 + other/4', chars: 0, est: 0 },
-    worldbook: null,
+    knowledgecard: null,
     judgement: null,
     checks: { pass: 0, warn: 0, fail: 0, failedIds: [], blockingFailedIds: [], rounds: 0 },
     checksByRound: [],
@@ -253,8 +253,8 @@ export function summarize(events, { runId = null } = {}) {
       continue;
     }
 
-    if (type === 'worldbook_done') {
-      rec.worldbook = {
+    if (type === 'knowledgecard_done') {
+      rec.knowledgecard = {
         hash: ev.hash ?? null,
         library: Number(ev.libraryCount ?? 0) || 0,
         matched: Number(ev.matched ?? 0) || 0,
@@ -361,12 +361,12 @@ export function summarize(events, { runId = null } = {}) {
     if (prov) {
       rec.model = prov.model ?? rec.model;
       rec.promptHash = prov.promptHash ?? rec.promptHash;
-      rec.worldbookHash = prov.worldbookHash ?? rec.worldbookHash;
+      rec.knowledgecardHash = prov.knowledgecardHash ?? rec.knowledgecardHash;
     }
   }
 
   if (runStart?.promptHash) rec.promptHash = rec.promptHash ?? runStart.promptHash;
-  if (!rec.worldbookHash && rec.worldbook?.hash) rec.worldbookHash = rec.worldbook.hash;
+  if (!rec.knowledgecardHash && rec.knowledgecard?.hash) rec.knowledgecardHash = rec.knowledgecard.hash;
 
   return rec;
 }

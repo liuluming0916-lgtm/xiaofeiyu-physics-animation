@@ -4,12 +4,12 @@
  * 分层（改代码前先看这一张）：
  *
  *   engine.mjs         纯逻辑：触发六步 + 分槽组装 + 来源标记 + 冲突提示
- *                      ⚠ **浏览器侧用的就是它**（逐字节副本，见 tools/build-worldbook-web.mjs）
+ *                      ⚠ **浏览器侧用的就是它**（逐字节副本，见 tools/build-knowledgecard-web.mjs）
  *   store.mjs          仓库读写：内置只读 + ai-rules 用户区 + 校验 + 规范化 + 稳定哈希 + 原子写
  *   governance.mjs     纯决定：覆盖副本 / 升级只替换未被覆盖 / 恢复默认只影响内置 / 导出默认只导 user
- *   import-export.mjs  纯逻辑：od-worldbook v1 的归一化（旧名只在此处转换）与打包
+ *   import-export.mjs  纯逻辑：od-knowledgecard v1 的归一化（旧名只在此处转换）与打包
  *   coverage.mjs       纯逻辑：内置词条的「生成后自检」+ code_examples 覆盖率
- *   data/*.json        内置最小集（第 5.5 期扩到全题型的作业书已随 `_retired-worldbook/` 删除）
+ *   data/*.json        内置最小集（第 5.5 期扩到全题型的作业书已随 `_retired-knowledgecard/` 删除）
  */
 
 export * from './engine.mjs';
@@ -18,28 +18,28 @@ export * from './governance.mjs';
 export * from './import-export.mjs';
 export * from './coverage.mjs';
 /**
- * 第 6 期第 5 项补齐：**可写入口**（只写用户目录 `ai-rules/worldbook/`）。
+ * 第 6 期第 5 项补齐：**可写入口**（只写用户目录 `ai-rules/knowledgecard/`）。
  * `store.mjs` 早就有 `writeUserPack` / `removeUserFile`，缺的是"给界面用的一层"：
  * 列包、读包、存包（整批失败）、新建、删除、把内置词条复制成覆盖副本。
  */
 export * from './editor.mjs';
 
-import { loadLibrary, worldbookHashOf } from './store.mjs';
-import { triggerWorldbook } from './engine.mjs';
+import { loadLibrary, knowledgecardHashOf } from './store.mjs';
+import { triggerKnowledgecard } from './engine.mjs';
 
 /** 载入失败时抛这个（**不静默返回半载入的库**，见 store.mjs 顶部说明） */
-export class WorldbookLoadError extends Error {
+export class KnowledgecardLoadError extends Error {
   constructor(problems) {
     super(`世界书载入失败（整批失败，共 ${problems.length} 条问题）：\n- ${problems.join('\n- ')}`);
-    this.name = 'WorldbookLoadError';
+    this.name = 'KnowledgecardLoadError';
     this.problems = problems;
   }
 }
 
 /** 载入库；不合法就抛（生产路径用这个，避免拿着半载入的库去解题） */
-export function loadWorldbookOrThrow(opts) {
+export function loadKnowledgecardOrThrow(opts) {
   const lib = loadLibrary(opts);
-  if (!lib.ok) throw new WorldbookLoadError(lib.problems);
+  if (!lib.ok) throw new KnowledgecardLoadError(lib.problems);
   return lib;
 }
 
@@ -56,7 +56,7 @@ const VIA_ORDER = ['key', 'secondary', 'constant', 'recursive'];
  *
  * @param {{ solveRes: object|null, sceneRes: object|null, entries: object[] }} input
  */
-export function mergeWorldbookStages({ solveRes = null, sceneRes = null, entries = [] } = {}) {
+export function mergeKnowledgecardStages({ solveRes = null, sceneRes = null, entries = [] } = {}) {
   const merged = new Map();
   const absorb = (list, stage) => {
     for (const p of list ?? []) {
@@ -106,7 +106,7 @@ export function mergeWorldbookStages({ solveRes = null, sceneRes = null, entries
       scene_code: sceneRes?.stats?.injectedBySlot?.scene_code ?? 0,
     },
     matched: merged.size,
-    hash: worldbookHashOf(entries),
+    hash: knowledgecardHashOf(entries),
     entries: entries.length,
   };
 }
@@ -116,11 +116,11 @@ export function mergeWorldbookStages({ solveRes = null, sceneRes = null, entries
  *
  * @param {{ problemText?: string, solutionText?: string, entries?: object[], budget?: object }} input
  */
-export function prepareWorldbook({ problemText = '', solutionText = '', entries = [], budget } = {}) {
-  const solveRes = triggerWorldbook({ entries, text: problemText, ...(budget ? { budget } : {}) });
+export function prepareKnowledgecard({ problemText = '', solutionText = '', entries = [], budget } = {}) {
+  const solveRes = triggerKnowledgecard({ entries, text: problemText, ...(budget ? { budget } : {}) });
   const secondText = [problemText, solutionText].filter((s) => typeof s === 'string' && s.trim()).join('\n');
-  const sceneRes = secondText === problemText ? solveRes : triggerWorldbook({ entries, text: secondText, ...(budget ? { budget } : {}) });
-  const merged = mergeWorldbookStages({ solveRes, sceneRes, entries });
+  const sceneRes = secondText === problemText ? solveRes : triggerKnowledgecard({ entries, text: secondText, ...(budget ? { budget } : {}) });
+  const merged = mergeKnowledgecardStages({ solveRes, sceneRes, entries });
 
   return {
     ...merged,

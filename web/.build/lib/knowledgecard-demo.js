@@ -1,17 +1,17 @@
 /**
- * ⚠ **本文件由 `tools/build-worldbook-web.mjs` 自动生成，请勿手改。**
+ * ⚠ **本文件由 `tools/build-knowledgecard-web.mjs` 自动生成，请勿手改。**
  *
  * 来源（唯一事实来源）：
- *   · 内置词条：`core/worldbook/data/*.json`（由 `tools/rewrite-worldbook-entries.mjs` 写出）
- *   · 覆盖率：`core/worldbook/coverage.mjs`
+ *   · 内置词条：`core/knowledgecard/data/*.json`（由 `tools/rewrite-knowledgecard-entries.mjs` 写出）
+ *   · 覆盖率：`core/knowledgecard/coverage.mjs`
  * 生成时机：`node tools/web-build.mjs` 的 ⓪ 段（前端打包之前）。
  *
  * ── 说明（v1.1.9 改）
  *
  * 这里是**构建期内置快照**：发行版的内置层读的是编译常量（`builtin-bundle.generated.mjs`）。
- * **用户层**（`ai-rules/worldbook/`）不在这个文件里 —— 设置页通过 `/api/worldbook/*` 读写它。
+ * **用户层**（`ai-rules/knowledgecard/`）不在这个文件里 —— 设置页通过 `/api/knowledgecard/*` 读写它。
  * 本快照只用于"内置有哪些卡"的初始显示与覆盖关系判断。
- * 预览器的**触发与组装逻辑是真的**（用的是 `core/worldbook/engine.mjs` 的逐字节副本）。
+ * 预览器的**触发与组装逻辑是真的**（用的是 `core/knowledgecard/engine.mjs` 的逐字节副本）。
  */
 /**
  * ⚠ 这里**不要**写 `as const`：它会把 `insertion_slot` 变成 `readonly ["solve", …]`，
@@ -19,7 +19,7 @@
  *   一处 `as const` 就能让整个设置页的 `tsc` 报一串看不出原因的错。
  */
 /** 构建期快照：内置词条（`origin: builtin`） */
-export const WORLDBOOK_BUILTIN = [
+export const KNOWLEDGECARD_BUILTIN = [
     {
         "id": "wb_anim_conventions",
         "title": "动画规范·坐标/单位/颜色/读数（常驻）",
@@ -1086,38 +1086,38 @@ export const WORLDBOOK_BUILTIN = [
 /**
  * 构建期快照：用户词条（`origin: user`）。
  *
- * 本期恒为空数组：用户区的真实内容在 `ai-rules/worldbook/` 里，浏览器读不到文件系统。
+ * 本期恒为空数组：用户区的真实内容在 `ai-rules/knowledgecard/` 里，浏览器读不到文件系统。
  * 页面里新写的词条只存在内存中（见文件头的诚实声明）。
  */
-export const WORLDBOOK_USER = [];
-/** 内置库的稳定哈希（`provenance.worldbookHash` 用的同一个算法） */
-export const WORLDBOOK_HASH = "52c72c9c77f692c9090c453b2610ea1a275c52d61f5591a7f23a3074639aa3e3";
+export const KNOWLEDGECARD_USER = [];
+/** 内置库的稳定哈希（`provenance.knowledgecardHash` 用的同一个算法） */
+export const KNOWLEDGECARD_HASH = "52c72c9c77f692c9090c453b2610ea1a275c52d61f5591a7f23a3074639aa3e3";
 /**
- * 导出包的格式标识与版本（**从 `core/worldbook/store.mjs` 派生**，不是抄录）。
+ * 导出包的格式标识与版本（**从 `core/knowledgecard/store.mjs` 派生**，不是抄录）。
  *
  * ⚠ 浏览器拿不到 Node 侧的契约文件，所以这两个值必须由构建期写进产物；
- *   `tools/web-build.mjs` 会断言它们等于 `contracts/worldbook-pack.schema.json` 的
+ *   `tools/web-build.mjs` 会断言它们等于 `contracts/knowledgecard-pack.schema.json` 的
  *   `format.const` / `version.const` —— 抄错会让构建失败，而不是让 UI 悄悄导出错格式。
  */
-export const WORLDBOOK_PACK_FORMAT = "od-worldbook";
-export const WORLDBOOK_PACK_VERSION = 1;
+export const KNOWLEDGECARD_PACK_FORMAT = "od-knowledgecard";
+export const KNOWLEDGECARD_PACK_VERSION = 1;
 /** 内置库的载入来源（文件名 + SHA256 + 条数），供设置页显示"这批词条是哪来的" */
-export const WORLDBOOK_SOURCES = [
+export const KNOWLEDGECARD_SOURCES = [
     {
         "name": "92-animation-core.json",
         "kind": "builtin",
         "count": 3,
-        "sha256": "5e511aa62ef9b4c6046659649f164e5283dbdc67467178b59d4faf6f04c5fc31"
+        "sha256": "e4b592135a3685bee308fac73ac7e4b57076cd372dce4b7309ab3e807c166c7a"
     },
     {
         "name": "93-elements.json",
         "kind": "builtin",
         "count": 30,
-        "sha256": "16f6fce2b0c5aa7cedb9ae1ebf46ba6425e6682d5a2e88205dee11e43703c3b0"
+        "sha256": "6c4627c35ede92f31c5c144240bb4890167d1ef19fcf6f1c393faabb7513a86b"
     }
 ];
 /** 覆盖率报告（第 5 期只交付**机制**；内容覆盖由第 5.5 期完成） */
-export const WORLDBOOK_COVERAGE = {
+export const KNOWLEDGECARD_COVERAGE = {
     "total": 33,
     "structuralRate": 1,
     "selfCheckCoverage": 1,
@@ -1133,10 +1133,10 @@ export const WORLDBOOK_COVERAGE = {
  *
  * 它是**构建期用真引擎在真题题面上跑出来的**（不是编的）：世界书的命中与组装只取决于
  * 题面与词条集合，与模型无关，所以演示源也能显示真结果。
- * 类型不写在这里 —— 让 TS 从字面量推断，再在 `run-stream.ts` 里按 `WorldbookEvidence` 校验，
+ * 类型不写在这里 —— 让 TS 从字面量推断，再在 `run-stream.ts` 里按 `KnowledgecardEvidence` 校验，
  * 这样"生成物"与"消费端的类型"之间不会出现第二份手写接口。
  */
-export const WORLDBOOK_DEMO_EVENT = {
+export const KNOWLEDGECARD_DEMO_EVENT = {
     "hash": "52c72c9c77f692c9090c453b2610ea1a275c52d61f5591a7f23a3074639aa3e3",
     "libraryCount": 33,
     "matched": 5,

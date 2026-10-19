@@ -92,7 +92,7 @@ function validConfig(overrides = {}) {
       scene_code: 'ep_main',
       dry_run: null,
       repair: null,
-      worldbook: null,
+      knowledgecard: null,
     },
     keys: { ep_main: 'sk-fake-not-a-real-key' },
     ...overrides,

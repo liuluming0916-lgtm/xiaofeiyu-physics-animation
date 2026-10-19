@@ -4,7 +4,7 @@
  *
  * ── 为什么要有它
  *
- * 第 5.5 期是手写 JSON：一个 `]` 漏掉，`rewrite-worldbook-entries.mjs` 就会以
+ * 第 5.5 期是手写 JSON：一个 `]` 漏掉，`rewrite-knowledgecard-entries.mjs` 就会以
  * \"不是合法 JSON\" 中止。那时它的报错是 `JSON.parse` 的原文（`Expected ',' or ']'`），
  * 指向的位置对人不友好，而且**一次只报第一个坏文件**。
  * 本工具把这件事提前、并说清楚：
@@ -16,16 +16,16 @@
  *     ③ 主键里是否有**重复**（同一文件内 / 与其它文件的主键**互相包含** —— 这正是 P2 撞车检查的口径，
  *        在这里提前看一眼比等 rewrite 报出来快）。
  *
- * ⚠ 它**不替代** `node tools/rewrite-worldbook-entries.mjs`（那条才是唯一权威的校验 + 写库通道）。
+ * ⚠ 它**不替代** `node tools/rewrite-knowledgecard-entries.mjs`（那条才是唯一权威的校验 + 写库通道）。
  *   本工具只做\"让作者少返工\"的预检，故意不写盘、不改任何文件。
  *
- * 用法：node tools/check-worldbook-sources.mjs
+ * 用法：node tools/check-knowledgecard-sources.mjs
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { SOURCE_DIR, listSourceFiles } from './rewrite-worldbook-entries.mjs';
+import { SOURCE_DIR, listSourceFiles } from './rewrite-knowledgecard-entries.mjs';
 
 const REQUIRED = ['id', 'title', 'origin', 'category', 'enabled', 'keys', 'insertion_slot', 'content'];
 
@@ -132,8 +132,8 @@ for (const file of files) {
     problems.push(`${file} 不是合法 JSON（第 ${where} 行）\n      …${snippet}…\n      原始信息：${err?.message ?? err}`);
     continue;
   }
-  if (pack?.format !== 'od-worldbook' || pack?.version !== 1) {
-    problems.push(`${file} 的 format/version 必须是 od-worldbook / 1（实际：${pack?.format} / ${pack?.version}）`);
+  if (pack?.format !== 'od-knowledgecard' || pack?.version !== 1) {
+    problems.push(`${file} 的 format/version 必须是 od-knowledgecard / 1（实际：${pack?.format} / ${pack?.version}）`);
   }
   if (!Array.isArray(pack?.entries)) {
     problems.push(`${file} 的 entries 必须是数组`);
@@ -178,7 +178,7 @@ for (let i = 0; i < primaryKeys.length; i += 1) {
 if (problems.length) {
   console.error(`✗ 词条源预检：${files.length} 个文件 / ${entryCount} 条词条，发现 ${problems.length} 个问题：`);
   for (const p of problems) console.error(`  - ${p}`);
-  console.error('\n  → 修好后跑 `node tools/rewrite-worldbook-entries.mjs`（那条才是权威校验 + 写库）。');
+  console.error('\n  → 修好后跑 `node tools/rewrite-knowledgecard-entries.mjs`（那条才是权威校验 + 写库）。');
   process.exitCode = 1;
 } else {
   console.log(`✓ 词条源预检通过：${files.length} 个文件 · ${entryCount} 条词条 · 主键无包含关系`);

@@ -10,12 +10,12 @@
 
 import {
   SLOT_KEY_NAMES,
-  WORLDBOOK_INSERTION_SLOTS,
-  WORLDBOOK_ENTRY_KINDS,
-  WORLDBOOK_ENUMS,
-  WORLDBOOK_CONCEPT_IDS,
-  WORLDBOOK_TAG_NAMES,
-  WORLDBOOK_ELEMENT_IDS,
+  KNOWLEDGECARD_INSERTION_SLOTS,
+  KNOWLEDGECARD_ENTRY_KINDS,
+  KNOWLEDGECARD_ENUMS,
+  KNOWLEDGECARD_CONCEPT_IDS,
+  KNOWLEDGECARD_TAG_NAMES,
+  KNOWLEDGECARD_ELEMENT_IDS,
   PIPELINE_STAGES,
   CLEANING_STAGES,
   ANIMATION_PROGRAM_FORMAT,
@@ -65,11 +65,11 @@ export const animationProgram = {
     Provenance: {
       kind: 'object',
       title: 'Provenance（必须烧录进导出 HTML）',
-      required: ['model', 'promptHash', 'worldbookHash', 'generatedAt'],
+      required: ['model', 'promptHash', 'knowledgecardHash', 'generatedAt'],
       properties: {
         model: f.string({ minLength: 1, description: '生成模型标识，未接模型时可写 "handwritten"' }),
         promptHash: f.string({ minLength: 1, description: 'Prompt 集合哈希（本期手写题为 "handwritten"' }),
-        worldbookHash: f.string({ minLength: 1, description: '世界书集合哈希（本期为 "handwritten"' }),
+        knowledgecardHash: f.string({ minLength: 1, description: '世界书集合哈希（本期为 "handwritten"' }),
         generatedAt: f.string({ minLength: 1, description: 'ISO 8601 时间戳' }),
         sdkVersion: f.string({ minLength: 1 }),
         templateVersion: f.string({ minLength: 1 }),
@@ -94,38 +94,38 @@ export const animationProgram = {
   required: ['format', 'version', 'templateVersion', 'sdkVersion', 'slots'],
 };
 
-/* ─────────────────────────── worldbook-entry ─────────────────────────── */
+/* ─────────────────────────── knowledgecard-entry ─────────────────────────── */
 
 const WORLD_BOOK_KEY = f.string({
   minLength: 1,
   description: '字符串=字面量包含；"/…/"=正则。正则非法须在保存时拒绝。',
 });
 
-export const worldbookEntry = {
-  id: 'worldbook-entry',
+export const knowledgecardEntry = {
+  id: 'knowledgecard-entry',
   title: '世界书词条（§9.1 字段冻结）',
-  schemaId: 'https://open-design.local/contracts/worldbook-entry.schema.json',
+  schemaId: 'https://open-design.local/contracts/knowledgecard-entry.schema.json',
   description:
     '§9.1 词条模型。`insertion_slot` 元素只能是 solve | scene_code（= 目标阶段名）；`scene_spec` 是 v2 旧名，不得进入枚举，仅在导入路径归一化。',
-  root: 'WorldbookEntry',
+  root: 'KnowledgecardEntry',
   defs: {
     InsertionSlot: {
       kind: 'enum',
-      values: [...WORLDBOOK_INSERTION_SLOTS],
+      values: [...KNOWLEDGECARD_INSERTION_SLOTS],
       title: '§9.1 世界书槽位名 = 目标阶段名',
     },
-    Origin: { kind: 'enum', values: [...WORLDBOOK_ENUMS.origin] },
-    Category: { kind: 'enum', values: [...WORLDBOOK_ENUMS.category] },
+    Origin: { kind: 'enum', values: [...KNOWLEDGECARD_ENUMS.origin] },
+    Category: { kind: 'enum', values: [...KNOWLEDGECARD_ENUMS.category] },
     EntryKind: {
       kind: 'enum',
-      values: [...WORLDBOOK_ENTRY_KINDS],
-      title: '知识卡类型（只含 worldbook 条目：动画规范 / 元件 / 场景）',
+      values: [...KNOWLEDGECARD_ENTRY_KINDS],
+      title: '知识卡类型（只含 knowledgecard 条目：动画规范 / 元件 / 场景）',
       description:
-        '提示词卡与本地规则卡属于产品层知识卡，但不是 worldbook 条目，不走这个字段。' +
+        '提示词卡与本地规则卡属于产品层知识卡，但不是 knowledgecard 条目，不走这个字段。' +
         '缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。',
     },
-    SecondaryLogic: { kind: 'enum', values: [...WORLDBOOK_ENUMS.secondaryLogic] },
-    Priority: { kind: 'enum', values: [...WORLDBOOK_ENUMS.priority] },
+    SecondaryLogic: { kind: 'enum', values: [...KNOWLEDGECARD_ENUMS.secondaryLogic] },
+    Priority: { kind: 'enum', values: [...KNOWLEDGECARD_ENUMS.priority] },
     SecondaryKeys: {
       kind: 'object',
       required: ['logic', 'list'],
@@ -136,22 +136,22 @@ export const worldbookEntry = {
         list: f.array(f.string({ minLength: 1 }), { description: '次级键；空数组时 AND_ANY/AND_ALL/OR 直接通过，NOT 视为通过' }),
       },
     },
-    /* ── 第 5.7 期新增：三栏的枚举**从 `contracts/worldbook-concepts.json` 派生** ──
+    /* ── 第 5.7 期新增：三栏的枚举**从 `contracts/knowledgecard-concepts.json` 派生** ──
      *
      * 为什么不手写枚举：手写就是第二份事实来源 —— 词表加一个考点，Schema 不跟着变，
      * 于是"模型判得出、契约存不下"，而且**没有任何检查会红**。
      * 派生之后，「Schema 枚举 = Prompt 注入的表 = 前端下拉」在机制上同源。
-     * 逐条取证见 tests/contract-validator-selftest.mjs 与 tests/worldbook-selftest.mjs『W16』。
+     * 逐条取证见 tests/contract-validator-selftest.mjs 与 tests/knowledgecard-selftest.mjs『W16』。
      */
     ConceptId: {
       kind: 'enum',
-      values: [...WORLDBOOK_CONCEPT_IDS],
-      title: '考点词表（词表 A；派生自 contracts/worldbook-concepts.json）',
+      values: [...KNOWLEDGECARD_CONCEPT_IDS],
+      title: '考点词表（词表 A；派生自 contracts/knowledgecard-concepts.json）',
       description: '解题侧一级触发源。判定：concepts 相交 且（tags 相交 或 tags 为空）。',
     },
     TagName: {
       kind: 'enum',
-      values: [...WORLDBOOK_TAG_NAMES],
+      values: [...KNOWLEDGECARD_TAG_NAMES],
       title: '题型标签 / 细考点词表（词表 B；派生自同一份词表，按考点分组）',
       description:
         '解题侧二级。**跨字段约束（Schema 表达不了，落在运行期）**：一条词条的每个 tag 必须属于该词条某个 concepts；' +
@@ -159,7 +159,7 @@ export const worldbookEntry = {
     },
     ElementId: {
       kind: 'enum',
-      values: [...WORLDBOOK_ELEMENT_IDS],
+      values: [...KNOWLEDGECARD_ELEMENT_IDS],
       title: '实体物理图元 · 动画元件词表（派生自同一份词表；原名 devices / 器材）',
       description:
         '动画侧触发源。命中 = 词条 elements ∩ 模型报的动画元件 ≠ ∅，再用考点收窄。' +
@@ -186,7 +186,7 @@ export const worldbookEntry = {
      *   ② 它们的**取值**是受约束的（枚举 + 运行期跨字段校验），
      *      所以"可选"约束的是**存在性**，不是"随便填"；
      *   ③ 等 5.9 期写完新库，再按那时的口径决定是否升级为必填（记进 5.9 交付单）。
-     * 负对照见 tests/worldbook-selftest.mjs『W16』：填了表外值必须报错。
+     * 负对照见 tests/knowledgecard-selftest.mjs『W16』：填了表外值必须报错。
      */
     concepts: f.array(f.ref('ConceptId'), {
       uniqueItems: true,
@@ -214,10 +214,10 @@ export const worldbookEntry = {
   required: ['id', 'title', 'origin', 'category', 'enabled', 'keys', 'insertion_slot', 'content'],
 };
 
-/* ────────────────────────── worldbook-pack（§9.5 导入导出） ────────────────────────── */
+/* ────────────────────────── knowledgecard-pack（§9.5 导入导出） ────────────────────────── */
 
 /**
- * §9.5 导入导出：`.json`（`format: "od-worldbook"`, `version: 1`）。
+ * §9.5 导入导出：`.json`（`format: "od-knowledgecard"`, `version: 1`）。
  *
  * ⚠ 为什么包里**没有** `includeBuiltin` 之类的字段：§9.3 的"默认只导 origin:user +
  *   可选包含内置规范"是**导出这个动作的选择**，不是词条集合的属性。
@@ -227,22 +227,22 @@ export const worldbookEntry = {
  * ⚠ 体积上限（§16：单文件 ≤800 KB、全部 ≤16 MB）**无法在 JSON Schema 层表达**，
  *   由导入路径校验（与 §11.2 的跨字段规则同一处置方式）。
  */
-export const worldbookPack = {
-  id: 'worldbook-pack',
+export const knowledgecardPack = {
+  id: 'knowledgecard-pack',
   title: '世界书导出包（§9.5 导入导出）',
-  schemaId: 'https://open-design.local/contracts/worldbook-pack.schema.json',
+  schemaId: 'https://open-design.local/contracts/knowledgecard-pack.schema.json',
   description:
-    '§9.5 的 `.json` 交换格式（format:"od-worldbook", version:1）。' +
-    '包内词条的形状**引用** worldbook-entry 契约，不得另立一套字段；' +
+    '§9.5 的 `.json` 交换格式（format:"od-knowledgecard", version:1）。' +
+    '包内词条的形状**引用** knowledgecard-entry 契约，不得另立一套字段；' +
     '旧名归一化（scene_spec → scene_code、"both" → ["solve","scene_code"]）只发生在**导入路径**，导出与内部一律只写新名。',
-  root: 'WorldbookPack',
+  root: 'KnowledgecardPack',
   defs: {
-    WorldbookEntry: { kind: 'inline', spec: worldbookEntry },
+    KnowledgecardEntry: { kind: 'inline', spec: knowledgecardEntry },
   },
   properties: {
-    format: f.string({ const: 'od-worldbook', description: '§9.5 冻结格式标识' }),
+    format: f.string({ const: 'od-knowledgecard', description: '§9.5 冻结格式标识' }),
     version: f.integer({ const: 1, description: '不支持版本必须明确拒绝' }),
-    entries: f.array(f.ref('WorldbookEntry'), {
+    entries: f.array(f.ref('KnowledgecardEntry'), {
       description: '实际导出的词条（导入时逐条按 §9.1 校验，整批生效或整批失败）',
     }),
   },
@@ -363,12 +363,12 @@ export const endpointConfig = {
 
 export const CONTRACT_SPECS = [
   animationProgram,
-  worldbookEntry,
+  knowledgecardEntry,
   cleaningRule,
   cleaningRuleSet,
   endpointConfig,
   // 第 4 期新增：诊断条目（三档证据强度）。放在最后，前五份产物的哈希与顺序都不受影响。
   diagnosticRecord,
   // 第 5 期新增：世界书导出包（§9.5）。同样放在最后 —— 前六份产物的哈希与顺序不受影响。
-  worldbookPack,
+  knowledgecardPack,
 ];

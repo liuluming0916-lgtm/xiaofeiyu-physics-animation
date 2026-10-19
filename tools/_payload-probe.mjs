@@ -19,8 +19,8 @@ import { join } from 'node:path';
 
 import { buildStagePrefix } from '../core/prompts/fixed-prefix.mjs';
 import { getPrompt, buildJudgementVocab } from '../core/prompts/templates.mjs';
-import { buildSlotPreview } from '../core/worldbook/engine.mjs';
-import { loadLibrary } from '../core/worldbook/store.mjs';
+import { buildSlotPreview } from '../core/knowledgecard/engine.mjs';
+import { loadLibrary } from '../core/knowledgecard/store.mjs';
 import { PROJECT_ROOT } from './paths.mjs';
 
 const lib = loadLibrary();
@@ -41,7 +41,7 @@ const solution = [
   '结论：(1) t* = 1.0 s，Δx = 1.0 m；(2) Q = 2.0 J。',
 ].join('\n');
 
-const vocab = buildJudgementVocab(JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'worldbook-concepts.json'), 'utf8')));
+const vocab = buildJudgementVocab(JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'knowledgecard-concepts.json'), 'utf8')));
 
 const prefix = buildStagePrefix('scene_code');
 const rows = [];
@@ -50,18 +50,18 @@ const fmt = (n) => String(n).padStart(6);
 /** 按阶段组装（与 orchestrator 的口径一致：词条走本阶段的槽位，指令走 prompt.system） */
 function stage({ id, slot, problemText, extraUser = null, concepts = [], tags = [], elements = [] }) {
   const prompt = getPrompt(id);
-  const wb = slot ? buildSlotPreview({ entries: lib.entries, slot, text: problemText, concepts, tags, elements }) : { worldbookText: '' };
+  const wb = slot ? buildSlotPreview({ entries: lib.entries, slot, text: problemText, concepts, tags, elements }) : { knowledgecardText: '' };
   // 第 9 期：前缀**按阶段取**（只有写代码的阶段才带骨架与 SDK 摘要）
   const stagePrefix = buildStagePrefix(id);
-  const system = [stagePrefix.text, buildSlotConditionalText(prompt, wb.worldbookText)].filter(Boolean).join('\n\n');
+  const system = [stagePrefix.text, buildSlotConditionalText(prompt, wb.knowledgecardText)].filter(Boolean).join('\n\n');
   const user = extraUser ?? prompt.buildUser({ problem: problemText });
-  rows.push({ id, slot: slot ?? '—', sys: system.length, user: user.length, wb: (wb.worldbookText ?? '').length });
+  rows.push({ id, slot: slot ?? '—', sys: system.length, user: user.length, wb: (wb.knowledgecardText ?? '').length });
   return { system, user };
 }
 
 /** 条件段：本阶段指令 + 命中的词条（与 `buildConditionalSegment` 同形，这里只取长度） */
-function buildSlotConditionalText(prompt, worldbookText) {
-  return [`【本阶段指令：${prompt.label}】`, prompt.system, worldbookText].filter(Boolean).join('\n\n');
+function buildSlotConditionalText(prompt, knowledgecardText) {
+  return [`【本阶段指令：${prompt.label}】`, prompt.system, knowledgecardText].filter(Boolean).join('\n\n');
 }
 
 /* 五个阶段，输入按真实链路累积 */

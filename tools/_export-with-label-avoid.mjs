@@ -55,7 +55,7 @@ for (const { file, program } of questions) {
     mode: program.mode ?? 'NUMERIC',
     model: 'label-avoid-demo',
     promptHash: table ? 'demo' : undefined,
-    worldbookHash: table ? 'demo' : undefined,
+    knowledgecardHash: table ? 'demo' : undefined,
     labelAvoid: table,
   });
 

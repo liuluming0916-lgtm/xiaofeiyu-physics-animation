@@ -75,7 +75,7 @@ export const EVENT_TYPES = Object.freeze([
   'repair_round', // { round, maxRounds, slots, updated, kept, failingChecks, verdict, diagnostics[] }
   'repair_done', // { rounds, verdict, converged, banner }
   // 第 5 期（世界书）：本次解题实际命中了哪些词条、进了哪个槽、有没有空槽/截断（§9.2 第 6 步 / §15）
-  'worldbook_done', // { hash, entries[], emptySlots[], truncatedSlots[], warnings[], charsBySlot, injectedBySlot }
+  'knowledgecard_done', // { hash, entries[], emptySlots[], truncatedSlots[], warnings[], charsBySlot, injectedBySlot }
   // 第 5 期追加（读题与判定）：**纯图片题**在开跑时没有标题可显示，转写出来后回填一次
   'run_label', // { entry, source }
   'run_done', // { verdict, ms, cancelled, banner }

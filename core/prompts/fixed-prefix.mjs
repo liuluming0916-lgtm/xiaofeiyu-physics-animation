@@ -26,7 +26,7 @@ import {
   TEMPLATE_VERSION,
   SDK_VERSION,
 } from '../../contracts/spec/frozen-keys.mjs';
-import { buildSlotConditional, renderEntryBlock } from '../worldbook/engine.mjs';
+import { buildSlotConditional, renderEntryBlock } from '../knowledgecard/engine.mjs';
 import { ROLE_AND_OUTPUT_RULES, STAGE_ROLES } from './templates.mjs';
 
 /** 会写代码、需要 8 槽位骨架与 SDK 清单的阶段（其余阶段只吃"角色 + 输出纪律"） */
@@ -154,7 +154,7 @@ export function buildFixedPrefix() {
  * ── 第 5 期的两点变化（都是"加法"，世界书词条的标记格式一字未改）
  *
  * ① **分槽**：词条按自己的槽位渲染来源标记（`【世界书·解题：…】` / `【世界书·动画建模：…】`），
- *    渲染实现落在 `core/worldbook/engine.mjs`（浏览器侧的预览器用的是它的逐字节副本 ⇒ W10）。
+ *    渲染实现落在 `core/knowledgecard/engine.mjs`（浏览器侧的预览器用的是它的逐字节副本 ⇒ W10）。
  * ② **本阶段指令有了自己的标签**：第 3 期起编排层把 `prompt.system` 借这个位置塞进来，
  *    并且**复用了世界书的标记**。第 5 期真词条进来后，两种东西会共用同一个标记 ⇒
  *    溯源分不清"这条是命中词条还是阶段指令"。现在指令走 `【本阶段指令：<label>】`。
@@ -215,8 +215,8 @@ export function buildTaskSegment(input) {
  * @param {object} input
  * @param {{ text: string, description?: string, knownConditions?: string }} input.problem
  * @param {unknown[]} [input.images]
- * @param {Array<{ title: string, content: string, slot?: string }>} [input.worldbookEntries] 命中词条（形状化）
- * @param {string|null} [input.worldbookSegment] 引擎**已渲染**的本槽拼接内容（优先于 worldbookEntries）
+ * @param {Array<{ title: string, content: string, slot?: string }>} [input.knowledgecardEntries] 命中词条（形状化）
+ * @param {string|null} [input.knowledgecardSegment] 引擎**已渲染**的本槽拼接内容（优先于 knowledgecardEntries）
  * @param {string|null} [input.instructions] 本阶段指令正文（`prompt.system`）
  * @param {string|null} [input.instructionLabel] 本阶段指令的标签（`prompt.label`）
  * @param {'solve'|'scene_code'} [input.stageSlot] 本阶段对应哪个世界书槽位
@@ -224,7 +224,7 @@ export function buildTaskSegment(input) {
  *   messages: Array<object>,
  *   promptHash: string,
  *   prefixBytes: number,
- *   segments: { prefix: string, conditional: string, task: string, instruction: string, worldbook: string },
+ *   segments: { prefix: string, conditional: string, task: string, instruction: string, knowledgecard: string },
  *   imageCount: number,
  * }}
  */
@@ -246,8 +246,8 @@ export function buildTaskSegment(input) {
 export function assemblePrompt({
   problem,
   images = [],
-  worldbookEntries = [],
-  worldbookSegment = null,
+  knowledgecardEntries = [],
+  knowledgecardSegment = null,
   instructions = null,
   instructionLabel = null,
   stageSlot = 'solve',
@@ -258,11 +258,11 @@ export function assemblePrompt({
    * 生产链的每个阶段都会显式传自己的 `stage`）。
    */
   const prefix = stage ? buildStagePrefix(stage) : buildFixedPrefix();
-  const conditional = buildConditionalSegment(worldbookEntries, {
+  const conditional = buildConditionalSegment(knowledgecardEntries, {
     slot: stageSlot,
     instruction: instructions,
     instructionLabel,
-    segment: worldbookSegment,
+    segment: knowledgecardSegment,
   });
   const task = buildTaskSegment({ ...problem, images });
   const taskText = task.text;
@@ -289,7 +289,7 @@ export function assemblePrompt({
       task: taskText,
       // 条件段的两个组成部分分开给出：审计"命中了什么"与"指令是什么"要看它们各自的内容
       instruction: conditional.instructionText,
-      worldbook: conditional.worldbookText,
+      knowledgecard: conditional.knowledgecardText,
     },
     imageCount: task.imageCount,
   };

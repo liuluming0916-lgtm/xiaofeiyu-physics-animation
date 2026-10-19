@@ -5,7 +5,7 @@
 /**
  * §12 stage 枚举（有模型文本产出的阶段）
  */
-export type CleaningStage = "read_problem" | "solve" | "answers" | "steps" | "scene_code" | "worldbook";
+export type CleaningStage = "read_problem" | "solve" | "answers" | "steps" | "scene_code" | "knowledgecard";
 
 /**
  * 清洗规则（§12 条目字段）

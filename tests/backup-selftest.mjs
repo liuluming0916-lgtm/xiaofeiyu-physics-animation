@@ -7,7 +7,7 @@
  *   B **滚动 5 份**：改 7 次之后，最新 5 版都在，最老的被挤掉，`.bak.1` 永远是最新；
  *   C **恢复可撤销**：恢复前会先把当前版本也备份一份；
  *   D 三处"不备份/必须备份"的口径：`keys.json` **永不备份**（每份副本都是明文密钥），
- *     而 `endpoints.json` 与 `ai-rules/worldbook/*.json` 必须备份。
+ *     而 `endpoints.json` 与 `ai-rules/knowledgecard/*.json` 必须备份。
  *
  * ⚠ 全部在临时目录里跑，不碰仓库真实的 `ai-rules/`。
  *
@@ -33,7 +33,7 @@ import {
   restoreBackup,
 } from '../core/rules/index.mjs';
 import { saveEndpoints, saveKeys, loadKeys } from '../core/gateway/index.mjs';
-import { saveWorldbookPack, copyBuiltinEntry, listWorldbookPacks, listBuiltinEntries } from '../core/worldbook/index.mjs';
+import { saveKnowledgecardPack, copyBuiltinEntry, listKnowledgecardPacks, listBuiltinEntries } from '../core/knowledgecard/index.mjs';
 
 let passed = 0;
 const failures = [];
@@ -177,16 +177,16 @@ function main() {
       check('备份里是上一版的模型名', readFileSync(join(backupDirOf(dir), 'endpoints.json.bak.1'), 'utf8').includes('model-a'));
 
       // 词条包：复制一条内置，然后改两次
-      const wbDir = join(dir, 'worldbook');
+      const wbDir = join(dir, 'knowledgecard');
       const firstBuiltin = listBuiltinEntries().entries[0];
       check('（前置）内置库里至少有一条词条', Boolean(firstBuiltin?.id));
       const copied = copyBuiltinEntry({ dir: wbDir, id: firstBuiltin.id });
       check('（前置）复制一条内置词条成功', copied.ok === true, JSON.stringify(copied));
       const packText = readFileSync(join(wbDir, copied.name), 'utf8');
-      const saved = saveWorldbookPack({ dir: wbDir, name: copied.name, text: packText });
+      const saved = saveKnowledgecardPack({ dir: wbDir, name: copied.name, text: packText });
       check('再保存一次成功', saved.ok === true, JSON.stringify(saved.issues));
       check('★ 词条包也有备份', listBackups({ dir: wbDir, rel: copied.name }).length >= 1);
-      check('词条包的备份不影响词条库载入', listWorldbookPacks({ dir: wbDir }).ok === true);
+      check('词条包的备份不影响词条库载入', listKnowledgecardPacks({ dir: wbDir }).ok === true);
     }
 
     /* ── F 备份目录对工作区不可见 ── */

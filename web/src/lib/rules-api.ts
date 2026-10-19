@@ -214,9 +214,9 @@ export interface ConnectionResult {
   vision?: { ok: boolean; code: string; message: string; kind?: string }
 }
 
-/* ── 世界书（第 6 期补齐：只写 ai-rules/worldbook/） ── */
+/* ── 世界书（第 6 期补齐：只写 ai-rules/knowledgecard/） ── */
 
-export interface WorldbookPackSummary {
+export interface KnowledgecardPackSummary {
   name: string
   bytes: number
   count: number
@@ -224,16 +224,16 @@ export interface WorldbookPackSummary {
   problems: string[]
 }
 
-export interface WorldbookList {
+export interface KnowledgecardList {
   ok: boolean
   dir: string
-  packs: WorldbookPackSummary[]
+  packs: KnowledgecardPackSummary[]
   problems: string[]
   builtinCount: number
   builtinIds: string[]
 }
 
-export interface WorldbookPack {
+export interface KnowledgecardPack {
   ok: boolean
   name: string
   text: string
@@ -241,8 +241,8 @@ export interface WorldbookPack {
   problems: string[]
 }
 
-/** 一键恢复本版本内置的结果（`POST /api/worldbook/restore`） */
-export interface WorldbookRestoreResult {
+/** 一键恢复本版本内置的结果（`POST /api/knowledgecard/restore`） */
+export interface KnowledgecardRestoreResult {
   ok: boolean
   builtinCount: number
   overriddenIds: string[]
@@ -292,11 +292,11 @@ export const api = {
   exportEndpoints: () => request<{ ok: boolean; text: string; hash: string; bytes: number }>('GET', '/endpoints/export'),
   importEndpoints: (text: string) => request<{ ok: boolean; hash: string }>('POST', '/endpoints/import', { text }),
 
-  worldbook: () => request<WorldbookList>('GET', '/worldbook'),
-  worldbookPack: (name: string) => request<WorldbookPack>('GET', `/worldbook/packs/${encodeURIComponent(name)}`),
-  saveWorldbookPack: (name: string, text: string) => request<{ ok: boolean; count: number }>('PUT', `/worldbook/packs/${encodeURIComponent(name)}`, { text }),
-  createWorldbookPack: (name: string) => request<{ ok: boolean; name: string }>('POST', '/worldbook/packs', { name }),
-  deleteWorldbookPack: (name: string) => request<{ ok: boolean }>('DELETE', `/worldbook/packs/${encodeURIComponent(name)}`),
-  copyBuiltinWorldbook: (id: string) => request<{ ok: boolean; name: string }>('POST', '/worldbook/copy', { id }),
-  restoreWorldbookBuiltin: () => request<WorldbookRestoreResult>('POST', '/worldbook/restore', {}),
+  knowledgecard: () => request<KnowledgecardList>('GET', '/knowledgecard'),
+  knowledgecardPack: (name: string) => request<KnowledgecardPack>('GET', `/knowledgecard/packs/${encodeURIComponent(name)}`),
+  saveKnowledgecardPack: (name: string, text: string) => request<{ ok: boolean; count: number }>('PUT', `/knowledgecard/packs/${encodeURIComponent(name)}`, { text }),
+  createKnowledgecardPack: (name: string) => request<{ ok: boolean; name: string }>('POST', '/knowledgecard/packs', { name }),
+  deleteKnowledgecardPack: (name: string) => request<{ ok: boolean }>('DELETE', `/knowledgecard/packs/${encodeURIComponent(name)}`),
+  copyBuiltinKnowledgecard: (id: string) => request<{ ok: boolean; name: string }>('POST', '/knowledgecard/copy', { id }),
+  restoreKnowledgecardBuiltin: () => request<KnowledgecardRestoreResult>('POST', '/knowledgecard/restore', {}),
 }

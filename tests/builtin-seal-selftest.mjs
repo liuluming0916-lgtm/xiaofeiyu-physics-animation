@@ -28,8 +28,8 @@ import { join } from 'node:path';
 
 import { PROJECT_ROOT, isCliEntry } from '../tools/paths.mjs';
 import { buildBundleSource } from '../tools/build-builtin-bundle.mjs';
-import { BUILTIN_BUNDLE } from '../core/worldbook/builtin-bundle.generated.mjs';
-import { loadLibrary, readBuiltinBundle, useBuiltinBundle } from '../core/worldbook/index.mjs';
+import { BUILTIN_BUNDLE } from '../core/knowledgecard/builtin-bundle.generated.mjs';
+import { loadLibrary, readBuiltinBundle, useBuiltinBundle } from '../core/knowledgecard/index.mjs';
 
 let passed = 0;
 const failures = [];
@@ -79,7 +79,7 @@ async function main() {
 
   {
     const { content, hash, files } = buildBundleSource();
-    const onDisk = readFileSync(join(PROJECT_ROOT, 'core', 'worldbook', 'builtin-bundle.generated.mjs'), 'utf8');
+    const onDisk = readFileSync(join(PROJECT_ROOT, 'core', 'knowledgecard', 'builtin-bundle.generated.mjs'), 'utf8');
     check('★ 盘上的编译包 == 从 data/ 重新生成的结果', onDisk === content, '跑 node tools/build-builtin-bundle.mjs');
     check('编译包带版本哈希（改了内容它就变）', BUILTIN_BUNDLE.hash === hash && hash.length === 64);
     check('编译包覆盖全部词条文件', BUILTIN_BUNDLE.files.length === files.length && files.length > 0);
@@ -127,7 +127,7 @@ async function main() {
 
     const lib = loadLibrary({ userDir });
     check('★ 空目录下仍读到**同样多**的内置词条', lib.builtin.length === devCount, `${lib.builtin.length} vs 开发态 ${devCount}`);
-    check('★ 内置词条内容与开发态完全一致（同一批 id）', JSON.stringify(lib.builtin.map((e) => e.id).sort()) === JSON.stringify(loadLibrary({ userDir, builtinDir: join(PROJECT_ROOT, 'core', 'worldbook', 'data') }).builtin.map((e) => e.id).sort()));
+    check('★ 内置词条内容与开发态完全一致（同一批 id）', JSON.stringify(lib.builtin.map((e) => e.id).sort()) === JSON.stringify(loadLibrary({ userDir, builtinDir: join(PROJECT_ROOT, 'core', 'knowledgecard', 'data') }).builtin.map((e) => e.id).sort()));
     check('★ 来源标成 `<builtin:…>`（说明这次不是从磁盘读的）', lib.sources.filter((s) => s.kind === 'builtin').every((s) => s.file.startsWith('<builtin:')));
     check('没有因为"目录不存在"报问题', !lib.problems.some((p) => String(p).includes('目录不存在')));
   }

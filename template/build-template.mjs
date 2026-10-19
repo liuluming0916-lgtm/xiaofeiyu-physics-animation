@@ -171,7 +171,7 @@ export function provenanceLine(program, contractHash, texSvg) {
     `SDK v${SDK_VERSION}`,
     'model: handwritten',
     'prompt: handwritten',
-    'worldbook: handwritten',
+    'knowledgecard: handwritten',
     texSvg?.renderer ? `math: ${texSvg.renderer}` : 'math: odtex-fallback',
     `contract: ${contractHash.slice(0, 12)}`,
     program.id,

@@ -10,7 +10,7 @@
  *      它由 `tools/_golden-probe.mjs` 用**真判据内核**跑过 C1–C9，不是"看起来对"的样例；
  *   ③ **一行速查**：其余规则压成一条一条可扫读的短句，长讲义留给世界书。
  *
- * ⚠ v1.1.9alpha：§10.1 原 6 项里删掉 `worldbook` / `distill` 两份未接主链路的 Prompt，
+ * ⚠ v1.1.9alpha：§10.1 原 6 项里删掉 `knowledgecard` / `distill` 两份未接主链路的 Prompt，
  *   保留 4 项（solve / answers / steps / scene_code）+ 扩展 read_problem / repair + 答案结构模板 = 7 项目录；
  *   §10.3 的安全边界也一字未改：Prompt 是只读文本，写什么都关不掉 C1–C9。
  *
@@ -112,11 +112,11 @@ const ROW_TABLE_NOTE = [
 /* ────────────────────────────── 各阶段 Prompt ────────────────────────────── */
 
 /**
- * worldbook 条目相关的 4 个阶段 Prompt（另有答案结构模板，共 5 项）。
+ * knowledgecard 条目相关的 4 个阶段 Prompt（另有答案结构模板，共 5 项）。
  *
  * ⚠ 第 4 期新增的 `repair`、第 5 期新增的 `read_problem` 是**扩展 Prompt**，
  *   不在这张表里（见 `EXTENSION_PROMPTS`）。
- *   v1.1.9alpha 删掉了原 §10.1 的 `worldbook` / `distill` 两份（都没接主链路），
+ *   v1.1.9alpha 删掉了原 §10.1 的 `knowledgecard` / `distill` 两份（都没接主链路），
  *   所以这里只剩 4 项；自检按 4 项断言。
  */
 export const PROMPTS = Object.freeze({
@@ -337,7 +337,7 @@ export const EXTENSION_PROMPTS = Object.freeze({
    *   代价：纯文字题的模型调用 4 → 5 次（已知并接受，计划 §2）。
    *
    * ⚠ 它**不吃世界书词条**（本阶段在世界书之前）：判定要用的两套词表由
-   *   `buildUser` 直接注入（来自 `contracts/worldbook-concepts.json` 这份单源真相）。
+   *   `buildUser` 直接注入（来自 `contracts/knowledgecard-concepts.json` 这份单源真相）。
    *   这是 §9.6「Prompt 与词条分工」的直接应用：**阶段契约 ≠ 条件知识**。
    *
    * ⚠ 第 9 期**未改动**本段正文：它已经是"逐节可核对"的写法，
@@ -394,7 +394,7 @@ export const EXTENSION_PROMPTS = Object.freeze({
         '',
         '【题目图片】随本消息附上（若是纯文字题则没有图）。请先转写；判定时**图片和题面一起看**（纯文字题按题面判）。',
         '',
-        '════════ 以下是判定用的词表（单源真相：contracts/worldbook-concepts.json） ════════',
+        '════════ 以下是判定用的词表（单源真相：contracts/knowledgecard-concepts.json） ════════',
         '',
         vocab && vocab.trim() ? vocab : '（**词表缺失** —— 这不该发生；若真缺失，判定三段一律写"无"，不要自造词）',
       ].join('\n'),
@@ -411,19 +411,19 @@ export function listExtensionPrompts() {
 }
 
 /**
- * 判定词表 → 注入 Prompt 的文本（**单源真相**：`contracts/worldbook-concepts.json`）。
+ * 判定词表 → 注入 Prompt 的文本（**单源真相**：`contracts/knowledgecard-concepts.json`）。
  *
  * ⚠ 为什么要一个构造函数而不是直接读文件：
  *   ① 本模块要能在浏览器/打包环境里被 import（不能依赖 `node:fs`）；
  *   ② 词表的内容与顺序由契约那层保证（`contracts/spec/frozen-keys.mjs` 派生、`_compile.mjs` 断言），
  *      这里只做**渲染**，不持有第二份数据。
  *
- * ⚠ **不注入别名**：别名是给程序做归一化用的（`core/worldbook/concepts.mjs`），
+ * ⚠ **不注入别名**：别名是给程序做归一化用的（`core/knowledgecard/concepts.mjs`），
  *   塞进 Prompt 只会增加噪音。S1 实测：去掉别名后提示词从 8834 → 5860 字符，
  *   10 题 0 表外词、平均耗时从 15s 降到 8s。
  */
 /**
- * 判定词表 → 注入 Prompt 的文本（**单源真相**：`contracts/worldbook-concepts.json`）。
+ * 判定词表 → 注入 Prompt 的文本（**单源真相**：`contracts/knowledgecard-concepts.json`）。
  *
  * ── 第 9 期：**只注入「动画元件词表」**（用户裁决 A）──
  *
@@ -441,7 +441,7 @@ export function listExtensionPrompts() {
  *   ① 本模块要能在浏览器/打包环境里被 import（不能依赖 `node:fs`）；
  *   ② 词表的内容与顺序由契约那层保证，这里只做**渲染**，不持有第二份数据。
  *
- * ⚠ **不注入别名**：别名是给程序做归一化用的（`core/worldbook/concepts.mjs`），
+ * ⚠ **不注入别名**：别名是给程序做归一化用的（`core/knowledgecard/concepts.mjs`），
  *   塞进 Prompt 只会增加噪音（S1 实测：去掉别名后 10 题 0 表外词、耗时 15s → 8s）。
  */
 export function buildJudgementVocab(vocab) {

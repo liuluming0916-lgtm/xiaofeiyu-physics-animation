@@ -1,4 +1,15 @@
 /**
+ * ⚠ **本文件由 `tools/build-knowledgecard-web.mjs` 从 `core/knowledgecard/concepts.mjs` 逐字节复制生成，请勿手改。**
+ *
+ * 为什么要复制：设置页的预览器要支持"粘贴一段模型转写 → 自动解析出考点/题型/元件"，
+ * 而**解析的唯一实现**就是本尊。让两边跑同一份字节，是唯一能结构性保证
+ * "粘贴解析 = 真实链路解析"的做法；改本源、忘了改副本，构建期判据会直接失败。
+ *
+ * 开发期改解析逻辑：**改 `core/knowledgecard/concepts.mjs`**，然后跑
+ * `node tools/web-build.mjs`（它会重新复制并核对）。
+ */
+
+/**
  * 世界书判定解析器 · **纯函数**（第 5.7 期 S3）。
  *
  * 职责：把模型在 `read_problem` 阶段写出的判定段（`【考点】…【题型】…【器材/动画元件】…`）
@@ -15,10 +26,10 @@
  *
  * ── 为什么本文件必须是"纯"的（与 `engine.mjs` 同一条理由）
  *
- * 它会被**逐字节复制**到浏览器（`tools/build-worldbook-web.mjs`），前端预览器要用它
+ * 它会被**逐字节复制**到浏览器（`tools/build-knowledgecard-web.mjs`），前端预览器要用它
  * 把"粘贴一段模型转写"解析成判定结构。所以：**不许 import 任何 node: 模块**，不许 IO。
  *
- * ⚠ 词表**不从文件读**：调用方把词表传进来（`contracts/worldbook-concepts.json` 的内容）。
+ * ⚠ 词表**不从文件读**：调用方把词表传进来（`contracts/knowledgecard-concepts.json` 的内容）。
  *   这样本模块既能在 Node 侧吃文件、也能在浏览器侧吃构建期快照，且**不需要第二份词表拷贝**。
  */
 
@@ -77,7 +88,7 @@ export function normalizeWord(raw) {
  * 建一个"别名 → 正式名"的归一化表（**大小写与全半角不敏感**）。
  *
  * 冲突口径：**同一个别名指向两处时，先注册的赢，并把冲突记下来**（`conflicts`）。
- *   本仓的 `contracts/worldbook-concepts.json` 里考点名与别名存在**刻意的重叠**
+ *   本仓的 `contracts/knowledgecard-concepts.json` 里考点名与别名存在**刻意的重叠**
  *   （例如 `弹簧振子` 既是 `simple_harmonic` 的别名、又在别的表里出现过），
  *   所以这里**不静默**：冲突清单由 S6 的『W16』断言盯着（数量变化会红）。
  */
@@ -109,12 +120,12 @@ export function buildVocabIndex(vocab) {
    *
    * ⚠ 细考点重名**不在本文件里 warn，也不读进程环境变量**：
    *
-   *   ① 本文件会被**逐字节复制进浏览器**（`web/src/lib/worldbook-concepts.js`）——
+   *   ① 本文件会被**逐字节复制进浏览器**（`web/src/lib/knowledgecard-concepts.js`）——
    *      一旦出现"读进程环境变量"的写法，整页会在浏览器里**抛错白屏**
    *      （门禁 ④"产物可执行性探针"正是这么逮到第一版的；那条判据按**子串**匹配，
    *       所以我连注释里都不敢写出那个写法 —— 写了它就会红）；
    *   ② 重名是**词表缺陷**，该由契约层的断言报
-   *      （`contracts/_compile.mjs` 的派生断言 + `tests/worldbook-selftest.mjs` 的『W16』）；
+   *      （`contracts/_compile.mjs` 的派生断言 + `tests/knowledgecard-selftest.mjs` 的『W16』）；
    *   ③ 构建期会对同一批数据反复调用本函数，一条 warn 会刷满构建日志。
    *
    * 所以：**只如实记录到返回值里**（`tagDuplicates`），谁需要谁看。

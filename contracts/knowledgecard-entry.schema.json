@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://open-design.local/contracts/worldbook-entry.schema.json",
+  "$id": "https://open-design.local/contracts/knowledgecard-entry.schema.json",
   "title": "世界书词条（§9.1 字段冻结）",
   "description": "§9.1 词条模型。`insertion_slot` 元素只能是 solve | scene_code（= 目标阶段名）；`scene_spec` 是 v2 旧名，不得进入枚举，仅在导入路径归一化。",
   "type": "object",
@@ -146,8 +146,8 @@
         "element",
         "scene"
       ],
-      "title": "知识卡类型（只含 worldbook 条目：动画规范 / 元件 / 场景）",
-      "description": "提示词卡与本地规则卡属于产品层知识卡，但不是 worldbook 条目，不走这个字段。缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。"
+      "title": "知识卡类型（只含 knowledgecard 条目：动画规范 / 元件 / 场景）",
+      "description": "提示词卡与本地规则卡属于产品层知识卡，但不是 knowledgecard 条目，不走这个字段。缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。"
     },
     "SecondaryLogic": {
       "type": "string",
@@ -248,7 +248,7 @@
         "exp_electricity",
         "exp_optics_thermal"
       ],
-      "title": "考点词表（词表 A；派生自 contracts/worldbook-concepts.json）",
+      "title": "考点词表（词表 A；派生自 contracts/knowledgecard-concepts.json）",
       "description": "解题侧一级触发源。判定：concepts 相交 且（tags 相交 或 tags 为空）。"
     },
     "TagName": {
@@ -296,8 +296,8 @@
     }
   },
   "x-od-contract": {
-    "id": "worldbook-entry",
-    "rootType": "WorldbookEntry",
+    "id": "knowledgecard-entry",
+    "rootType": "KnowledgecardEntry",
     "generatedFrom": "contracts/spec/contract-fields.mjs",
     "frozenBy": "物理解题动画软件 v1.0 自研方案 §3 / §9 / §11.1 / §12"
   }

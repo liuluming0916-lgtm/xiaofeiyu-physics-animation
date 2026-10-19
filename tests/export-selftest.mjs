@@ -153,7 +153,7 @@ export async function main() {
       mode: q01.mode,
       model: 'handwritten',
       promptHash: 'handwritten',
-      worldbookHash: 'handwritten',
+      knowledgecardHash: 'handwritten',
     });
     check('★ 正常导出成功', built.ok === true, built.message);
     if (!built.ok) throw new Error('导出页构建失败，后续断言无法进行');
@@ -171,7 +171,7 @@ export async function main() {
     check('★ Provenance：SDK 版本', /SDK v\d/.test(built.provenance));
     check('★ Provenance：模型', /model: handwritten/.test(built.provenance));
     check('★ Provenance：prompt 哈希', /prompt: handwritten/.test(built.provenance));
-    check('★ Provenance：词条哈希', /worldbook: handwritten/.test(built.provenance));
+    check('★ Provenance：词条哈希', /knowledgecard: handwritten/.test(built.provenance));
     check('★ Provenance 写进了页面（不是只返回给前端）', html.includes(built.provenance));
     check(
       'Provenance 缺值时不编造（写"未记录"）',

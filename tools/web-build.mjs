@@ -42,16 +42,16 @@ const ROLLUP = join(WEB_DIR, 'node_modules', 'rollup', 'dist', 'bin', 'rollup');
 const DEMO_GEN = join(PROJECT_ROOT, 'tools', 'build-demo-questions.mjs');
 
 /**
- * 世界书前端产物生成器（`tools/build-worldbook-web.mjs`，第 5 期）。
+ * 世界书前端产物生成器（`tools/build-knowledgecard-web.mjs`，第 5 期）。
  *
  * 生成两样东西：
- *   · `web/src/lib/worldbook-engine.js` —— `core/worldbook/engine.mjs` 的**逐字节副本**
+ *   · `web/src/lib/knowledgecard-engine.js` —— `core/knowledgecard/engine.mjs` 的**逐字节副本**
  *     （设置页的实时试触发预览器用的就是它 ⇒ "预览器与实际请求逐字一致"由**同一份字节**保证）
- *   · `web/src/lib/worldbook-demo.ts`   —— 内置词条 + 覆盖率 + 导出包常量的构建期快照
+ *   · `web/src/lib/knowledgecard-demo.ts`   —— 内置词条 + 覆盖率 + 导出包常量的构建期快照
  *
- * ⚠ 同样必须在 `tsc` **之前**跑：`worldbook-demo.ts` 不存在时类型检查会直接失败。
+ * ⚠ 同样必须在 `tsc` **之前**跑：`knowledgecard-demo.ts` 不存在时类型检查会直接失败。
  */
-const WORLDBOOK_GEN = join(PROJECT_ROOT, 'tools', 'build-worldbook-web.mjs');
+const KNOWLEDGECARD_GEN = join(PROJECT_ROOT, 'tools', 'build-knowledgecard-web.mjs');
 
 /** 依赖是否就位（缺了给可操作提示，而不是抛一句 MODULE_NOT_FOUND） */
 function ensureInstalled() {
@@ -173,7 +173,7 @@ async function checkArtifacts() {
   //   错误信息完全指不到"少了个 await"，第一次跑就是这么被骗过去的。
   problems.push(...(await checkStageChain()));
   // 第 5 期：世界书相关的三条构建期判据
-  problems.push(...(await checkWorldbookArtifacts()));
+  problems.push(...(await checkKnowledgecardArtifacts()));
 
   if (problems.length) {
     for (const p of problems) console.log(`  ✗ ${p}`);
@@ -188,27 +188,27 @@ async function checkArtifacts() {
  *
  * 每一条都对应一种"会静默漂移"的写法：
  *   ① 浏览器侧引擎副本被手改 / 忘了重新生成 ⇒ 预览器与真实请求不再逐字节一致（W10 破功）
- *   ② `worldbook-engine.d.ts` 是**抄录**的导出面 ⇒ 少一个名字就少一个能被调用的函数
+ *   ② `knowledgecard-engine.d.ts` 是**抄录**的导出面 ⇒ 少一个名字就少一个能被调用的函数
  *   ③ 演示数据里的导出包常量是**抄录**的 ⇒ 抄错会让 UI 导出错误格式的包
  */
-async function checkWorldbookArtifacts() {
+async function checkKnowledgecardArtifacts() {
   const out = [];
   const projectRoot = PROJECT_ROOT;
   try {
-    const gen = await import(pathToFileURL(join(projectRoot, 'tools', 'build-worldbook-web.mjs')).href);
-    const engineSrc = join(projectRoot, 'core', 'worldbook', 'engine.mjs');
-    const engineOut = join(projectRoot, 'web', 'src', 'lib', 'worldbook-engine.js');
-    const dtsOut = join(projectRoot, 'web', 'src', 'lib', 'worldbook-engine.d.ts');
-    const demoOut = join(projectRoot, 'web', 'src', 'lib', 'worldbook-demo.ts');
+    const gen = await import(pathToFileURL(join(projectRoot, 'tools', 'build-knowledgecard-web.mjs')).href);
+    const engineSrc = join(projectRoot, 'core', 'knowledgecard', 'engine.mjs');
+    const engineOut = join(projectRoot, 'web', 'src', 'lib', 'knowledgecard-engine.js');
+    const dtsOut = join(projectRoot, 'web', 'src', 'lib', 'knowledgecard-engine.d.ts');
+    const demoOut = join(projectRoot, 'web', 'src', 'lib', 'knowledgecard-demo.ts');
     /** 第 5.7 期：解析器副本与它的类型声明（预览器的"粘贴转写自动解析"用它） */
-    const conceptsSrc = join(projectRoot, 'core', 'worldbook', 'concepts.mjs');
-    const conceptsOut = join(projectRoot, 'web', 'src', 'lib', 'worldbook-concepts.js');
-    const conceptsDtsOut = join(projectRoot, 'web', 'src', 'lib', 'worldbook-concepts.d.ts');
+    const conceptsSrc = join(projectRoot, 'core', 'knowledgecard', 'concepts.mjs');
+    const conceptsOut = join(projectRoot, 'web', 'src', 'lib', 'knowledgecard-concepts.js');
+    const conceptsDtsOut = join(projectRoot, 'web', 'src', 'lib', 'knowledgecard-concepts.d.ts');
 
     // ① 副本 == 本源（连文件头一起比：跳过前 N 行再比会漏掉"偷偷加一句 process.env"）
-    if (!existsSync(engineOut)) out.push('web/src/lib/worldbook-engine.js 不存在（请跑 node tools/build-worldbook-web.mjs）');
+    if (!existsSync(engineOut)) out.push('web/src/lib/knowledgecard-engine.js 不存在（请跑 node tools/build-knowledgecard-web.mjs）');
     else if (readFileSync(engineOut, 'utf8') !== gen.expectedEngineCopy()) {
-      out.push('web/src/lib/worldbook-engine.js 与 core/worldbook/engine.mjs 不一致 ⇒ **预览器与真实请求会逐字节不同**（W10 破功）。请跑 `node tools/build-worldbook-web.mjs` 重新生成，不要手改。');
+      out.push('web/src/lib/knowledgecard-engine.js 与 core/knowledgecard/engine.mjs 不一致 ⇒ **预览器与真实请求会逐字节不同**（W10 破功）。请跑 `node tools/build-knowledgecard-web.mjs` 重新生成，不要手改。');
     } else {
       console.log('  ✓ 浏览器侧引擎副本与本源逐字节一致（预览器与真实请求共用同一份代码）');
     }
@@ -222,14 +222,14 @@ async function checkWorldbookArtifacts() {
         const missInDts = engineExports.filter((x) => !declared.includes(x));
         const missInEngine = declared.filter((x) => !engineExports.includes(x));
         out.push(
-          `web/src/lib/worldbook-engine.d.ts 的声明与 engine.mjs 的导出面不一致` +
+          `web/src/lib/knowledgecard-engine.d.ts 的声明与 engine.mjs 的导出面不一致` +
             `（d.ts 缺 ${missInDts.join('/') || '—'}；engine 里没有 ${missInEngine.join('/') || '—'}）`,
         );
       } else {
         console.log(`  ✓ 世界书引擎的 d.ts 声明与导出面一致（${declared.length} 个）`);
       }
     } else {
-      out.push('web/src/lib/worldbook-engine.d.ts 不存在（浏览器侧要类型声明才能 import .js）');
+      out.push('web/src/lib/knowledgecard-engine.d.ts 不存在（浏览器侧要类型声明才能 import .js）');
     }
 
     /* ②′ 第 5.7 期：解析器副本同样要"逐字节一致 + 导出面一致"。
@@ -238,11 +238,11 @@ async function checkWorldbookArtifacts() {
      * **是同一份代码**，否则"粘贴解析出来的考点"与"真实链路解析出来的考点"会悄悄不一样，
      * 而那种不一致在界面上看不出来（看起来都"解析成功"了）。 */
     if (!existsSync(conceptsOut)) {
-      out.push('web/src/lib/worldbook-concepts.js 不存在（请跑 node tools/build-worldbook-web.mjs）');
+      out.push('web/src/lib/knowledgecard-concepts.js 不存在（请跑 node tools/build-knowledgecard-web.mjs）');
     } else if (readFileSync(conceptsOut, 'utf8') !== gen.expectedConceptsCopy()) {
       out.push(
-        'web/src/lib/worldbook-concepts.js 与 core/worldbook/concepts.mjs 不一致 ⇒ **预览器的粘贴解析会与真实链路不同**。' +
-          '请跑 `node tools/build-worldbook-web.mjs` 重新生成，不要手改。',
+        'web/src/lib/knowledgecard-concepts.js 与 core/knowledgecard/concepts.mjs 不一致 ⇒ **预览器的粘贴解析会与真实链路不同**。' +
+          '请跑 `node tools/build-knowledgecard-web.mjs` 重新生成，不要手改。',
       );
     } else {
       console.log('  ✓ 浏览器侧解析器副本与本源逐字节一致（粘贴解析与真实链路共用同一份代码）');
@@ -255,25 +255,25 @@ async function checkWorldbookArtifacts() {
         const missInDts = conceptsExports.filter((x) => !declared.includes(x));
         const missInCopy = declared.filter((x) => !conceptsExports.includes(x));
         out.push(
-          `web/src/lib/worldbook-concepts.d.ts 的声明与 concepts.mjs 的导出面不一致` +
+          `web/src/lib/knowledgecard-concepts.d.ts 的声明与 concepts.mjs 的导出面不一致` +
             `（d.ts 缺 ${missInDts.join('/') || '—'}；concepts 里没有 ${missInCopy.join('/') || '—'}）`,
         );
       } else {
         console.log(`  ✓ 世界书解析器的 d.ts 声明与导出面一致（${declared.length} 个）`);
       }
     } else {
-      out.push('web/src/lib/worldbook-concepts.d.ts 不存在（浏览器侧要类型声明才能 import .js）');
+      out.push('web/src/lib/knowledgecard-concepts.d.ts 不存在（浏览器侧要类型声明才能 import .js）');
     }
 
     // ③ 导出包常量 == 契约的 const
     if (existsSync(demoOut)) {
-      const schema = JSON.parse(readFileSync(join(projectRoot, 'contracts', 'worldbook-pack.schema.json'), 'utf8'));
+      const schema = JSON.parse(readFileSync(join(projectRoot, 'contracts', 'knowledgecard-pack.schema.json'), 'utf8'));
       const demo = readFileSync(demoOut, 'utf8');
-      const fmt = /export const WORLDBOOK_PACK_FORMAT = ("[^"]*")/.exec(demo)?.[1];
-      const ver = /export const WORLDBOOK_PACK_VERSION = (\d+)/.exec(demo)?.[1];
+      const fmt = /export const KNOWLEDGECARD_PACK_FORMAT = ("[^"]*")/.exec(demo)?.[1];
+      const ver = /export const KNOWLEDGECARD_PACK_VERSION = (\d+)/.exec(demo)?.[1];
       if (fmt !== JSON.stringify(schema.properties.format.const) || ver !== String(schema.properties.version.const)) {
         out.push(
-          `worldbook-demo.ts 的导出包常量与契约不一致：产物 ${fmt}/${ver} vs 契约 ` +
+          `knowledgecard-demo.ts 的导出包常量与契约不一致：产物 ${fmt}/${ver} vs 契约 ` +
             `${JSON.stringify(schema.properties.format.const)}/${schema.properties.version.const}`,
         );
       } else {
@@ -287,33 +287,33 @@ async function checkWorldbookArtifacts() {
        * `entries` 就会是 `[]`、`injectedBySlot` 全是 0，而页面上照样能渲染出一个漂亮的面板。
        * 所以这里要求：命中的条目非空、且它们的哈希等于内置库哈希。
        */
-      const m = /export const WORLDBOOK_DEMO_EVENT = (\{[\s\S]*?\n\})/.exec(demo);
-      const hash = /export const WORLDBOOK_HASH = "([0-9a-f]{64})"/.exec(demo)?.[1];
+      const m = /export const KNOWLEDGECARD_DEMO_EVENT = (\{[\s\S]*?\n\})/.exec(demo);
+      const hash = /export const KNOWLEDGECARD_HASH = "([0-9a-f]{64})"/.exec(demo)?.[1];
       if (!m) {
-        out.push('worldbook-demo.ts 里找不到 WORLDBOOK_DEMO_EVENT（解题页的世界书依据会没有数据）');
+        out.push('knowledgecard-demo.ts 里找不到 KNOWLEDGECARD_DEMO_EVENT（解题页的世界书依据会没有数据）');
       } else {
         let ev = null;
         try {
           ev = JSON.parse(m[1]);
         } catch (err) {
-          out.push(`WORLDBOOK_DEMO_EVENT 不是合法 JSON：${err?.message ?? err}`);
+          out.push(`KNOWLEDGECARD_DEMO_EVENT 不是合法 JSON：${err?.message ?? err}`);
         }
         if (ev) {
           if (!Array.isArray(ev.entries) || ev.entries.length === 0) {
-            out.push('WORLDBOOK_DEMO_EVENT 里没有命中任何词条 ⇒ 解题页的「世界书依据」面板会是空的（用空库跑过？）');
+            out.push('KNOWLEDGECARD_DEMO_EVENT 里没有命中任何词条 ⇒ 解题页的「世界书依据」面板会是空的（用空库跑过？）');
           } else if (ev.hash !== hash) {
-            out.push(`WORLDBOOK_DEMO_EVENT.hash (${String(ev.hash).slice(0, 12)}…) ≠ WORLDBOOK_HASH (${String(hash).slice(0, 12)}…) ⇒ 面板数据不是用这份库跑出来的`);
+            out.push(`KNOWLEDGECARD_DEMO_EVENT.hash (${String(ev.hash).slice(0, 12)}…) ≠ KNOWLEDGECARD_HASH (${String(hash).slice(0, 12)}…) ⇒ 面板数据不是用这份库跑出来的`);
           } else if (!ev.entries.every((x) => Array.isArray(x.injectedSlots) && typeof x.via === 'string')) {
-            out.push('WORLDBOOK_DEMO_EVENT 的条目缺少 via / injectedSlots（面板要显示"命中方式"与"实际注入槽位"）');
+            out.push('KNOWLEDGECARD_DEMO_EVENT 的条目缺少 via / injectedSlots（面板要显示"命中方式"与"实际注入槽位"）');
           } else if (!Array.isArray(ev.emptySlots) || !Array.isArray(ev.truncatedSlots)) {
-            out.push('WORLDBOOK_DEMO_EVENT 没有把"空槽"与"被截断"分成两个字段（§9.2 的"重要边界"）');
+            out.push('KNOWLEDGECARD_DEMO_EVENT 没有把"空槽"与"被截断"分成两个字段（§9.2 的"重要边界"）');
           } else {
             console.log(`  ✓ 世界书依据数据来自真引擎（命中 ${ev.matched} 条 · 空槽 ${ev.emptySlots.join('/') || '—'}）`);
           }
         }
       }
     } else {
-      out.push('web/src/lib/worldbook-demo.ts 不存在（请跑 node tools/build-worldbook-web.mjs）');
+      out.push('web/src/lib/knowledgecard-demo.ts 不存在（请跑 node tools/build-knowledgecard-web.mjs）');
     }
   } catch (err) {
     out.push(`世界书产物的构建期判据执行失败：${err?.message ?? err}`);
@@ -410,10 +410,10 @@ export async function main({ checkOnly = false } = {}) {
   // ⓪-bis 世界书前端产物（引擎副本 + 内置词条快照；第 5 期）
   {
     console.log('\n──────── ⓪ 世界书前端产物（engine 副本 + 内置词条快照） ────────');
-    const result = spawnSync(NODE, [WORLDBOOK_GEN], { stdio: 'inherit', cwd: PROJECT_ROOT, env: nodeEnv() });
+    const result = spawnSync(NODE, [KNOWLEDGECARD_GEN], { stdio: 'inherit', cwd: PROJECT_ROOT, env: nodeEnv() });
     if (result.error || result.status !== 0) {
       console.log(`✗ 世界书前端产物生成失败（${result.error?.code ?? result.status}）`);
-      return { ok: false, step: 'worldbook-data' };
+      return { ok: false, step: 'knowledgecard-data' };
     }
   }
 

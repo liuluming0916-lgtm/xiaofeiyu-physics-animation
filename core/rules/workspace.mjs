@@ -313,7 +313,7 @@ function writeRulesIndex(dir, files, baseRevision) {
  * 列出工作区里**真实存在**的、**归本工作区管**的文件。
  *
  * ⚠ 只扫 `prompts/` 与 `cleaning.json` 两处，**不扫整个 `ai-rules/`**：
- *   `ai-rules/worldbook/` 归世界书仓库（`core/worldbook/store.mjs`），`ai-rules/endpoints.json` 归网关，
+ *   `ai-rules/knowledgecard/` 归世界书仓库（`core/knowledgecard/store.mjs`），`ai-rules/endpoints.json` 归网关，
  *   它们各有自己的判据。要是这里也扫，就会把别人的文件报成"未登记"，
  *   逼用户去"登记"一堆不归我们管的东西 —— 那正是"两套判据打架"的开端。
  *

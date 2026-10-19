@@ -231,46 +231,46 @@ async function main() {
     }
 
     /* ── 世界书：能存回磁盘，但只写用户区 ── */
-    console.log('\n『E』世界书：能存回 ai-rules/worldbook/（内置只读）');
+    console.log('\n『E』世界书：能存回 ai-rules/knowledgecard/（内置只读）');
     {
-      const wb = await call('GET', '/api/worldbook');
+      const wb = await call('GET', '/api/knowledgecard');
       check('列表接口通：内置只读、用户区为空', wb.status === 200 && wb.json.builtinCount > 0 && Array.isArray(wb.json.packs) && wb.json.packs.length === 0);
       check('内置 id 列表与条数一致（前端用它做"复制成覆盖副本"）', wb.json.builtinIds.length === wb.json.builtinCount);
 
-      const created = await call('POST', '/api/worldbook/packs', { name: 'my-entries.json' });
+      const created = await call('POST', '/api/knowledgecard/packs', { name: 'my-entries.json' });
       check('新建空包成功', created.status === 200 && created.json.ok === true, JSON.stringify(created.json));
-      check('（负对照）重名会被拒', (await call('POST', '/api/worldbook/packs', { name: 'my-entries.json' })).status === 400);
-      check('★ 路径穿越的文件名被拒（../evil.json）', (await call('POST', '/api/worldbook/packs', { name: '../evil.json' })).status === 400);
+      check('（负对照）重名会被拒', (await call('POST', '/api/knowledgecard/packs', { name: 'my-entries.json' })).status === 400);
+      check('★ 路径穿越的文件名被拒（../evil.json）', (await call('POST', '/api/knowledgecard/packs', { name: '../evil.json' })).status === 400);
 
-      const pack = await call('GET', '/api/worldbook/packs/my-entries.json');
-      check('读包：拿到原文（可编辑）', pack.status === 200 && pack.json.text.includes('od-worldbook'));
+      const pack = await call('GET', '/api/knowledgecard/packs/my-entries.json');
+      check('读包：拿到原文（可编辑）', pack.status === 200 && pack.json.text.includes('od-knowledgecard'));
 
-      const copied = await call('POST', '/api/worldbook/copy', { id: wb.json.builtinIds[0] });
+      const copied = await call('POST', '/api/knowledgecard/copy', { id: wb.json.builtinIds[0] });
       check('从内置复制成覆盖副本成功', copied.status === 200 && /\.json$/.test(copied.json.name ?? ''), JSON.stringify(copied.json));
-      const listed = await call('GET', '/api/worldbook');
+      const listed = await call('GET', '/api/knowledgecard');
       check('列表里出现了这份副本（1 条词条）', listed.json.packs.some((p) => p.name === copied.json.name && p.count === 1));
 
       const copyName = encodeURIComponent(copied.json.name);
-      const badJson = await call('PUT', `/api/worldbook/packs/${copyName}`, { text: '{"format":"od-worldbook","version":1,"entries":' });
+      const badJson = await call('PUT', `/api/knowledgecard/packs/${copyName}`, { text: '{"format":"od-knowledgecard","version":1,"entries":' });
       check('★ 坏 JSON ⇒ 400 且带行号', badJson.status === 400 && /第 \d+ 行/.test(badJson.json.issues[0]?.message ?? ''), badJson.json.issues?.[0]?.message);
 
-      const badEntry = await call('PUT', `/api/worldbook/packs/${copyName}`, {
-        text: JSON.stringify({ format: 'od-worldbook', version: 1, entries: [{ id: 'only-id' }] }),
+      const badEntry = await call('PUT', `/api/knowledgecard/packs/${copyName}`, {
+        text: JSON.stringify({ format: 'od-knowledgecard', version: 1, entries: [{ id: 'only-id' }] }),
       });
       check('★ 词条缺字段 ⇒ 400，并指出是第几条（不是笼统"不合法"）', badEntry.status === 400 && /第 1 条|entries\[0\]/.test(JSON.stringify(badEntry.json.issues)));
 
-      const good = await call('PUT', `/api/worldbook/packs/${copyName}`, { text: pack.json.text.replace('"entries": []', `"entries": []`) });
+      const good = await call('PUT', `/api/knowledgecard/packs/${copyName}`, { text: pack.json.text.replace('"entries": []', `"entries": []`) });
       check('（对照）合法内容能保存', good.status === 200, JSON.stringify(good.json));
 
-      const del = await call('DELETE', `/api/worldbook/packs/${copyName}`);
+      const del = await call('DELETE', `/api/knowledgecard/packs/${copyName}`);
       check('删除覆盖副本成功', del.status === 200);
-      check('删掉覆盖副本后内置那条自动恢复生效（列表少一份）', (await call('GET', '/api/worldbook')).json.packs.length === 1);
-      check('删不存在的包 ⇒ 400', (await call('DELETE', '/api/worldbook/packs/nope.json')).status === 400);
+      check('删掉覆盖副本后内置那条自动恢复生效（列表少一份）', (await call('GET', '/api/knowledgecard')).json.packs.length === 1);
+      check('删不存在的包 ⇒ 400', (await call('DELETE', '/api/knowledgecard/packs/nope.json')).status === 400);
 
       /* ── v1.1.9：一键恢复本版本内置（设置页按钮的真实 HTTP 通道）── */
-      const copied2 = await call('POST', '/api/worldbook/copy', { id: wb.json.builtinIds[0] });
+      const copied2 = await call('POST', '/api/knowledgecard/copy', { id: wb.json.builtinIds[0] });
       check('再复制一份覆盖副本（恢复内置的前置）', copied2.status === 200, JSON.stringify(copied2.json));
-      const restored = await call('POST', '/api/worldbook/restore', {});
+      const restored = await call('POST', '/api/knowledgecard/restore', {});
       check(
         '★ 一键恢复内置：删掉覆盖副本',
         restored.status === 200 && restored.json.ok === true && restored.json.removed === 1,
@@ -278,13 +278,13 @@ async function main() {
       );
       check(
         '恢复后用户区只剩原来的空包（覆盖副本没了）',
-        (await call('GET', '/api/worldbook')).json.packs.map((p) => p.name).join(',') === 'my-entries.json',
+        (await call('GET', '/api/knowledgecard')).json.packs.map((p) => p.name).join(',') === 'my-entries.json',
       );
       check(
         '★ 恢复前留了滚动备份（恢复本身可撤销）',
-        existsSync(join(dir, 'worldbook', '.backup', `${copied2.json.name}.bak.1`)),
+        existsSync(join(dir, 'knowledgecard', '.backup', `${copied2.json.name}.bak.1`)),
       );
-      const again = await call('POST', '/api/worldbook/restore', {});
+      const again = await call('POST', '/api/knowledgecard/restore', {});
       check('（幂等）再恢复一次：removed = 0', again.status === 200 && again.json.removed === 0);
     }
 

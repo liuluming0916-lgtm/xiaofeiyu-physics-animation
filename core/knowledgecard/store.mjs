@@ -1,11 +1,11 @@
 /**
- * 世界书**仓库**：内置只读库 + `ai-rules/worldbook/` 用户区（§9.3 治理 / §16 规则工作区）。
+ * 世界书**仓库**：内置只读库 + `ai-rules/knowledgecard/` 用户区（§9.3 治理 / §16 规则工作区）。
  *
  * ── 两个抽屉（用户 2026-10 裁决：分开放）
  *
- *   `core/worldbook/data/`   —— **内置**词条（`origin: builtin`）。随程序走，升级会更新；
+ *   `core/knowledgecard/data/`   —— **内置**词条（`origin: builtin`）。随程序走，升级会更新；
  *                               对用户是**只读**（可停用，编辑会生成 user 覆盖副本）。
- *   `ai-rules/worldbook/`    —— **用户**词条（`origin: user`）与覆盖副本。**升级绝不动它**。
+ *   `ai-rules/knowledgecard/`    —— **用户**词条（`origin: user`）与覆盖副本。**升级绝不动它**。
  *
  *   分开放的三个好处（方案 §9.3 的硬要求）：重装不丢用户知识；"导出默认只导 user"一眼可分；
  *   "恢复默认只影响内置"不会误删用户的东西。
@@ -17,18 +17,18 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 
 import { PROJECT_ROOT } from '../../tools/paths.mjs';
 import {
-  WORLDBOOK_INSERTION_SLOTS,
-  WORLDBOOK_ENTRY_KINDS,
-  WORLDBOOK_ENUMS,
-  WORLDBOOK_CONCEPT_IDS,
-  WORLDBOOK_TAG_NAMES,
-  WORLDBOOK_ELEMENT_IDS,
-  WORLDBOOK_TAG_OWNERS,
+  KNOWLEDGECARD_INSERTION_SLOTS,
+  KNOWLEDGECARD_ENTRY_KINDS,
+  KNOWLEDGECARD_ENUMS,
+  KNOWLEDGECARD_CONCEPT_IDS,
+  KNOWLEDGECARD_TAG_NAMES,
+  KNOWLEDGECARD_ELEMENT_IDS,
+  KNOWLEDGECARD_TAG_OWNERS,
 } from '../../contracts/spec/frozen-keys.mjs';
 import { parseKey } from './engine.mjs';
 import { BUILTIN_BUNDLE } from './builtin-bundle.generated.mjs';
@@ -37,7 +37,7 @@ import { BUILTIN_BUNDLE } from './builtin-bundle.generated.mjs';
  * 是否走"打包形态"的内置层（**只影响发行产物，不影响本地开发**）。
  *
  * `OD_BUILTIN_BUNDLE=1` 由打包步骤设置 ⇒ 内置词条从**编译进代码的常量**读，
- * 产物里不带 `core/worldbook/data/*.json`，用户改不了也拷不走。
+ * 产物里不带 `core/knowledgecard/data/*.json`，用户改不了也拷不走。
  * 本地开发不设它 ⇒ 照旧读磁盘文件，我们随时可编辑。
  */
 export function useBuiltinBundle() {
@@ -50,13 +50,24 @@ export function readBuiltinBundle() {
 }
 
 /** 内置词条目录（`origin: builtin`） */
-export const BUILTIN_DIR = join(PROJECT_ROOT, 'core', 'worldbook', 'data');
+export const BUILTIN_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data');
 /** 用户词条目录（`origin: user`）——§16 的规则工作区之一 */
-export const USER_DIR = join(PROJECT_ROOT, 'ai-rules', 'worldbook');
+export const USER_DIR = join(PROJECT_ROOT, 'ai-rules', 'knowledgecard');
+/** 旧用户目录。v1.1.9alpha 起**只读兼容**：存在就一起读，写只写新目录。 */
+export const LEGACY_USER_DIR = join(PROJECT_ROOT, 'ai-rules', 'worldbook');
+
+/**
+ * 旧卡片 id → 新卡片 id（v1.1.9alpha 4→3 合并）。
+ * 只作用于**用户覆盖副本**；内置层在 `data/` 里已经是新 id。
+ */
+export const LEGACY_ENTRY_ID_MAP = Object.freeze({
+  wb_visual_conventions: 'wb_anim_conventions',
+  wb_scene_stages: 'wb_anim_stages',
+});
 /** 词条**源**目录（第 5.5 期 P1 改造：词条写在这里，由改写脚本校验后写出 `data/`） */
-export const SOURCE_DIR = join(PROJECT_ROOT, 'core', 'worldbook', 'source');
+export const SOURCE_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'source');
 /** 覆盖台账（第 9 期起**已退役**：文件不存在时 `readCoverageTarget()` 返回 null，覆盖率只报结构合规率） */
-export const COVERAGE_TARGET_FILE = join(PROJECT_ROOT, 'core', 'worldbook', 'coverage-target.json');
+export const COVERAGE_TARGET_FILE = join(PROJECT_ROOT, 'core', 'knowledgecard', 'coverage-target.json');
 
 /**
  * 读覆盖目标文件（**Node 侧 IO**）。
@@ -74,14 +85,17 @@ export function readCoverageTarget(path = COVERAGE_TARGET_FILE) {
   }
 }
 
-/** §9.5 导出包的格式标识（与 `contracts/worldbook-pack.schema.json` 同源口径） */
-export const PACK_FORMAT = 'od-worldbook';
+/** §9.5 导出包的格式标识（与 `contracts/knowledgecard-pack.schema.json` 同源口径） */
+export const PACK_FORMAT = 'od-knowledgecard';
+/** 兼容：v1.1.9 及更早的导出包/备份包用这个格式；**只读，不再写出** */
+export const PACK_FORMAT_LEGACY = 'od-worldbook';
+export const PACK_FORMATS = Object.freeze([PACK_FORMAT, PACK_FORMAT_LEGACY]);
 export const PACK_VERSION = 1;
 
 /**
  * §9.1 **冻结字段顺序**。用途有二：
  *   ① 规范化（canonicalize）时按它重建对象 ⇒ 同一语义的词条序列化结果逐字节稳定；
- *   ② 哈希可复现（`provenance.worldbookHash` 要烧进导出 HTML）。
+ *   ② 哈希可复现（`provenance.knowledgecardHash` 要烧进导出 HTML）。
  */
 export const ENTRY_FIELD_ORDER = Object.freeze([
   'id',
@@ -153,21 +167,21 @@ export function validateEntry(entry, where = '词条') {
   if ('title' in entry && (typeof entry.title !== 'string' || entry.title.length === 0)) {
     p.push(`${where} 的 title 必须是非空字符串`);
   }
-  if ('origin' in entry && !WORLDBOOK_ENUMS.origin.includes(entry.origin)) {
-    p.push(`${where} 的 origin 必须是 ${WORLDBOOK_ENUMS.origin.join(' | ')}`);
+  if ('origin' in entry && !KNOWLEDGECARD_ENUMS.origin.includes(entry.origin)) {
+    p.push(`${where} 的 origin 必须是 ${KNOWLEDGECARD_ENUMS.origin.join(' | ')}`);
   }
-  if ('category' in entry && !WORLDBOOK_ENUMS.category.includes(entry.category)) {
-    p.push(`${where} 的 category 必须是 ${WORLDBOOK_ENUMS.category.join(' | ')}`);
+  if ('category' in entry && !KNOWLEDGECARD_ENUMS.category.includes(entry.category)) {
+    p.push(`${where} 的 category 必须是 ${KNOWLEDGECARD_ENUMS.category.join(' | ')}`);
   }
-  if ('kind' in entry && !WORLDBOOK_ENTRY_KINDS.includes(entry.kind)) {
-    p.push(`${where} 的 kind 必须是 ${WORLDBOOK_ENTRY_KINDS.join(' | ')}（提示词卡 / 本地规则卡不是 worldbook 条目，不走这个字段）`);
+  if ('kind' in entry && !KNOWLEDGECARD_ENTRY_KINDS.includes(entry.kind)) {
+    p.push(`${where} 的 kind 必须是 ${KNOWLEDGECARD_ENTRY_KINDS.join(' | ')}（提示词卡 / 本地规则卡不是 knowledgecard 条目，不走这个字段）`);
   }
   if ('enabled' in entry && typeof entry.enabled !== 'boolean') p.push(`${where} 的 enabled 必须是布尔`);
   if ('constant' in entry && typeof entry.constant !== 'boolean') p.push(`${where} 的 constant 必须是布尔`);
   if ('recursive' in entry && typeof entry.recursive !== 'boolean') p.push(`${where} 的 recursive 必须是布尔`);
   if ('order' in entry && !Number.isInteger(entry.order)) p.push(`${where} 的 order 必须是整数`);
-  if ('priority' in entry && !WORLDBOOK_ENUMS.priority.includes(entry.priority)) {
-    p.push(`${where} 的 priority 必须是 ${WORLDBOOK_ENUMS.priority.join(' | ')}`);
+  if ('priority' in entry && !KNOWLEDGECARD_ENUMS.priority.includes(entry.priority)) {
+    p.push(`${where} 的 priority 必须是 ${KNOWLEDGECARD_ENUMS.priority.join(' | ')}`);
   }
   if ('content' in entry && (typeof entry.content !== 'string' || entry.content.length === 0)) {
     p.push(`${where} 的 content 必须是非空字符串`);
@@ -189,8 +203,8 @@ export function validateEntry(entry, where = '词条') {
     const sk = entry.secondary_keys;
     if (!sk || typeof sk !== 'object' || Array.isArray(sk)) p.push(`${where} 的 secondary_keys 必须是对象`);
     else {
-      if (!WORLDBOOK_ENUMS.secondaryLogic.includes(sk.logic)) {
-        p.push(`${where} 的 secondary_keys.logic 必须是 ${WORLDBOOK_ENUMS.secondaryLogic.join(' | ')}`);
+      if (!KNOWLEDGECARD_ENUMS.secondaryLogic.includes(sk.logic)) {
+        p.push(`${where} 的 secondary_keys.logic 必须是 ${KNOWLEDGECARD_ENUMS.secondaryLogic.join(' | ')}`);
       }
       if (!Array.isArray(sk.list)) p.push(`${where} 的 secondary_keys.list 必须是数组`);
       else {
@@ -211,8 +225,8 @@ export function validateEntry(entry, where = '词条') {
     if (!Array.isArray(entry.insertion_slot)) p.push(`${where} 的 insertion_slot 必须是数组`);
     else {
       for (const s of entry.insertion_slot) {
-        if (!WORLDBOOK_INSERTION_SLOTS.includes(s)) {
-          p.push(`${where} 的 insertion_slot 含非法槽位名 "${s}"（只能是 ${WORLDBOOK_INSERTION_SLOTS.join(' | ')}；v2 旧名 scene_spec 只在导入路径归一化）`);
+        if (!KNOWLEDGECARD_INSERTION_SLOTS.includes(s)) {
+          p.push(`${where} 的 insertion_slot 含非法槽位名 "${s}"（只能是 ${KNOWLEDGECARD_INSERTION_SLOTS.join(' | ')}；v2 旧名 scene_spec 只在导入路径归一化）`);
         }
       }
       if (new Set(entry.insertion_slot).size !== entry.insertion_slot.length) {
@@ -238,9 +252,9 @@ export function validateEntry(entry, where = '词条') {
   const elementList = Array.isArray(entry.elements) ? entry.elements : [];
 
   for (const [field, list, allowed, label] of [
-    ['concepts', conceptList, WORLDBOOK_CONCEPT_IDS, '考点词表（词表 A）'],
-    ['tags', tagList, WORLDBOOK_TAG_NAMES, '题型标签 / 细考点词表（词表 B）'],
-    ['elements', elementList, WORLDBOOK_ELEMENT_IDS, '动画元件词表'],
+    ['concepts', conceptList, KNOWLEDGECARD_CONCEPT_IDS, '考点词表（词表 A）'],
+    ['tags', tagList, KNOWLEDGECARD_TAG_NAMES, '题型标签 / 细考点词表（词表 B）'],
+    ['elements', elementList, KNOWLEDGECARD_ELEMENT_IDS, '动画元件词表'],
   ]) {
     if (!(field in entry)) continue;
     if (!Array.isArray(entry[field])) {
@@ -253,7 +267,7 @@ export function validateEntry(entry, where = '词条') {
       else if (!allowedSet.has(v)) {
         p.push(
           `${where} 的 ${field} 含表外值 ${JSON.stringify(v)} —— ${label}里没有它。` +
-            `要么改成表里的正式名，要么先把它加进 contracts/worldbook-concepts.json（枚举与 Prompt 都从那里派生）`,
+            `要么改成表里的正式名，要么先把它加进 contracts/knowledgecard-concepts.json（枚举与 Prompt 都从那里派生）`,
         );
       }
     }
@@ -272,7 +286,7 @@ export function validateEntry(entry, where = '词条') {
     } else {
       for (const t of tagList) {
         if (typeof t !== 'string' || !t) continue; // 上面已经单独报过
-        const owners = WORLDBOOK_TAG_OWNERS[t];
+        const owners = KNOWLEDGECARD_TAG_OWNERS[t];
         if (!owners || !owners.length) continue; // 表外值已报过；这里只判归属
         if (!owners.some((c) => conceptList.includes(c))) {
           p.push(
@@ -293,11 +307,13 @@ export function validateEntry(entry, where = '词条') {
   return p;
 }
 
-/** 校验一个导出包（§9.5 / `contracts/worldbook-pack.schema.json`） */
+/** 校验一个导出包（§9.5 / `contracts/knowledgecard-pack.schema.json`） */
 export function validatePack(raw) {
   const problems = [];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { problems: ['导出包不是对象'], entries: [] };
-  if (raw.format !== PACK_FORMAT) problems.push(`导出包 format 必须是 "${PACK_FORMAT}"（实际：${JSON.stringify(raw.format)}）`);
+  if (!PACK_FORMATS.includes(raw.format)) {
+    problems.push(`导出包 format 必须是 "${PACK_FORMAT}" 或兼容的 "${PACK_FORMAT_LEGACY}"（实际：${JSON.stringify(raw.format)}）`);
+  }
   if (raw.version !== PACK_VERSION) {
     problems.push(`导出包 version ${JSON.stringify(raw.version)} 不受支持（本版只支持 ${PACK_VERSION}，不支持版本明确拒绝）`);
   }
@@ -336,8 +352,8 @@ export function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-/** 词条集合的**稳定哈希**（`provenance.worldbookHash` 用它；不含 enabled:false 的词条） */
-export function worldbookHashOf(entries) {
+/** 词条集合的**稳定哈希**（`provenance.knowledgecardHash` 用它；不含 enabled:false 的词条） */
+export function knowledgecardHashOf(entries) {
   const canon = (Array.isArray(entries) ? entries : [])
     .filter((e) => e && e.enabled !== false)
     .map(canonicalizeEntry)
@@ -354,7 +370,7 @@ function sha256Text(text) {
 /**
  * 解析一个词条文件：**允许两种形态**
  *   ① 单条词条（对象，含 `id`）
- *   ② 导出包（`{format:"od-worldbook", version:1, entries:[…]}`）
+ *   ② 导出包（`{format:"od-knowledgecard", version:1, entries:[…]}`）
  *
  * 后者是刻意的：内置库自己就用导出包格式，等于让"导入路径"每天被跑一次
  * （否则那条路径只在上线那天才知道自己坏了）。
@@ -390,6 +406,8 @@ export function loadLibrary(opts = {}) {
   // 第 8 期：内置层的目录可以被环境变量改（打包产物与自检用）。
   const builtinDir = opts.builtinDir ?? process.env.OD_BUILTIN_DIR ?? BUILTIN_DIR;
   const userDir = opts.userDir ?? USER_DIR;
+  /** 旧目录：显式给了 userDir 时按同级 `worldbook` 推；否则用仓库默认旧目录 */
+  const legacyUserDir = opts.legacyUserDir ?? (opts.userDir ? join(dirname(userDir), 'worldbook') : LEGACY_USER_DIR);
   const problems = [];
   const sources = [];
   const builtin = [];
@@ -403,14 +421,23 @@ export function loadLibrary(opts = {}) {
       const parsed = parseEntryFile(text, `${kind}:${name}`);
       problems.push(...parsed.problems);
       sources.push({ file, kind, name, count: parsed.entries.length, sha256: sha256Text(text) });
-      for (const e of parsed.entries) acc.push({ ...e, origin: kind === 'builtin' ? 'builtin' : (e.origin ?? 'user') });
+      for (const e of parsed.entries) {
+        /**
+         * v1.1.9alpha：旧用户覆盖副本的 id 跟着 4→3 合并走。
+         * 旧 visual 覆盖映射到新的 conventions（用户改动优先），旧 stages 映射到 anim_stages。
+         * 只在用户层做；内置层已经是新 id。
+         */
+        const mapped = kind === 'user' ? LEGACY_ENTRY_ID_MAP[e.id] : null;
+        const entry = mapped ? { ...e, id: mapped, kind: e.kind ?? 'anim_rule' } : e;
+        acc.push({ ...entry, origin: kind === 'builtin' ? 'builtin' : (entry.origin ?? 'user') });
+      }
     };
 
     /**
      * ── 第 8 期：**内置层在打包产物里封死**（用户 2026-10-17 裁决）──
      *
      * 口径（很重要）：**只封打包产物，不封本地源码**。
-     *   · 本地开发（默认）：照旧读 `core/worldbook/data/*.json` —— 可编辑、可迭代；
+     *   · 本地开发（默认）：照旧读 `core/knowledgecard/data/*.json` —— 可编辑、可迭代；
      *   · 打包运行（`OD_BUILTIN_BUNDLE=1`）：读**编译进代码的常量**，
      *     产物里不带这些 JSON 文件，用户改不了、也拷不走。
      *
@@ -440,8 +467,15 @@ export function loadLibrary(opts = {}) {
   };
 
   builtin.push(...readDir(builtinDir, 'builtin'));
-  const userDirExists = existsSync(userDir);
-  user.push(...readDir(userDir, 'user'));
+  const userDirExists = existsSync(userDir) || existsSync(legacyUserDir);
+  /**
+   * v1.1.9alpha 双读：新目录 `ai-rules/knowledgecard/` 优先；旧目录 `ai-rules/worldbook/`
+   * 仍存在就一起读（同 id 以新目录为准）。旧目录**只读**，下一次保存写新目录。
+   */
+  const userNew = readDir(userDir, 'user');
+  const userLegacy = existsSync(legacyUserDir) && legacyUserDir !== userDir ? readDir(legacyUserDir, 'user') : [];
+  const userIdsNew = new Set(userNew.map((e) => e.id));
+  user.push(...userNew, ...userLegacy.filter((e) => !userIdsNew.has(e.id)));
 
   // 同名 id：库内不得重复（§9.1）。内置之间/用户之间重复 ⇒ 整批失败。
   const dupIn = (list, label) => {
@@ -470,8 +504,35 @@ export function loadLibrary(opts = {}) {
     sources,
     problems,
     userDirExists,
-    hash: worldbookHashOf(entries),
+    hash: knowledgecardHashOf(entries),
   };
+}
+
+/**
+ * 把旧 `ai-rules/worldbook/` 的 **json 包**复制到新 `ai-rules/knowledgecard/`。
+ *
+ * 口径：
+ *   · 旧目录**保留**（相当于升级备份），不删、不改；
+ *   · 新目录已有同名文件 ⇒ 不覆盖（新目录优先）；
+ *   · 只复制 `.json`，`.backup/` 与 README 不动。
+ *
+ * 服务启动时调用一次；`loadLibrary` 另有双读兜底。
+ *
+ * @param {{ dir?: string, legacyDir?: string }} [opts]
+ * @returns {{ migrated: boolean, copied: string[] }}
+ */
+export function migrateLegacyUserDir({ dir = USER_DIR, legacyDir } = {}) {
+  const legacy = legacyDir ?? (dir === USER_DIR ? LEGACY_USER_DIR : join(dirname(dir), 'worldbook'));
+  if (!existsSync(legacy) || legacy === dir) return { migrated: false, copied: [] };
+  mkdirSync(dir, { recursive: true });
+  const copied = [];
+  for (const name of readdirSync(legacy).filter((f) => f.toLowerCase().endsWith('.json')).sort()) {
+    const dst = join(dir, name);
+    if (existsSync(dst)) continue;
+    copyFileSync(join(legacy, name), dst);
+    copied.push(name);
+  }
+  return { migrated: copied.length > 0, copied };
 }
 
 /* ────────────────────────────── 写盘（原子） ────────────────────────────── */
@@ -491,7 +552,7 @@ export function writeFileAtomic(absPath, text) {
   return absPath;
 }
 
-/** 把一组**用户**词条写成 `ai-rules/worldbook/` 下的一个导出包文件 */
+/** 把一组**用户**词条写成 `ai-rules/knowledgecard/` 下的一个导出包文件 */
 export function writeUserPack(dir, fileName, entries) {
   const all = entries.map((e) => {
     const c = canonicalizeEntry(e);

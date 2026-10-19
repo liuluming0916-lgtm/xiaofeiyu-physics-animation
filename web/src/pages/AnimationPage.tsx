@@ -348,7 +348,7 @@ export function AnimationPage() {
           title: st0.programTitle,
           model: st0.run.model ?? 'handwritten',
           promptHash: handwritten ? 'handwritten' : undefined,
-          worldbookHash: handwritten ? 'handwritten' : undefined,
+          knowledgecardHash: handwritten ? 'handwritten' : undefined,
           /* C2：把避让表一起烧进导出的网页（没表就是 null ⇒ 与第 7 期一样） */
           labelAvoid: st0.programLabelAvoid ?? null,
           /**

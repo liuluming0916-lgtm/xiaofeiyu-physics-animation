@@ -359,7 +359,7 @@ async function main() {
       const dir = freshDir();
       const cat = listPromptCatalog({ dir });
       check('Prompt 目录：7 项、每组都有说明', cat.items.length === 7 && cat.items.every((i) => i.group && i.groupTitle));
-      check('Prompt 目录：worldbook / distill 已删除（没有 not-wired 分组）', cat.items.filter((i) => i.group === 'not-wired').length === 0);
+      check('Prompt 目录：knowledgecard / distill 已删除（没有 not-wired 分组）', cat.items.filter((i) => i.group === 'not-wired').length === 0);
 
       const cl = loadCleaningTable({ dir });
       check('清洗表：锁定 4 条在前、用户 0 条（第 8 期新增"剥函数外壳"）', cl.effective.length === 4 && cl.effective.every((r) => r.source === 'locked'));

@@ -6,7 +6,7 @@
  * 屏幕上看到的与导出的必须是同一份字节，只有这样"导出 = 另存为"才不是一句口号。
  *
  * 三件必须在导出时补上的东西：
- *   ① **Provenance 烧录**（§14）：模板版本 / SDK 版本 / 模型 / promptHash / worldbookHash
+ *   ① **Provenance 烧录**（§14）：模板版本 / SDK 版本 / 模型 / promptHash / knowledgecardHash
  *      —— 由调用方（编排器那一侧）把真实的哈希传进来，缺了就写"未记录"，绝不编造；
  *   ② **公式预渲染**：现成的 15 道题有 `template/vendor/tex-svg/<id>.json`，
  *      生成出来的题目没有，所以这里用 mathjax-full 现场渲染（与构建期同一套口径）；
@@ -127,7 +127,7 @@ function stamp() {
  * @param {string} [input.mode] NUMERIC / SYMBOLIC
  * @param {string} [input.model] 生成这题用的模型 id（Provenance 必需项）
  * @param {string} [input.promptHash]
- * @param {string} [input.worldbookHash]
+ * @param {string} [input.knowledgecardHash]
  */
 export async function buildExportPage(input = {}) {
   const problem = assertSlots(input.slots);
@@ -163,7 +163,7 @@ export async function buildExportPage(input = {}) {
     `矢量 ${VECTOR_TARGET_PX.force}/${VECTOR_TARGET_PX.velocity}/${VECTOR_TARGET_PX.acceleration}`,
     `model: ${input.model || '未记录'}`,
     `prompt: ${short(input.promptHash)}`,
-    `worldbook: ${short(input.worldbookHash)}`,
+    `knowledgecard: ${short(input.knowledgecardHash)}`,
     texSvg.renderer ? `math: ${texSvg.renderer}` : 'math: odtex-fallback',
     /**
      * ── 第 8 期：**开发模式（不拦截）必须烧进溯源**（用户裁决）──

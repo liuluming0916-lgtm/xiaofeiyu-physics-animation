@@ -57,7 +57,7 @@
         "scene_code",
         "dry_run",
         "repair",
-        "worldbook"
+        "knowledgecard"
       ],
       "title": "§2.3 主链路阶段枚举（stageModels 的键）"
     },

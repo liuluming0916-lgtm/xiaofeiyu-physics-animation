@@ -213,7 +213,7 @@ function checkPayload() {
     'electron/preload.cjs',
     'core/orchestrator/pipeline.mjs',
     'core/prompts/index.mjs',
-    'core/worldbook/data',
+    'core/knowledgecard/data',
     'contracts/manifest.json',
     'sdk/runtime/animation-runtime.mjs',
     'web/dist/index.html',

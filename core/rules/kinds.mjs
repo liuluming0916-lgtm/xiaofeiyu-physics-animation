@@ -10,8 +10,8 @@
  *   `ai-rules/prompts/<id>.md`   —— §10.1 的 Prompt 正文（纯文本，**只读数据、永不执行**）
  *   `ai-rules/cleaning.json`     —— §12 的**用户附加**正则规则表
  *
- * 词条（`ai-rules/worldbook/`）与端点（`ai-rules/endpoints.json`）**不在这里判业务规则**：
- * 它们各自已经有权威判据（`core/worldbook/store.mjs` 的整批失败、`contracts/validate.mjs` 的 §11.2 九条）。
+ * 词条（`ai-rules/knowledgecard/`）与端点（`ai-rules/endpoints.json`）**不在这里判业务规则**：
+ * 它们各自已经有权威判据（`core/knowledgecard/store.mjs` 的整批失败、`contracts/validate.mjs` 的 §11.2 九条）。
  * 同一个东西被两套判据各判一次，一旦两边口径有出入，就会出现"一边说合法、一边说非法"的死结。
  *
  * ── 为什么"缺文件 = 用内置"，而不是"初始化时把内置文本抄一份"

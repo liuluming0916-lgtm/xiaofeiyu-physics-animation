@@ -108,7 +108,7 @@ function sampleEvents(extra = {}) {
     },
     {
       seq: 6,
-      type: 'worldbook_done',
+      type: 'knowledgecard_done',
       at: '2026-10-17T10:00:05.000Z',
       hash: 'wb-hash-abc',
       libraryCount: 44,
@@ -139,7 +139,7 @@ function sampleEvents(extra = {}) {
       program: {
         slots: { PROBLEM: '题目正文', STEPS: 't0: 0\nt1: 2', setup: 'x', stateAt: 'y' },
         mode: 'NUMERIC',
-        provenance: { model: 'model-b', promptHash: 'ph-1', worldbookHash: 'wh-1', templateVersion: '1.0.0' },
+        provenance: { model: 'model-b', promptHash: 'ph-1', knowledgecardHash: 'wh-1', templateVersion: '1.0.0' },
       },
     },
     { seq: 8, type: 'repair_round', at: '2026-10-17T10:00:07.000Z', round: 1 },
@@ -224,12 +224,12 @@ async function main() {
         token: 'ttt',
         authorization: 'Bearer x',
         keys: { ep1: 'secret' },
-        worldbook: { keys: ['传送带', '共速'] },
+        knowledgecard: { keys: ['传送带', '共速'] },
         list: [{ password: 'p' }],
       });
       check('结构性脱敏：字段名命中即掩码（不看内容）', v.apiKey === MASK && v.token === MASK && v.authorization === MASK);
       check('结构性脱敏：`keys` 对象被清空（端点 Key 表的形状）', JSON.stringify(v.keys) === '{}');
-      check('★ 但世界书的 `keys` **数组**（触发词）必须保留', v.worldbook.keys.length === 2 && v.worldbook.keys[0] === '传送带');
+      check('★ 但世界书的 `keys` **数组**（触发词）必须保留', v.knowledgecard.keys.length === 2 && v.knowledgecard.keys[0] === '传送带');
       check('嵌套数组里的密钥字段也拦得住', v.list[0].password === MASK);
     }
 
@@ -266,9 +266,9 @@ async function main() {
     check('★ 失败检查号（含非阻塞的扩展检查）', rec.checks.failedIds.join(',') === 'C3,C10');
     check('★ 阻塞失败的检查号单独列出', rec.checks.blockingFailedIds.join(',') === 'C3');
     check('★ `Draw.raw` 使用率从 Dry-Run 透传过来', rec.observations.drawRawUsage === 0.02 && rec.observations.drawRawCount === 2);
-    check('世界书命中数与截断槽位', rec.worldbook.matched === 3 && rec.worldbook.truncatedSlots.length === 1);
+    check('世界书命中数与截断槽位', rec.knowledgecard.matched === 3 && rec.knowledgecard.truncatedSlots.length === 1);
     check('各槽字符数（方案 §M22 点名要的）', rec.slotChars.PROBLEM === 4 && rec.slotChars.STEPS === 11);
-    check('模型/哈希以 Dry-Run 的 Provenance 为准', rec.model === 'model-b' && rec.promptHash === 'ph-1' && rec.worldbookHash === 'wh-1');
+    check('模型/哈希以 Dry-Run 的 Provenance 为准', rec.model === 'model-b' && rec.promptHash === 'ph-1' && rec.knowledgecardHash === 'wh-1');
     check('自愈轮次与收敛结论', rec.repair.rounds === 1 && rec.repair.converged === false);
     check('判定（考点/题型/元件/表外词）计数', rec.judgement.concepts === 2 && rec.judgement.unknowns === 1);
     check('取消标记默认 false', rec.cancelled === false);

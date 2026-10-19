@@ -6,7 +6,7 @@
  * 包装的软件中封死才对。」**
  *
  * 所以这里做的不是"删文件"，而是**多产出一份"编译进去的副本"**：
- *   · 本地开发：`loadLibrary()` 照旧读 `core/worldbook/data/*.json`（可编辑）；
+ *   · 本地开发：`loadLibrary()` 照旧读 `core/knowledgecard/data/*.json`（可编辑）；
  *   · 打包运行：`OD_BUILTIN_BUNDLE=1` ⇒ 读本脚本生成的常量，**不需要那些 JSON 文件**。
  *
  * 为什么把**原文**（JSON 文本）打进常量，而不是把解析后的对象打进去：
@@ -24,8 +24,8 @@ import { join } from 'node:path';
 
 import { PROJECT_ROOT } from './paths.mjs';
 
-const BUILTIN_DIR = join(PROJECT_ROOT, 'core', 'worldbook', 'data');
-const OUT_FILE = join(PROJECT_ROOT, 'core', 'worldbook', 'builtin-bundle.generated.mjs');
+const BUILTIN_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data');
+const OUT_FILE = join(PROJECT_ROOT, 'core', 'knowledgecard', 'builtin-bundle.generated.mjs');
 export const BUNDLE_FORMAT = 'od-builtin-bundle';
 export const BUNDLE_VERSION = 1;
 
@@ -50,7 +50,7 @@ export function buildBundleSource() {
   const payload = {
     format: BUNDLE_FORMAT,
     version: BUNDLE_VERSION,
-    generatedFrom: 'core/worldbook/data',
+    generatedFrom: 'core/knowledgecard/data',
     /** 内置层版本号（第 8 期风险 2 的答复：改了内容它就变，能对得上导出页的溯源） */
     hash: overall,
     files: files.map((f) => ({ name: f.name, sha256: f.sha256, text: f.text })),

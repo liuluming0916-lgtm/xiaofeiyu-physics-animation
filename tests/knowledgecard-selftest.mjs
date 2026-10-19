@@ -19,12 +19,12 @@
  *   W13 origin 治理：覆盖副本 / 升级只替换未被覆盖 / 恢复默认只影响内置 / 导出默认只导 user
  *   W14 词条结构覆盖率（「生成后自检」+ `code_examples`）与"内容覆盖未完成"的诚实报告
  *   W15 冲突提示（不阻断）+ 预览器四区块来自同一次触发
- *   X   接线：世界书进每题快照 / `worldbook_done` 事件 / `provenance.worldbookHash` 取真值
+ *   X   接线：世界书进每题快照 / `knowledgecard_done` 事件 / `provenance.knowledgecardHash` 取真值
  *
  * ⚠ 本文件的纪律（第 4 期的教训）：**每写一条断言，先问它怎么才能失败**。
  *   W2/W5/W7/W12/W13/W14 都配了负对照（把被测语义破坏掉，断言必须变红）。
  *
- * 用法：node tests/worldbook-selftest.mjs
+ * 用法：node tests/knowledgecard-selftest.mjs
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -38,16 +38,17 @@ import {
   SOURCE_DIR,
   canonicalizeEntry,
   loadLibrary,
+  migrateLegacyUserDir,
   readCoverageTarget,
   removeUserFile,
   validateEntry,
   writeUserPack,
-  worldbookHashOf,
-} from '../core/worldbook/store.mjs';
-import { makeOverrideCopy, planExport, planRestoreDefault, planUpgrade, EDIT_OVERRIDE_HINT } from '../core/worldbook/governance.mjs';
-import { restoreBuiltinWorldbook } from '../core/worldbook/editor.mjs';
-import { buildExportPack, normalizeImportedPack, packToText } from '../core/worldbook/import-export.mjs';
-import { checkCoverage, checkEntryStructure, formatCoverageLine, targetFromFile } from '../core/worldbook/coverage.mjs';
+  knowledgecardHashOf,
+} from '../core/knowledgecard/store.mjs';
+import { makeOverrideCopy, planExport, planRestoreDefault, planUpgrade, EDIT_OVERRIDE_HINT } from '../core/knowledgecard/governance.mjs';
+import { restoreBuiltinKnowledgecard } from '../core/knowledgecard/editor.mjs';
+import { buildExportPack, normalizeImportedPack, packToText } from '../core/knowledgecard/import-export.mjs';
+import { checkCoverage, checkEntryStructure, formatCoverageLine, targetFromFile } from '../core/knowledgecard/coverage.mjs';
 import {
   detectConflicts,
   detectKeyCollisions,
@@ -55,31 +56,31 @@ import {
   detectElementCollisions,
   parseKey,
   splitEntryContent,
-  triggerWorldbook,
+  triggerKnowledgecard,
   kindOfEntry,
-  WORLDBOOK_BUDGET,
-  WORLDBOOK_EXAMPLE_BUDGET,
-  WORLDBOOK_KIND_ORDER,
-} from '../core/worldbook/engine.mjs';
-import { WORLDBOOK_ENTRY_KINDS } from '../contracts/spec/frozen-keys.mjs';
-import { prepareWorldbook } from '../core/worldbook/index.mjs';
+  KNOWLEDGECARD_BUDGET,
+  KNOWLEDGECARD_EXAMPLE_BUDGET,
+  KNOWLEDGECARD_KIND_ORDER,
+} from '../core/knowledgecard/engine.mjs';
+import { KNOWLEDGECARD_ENTRY_KINDS } from '../contracts/spec/frozen-keys.mjs';
+import { prepareKnowledgecard } from '../core/knowledgecard/index.mjs';
 import { lintSlot } from '../core/lint/contract-lint.mjs';
 import { assemblePrompt, buildFixedPrefix, buildStagePrefix, getPrompt } from '../core/prompts/index.mjs';
 import { snapshotConfig, runPipeline } from '../core/orchestrator/pipeline.mjs';
 import { CONTRACT_SPECS } from '../contracts/spec/contract-fields.mjs';
 import { assertContractInvariants } from '../contracts/_compile.mjs';
-import { ENGINE_OUT, ENGINE_SRC, expectedEngineCopy } from '../tools/build-worldbook-web.mjs';
-import { allBuiltinEntries, listSourceFiles, plannedFiles, readSource } from '../tools/rewrite-worldbook-entries.mjs';
+import { ENGINE_OUT, ENGINE_SRC, expectedEngineCopy } from '../tools/build-knowledgecard-web.mjs';
+import { allBuiltinEntries, listSourceFiles, plannedFiles, readSource } from '../tools/rewrite-knowledgecard-entries.mjs';
 import {
   SLOT_KEY_NAMES,
-  WORLDBOOK_INSERTION_SLOTS,
-  WORLDBOOK_CONCEPTS,
-  WORLDBOOK_CONCEPT_IDS,
-  WORLDBOOK_TAG_NAMES,
-  WORLDBOOK_TAG_OWNERS,
-  WORLDBOOK_ELEMENT_IDS,
+  KNOWLEDGECARD_INSERTION_SLOTS,
+  KNOWLEDGECARD_CONCEPTS,
+  KNOWLEDGECARD_CONCEPT_IDS,
+  KNOWLEDGECARD_TAG_NAMES,
+  KNOWLEDGECARD_TAG_OWNERS,
+  KNOWLEDGECARD_ELEMENT_IDS,
 } from '../contracts/spec/frozen-keys.mjs';
-import { parseJudgement, buildVocabIndex } from '../core/worldbook/concepts.mjs';
+import { parseJudgement, buildVocabIndex } from '../core/knowledgecard/concepts.mjs';
 
 let passed = 0;
 const failures = [];
@@ -119,7 +120,7 @@ function E(over = {}) {
 const ids = (r) => r.provenance.map((p) => p.entry_id);
 const injectedIds = (r, slot) => r.slots[slot].injected.map((i) => i.id);
 /** 单条词条是否命中（W2 用得最多的一句话） */
-const secondary = (e, text) => triggerWorldbook({ entries: [e], text }).provenance.length === 1;
+const secondary = (e, text) => triggerKnowledgecard({ entries: [e], text }).provenance.length === 1;
 
 console.log('世界书取证（第 5 期 · 门禁 ㉒）\n');
 
@@ -127,37 +128,37 @@ console.log('世界书取证（第 5 期 · 门禁 ㉒）\n');
 
 console.log('『W1』主键：字面量包含 + `/正则/flags` + 归一化');
 {
-  const hit = triggerWorldbook({ entries: [E({ keys: ['传送带'] })], text: '水平传送带以恒定速率运行' });
+  const hit = triggerKnowledgecard({ entries: [E({ keys: ['传送带'] })], text: '水平传送带以恒定速率运行' });
   check('字面量命中', hit.provenance.length === 1 && hit.provenance[0].via === 'key');
 
-  const miss = triggerWorldbook({ entries: [E({ keys: ['传送带'] })], text: '皮带传动装置' });
+  const miss = triggerKnowledgecard({ entries: [E({ keys: ['传送带'] })], text: '皮带传动装置' });
   check('字面量不命中（反例）', miss.provenance.length === 0);
 
-  const re = triggerWorldbook({ entries: [E({ keys: ['/共速.{0,6}摩擦/'] })], text: '共速之后的摩擦突变' });
+  const re = triggerKnowledgecard({ entries: [E({ keys: ['/共速.{0,6}摩擦/'] })], text: '共速之后的摩擦突变' });
   check('正则 `/共速.{0,6}摩擦/` 命中', re.provenance.length === 1);
-  const reMiss = triggerWorldbook({ entries: [E({ keys: ['/共速.{0,6}摩擦/'] })], text: '共速之后很久很久才出现摩擦' });
+  const reMiss = triggerKnowledgecard({ entries: [E({ keys: ['/共速.{0,6}摩擦/'] })], text: '共速之后很久很久才出现摩擦' });
   check('正则不命中（反例：超出 `.\\{0,6\\}` 的跨度）', reMiss.provenance.length === 0);
 
-  const half = triggerWorldbook({ entries: [E({ keys: ['v0'] })], text: '初速度 Ｖ０ ＝ 2 m/s' });
+  const half = triggerKnowledgecard({ entries: [E({ keys: ['v0'] })], text: '初速度 Ｖ０ ＝ 2 m/s' });
   check('全半角归一化：`v0` 命中全角 `Ｖ０`', half.provenance.length === 1);
-  const upper = triggerWorldbook({ entries: [E({ keys: ['Newton'] })], text: 'by newton second law' });
+  const upper = triggerKnowledgecard({ entries: [E({ keys: ['Newton'] })], text: 'by newton second law' });
   check('大小写归一化：`Newton` 命中 `newton`', upper.provenance.length === 1);
 
-  const flag = triggerWorldbook({ entries: [E({ keys: ['/abc/i'] })], text: 'ABC' });
+  const flag = triggerKnowledgecard({ entries: [E({ keys: ['/abc/i'] })], text: 'ABC' });
   check('正则 flags 生效（`/abc/i` 命中 `ABC`）', flag.provenance.length === 1);
-  const noFlag = triggerWorldbook({ entries: [E({ keys: ['/ABC/'] })], text: 'abc' });
+  const noFlag = triggerKnowledgecard({ entries: [E({ keys: ['/ABC/'] })], text: 'abc' });
   check(
     '正则**不**吃归一化（`/ABC/` 不命中 `abc`）——口径：字面量走归一化文本，正则走原始文本',
     noFlag.provenance.length === 0,
   );
 
-  const bad = triggerWorldbook({ entries: [E({ keys: ['/(/', '传送带'] })], text: '传送带' });
+  const bad = triggerKnowledgecard({ entries: [E({ keys: ['/(/', '传送带'] })], text: '传送带' });
   check('非法正则不抛异常，且**后面的合法 key 仍然会被尝试**', bad.provenance.length === 1);
   check('非法正则记一条警告（不静默）', bad.warnings.some((w) => w.code === 'bad-regex'));
 
   const gFlag = E({ keys: ['/传/g'] });
-  const g1 = triggerWorldbook({ entries: [gFlag], text: '传送带' });
-  const g2 = triggerWorldbook({ entries: [gFlag], text: '传送带' });
+  const g1 = triggerKnowledgecard({ entries: [gFlag], text: '传送带' });
+  const g2 = triggerKnowledgecard({ entries: [gFlag], text: '传送带' });
   check('带 `g` 的正则**连续两次**都命中（lastIndex 陷阱已在构造时摘掉 g/y）', g1.provenance.length === 1 && g2.provenance.length === 1);
   check('parseKey 对 `/…/flags` 与字面量的判定', parseKey('/a/i').kind === 'regex' && parseKey('a/b').kind === 'literal' && parseKey('/a/').kind === 'regex');
 }
@@ -177,7 +178,7 @@ console.log('\n『W2』次级逻辑四种 + 空 list 的口径');
   const or = E({ keys: ['带'], secondary_keys: { logic: 'OR', list: ['斜面'] } });
   check('OR：主键命中 + list 不命中 ⇒ 仍命中', secondary(or, '带上的小车'));
   const or2 = E({ keys: ['锚点不在题面'], secondary_keys: { logic: 'OR', list: ['斜面'] } });
-  check('OR：主键不命中 + list 命中 ⇒ 命中（且 via=secondary）', triggerWorldbook({ entries: [or2], text: '光滑斜面' }).provenance[0]?.via === 'secondary');
+  check('OR：主键不命中 + list 命中 ⇒ 命中（且 via=secondary）', triggerKnowledgecard({ entries: [or2], text: '光滑斜面' }).provenance[0]?.via === 'secondary');
   check('OR：两者都不命中 ⇒ 不命中', !secondary(or2, '什么都没有'));
 
   const not = E({ keys: ['带'], secondary_keys: { logic: 'NOT', list: ['斜面'] } });
@@ -187,7 +188,7 @@ console.log('\n『W2』次级逻辑四种 + 空 list 的口径');
 
   const empty = (logic, text) => {
     const e = E({ keys: ['带'], secondary_keys: { logic, list: [] } });
-    return triggerWorldbook({ entries: [e], text }).provenance.length === 1;
+    return triggerKnowledgecard({ entries: [e], text }).provenance.length === 1;
   };
   check('空 list｜AND_ANY + 主键命中 ⇒ 通过', empty('AND_ANY', '带'));
   check('空 list｜AND_ALL + 主键命中 ⇒ 通过', empty('AND_ALL', '带'));
@@ -198,7 +199,7 @@ console.log('\n『W2』次级逻辑四种 + 空 list 的口径');
 
   // 空的 keys 在纯主键语义下永不命中（第 1 步"未命中则跳过"）
   const noKeys = E({ keys: [], recursive: false });
-  check('keys 为空且非常驻且不递归 ⇒ 永不注入（第 1 步"未命中则跳过"）', triggerWorldbook({ entries: [noKeys], text: '带' }).provenance.length === 0);
+  check('keys 为空且非常驻且不递归 ⇒ 永不注入（第 1 步"未命中则跳过"）', triggerKnowledgecard({ entries: [noKeys], text: '带' }).provenance.length === 0);
 }
 
 /* ══════════════════════════ W3 常驻 / 空 keys ══════════════════════════ */
@@ -206,17 +207,17 @@ console.log('\n『W2』次级逻辑四种 + 空 list 的口径');
 console.log('\n『W3』常驻（constant）与 `keys: []` 的两种活法');
 {
   const constEntry = E({ id: 'c1', constant: true, keys: [] });
-  const r = triggerWorldbook({ entries: [constEntry], text: '完全不相关的题面' });
+  const r = triggerKnowledgecard({ entries: [constEntry], text: '完全不相关的题面' });
   check('constant:true 不匹配题面也进上下文', ids(r).includes('c1') && r.provenance[0].via === 'constant');
 
   // 无主键 + recursive：靠被唤醒正文里出现它的 title 被唤醒（实现约定，见 engine.mjs）
   const keyless = E({ id: 'k1', title: '共速判据', keys: [], recursive: true, content: '共速判据正文' });
   const waker = E({ id: 'w1', title: '唤醒者', keys: ['传送带'], content: '这里提到了 共速判据 这个词' });
-  const r2 = triggerWorldbook({ entries: [keyless, waker], text: '水平传送带' });
+  const r2 = triggerKnowledgecard({ entries: [keyless, waker], text: '水平传送带' });
   check('keys:[] + recursive:true ⇒ 可被"正文里出现其 title"的已命中词条唤醒', ids(r2).includes('k1'));
   check('该唤醒的 via=recursive，且带来源 id', r2.provenance.find((p) => p.entry_id === 'k1')?.via === 'recursive' && r2.provenance.find((p) => p.entry_id === 'k1')?.from === 'w1');
 
-  const r3 = triggerWorldbook({ entries: [E({ id: 'k2', keys: [], recursive: false })], text: '任意题面' });
+  const r3 = triggerKnowledgecard({ entries: [E({ id: 'k2', keys: [], recursive: false })], text: '任意题面' });
   check('keys:[] + 非常驻 + 不递归 ⇒ 永不注入', r3.provenance.length === 0);
 }
 
@@ -226,14 +227,14 @@ console.log('\n『W4』递归唤醒 + 环检测 + maxDepth');
 {
   const A = E({ id: 'A', title: '传送带', keys: ['传送带'], content: '传送带正文，提到 摩擦突变 与 相对位移' });
   const B = E({ id: 'B', title: '共速摩擦突变', keys: ['摩擦突变'], content: 'B 正文' });
-  const r = triggerWorldbook({ entries: [A, B], text: '水平传送带问题' });
+  const r = triggerKnowledgecard({ entries: [A, B], text: '水平传送带问题' });
   check('传送带题命中 A，A 唤醒"共速摩擦突变" B', ids(r).includes('A') && ids(r).includes('B'));
   check('B 的溯源写明"被 A 唤醒"', r.provenance.find((p) => p.entry_id === 'B')?.from === 'A');
 
   // 环：A↔B 互相含对方 key
   const CA = E({ id: 'CA', title: 'A', keys: ['锚甲'], content: '含 锚乙' });
   const CB = E({ id: 'CB', title: 'B', keys: ['锚乙'], content: '含 锚甲' });
-  const rc = triggerWorldbook({ entries: [CA, CB], text: '题面里有 锚甲' });
+  const rc = triggerKnowledgecard({ entries: [CA, CB], text: '题面里有 锚甲' });
   check('造一个 A↔B 环：不死循环，且两条各只注入一次', ids(rc).sort().join(',') === 'CA,CB' && rc.slots.solve.injected.length === 2);
 
   // 链式 A→B→C→D：maxDepth 是**唤醒轮数**
@@ -243,13 +244,13 @@ console.log('\n『W4』递归唤醒 + 环检测 + maxDepth');
     E({ id: 'L3', keys: ['链3'], content: '含 链4' }),
     E({ id: 'L4', keys: ['链4'], content: '链尾' }),
   ];
-  const d3 = triggerWorldbook({ entries: chain, text: '起点' });
-  const d1 = triggerWorldbook({ entries: chain, text: '起点', budget: { maxDepth: 1 } });
+  const d3 = triggerKnowledgecard({ entries: chain, text: '起点' });
+  const d1 = triggerKnowledgecard({ entries: chain, text: '起点', budget: { maxDepth: 1 } });
   check('maxDepth=3（默认）能走到第 3 环（L4）', ids(d3).sort().join(',') === 'L1,L2,L3,L4');
   check('maxDepth=1 时只走到第 1 环（负对照）', ids(d1).sort().join(',') === 'L1,L2');
 
   const nonRec = E({ id: 'NR', keys: ['摩擦突变'], recursive: false, content: 'NR' });
-  const rn = triggerWorldbook({ entries: [A, nonRec], text: '水平传送带' });
+  const rn = triggerKnowledgecard({ entries: [A, nonRec], text: '水平传送带' });
   check('non-recursive 的词条不会被唤醒（负对照）', !ids(rn).includes('NR'));
 }
 
@@ -258,13 +259,13 @@ console.log('\n『W4』递归唤醒 + 环检测 + maxDepth');
 console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
 {
   const five = [1, 2, 3, 4, 5].map((i) => E({ id: `m${i}`, keys: ['共同'], order: i * 100 }));
-  const r = triggerWorldbook({ entries: five, text: '共同' , budget: { maxEntries: 2 } });
+  const r = triggerKnowledgecard({ entries: five, text: '共同' , budget: { maxEntries: 2 } });
   check('maxEntries 生效：注入 2 条', injectedIds(r, 'solve').length === 2);
   check('被截断的记进 truncatedSlots（含 droppedIds）', r.truncatedSlots[0]?.slot === 'solve' && r.truncatedSlots[0]?.dropped === 3);
   check('截断顺序：同 priority 下 order 小者先留', injectedIds(r, 'solve').join(',') === 'm1,m2');
 
   const fiveHigh = five.map((e) => (e.id === 'm5' ? { ...e, priority: 'high' } : e));
-  const r2 = triggerWorldbook({ entries: fiveHigh, text: '共同', budget: { maxEntries: 2 } });
+  const r2 = triggerKnowledgecard({ entries: fiveHigh, text: '共同', budget: { maxEntries: 2 } });
   check('priority=high 优先保留（即使 order 最大）', injectedIds(r2, 'solve').includes('m5'));
   check('注入顺序仍按 order 升序（保留顺序 ≠ 注入顺序）', injectedIds(r2, 'solve').join(',') === 'm1,m5');
 
@@ -272,7 +273,7 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
   const K = E({ id: 'K', keys: ['题面词'], order: 100, content: '含 唤醒词' });
   /* ── v1.1.9alpha：类型顺序（anim_rule → element → scene） ── */
   console.log('\n『W5.1』知识卡类型顺序（类型内再按 order）');
-  check('引擎的类型顺序与契约枚举同源', WORLDBOOK_KIND_ORDER.join(',') === WORLDBOOK_ENTRY_KINDS.join(','));
+  check('引擎的类型顺序与契约枚举同源', KNOWLEDGECARD_KIND_ORDER.join(',') === KNOWLEDGECARD_ENTRY_KINDS.join(','));
   check('缺 kind 的旧条目按 element 处理', kindOfEntry(E({ id: 'legacy' })) === 'element');
   {
     const mixed = [
@@ -281,13 +282,13 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
       E({ id: 'a1', kind: 'anim_rule', keys: ['共同'], insertion_slot: ['scene_code'], order: 9 }),
       E({ id: 'a2', kind: 'anim_rule', keys: ['共同'], insertion_slot: ['scene_code'], order: 2 }),
     ];
-    const rm = triggerWorldbook({ entries: mixed, text: '共同' });
+    const rm = triggerKnowledgecard({ entries: mixed, text: '共同' });
     check(
       '注入顺序：anim_rule → element → scene；类型内 order 升序',
       injectedIds(rm, 'scene_code').join(',') === 'a2,a1,e1,s1',
       injectedIds(rm, 'scene_code').join(','),
     );
-    const tight = triggerWorldbook({ entries: mixed, text: '共同', budget: { maxEntries: 2 } });
+    const tight = triggerKnowledgecard({ entries: mixed, text: '共同', budget: { maxEntries: 2 } });
     check(
       '预算不足时 anim_rule 先保留（不会被元件卡挤掉）',
       injectedIds(tight, 'scene_code').join(',') === 'a2,a1',
@@ -296,11 +297,11 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
   }
 
   const R = E({ id: 'R', keys: ['唤醒词'], order: 100, content: 'R' });
-  const r3 = triggerWorldbook({ entries: [K, R], text: '题面词', budget: { maxEntries: 1 } });
+  const r3 = triggerKnowledgecard({ entries: [K, R], text: '题面词', budget: { maxEntries: 1 } });
   check('同 priority / 同 order ⇒ 命中强度决定保留（key 强于 recursive）', injectedIds(r3, 'solve').join(',') === 'K');
 
   const long = [E({ id: 'x1', keys: ['共同'], content: 'x'.repeat(300) }), E({ id: 'x2', keys: ['共同'], content: 'y'.repeat(300) })];
-  const r4 = triggerWorldbook({ entries: long, text: '共同', budget: { maxChars: 200 } });
+  const r4 = triggerKnowledgecard({ entries: long, text: '共同', budget: { maxChars: 200 } });
   check('maxChars 生效：一条都放不下时 chars=0、全部记入 dropped', r4.slots.solve.chars === 0 && r4.slots.solve.dropped.length === 2 && r4.text.solve === '');
   check('maxChars 不会被突破（chars ≤ maxChars）', r4.slots.solve.chars <= 200);
 
@@ -312,7 +313,7 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
     E({ id: 't2', keys: ['共同'], insertion_slot: ['scene_code'], order: 2 }),
     E({ id: 't3', keys: ['共同'], insertion_slot: ['scene_code'], order: 3 }),
   ];
-  const r5 = triggerWorldbook({ entries: split, text: '共同', budget: { maxEntries: 2 } });
+  const r5 = triggerKnowledgecard({ entries: split, text: '共同', budget: { maxEntries: 2 } });
   check('预算是**按槽位独立**的：两个槽各自注入 2 条', injectedIds(r5, 'solve').length === 2 && injectedIds(r5, 'scene_code').length === 2);
   /**
    * ⚠ 第 8 期：`maxChars` 24000 → 32000 → **30000**（用户两次裁决；定案是正文 30000 + 示例 10000 = 40000）。
@@ -322,8 +323,8 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
    */
   check(
     '默认预算是 3 / 40 / 30000（深度与条数沿用 §9.2；maxChars 第 8 期定案并钉住）',
-    WORLDBOOK_BUDGET.maxDepth === 3 && WORLDBOOK_BUDGET.maxEntries === 40 && WORLDBOOK_BUDGET.maxChars === 30000,
-    `${WORLDBOOK_BUDGET.maxDepth}/${WORLDBOOK_BUDGET.maxEntries}/${WORLDBOOK_BUDGET.maxChars}`,
+    KNOWLEDGECARD_BUDGET.maxDepth === 3 && KNOWLEDGECARD_BUDGET.maxEntries === 40 && KNOWLEDGECARD_BUDGET.maxChars === 30000,
+    `${KNOWLEDGECARD_BUDGET.maxDepth}/${KNOWLEDGECARD_BUDGET.maxEntries}/${KNOWLEDGECARD_BUDGET.maxChars}`,
   );
 }
 
@@ -332,7 +333,7 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
 console.log('\n『W6』分槽组装与双槽标题切分');
 {
   const onlySolve = E({ id: 'os', keys: ['共同'], insertion_slot: ['solve'] });
-  const r = triggerWorldbook({ entries: [onlySolve], text: '共同' });
+  const r = triggerKnowledgecard({ entries: [onlySolve], text: '共同' });
   check('单槽词条只影响该槽（scene_code 槽为空）', r.text.solve.includes('【世界书·解题') && r.text.scene_code === '');
   check('空槽被记进 emptySlots', r.emptySlots.includes('scene_code') && !r.emptySlots.includes('solve'));
 
@@ -342,13 +343,13 @@ console.log('\n『W6』分槽组装与双槽标题切分');
     insertion_slot: ['solve', 'scene_code'],
     content: '## 解题\n解题正文\n\n## 动画建模\n动画正文',
   });
-  const r2 = triggerWorldbook({ entries: [dual], text: '共同' });
+  const r2 = triggerKnowledgecard({ entries: [dual], text: '共同' });
   check('双槽词条：solve 槽只拿"解题"小节', r2.text.solve.includes('解题正文') && !r2.text.solve.includes('动画正文'));
   check('双槽词条：scene_code 槽只拿"动画建模"小节', r2.text.scene_code.includes('动画正文') && !r2.text.scene_code.includes('解题正文'));
   check('两个槽的来源标记各自正确', r2.text.solve.includes('【世界书·解题：') && r2.text.scene_code.includes('【世界书·动画建模：'));
 
-  const prepared = prepareWorldbook({ problemText: '共同', entries: [dual] });
-  check('prepareWorldbook 一次给出两个槽位的拼接内容', prepared.text.solve.includes('解题正文') && prepared.text.scene_code.includes('动画正文'));
+  const prepared = prepareKnowledgecard({ problemText: '共同', entries: [dual] });
+  check('prepareKnowledgecard 一次给出两个槽位的拼接内容', prepared.text.solve.includes('解题正文') && prepared.text.scene_code.includes('动画正文'));
 }
 
 /* ══════════════════════════ W7 空槽 vs 截断 ══════════════════════════ */
@@ -356,12 +357,12 @@ console.log('\n『W6』分槽组装与双槽标题切分');
 console.log('\n『W7』空槽静默跳过 vs 被截断要告警（§9.2 的"重要边界"）');
 {
   const solveOnly = [E({ id: 'a1', keys: ['共同'] })];
-  const emptyCase = triggerWorldbook({ entries: solveOnly, text: '共同' });
+  const emptyCase = triggerKnowledgecard({ entries: solveOnly, text: '共同' });
   check('空槽：进 emptySlots', emptyCase.emptySlots.includes('scene_code'));
   check('空槽：**不**产生 budget-truncated 警告（静默跳过）', !emptyCase.warnings.some((w) => w.code === 'budget-truncated'));
   check('空槽：truncatedSlots 里没有它', !emptyCase.truncatedSlots.some((t) => t.slot === 'scene_code'));
 
-  const truncatedCase = triggerWorldbook({
+  const truncatedCase = triggerKnowledgecard({
     entries: [E({ id: 'b1', keys: ['共同'], order: 1 }), E({ id: 'b2', keys: ['共同'], order: 2 })],
     text: '共同',
     budget: { maxEntries: 1 },
@@ -386,7 +387,7 @@ console.log('\n『W8』双槽词条无标题：全文注入 + 提示');
   check('反例：无标题 ⇒ mode=heading-missing', split.mode === 'heading-missing');
   check('反例：全文注入（不是空）', split.text === '整篇正文' && split.warning.includes('缺少'));
 
-  const r = triggerWorldbook({ entries: [E({ ...noHeading, keys: ['共同'] })], text: '共同' });
+  const r = triggerKnowledgecard({ entries: [E({ ...noHeading, keys: ['共同'] })], text: '共同' });
   check('无标题双槽：两个槽都拿到全文', r.text.solve.includes('整篇正文') && r.text.scene_code.includes('整篇正文'));
   check('无标题双槽：给出 dual-slot-heading 提示', r.warnings.some((w) => w.code === 'dual-slot-heading'));
 }
@@ -395,26 +396,26 @@ console.log('\n『W8』双槽词条无标题：全文注入 + 提示');
 
 console.log('\n『W9』来源标记与溯源记录');
 {
-  const r = triggerWorldbook({ entries: [E({ id: 'k', title: '传送带模型', keys: ['共同'], content: '正文' })], text: '共同' });
+  const r = triggerKnowledgecard({ entries: [E({ id: 'k', title: '传送带模型', keys: ['共同'], content: '正文' })], text: '共同' });
   check('来源标记逐字：`【世界书·解题：传送带模型】\\n正文`', r.text.solve.startsWith('【世界书·解题：传送带模型】\n正文'));
 
-  const viaKey = triggerWorldbook({ entries: [E({ id: 'v1', keys: ['共同'] })], text: '共同' }).provenance[0];
-  const viaSec = triggerWorldbook({ entries: [E({ id: 'v2', keys: ['不存在'], secondary_keys: { logic: 'OR', list: ['共同'] } })], text: '共同' }).provenance[0];
-  const viaConst = triggerWorldbook({ entries: [E({ id: 'v3', constant: true, keys: [] })], text: '共同' }).provenance[0];
-  const viaRec = triggerWorldbook({
+  const viaKey = triggerKnowledgecard({ entries: [E({ id: 'v1', keys: ['共同'] })], text: '共同' }).provenance[0];
+  const viaSec = triggerKnowledgecard({ entries: [E({ id: 'v2', keys: ['不存在'], secondary_keys: { logic: 'OR', list: ['共同'] } })], text: '共同' }).provenance[0];
+  const viaConst = triggerKnowledgecard({ entries: [E({ id: 'v3', constant: true, keys: [] })], text: '共同' }).provenance[0];
+  const viaRec = triggerKnowledgecard({
     entries: [E({ id: 'v4', keys: ['共同'], content: '含 唤醒词' }), E({ id: 'v5', keys: ['唤醒词'] })],
     text: '共同',
   }).provenance.find((p) => p.entry_id === 'v5');
   check('溯源命中方式四种齐全：key / secondary / constant / recursive', viaKey.via === 'key' && viaSec.via === 'secondary' && viaConst.via === 'constant' && viaRec.via === 'recursive');
 
-  const dual = triggerWorldbook({ entries: [E({ id: 'd', keys: ['共同'], insertion_slot: ['solve', 'scene_code'], content: '## 解题\nA\n\n## 动画建模\nB' })], text: '共同' }).provenance[0];
+  const dual = triggerKnowledgecard({ entries: [E({ id: 'd', keys: ['共同'], insertion_slot: ['solve', 'scene_code'], content: '## 解题\nA\n\n## 动画建模\nB' })], text: '共同' }).provenance[0];
   check('溯源记**实际注入槽位**（双槽各自命中）', dual.injectedSlots.sort().join(',') === 'scene_code,solve');
   check('溯源记各槽字符数', dual.charsBySlot.solve > 0 && dual.charsBySlot.scene_code > 0);
 
-  const unmounted = triggerWorldbook({ entries: [E({ id: 'u', keys: ['共同'], insertion_slot: [] })], text: '共同' }).provenance[0];
+  const unmounted = triggerKnowledgecard({ entries: [E({ id: 'u', keys: ['共同'], insertion_slot: [] })], text: '共同' }).provenance[0];
   check('未挂槽位的词条有明确标记（unmounted=true 且 injectedSlots 为空）', unmounted.unmounted === true && unmounted.injectedSlots.length === 0);
 
-  const trunc = triggerWorldbook({
+  const trunc = triggerKnowledgecard({
     entries: [E({ id: 't1', keys: ['共同'], order: 1 }), E({ id: 't2', keys: ['共同'], order: 2 })],
     text: '共同',
     budget: { maxEntries: 1 },
@@ -428,14 +429,14 @@ console.log('\n『W10』预览器与实际请求**逐字节一致**（用浏览�
 {
   check('浏览器侧引擎副本存在', existsSync(ENGINE_OUT), ENGINE_OUT);
   if (existsSync(ENGINE_OUT)) {
-    check('副本与 core/worldbook/engine.mjs **逐字节一致**（含文件头）', readFileSync(ENGINE_OUT, 'utf8') === expectedEngineCopy());
+    check('副本与 core/knowledgecard/engine.mjs **逐字节一致**（含文件头）', readFileSync(ENGINE_OUT, 'utf8') === expectedEngineCopy());
 
     const browser = await import(pathToFileURL(ENGINE_OUT).href);
     const coreExports = Object.keys(await import(pathToFileURL(ENGINE_SRC).href)).sort();
     const browserExports = Object.keys(browser).sort();
     check('副本的导出面与本源完全一致', coreExports.join(',') === browserExports.join(','), `${browserExports.length} vs ${coreExports.length}`);
 
-    const dts = readFileSync(join(PROJECT_ROOT, 'web', 'src', 'lib', 'worldbook-engine.d.ts'), 'utf8');
+    const dts = readFileSync(join(PROJECT_ROOT, 'web', 'src', 'lib', 'knowledgecard-engine.d.ts'), 'utf8');
     const declared = [...dts.matchAll(/^export (?:function|const) (\w+)/gm)].map((m) => m[1]).sort();
     check('d.ts 声明的名字集合 == engine.mjs 的导出面（抄录不会漂移）', declared.join(',') === coreExports.join(','), `声明 ${declared.length} / 导出 ${coreExports.length}`);
 
@@ -447,7 +448,7 @@ console.log('\n『W10』预览器与实际请求**逐字节一致**（用浏览�
     const events = [];
     for await (const e of runPipeline({
       problem: { text: problemText },
-      config: { endpoint: fakeEndpoint(), apiKey: 'sk-test', regexRules: [], worldbookEntries: lib.entries },
+      config: { endpoint: fakeEndpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardEntries: lib.entries },
       streamImpl: stream,
       dryRunImpl: fakeDryRun(),
     })) {
@@ -481,7 +482,7 @@ console.log('\n『W10』预览器与实际请求**逐字节一致**（用浏览�
       );
     }
   } else {
-    check('跳过 W10 的逐字节比对（副本不存在）', false, '请先跑 node tools/build-worldbook-web.mjs');
+    check('跳过 W10 的逐字节比对（副本不存在）', false, '请先跑 node tools/build-knowledgecard-web.mjs');
   }
 }
 
@@ -494,8 +495,8 @@ console.log('\n『W11』导入导出跨机器可复现');
   const imported = normalizeImportedPack(packText);
   check('导出 → 导入 成功', imported.ok === true, imported.problems.join('；'));
 
-  const before = triggerWorldbook({ entries: lib.builtin, text: q01ProblemText() });
-  const after = triggerWorldbook({ entries: imported.entries, text: q01ProblemText() });
+  const before = triggerKnowledgecard({ entries: lib.builtin, text: q01ProblemText() });
+  const after = triggerKnowledgecard({ entries: imported.entries, text: q01ProblemText() });
   /**
    * ⚠ 第 5.5 期修正：这条判据的**语义是"命中集合相同"**，但原文是拿 provenance 的**顺序**做字符串拼接比对。
    *   而两侧的**输入顺序本就不同**：`loadLibrary()` 的 `builtin` 是**文件顺序**（00-meta → 01 → 02 → 10 → 90），
@@ -523,7 +524,7 @@ console.log('\n『W11』导入导出跨机器可复现');
 console.log('\n『W12』旧名归一化只发生在导入路径');
 {
   const v2Pack = {
-    format: 'od-worldbook',
+    format: 'od-knowledgecard',
     version: 1,
     entries: [
       E({ id: 'old1', insertion_slot: 'scene_spec' }),
@@ -539,19 +540,54 @@ console.log('\n『W12』旧名归一化只发生在导入路径');
   check('转换明细逐条可查', r.converted.length >= 3 && r.converted.every((c) => c.entryId && c.from && c.to));
 
   /* v1.1.9alpha：旧包没有 kind ⇒ 按 element 落盘；非法 kind（如 prompt）必须拒绝 */
-  const oldKind = normalizeImportedPack({ format: 'od-worldbook', version: 1, entries: [E({ id: 'oldkind' })] });
+  const oldKind = normalizeImportedPack({ format: 'od-knowledgecard', version: 1, entries: [E({ id: 'oldkind' })] });
   check('旧包缺 kind ⇒ 导入落成 element（兼容，不整包拒绝）', oldKind.ok && oldKind.entries[0]?.kind === 'element');
-  const badKind = validateEntry(E({ id: 'badkind', kind: 'prompt' }));
-  check('反例：worldbook 条目的 kind 不允许 prompt / local_rule', badKind.some((p) => p.includes('kind')));
 
-  const bad = normalizeImportedPack({ format: 'od-worldbook', version: 99, entries: [] });
+  /* v1.1.9alpha：旧格式 od-worldbook 必须能读，但导出写成 od-knowledgecard */
+  const legacyPack = normalizeImportedPack({ format: 'od-worldbook', version: 1, entries: [E({ id: 'legacyfmt' })] });
+  check('旧 od-worldbook 包能导入（双读兼容）', legacyPack.ok && legacyPack.entries[0]?.id === 'legacyfmt');
+  check('旧包导入时明确提示"已兼容旧包格式"', /兼容旧包格式/.test(String(legacyPack.notice)), String(legacyPack.notice));
+
+  /* v1.1.9alpha：旧用户目录 ai-rules/worldbook/ 与新目录双读（同 id 新目录优先） */
+  {
+    const base = join(PROJECT_ROOT, '.tmp-p3-legacy-user');
+    rmSync(base, { recursive: true, force: true });
+    mkdirSync(join(base, 'worldbook'), { recursive: true });
+    mkdirSync(join(base, 'knowledgecard'), { recursive: true });
+    writeFileSync(
+      join(base, 'worldbook', 'old.json'),
+      `${JSON.stringify(
+        { format: 'od-worldbook', version: 1, entries: [E({ id: 'legacy-user' }), E({ id: 'wb_scene_stages' })] },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+    const mergedLib = loadLibrary({ userDir: join(base, 'knowledgecard'), legacyUserDir: join(base, 'worldbook') });
+    check('旧 ai-rules/worldbook/ 与新目录双读（旧用户卡仍可见）', mergedLib.ok && mergedLib.user.some((e) => e.id === 'legacy-user'));
+    check('旧覆盖副本 id 迁移：wb_scene_stages → wb_anim_stages', mergedLib.ok && mergedLib.user.some((e) => e.id === 'wb_anim_stages'));
+
+    const mig = migrateLegacyUserDir({ dir: join(base, 'knowledgecard'), legacyDir: join(base, 'worldbook') });
+    check(
+      '启动迁移：旧包复制到新目录，旧目录保留（可回退）',
+      mig.migrated === true &&
+        existsSync(join(base, 'knowledgecard', 'old.json')) &&
+        existsSync(join(base, 'worldbook', 'old.json')),
+      JSON.stringify(mig),
+    );
+    rmSync(base, { recursive: true, force: true });
+  }
+  const badKind = validateEntry(E({ id: 'badkind', kind: 'prompt' }));
+  check('反例：knowledgecard 条目的 kind 不允许 prompt / local_rule', badKind.some((p) => p.includes('kind')));
+
+  const bad = normalizeImportedPack({ format: 'od-knowledgecard', version: 99, entries: [] });
   check('反例：不支持的版本被明确拒绝', bad.ok === false && bad.problems.some((p) => p.includes('不受支持')));
   const badFormat = normalizeImportedPack({ format: 'something-else', version: 1, entries: [] });
   check('反例：format 不对被拒绝', badFormat.ok === false);
 
   const internal = validateEntry(E({ id: 'z', insertion_slot: ['scene_spec'] }));
   check('反例：**内部**不接受旧名（validateEntry 直接报错）', internal.some((p) => p.includes('scene_spec') || p.includes('非法槽位名')));
-  check('槽位枚举与契约同源', WORLDBOOK_INSERTION_SLOTS.join(',') === 'solve,scene_code');
+  check('槽位枚举与契约同源', KNOWLEDGECARD_INSERTION_SLOTS.join(',') === 'solve,scene_code');
 }
 
 console.log('\n『W12-2』§9.5 契约不变量的**负对照**（断言必须会失败）');
@@ -561,15 +597,15 @@ console.log('\n『W12-2』§9.5 契约不变量的**负对照**（断言必须�
 
   const mutate = (fn) => {
     const specs = CONTRACT_SPECS.map((s) =>
-      s.id === 'worldbook-pack'
+      s.id === 'knowledgecard-pack'
         ? { ...s, properties: { ...s.properties, format: { ...s.properties.format } }, defs: { ...s.defs } }
         : s,
     );
-    fn(specs.find((s) => s.id === 'worldbook-pack'));
+    fn(specs.find((s) => s.id === 'knowledgecard-pack'));
     return assertContractInvariants(specs);
   };
-  check('负对照 1：改 format 常量 ⇒ 断言失败', mutate((p) => { p.properties.format.const = 'od-worldbook-v2'; }).some((x) => x.includes('§9.5')));
-  check('负对照 2：entries 不再引用 worldbook-entry ⇒ 断言失败', mutate((p) => { p.defs.WorldbookEntry = { kind: 'inline', spec: { id: 'cleaning-rule' } }; }).some((x) => x.includes('§9.5')));
+  check('负对照 1：改 format 常量 ⇒ 断言失败', mutate((p) => { p.properties.format.const = 'od-knowledgecard-v2'; }).some((x) => x.includes('§9.5')));
+  check('负对照 2：entries 不再引用 knowledgecard-entry ⇒ 断言失败', mutate((p) => { p.defs.KnowledgecardEntry = { kind: 'inline', spec: { id: 'cleaning-rule' } }; }).some((x) => x.includes('§9.5')));
   check('负对照 3：required 少一项 ⇒ 断言失败', mutate((p) => { p.required = ['format', 'version']; }).some((x) => x.includes('§9.5')));
 }
 
@@ -608,7 +644,7 @@ console.log('\n『W13』origin 治理（覆盖副本 / 升级 / 恢复默认 / �
   check('勾选"包含内置规范"才带内置', exp2.length === lib.builtin.length + 1);
 
   /* 真实文件往返（写在仓库内的临时目录：本沙箱只保证工作区可写） */
-  const tmp = join(PROJECT_ROOT, 'tests', '.worldbook-tmp');
+  const tmp = join(PROJECT_ROOT, 'tests', '.knowledgecard-tmp');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   try {
@@ -621,17 +657,17 @@ console.log('\n『W13』origin 治理（覆盖副本 / 升级 / 恢复默认 / �
 
     /* ── v1.1.9：一键恢复本版本内置（文件级，设置页按钮的后端） ── */
     writeUserPack(tmp, 'user-1.json', [copy, E({ id: 'mine-keep', title: '我自己的卡' })]);
-    const rr = restoreBuiltinWorldbook({ dir: tmp });
+    const rr = restoreBuiltinKnowledgecard({ dir: tmp });
     check('★ 一键恢复内置：删掉覆盖副本、保留用户自建卡', rr.ok && rr.removed === 1 && rr.packsTouched === 1, JSON.stringify(rr));
     check(
       '★ 恢复后文件里只剩用户自建卡',
       JSON.parse(readFileSync(join(tmp, 'user-1.json'), 'utf8')).entries.map((e) => e.id).join(',') === 'mine-keep',
     );
     check('★ 恢复前留了滚动备份（恢复本身可撤销）', existsSync(join(tmp, '.backup', 'user-1.json.bak.1')));
-    check('（幂等）再恢复一次：removed = 0', restoreBuiltinWorldbook({ dir: tmp }).removed === 0);
+    check('（幂等）再恢复一次：removed = 0', restoreBuiltinKnowledgecard({ dir: tmp }).removed === 0);
 
     writeUserPack(tmp, 'only-override.json', [copy]);
-    const rr3 = restoreBuiltinWorldbook({ dir: tmp });
+    const rr3 = restoreBuiltinKnowledgecard({ dir: tmp });
     check(
       '★ 整包都是覆盖副本 ⇒ 删文件而不是留一个空包',
       rr3.packsDeleted === 1 && !existsSync(join(tmp, 'only-override.json')),
@@ -707,13 +743,13 @@ console.log('\n『W14-2』第 5.5 期 P1/P3：源目录、目标/进度文件、
   check('source/ 里的文件格式就是 §9.5 导出包（与运行时库同形）', (() => {
     const text = readFileSync(join(SOURCE_DIR, listSourceFiles()[0]), 'utf8');
     const parsed = JSON.parse(text);
-    return parsed.format === 'od-worldbook' && parsed.version === 1 && Array.isArray(parsed.entries);
+    return parsed.format === 'od-knowledgecard' && parsed.version === 1 && Array.isArray(parsed.entries);
   })());
   check('源文件与 data/ 文件同名（文件名就是映射关系）', listSourceFiles().join(',') === plannedFiles().map((f) => f.file).join(','));
 
   /* ── P3（第 9 期 · 开源版）：**覆盖台账已退役** ──
    *
-   * 台账原来按**第三方教辅**的 111 个题型记账（`coverage-target.json` 由 `build-worldbook-targets.mjs`
+   * 台账原来按**第三方教辅**的 111 个题型记账（`coverage-target.json` 由 `build-knowledgecard-targets.mjs`
    * 从第三方教辅的扫描件里抽标题、连原书行号一起写进来）。开源版**不再分发这些派生数据**：
    * 台账文件与生成工具都已删除，仓库里也不允许再出现那本书的路径。
    *
@@ -724,7 +760,7 @@ console.log('\n『W14-2』第 5.5 期 P1/P3：源目录、目标/进度文件、
   check('覆盖台账文件**已删除**（不再按题型记账）', !existsSync(COVERAGE_TARGET_FILE));
   check(
     '生成台账的工具**已删除**（它要读那本扫描书，仓库里已无此依赖）',
-    !existsSync(join(PROJECT_ROOT, 'tools', 'build-worldbook-targets.mjs')),
+    !existsSync(join(PROJECT_ROOT, 'tools', 'build-knowledgecard-targets.mjs')),
   );
 
   const noTarget = checkCoverage({ entries: lib.builtin });
@@ -767,8 +803,8 @@ console.log('\n『W14-2』第 5.5 期 P1/P3：源目录、目标/进度文件、
 
   check(
     '考点词表里的**题型标签已清空**（原先逐条派生自那本书）',
-    Object.keys(WORLDBOOK_CONCEPTS.tags ?? {}).length === 0,
-    JSON.stringify(Object.keys(WORLDBOOK_CONCEPTS.tags ?? {})).slice(0, 120),
+    Object.keys(KNOWLEDGECARD_CONCEPTS.tags ?? {}).length === 0,
+    JSON.stringify(Object.keys(KNOWLEDGECARD_CONCEPTS.tags ?? {})).slice(0, 120),
   );
 }
 
@@ -833,7 +869,7 @@ console.log('\n『W15』冲突提示（提示不阻断）+ 预览器四区块');
   const browser = await import(pathToFileURL(ENGINE_OUT).href);
   const preview = browser.buildSlotPreview({ entries: lib.entries, slot: 'scene_code', text: q01ProblemText() });
   check('预览器：拼接内容非空', preview.text.length > 0);
-  check('预览器：四区块数据来自**同一次**触发（text 与 result 是配套的）', preview.result.text.scene_code === preview.worldbookText);
+  check('预览器：四区块数据来自**同一次**触发（text 与 result 是配套的）', preview.result.text.scene_code === preview.knowledgecardText);
   check('预览器：命中清单可读（标题 + 命中方式）', preview.result.provenance.every((p) => p.title && p.via));
   check('预览器：空槽提示有数据来源（emptySlots 字段在）', Array.isArray(preview.result.emptySlots));
 
@@ -847,22 +883,22 @@ console.log('\n『W15』冲突提示（提示不阻断）+ 预览器四区块');
 
 /* ══════════════════════════ X 接线 ══════════════════════════ */
 
-console.log('\n『X』接线：每题快照 / worldbook_done 事件 / provenance 真哈希');
+console.log('\n『X』接线：每题快照 / knowledgecard_done 事件 / provenance 真哈希');
 {
   const lib = loadLibrary();
-  const snapshot = snapshotConfig({ endpoint: fakeEndpoint(), worldbookEntries: lib.entries });
-  const h0 = snapshot.worldbook.hash;
-  check('快照里的 worldbookHash 是 64 位十六进制（真哈希，不再是字符串占位）', /^[0-9a-f]{64}$/.test(h0));
-  check('哈希与 worldbookHashOf(entries) 一致', h0 === worldbookHashOf(snapshot.worldbook.entries));
+  const snapshot = snapshotConfig({ endpoint: fakeEndpoint(), knowledgecardEntries: lib.entries });
+  const h0 = snapshot.knowledgecard.hash;
+  check('快照里的 knowledgecardHash 是 64 位十六进制（真哈希，不再是字符串占位）', /^[0-9a-f]{64}$/.test(h0));
+  check('哈希与 knowledgecardHashOf(entries) 一致', h0 === knowledgecardHashOf(snapshot.knowledgecard.entries));
 
   const original = lib.entries.map((e) => ({ ...e, keys: [...e.keys] }));
-  const snap2 = snapshotConfig({ endpoint: fakeEndpoint(), worldbookEntries: original });
-  const h1 = snap2.worldbook.hash;
+  const snap2 = snapshotConfig({ endpoint: fakeEndpoint(), knowledgecardEntries: original });
+  const h1 = snap2.knowledgecard.hash;
   original[0].keys.push('被偷加的键');
   original.push(E({ id: 'late-added' }));
-  check('快照不受调用方后续修改影响（§16 热重载语义）', snap2.worldbook.hash === h1 && snap2.worldbook.entries.length === lib.entries.length && snap2.worldbook.entries[0].keys.length === lib.entries[0].keys.length);
-  check('快照被冻结（开发期就报错，而不是变成偶发问题）', Object.isFrozen(snap2.worldbook) && Object.isFrozen(snap2.worldbook.entries) && Object.isFrozen(snap2.worldbook.entries[0].keys));
-  check('source 标记区分"没提供词条集合"与"提供了但 0 条命中"', snapshot.worldbook.source === 'provided' && snapshotConfig({ endpoint: fakeEndpoint() }).worldbook.source === 'empty');
+  check('快照不受调用方后续修改影响（§16 热重载语义）', snap2.knowledgecard.hash === h1 && snap2.knowledgecard.entries.length === lib.entries.length && snap2.knowledgecard.entries[0].keys.length === lib.entries[0].keys.length);
+  check('快照被冻结（开发期就报错，而不是变成偶发问题）', Object.isFrozen(snap2.knowledgecard) && Object.isFrozen(snap2.knowledgecard.entries) && Object.isFrozen(snap2.knowledgecard.entries[0].keys));
+  check('source 标记区分"没提供词条集合"与"提供了但 0 条命中"', snapshot.knowledgecard.source === 'provided' && snapshotConfig({ endpoint: fakeEndpoint() }).knowledgecard.source === 'empty');
 
   /* 跑一次真编排（假网关），看事件与 provenance */
   const problemText = q01ProblemText();
@@ -870,22 +906,22 @@ console.log('\n『X』接线：每题快照 / worldbook_done 事件 / provenance
   const withWb = [];
   for await (const e of runPipeline({
     problem: { text: problemText },
-    config: { endpoint: fakeEndpoint(), apiKey: 'sk-test', regexRules: [], worldbookEntries: lib.entries },
+    config: { endpoint: fakeEndpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardEntries: lib.entries },
     streamImpl: fakeStream(captured),
     dryRunImpl: fakeDryRun(),
   })) {
     withWb.push(e);
   }
-  const wbEvent = withWb.find((e) => e.type === 'worldbook_done');
-  check('提供词条集合 ⇒ 发出 worldbook_done', Boolean(wbEvent));
-  check('worldbook_done 带哈希与命中清单', /^[0-9a-f]{64}$/.test(String(wbEvent?.hash)) && wbEvent.entries.length > 0);
-  check('worldbook_done 带"空槽"与"被截断"两个字段（UI 不许自己判断）', Array.isArray(wbEvent?.emptySlots) && Array.isArray(wbEvent?.truncatedSlots));
-  check('worldbook_done 的溯源带命中方式与实际注入槽位', wbEvent.entries.every((p) => p.via && Array.isArray(p.injectedSlots)));
+  const wbEvent = withWb.find((e) => e.type === 'knowledgecard_done');
+  check('提供词条集合 ⇒ 发出 knowledgecard_done', Boolean(wbEvent));
+  check('knowledgecard_done 带哈希与命中清单', /^[0-9a-f]{64}$/.test(String(wbEvent?.hash)) && wbEvent.entries.length > 0);
+  check('knowledgecard_done 带"空槽"与"被截断"两个字段（UI 不许自己判断）', Array.isArray(wbEvent?.emptySlots) && Array.isArray(wbEvent?.truncatedSlots));
+  check('knowledgecard_done 的溯源带命中方式与实际注入槽位', wbEvent.entries.every((p) => p.via && Array.isArray(p.injectedSlots)));
 
   const firstDry = withWb.find((e) => e.type === 'dryrun_done');
-  check('provenance.worldbookHash 是真哈希（B2 挂账在此收口）', /^[0-9a-f]{64}$/.test(String(firstDry?.program?.provenance?.worldbookHash)));
+  check('provenance.knowledgecardHash 是真哈希（B2 挂账在此收口）', /^[0-9a-f]{64}$/.test(String(firstDry?.program?.provenance?.knowledgecardHash)));
   check('provenance.promptHash 不再恒为 null', /^[0-9a-f]{64}$/.test(String(firstDry?.program?.provenance?.promptHash)));
-  check('provenance.worldbookHash 与快照一致', firstDry?.program?.provenance?.worldbookHash === h0);
+  check('provenance.knowledgecardHash 与快照一致', firstDry?.program?.provenance?.knowledgecardHash === h0);
 
   /* 不提供词条集合时不该发这条事件（否则 UI 会把"没接上"显示成"这道题没有规范"） */
   const noWb = [];
@@ -897,13 +933,13 @@ console.log('\n『X』接线：每题快照 / worldbook_done 事件 / provenance
   })) {
     noWb.push(e);
   }
-  check('不提供词条集合 ⇒ 不发 worldbook_done', !noWb.some((e) => e.type === 'worldbook_done'));
+  check('不提供词条集合 ⇒ 不发 knowledgecard_done', !noWb.some((e) => e.type === 'knowledgecard_done'));
 
   /* 阶段槽位：只有 solve / scene_code 两个阶段注入词条 */
   const captured2 = [];
   for await (const _ of runPipeline({
     problem: { text: problemText },
-    config: { endpoint: fakeEndpoint(), apiKey: 'sk-test', regexRules: [], worldbookEntries: lib.entries },
+    config: { endpoint: fakeEndpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardEntries: lib.entries },
     streamImpl: fakeStream(captured2),
     dryRunImpl: fakeDryRun(),
   })) {
@@ -933,7 +969,7 @@ console.log('\n『X』接线：每题快照 / worldbook_done 事件 / provenance
     instructions: promptSolve.system,
     instructionLabel: promptSolve.label,
     stageSlot: 'solve',
-    worldbookSegment: triggerWorldbook({ entries: lib.entries, text: problemText }).text.solve,
+    knowledgecardSegment: triggerKnowledgecard({ entries: lib.entries, text: problemText }).text.solve,
     stage: 'solve',
   });
   check('编排用的条件段 = 引擎渲染的条件段（编排层没有第二套拼装）', sysOf('solve') === expect.messages[0].content);
@@ -959,11 +995,11 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
 
   /* ── W16-1 词表完整性：三栏的取值必须都在词表里 ── */
   {
-    const good = E('t_ok', { concepts: [WORLDBOOK_CONCEPT_IDS[0]], tags: [WORLDBOOK_TAG_OWNERS[WORLDBOOK_TAG_NAMES[0]] && WORLDBOOK_TAG_NAMES[0]], elements: [WORLDBOOK_ELEMENT_IDS[0]] });
+    const good = E('t_ok', { concepts: [KNOWLEDGECARD_CONCEPT_IDS[0]], tags: [KNOWLEDGECARD_TAG_OWNERS[KNOWLEDGECARD_TAG_NAMES[0]] && KNOWLEDGECARD_TAG_NAMES[0]], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] });
     // 上一条的 tags 要挂在它自己的考点下，否则会被"归属"那条拦下（这里按归属取）
-    const cid = WORLDBOOK_CONCEPT_IDS[0];
-    const tagOfCid = Object.entries(WORLDBOOK_TAG_OWNERS).find(([, owners]) => owners.includes(cid))?.[0];
-    const good2 = E('t_ok', { concepts: [cid], tags: tagOfCid ? [tagOfCid] : [], elements: [WORLDBOOK_ELEMENT_IDS[0]] });
+    const cid = KNOWLEDGECARD_CONCEPT_IDS[0];
+    const tagOfCid = Object.entries(KNOWLEDGECARD_TAG_OWNERS).find(([, owners]) => owners.includes(cid))?.[0];
+    const good2 = E('t_ok', { concepts: [cid], tags: tagOfCid ? [tagOfCid] : [], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] });
     check('词表完整性 · 正例：三栏都取表内值 ⇒ 合法', validateEntry(good2).length === 0, JSON.stringify(validateEntry(good2)));
     void good;
 
@@ -984,13 +1020,13 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
   /* ── W16-2 跨字段约束（第 9 期换口径）：**题型标签已退役** ──
    *
    * 原先是"tags 必须属于本词条的某个 concepts"。但 tags 的内容逐条派生自第三方教辅，
-   * 开源版已清空（`WORLDBOOK_CONCEPTS.tags = {}`）⇒ 这条跨字段校验**没有对象可测**了。
+   * 开源版已清空（`KNOWLEDGECARD_CONCEPTS.tags = {}`）⇒ 这条跨字段校验**没有对象可测**了。
    * 现在钉两件仍然成立的事：
    *   ① 词表里的 tags 必须为空（防止有人又把派生数据塞回来）；
    *   ② 校验器对"填了 tags 却没填 concepts"仍然报错（判据没跟着数据一起烂掉）。
    */
   {
-    check('题型标签已清空（开源版不再分发派生数据）', Object.keys(WORLDBOOK_CONCEPTS.tags ?? {}).length === 0);
+    check('题型标签已清空（开源版不再分发派生数据）', Object.keys(KNOWLEDGECARD_CONCEPTS.tags ?? {}).length === 0);
     const noConcept = E('t_nc', { tags: ['随便一个标签'] });
     check(
       '跨字段 · 负对照：填了 tags 却没填 concepts ⇒ 必须报错（无法判断归属）',
@@ -1005,9 +1041,9 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
     const all = [...lib.builtin, ...lib.user];
     const covered = new Set();
     for (const e of all) for (const c of e.concepts ?? []) covered.add(c);
-    const missing = WORLDBOOK_CONCEPT_IDS.filter((c) => !covered.has(c));
+    const missing = KNOWLEDGECARD_CONCEPT_IDS.filter((c) => !covered.has(c));
     /**
-     * ⚠ 这里原先断言的是 `missing.length === WORLDBOOK_CONCEPT_IDS.length`，
+     * ⚠ 这里原先断言的是 `missing.length === KNOWLEDGECARD_CONCEPT_IDS.length`，
      *   即"**56 个考点一个都没覆盖**" —— 把"还没做"当成了不变量。
      *   5.9 一旦覆盖第一个考点，它就会**按计划变红**，而那时最省事的做法是改断言。
      *   现在改成**恒等式**：缺口数 ≡ 总数 − 已覆盖数（0% 时成立、100% 时也成立，
@@ -1015,46 +1051,46 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
      */
     check(
       '每个考点下至少有一条词条 · 缺口数 ≡ 总数 − 已覆盖数（恒等式，任何进度都成立）',
-      missing.length === WORLDBOOK_CONCEPT_IDS.length - covered.size,
-      `已覆盖 ${covered.size}/${WORLDBOOK_CONCEPT_IDS.length} · 缺口 ${missing.length}`,
+      missing.length === KNOWLEDGECARD_CONCEPT_IDS.length - covered.size,
+      `已覆盖 ${covered.size}/${KNOWLEDGECARD_CONCEPT_IDS.length} · 缺口 ${missing.length}`,
     );
     check(
       '每个考点覆盖情况**被算出来且非静默**（0 覆盖时也必须报出数字，不许无声通过）',
-      covered.size + missing.length === WORLDBOOK_CONCEPT_IDS.length && [...covered].every((c) => WORLDBOOK_CONCEPT_IDS.includes(c)),
-      `${covered.size}/${WORLDBOOK_CONCEPT_IDS.length} 个考点有词条（其余靠 5.9 补）`,
+      covered.size + missing.length === KNOWLEDGECARD_CONCEPT_IDS.length && [...covered].every((c) => KNOWLEDGECARD_CONCEPT_IDS.includes(c)),
+      `${covered.size}/${KNOWLEDGECARD_CONCEPT_IDS.length} 个考点有词条（其余靠 5.9 补）`,
     );
     // 负对照：造一条带概念的词条，covered 必须 +1（证伪"这条检查永远为真"）
-    const fake = [E('t_cov', { concepts: [WORLDBOOK_CONCEPT_IDS[0]] })];
+    const fake = [E('t_cov', { concepts: [KNOWLEDGECARD_CONCEPT_IDS[0]] })];
     const covered2 = new Set(fake.flatMap((e) => e.concepts ?? []));
     check('负对照：加一条带 concepts 的词条 ⇒ covered 立刻 +1（检查本身有效）', covered2.size === 1);
     check(
       '负对照：加一条带 concepts 的词条 ⇒ 缺口数随即 −1（恒等式两侧同步动，不是写死的数）',
-      WORLDBOOK_CONCEPT_IDS.filter((c) => !covered2.has(c)).length === WORLDBOOK_CONCEPT_IDS.length - covered2.size,
+      KNOWLEDGECARD_CONCEPT_IDS.filter((c) => !covered2.has(c)).length === KNOWLEDGECARD_CONCEPT_IDS.length - covered2.size,
     );
   }
 
   /* ── W16-4 两侧命中（解题侧 / 动画侧），含收窄负例 ── */
   {
-    const cid = WORLDBOOK_CONCEPT_IDS[0];
+    const cid = KNOWLEDGECARD_CONCEPT_IDS[0];
     const entries = [
       E('c_generic', { concepts: [cid], tags: [] }),
-      E('e_narrow', { concepts: [cid], tags: [], elements: [WORLDBOOK_ELEMENT_IDS[0]], insertion_slot: ['scene_code'] }),
-      E('e_other', { concepts: [WORLDBOOK_CONCEPT_IDS[1]], tags: [], elements: [WORLDBOOK_ELEMENT_IDS[0]], insertion_slot: ['scene_code'] }),
-      E('e_generic', { concepts: [], tags: [], elements: [WORLDBOOK_ELEMENT_IDS[0]], insertion_slot: ['scene_code'] }),
+      E('e_narrow', { concepts: [cid], tags: [], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]], insertion_slot: ['scene_code'] }),
+      E('e_other', { concepts: [KNOWLEDGECARD_CONCEPT_IDS[1]], tags: [], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]], insertion_slot: ['scene_code'] }),
+      E('e_generic', { concepts: [], tags: [], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]], insertion_slot: ['scene_code'] }),
     ];
     const via = (j) => {
-      const r = triggerWorldbook({ entries, text: '', ...j, budget: { maxDepth: 0 } });
+      const r = triggerKnowledgecard({ entries, text: '', ...j, budget: { maxDepth: 0 } });
       return new Map(r.provenance.map((p) => [p.entry_id, p.via]));
     };
     const m1 = via({ concepts: [cid], tags: [], elements: [] });
     check('两侧命中 · 解题侧：词条 tags 为空 ⇒ via=concept（通用条兜底）', m1.get('c_generic') === 'concept', String(m1.get('c_generic')));
 
     /* 第 9 期：题型标签退役 ⇒ 解题侧只剩 via=concept 一条路径（下面这条仍在钉它） */
-    const m2 = via({ concepts: [], tags: [], elements: [WORLDBOOK_ELEMENT_IDS[0]] });
+    const m2 = via({ concepts: [], tags: [], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] });
     check('两侧命中 · 动画侧：元件命中但考点不相交 ⇒ **不收窄就不注入**（负例）', !m2.has('e_narrow'));
     check('两侧命中 · 动画侧：词条 concepts 为空 ⇒ via=element（通用条）', m2.get('e_generic') === 'element', String(m2.get('e_generic')));
 
-    const m3 = via({ concepts: [cid], tags: [], elements: [WORLDBOOK_ELEMENT_IDS[0]] });
+    const m3 = via({ concepts: [cid], tags: [], elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] });
     check('两侧命中 · 动画侧：元件 + 考点都相交 ⇒ via=element+concept', m3.get('e_narrow') === 'element+concept', String(m3.get('e_narrow')));
     check('两侧命中 · 负例：考点不同 ⇒ 那条元件词条不注入', !m3.has('e_other'));
 
@@ -1064,24 +1100,24 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
 
   /* ── W16-5 撞车检测（标签撞车 / 元件撞车），含负对照 ── */
   {
-    const cid = WORLDBOOK_CONCEPT_IDS[0];
-    const tag = Object.entries(WORLDBOOK_TAG_OWNERS).find(([, o]) => o.includes(cid))?.[0];
-    const dup = [E('a', { concepts: [cid], tags: [tag] }), E('b', { concepts: [cid], tags: [tag] }), E('c', { concepts: [WORLDBOOK_CONCEPT_IDS[1]], tags: [tag] })];
+    const cid = KNOWLEDGECARD_CONCEPT_IDS[0];
+    const tag = Object.entries(KNOWLEDGECARD_TAG_OWNERS).find(([, o]) => o.includes(cid))?.[0];
+    const dup = [E('a', { concepts: [cid], tags: [tag] }), E('b', { concepts: [cid], tags: [tag] }), E('c', { concepts: [KNOWLEDGECARD_CONCEPT_IDS[1]], tags: [tag] })];
     const tags = detectTagCollisions(dup);
     check('标签撞车 · 正例：同考点 + 同标签 ⇒ 报', tags.length === 1 && tags[0].entryIds.sort().join(',') === 'a,b', JSON.stringify(tags.map((x) => x.entryIds)));
     check('标签撞车 · 负对照：考点不相交 ⇒ 不算撞车（c 不参与）', !tags.some((x) => x.entryIds.includes('c')));
     check('标签撞车 · 提示不阻断（level=warn）', tags.every((x) => x.level === 'warn'));
 
-    const els = detectElementCollisions([E('a', { elements: [WORLDBOOK_ELEMENT_IDS[0]] }), E('b', { elements: [WORLDBOOK_ELEMENT_IDS[0]] })]);
-    check('元件撞车 · 正例：同元件 ⇒ 报', els.length === 1 && els[0].element === WORLDBOOK_ELEMENT_IDS[0]);
-    check('元件撞车 · 负对照：不共用元件 ⇒ 不报', detectElementCollisions([E('a', { elements: [WORLDBOOK_ELEMENT_IDS[0]] }), E('b', { elements: [WORLDBOOK_ELEMENT_IDS[1]] })]).length === 0);
+    const els = detectElementCollisions([E('a', { elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] }), E('b', { elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] })]);
+    check('元件撞车 · 正例：同元件 ⇒ 报', els.length === 1 && els[0].element === KNOWLEDGECARD_ELEMENT_IDS[0]);
+    check('元件撞车 · 负对照：不共用元件 ⇒ 不报', detectElementCollisions([E('a', { elements: [KNOWLEDGECARD_ELEMENT_IDS[0]] }), E('b', { elements: [KNOWLEDGECARD_ELEMENT_IDS[1]] })]).length === 0);
   }
 
   /* ── W16-6 动画元件覆盖率：每个 SDK 原语至少有一条词条教它怎么用 ── */
   {
     const sig = JSON.parse(readFileSync(join(PROJECT_ROOT, 'sdk/signature-summary.json'), 'utf8'));
     const primNames = sig.functions.map((f) => f.name).filter((n) => n.startsWith('Draw.'));
-    const declared = new Set(WORLDBOOK_ELEMENT_IDS.map((id) => WORLDBOOK_CONCEPTS.elements.find((d) => d.id === id)?.primitive));
+    const declared = new Set(KNOWLEDGECARD_ELEMENT_IDS.map((id) => KNOWLEDGECARD_CONCEPTS.elements.find((d) => d.id === id)?.primitive));
     /**
      * ⚠ 本期**如实报缺口**：词表里还没有的词条（137 条老词条没有 elements 栏），
      *   所以"每个原语都有词条教"这条要到 5.9 才可能全绿。
@@ -1129,9 +1165,9 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
      *   ② 禁报名单里的 id 必须**真的不在** `elements[]` 里（否则"禁报"名不副实）；
      *   ③ 负对照：把一个教具（`spring`）塞进禁报名单 ⇒ 立刻判违规。
      */
-    const roles = WORLDBOOK_CONCEPTS.elementRoles ?? { never: [], key: [], optional: [] };
+    const roles = KNOWLEDGECARD_CONCEPTS.elementRoles ?? { never: [], key: [], optional: [] };
     const neverIds = roles.never ?? [];
-    const elementIds = new Set(WORLDBOOK_CONCEPTS.elements.map((d) => d.id));
+    const elementIds = new Set(KNOWLEDGECARD_CONCEPTS.elements.map((d) => d.id));
     const exemptJustified =
       ['text_label', 'dimension_label', 'formula_label'].every((id) => neverIds.includes(id)) &&
       neverIds.every((id) => !elementIds.has(id));
@@ -1146,7 +1182,7 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
     );
     check(
       '动画元件覆盖率 · 被豁免的 Draw.dimension 仍由测量器具元件指向（不是缺口）',
-      (WORLDBOOK_CONCEPTS.elements.find((d) => d.id === 'measuring_tool')?.primitive ?? '') === 'Draw.dimension',
+      (KNOWLEDGECARD_CONCEPTS.elements.find((d) => d.id === 'measuring_tool')?.primitive ?? '') === 'Draw.dimension',
     );
 
     /**
@@ -1168,7 +1204,7 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
     );
     check(
       '动画元件覆盖率 · 负对照：只挂 solve 却声明 elements ⇒ 会被判违规（检查本身有牙齿）',
-      [E('zz_el_solve_only', { elements: [WORLDBOOK_ELEMENT_IDS[0]], insertion_slot: ['solve'] })].filter(
+      [E('zz_el_solve_only', { elements: [KNOWLEDGECARD_ELEMENT_IDS[0]], insertion_slot: ['solve'] })].filter(
         (e) => !(e.insertion_slot ?? []).includes('scene_code'),
       ).length === 1,
     );
@@ -1215,7 +1251,7 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
 
   /* ── W16-8 解析器正反例（S3 的 concepts.mjs）与它被编排真的用上 ── */
   {
-    const base = { problem: '', vocab: WORLDBOOK_CONCEPTS, index: buildVocabIndex(WORLDBOOK_CONCEPTS) };
+    const base = { problem: '', vocab: KNOWLEDGECARD_CONCEPTS, index: buildVocabIndex(KNOWLEDGECARD_CONCEPTS) };
     const p1 = parseJudgement('【考点】uniform_acceleration\n【题型】速度公式与位移公式\n【动画元件】spring\n【判定依据】x', base);
     check('解析器 · 正例：id 写法被解析', p1.concepts.join(',') === 'uniform_acceleration' && p1.elements.join(',') === 'spring');
     const p2 = parseJudgement('【考点】匀变速直线运动\n【器材】弹簧\n【判定依据】x', base);
@@ -1389,22 +1425,22 @@ console.log('\n『W17』动画教学：code_examples 必须能过 C1；常驻卡
   const constantChars = cards.filter((c) => c.constant).reduce((n, c) => n + c.content.length, 0);
   const cardChars = cards.reduce((n, c) => n + c.content.length, 0);
   check(
-    `常驻卡正文合计 ${constantChars} 字 ≤ 10000（槽位预算 ${WORLDBOOK_BUDGET.maxChars}，要留出命中词条的额度）`,
+    `常驻卡正文合计 ${constantChars} 字 ≤ 10000（槽位预算 ${KNOWLEDGECARD_BUDGET.maxChars}，要留出命中词条的额度）`,
     constantChars <= 10000,
     `实际 ${constantChars}`,
   );
   check(`三张卡合计 ${cardChars} 字 ≤ 16000（防膨胀的粗上限）`, cardChars <= 16000, `实际 ${cardChars}`);
   check(
     '正文池 30000 + 示例池 10000（第 8 期定案：40000 总预算；示例单条上限 2000）',
-    WORLDBOOK_BUDGET.maxChars === 30000 &&
-    WORLDBOOK_BUDGET.maxTotalChars === 40000 &&
-    WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot === 10000 &&
-    WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerEntry === 2000,
-    String(WORLDBOOK_BUDGET.maxChars),
+    KNOWLEDGECARD_BUDGET.maxChars === 30000 &&
+    KNOWLEDGECARD_BUDGET.maxTotalChars === 40000 &&
+    KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot === 10000 &&
+    KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerEntry === 2000,
+    String(KNOWLEDGECARD_BUDGET.maxChars),
   );
 
   // 总览卡必须覆盖词表里的每个元件（新增元件忘补画法，这条会红）
-  const conceptIds = (JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'worldbook-concepts.json'), 'utf8')).elements ?? []).map((e) => e.id);
+  const conceptIds = (JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'knowledgecard-concepts.json'), 'utf8')).elements ?? []).map((e) => e.id);
   const overview = cards.find((c) => c.id === 'wb_anim_elements_overview');
   const missing = conceptIds.filter((id) => !String(overview?.content ?? '').includes(`\`${id}\``));
   check(`元件总览覆盖词表里全部 ${conceptIds.length} 个元件`, missing.length === 0, missing.join(','));
@@ -1447,7 +1483,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
   });
 
   const one = mk({});
-  const r = triggerWorldbook({ entries: [one], text: '测试词' });
+  const r = triggerKnowledgecard({ entries: [one], text: '测试词' });
   check(
     '动画槽带上了示例段，且示例正文逐字出现',
     (r.text.scene_code ?? '').includes('### 可照抄的写法') && (r.text.scene_code ?? '').includes('const a = 1;'),
@@ -1459,7 +1495,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
   );
 
   const constOne = mk({ id: 't_ex_const', constant: true, keys: [] });
-  const r2 = triggerWorldbook({ entries: [constOne], text: '' });
+  const r2 = triggerKnowledgecard({ entries: [constOne], text: '' });
   check('常驻词条**不**带示例（常驻卡的正文本身就是教学，再叠示例是重复吃额度）', !(r2.text.scene_code ?? '').includes('### 可照抄的写法'));
 
   /**
@@ -1479,7 +1515,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
         code_examples: [line.repeat(Math.ceil(900 / line.length))],
       });
     const six = ['wb_el_vector', 'wb_el_graph', 'wb_el_rod_rail_stand', 'wb_el_raw_composite', 'wb_x_a', 'wb_x_b'].map(mkFat);
-    const out = triggerWorldbook({ entries: six, text: '测试词' });
+    const out = triggerKnowledgecard({ entries: six, text: '测试词' });
     const slot = out.slots.scene_code;
     check(
       `6 条等长示例（各约 900 字）⇒ **全部**注入，不许有人拿 0（实际 ${slot.examplesIncluded.length} 条）`,
@@ -1488,7 +1524,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
     );
     check(
       '示例合计仍不超过槽位额度（均分不越界）',
-      slot.examplesChars <= WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot,
+      slot.examplesChars <= KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot,
       String(slot.examplesChars),
     );
   }
@@ -1526,7 +1562,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
     });
     const L1 = 'Draw.box([state.x, 0.1], 0.4, 0.3);';
     const L2 = 'Draw.arrow([state.x, 0.4], [1, 0], { mag: state.u, category: "aux", label: "u" });';
-    const r = triggerWorldbook({
+    const r = triggerKnowledgecard({
       entries: [
         mkEx({ id: 'dup_a', code_examples: [`${L1}   // 画物块\n${L2}`] }),
         mkEx({ id: 'dup_b', code_examples: [`${L1}   // 注释换了个说法\n${L2}`] }),
@@ -1548,7 +1584,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
     check('③ 发出去的是完整块（dimension 那行在，没被删）', sentHalf);
     check('③′ 4 行只有 1 行新（25%）⇒ 整块不发（这就是"去重"想要的效果）', !s.examplesIncluded.includes('quarter_new'));
     check('④ 去重省下的字数是正数（省了额度才叫去重）', (s.examplesDedupedChars ?? 0) > 0, String(s.examplesDedupedChars));
-    check('⑤ 去重不越界：示例合计仍 ≤ 槽位额度', s.examplesChars <= WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot, String(s.examplesChars));
+    check('⑤ 去重不越界：示例合计仍 ≤ 槽位额度', s.examplesChars <= KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot, String(s.examplesChars));
     const warn = (r.warnings ?? []).find((w) => w.code === 'example-deduped');
     check('⑥ 去重要有可见告警（不静默）', Boolean(warn) && /重复/.test(String(warn?.message)));
   }
@@ -1562,7 +1598,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
    * 真正会让示例为零的是**合计预算被吃光**，这里就用 `maxTotalChars: 30` 造那个局面。
    */
   const tightBudget = { maxChars: 30, maxTotalChars: 30, maxDepth: 3, maxEntries: 40 };
-  const tight = triggerWorldbook({ entries: [one], text: '测试词', budget: tightBudget });
+  const tight = triggerKnowledgecard({ entries: [one], text: '测试词', budget: tightBudget });
   check(
     '负对照：合计预算被吃光 ⇒ 示例一条不给，正文仍然完整',
     !(tight.text.scene_code ?? '').includes('### 可照抄的写法') &&
@@ -1576,7 +1612,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
    * 因为示例吃的是"合计 40000 − 正文"，不是"槽位 30000 − 正文"。
    */
   {
-    const wide = triggerWorldbook({
+    const wide = triggerKnowledgecard({
       entries: [one],
       text: '测试词',
       budget: { maxChars: 30000, maxTotalChars: 40000, maxDepth: 3, maxEntries: 40 },
@@ -1591,26 +1627,26 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
 
   /* 回归：示例**不许**把槽位总量顶穿 maxChars（第 8 期 L3 第一版就是在这里超的：26757 > 24000） */
   const lib = loadLibrary();
-  const heavy = triggerWorldbook({
+  const heavy = triggerKnowledgecard({
     entries: lib.builtin,
     text: '传送带 物块 木板 斜面 弹簧 滑轮 摩擦生热',
     elements: ['belt', 'block', 'board', 'incline', 'spring', 'pulley'],
   });
   const segLen = String(heavy.text.scene_code ?? '').length;
   check(
-    `极端题（6 元件）的动画槽总量 ${segLen} ≤ ${WORLDBOOK_BUDGET.maxChars}（示例与正文合计不许越界）`,
-    segLen <= WORLDBOOK_BUDGET.maxChars,
+    `极端题（6 元件）的动画槽总量 ${segLen} ≤ ${KNOWLEDGECARD_BUDGET.maxChars}（示例与正文合计不许越界）`,
+    segLen <= KNOWLEDGECARD_BUDGET.maxChars,
     `实际 ${segLen}`,
   );
   check(
     '该极端题里示例被按额度跳过时**有告警**（不静默）',
-    segLen <= WORLDBOOK_BUDGET.maxChars &&
+    segLen <= KNOWLEDGECARD_BUDGET.maxChars &&
       ((heavy.slots.scene_code.examplesDropped.length === 0) ||
         (heavy.warnings ?? []).some((w) => w.code === 'example-budget-skipped')),
   );
   check(
     '示例额度常量是显式的（单条 / 单槽两档）',
-    WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerEntry > 0 && WORLDBOOK_EXAMPLE_BUDGET.maxCharsPerSlot > 0,
+    KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerEntry > 0 && KNOWLEDGECARD_EXAMPLE_BUDGET.maxCharsPerSlot > 0,
   );
 }
 

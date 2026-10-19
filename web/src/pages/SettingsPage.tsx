@@ -9,9 +9,9 @@
  * ── 知识卡这一栏能做什么（v1.1.9 起，不再只是"内存预览"）
  *
  *   · 卡片列表 / 编辑 / 启用开关 / 冲突提示 / 实时试触发（不调用模型）
- *   · **保存到本机**：走 `/api/worldbook/*`（`tools/rules-service.mjs`）→ `ai-rules/worldbook/`，
+ *   · **保存到本机**：走 `/api/knowledgecard/*`（`tools/rules-service.mjs`）→ `ai-rules/knowledgecard/`，
  *     写前滚动备份 5 份、整批校验、原子写；关掉软件再打开还在
- *   · **导入并保存**：粘贴 `od-worldbook` 包 → Node 侧完整校验后落盘
+ *   · **导入并保存**：粘贴 `od-knowledgecard` 包 → Node 侧完整校验后落盘
  *   · **一键恢复本版本内置**：只撤销"覆盖内置"的副本，不删用户自己新建的卡
  *
  * ── 两条必须说清的语义
@@ -23,7 +23,7 @@
  *
  * ── 为什么"实时试触发"是真的
  *
- * 它调用的是 `web/src/lib/worldbook-engine.js` —— `core/worldbook/engine.mjs` 的
+ * 它调用的是 `web/src/lib/knowledgecard-engine.js` —— `core/knowledgecard/engine.mjs` 的
  * **逐字节副本**（构建期判据钉住）。所以这里的拼接结果与真实请求**必然一致**（W10）。
  */
 
@@ -33,26 +33,26 @@ import { CleaningPanel } from '../components/rules/CleaningPanel'
 import { PromptsPanel } from '../components/rules/PromptsPanel'
 import { api } from '../lib/rules-api'
 import {
-  WORLDBOOK_BUDGET,
+  KNOWLEDGECARD_BUDGET,
   buildSlotPreview,
   detectConflicts,
   type ConflictHint,
-} from '../lib/worldbook-engine.js'
+} from '../lib/knowledgecard-engine.js'
 /**
- * ⚠ 第 5.7 期：解析器用的是**逐字节副本**（`core/worldbook/concepts.mjs` → 本文件）。
+ * ⚠ 第 5.7 期：解析器用的是**逐字节副本**（`core/knowledgecard/concepts.mjs` → 本文件）。
  *   前端绝不另写一份"差不多的解析" —— 那会让"粘贴解析结果"与"真实链路解析结果"
  *   悄悄不一致，而那种不一致看不出来（构建期判据钉住了两份副本的字节）。
  */
-import { parseJudgement } from '../lib/worldbook-concepts.js'
+import { parseJudgement } from '../lib/knowledgecard-concepts.js'
 import {
-  WORLDBOOK_BUILTIN,
-  WORLDBOOK_COVERAGE,
-  WORLDBOOK_HASH,
-  WORLDBOOK_PACK_FORMAT,
-  WORLDBOOK_PACK_VERSION,
-  WORLDBOOK_SOURCES,
-  type WorldbookEntryLike,
-} from '../lib/worldbook-demo'
+  KNOWLEDGECARD_BUILTIN,
+  KNOWLEDGECARD_COVERAGE,
+  KNOWLEDGECARD_HASH,
+  KNOWLEDGECARD_PACK_FORMAT,
+  KNOWLEDGECARD_PACK_VERSION,
+  KNOWLEDGECARD_SOURCES,
+  type KnowledgecardEntryLike,
+} from '../lib/knowledgecard-demo'
 
 const CATEGORY_LABEL: Record<string, string> = {
   solution_skill: '解题规范',
@@ -97,8 +97,14 @@ const KIND_FILTER_LABEL: Record<KindFilter, string> = {
 }
 
 /** 旧包没有 kind ⇒ 按 element；未知值也回落，避免下拉框出现空选项 */
-const kindOf = (e: WorldbookEntryLike): CardKind =>
+const kindOf = (e: KnowledgecardEntryLike): CardKind =>
   CARD_KINDS.includes(e.kind as CardKind) ? (e.kind as CardKind) : 'element'
+
+/** v1.1.9alpha：旧卡片 id → 新 id（只用于用户覆盖副本） */
+const LEGACY_CARD_ID: Record<string, string> = {
+  wb_visual_conventions: 'wb_anim_conventions',
+  wb_scene_stages: 'wb_anim_stages',
+}
 
 type SettingsTab = 'cards' | 'prompts' | 'cleaning' | 'ai'
 
@@ -115,14 +121,14 @@ type EntrySource = { kind: 'builtin' } | { kind: 'user'; pack: string }
 /** 新建卡片默认落这个文件（一卡一文件是内置覆盖副本的做法；用户自建卡集中放这里） */
 const DEFAULT_PACK = 'my-cards.json'
 
-const BUILTIN_IDS = new Set(WORLDBOOK_BUILTIN.map((e) => e.id))
+const BUILTIN_IDS = new Set(KNOWLEDGECARD_BUILTIN.map((e) => e.id))
 
 /**
  * 落盘前的规范化：只写 §9.1 认识的字段，顺序固定。
  * 客户端对象里有页面自己的状态（比如来源标记），绝不能原样写进词条文件
  * —— `validateEntry` 的 `additionalProperties: false` 会整批拒绝。
  */
-function cleanEntry(e: WorldbookEntryLike) {
+function cleanEntry(e: KnowledgecardEntryLike) {
   return {
     id: e.id,
     title: e.title,
@@ -145,9 +151,9 @@ function cleanEntry(e: WorldbookEntryLike) {
   }
 }
 
-/** 一份 `od-worldbook` 包的文本（与导出的格式完全一致） */
-function packText(list: WorldbookEntryLike[]): string {
-  return `${JSON.stringify({ format: WORLDBOOK_PACK_FORMAT, version: WORLDBOOK_PACK_VERSION, entries: list.map(cleanEntry) }, null, 2)}\n`
+/** 一份 `od-knowledgecard` 包的文本（与导出的格式完全一致） */
+function packText(list: KnowledgecardEntryLike[]): string {
+  return `${JSON.stringify({ format: KNOWLEDGECARD_PACK_FORMAT, version: KNOWLEDGECARD_PACK_VERSION, entries: list.map(cleanEntry) }, null, 2)}\n`
 }
 
 const SLOT_FILTER_LABEL: Record<SlotFilter, string> = {
@@ -159,7 +165,7 @@ const SLOT_FILTER_LABEL: Record<SlotFilter, string> = {
 }
 
 /** 一条词条的槽位标记（§9.5 的"槽位标记（解题/动画/双槽/未挂槽）"） */
-function slotTagOf(entry: WorldbookEntryLike): { text: string; tone: string } {
+function slotTagOf(entry: KnowledgecardEntryLike): { text: string; tone: string } {
   const slots = entry.insertion_slot
   if (slots.length === 0) return { text: '未挂槽位', tone: 'bg-slate-100 text-slate-500' }
   if (slots.length >= 2) return { text: '双槽', tone: 'bg-violet-100 text-violet-700' }
@@ -169,7 +175,7 @@ function slotTagOf(entry: WorldbookEntryLike): { text: string; tone: string } {
     : { text: '解题槽', tone: 'bg-blue-100 text-blue-700' }
 }
 
-function matchesSlotFilter(entry: WorldbookEntryLike, filter: SlotFilter): boolean {
+function matchesSlotFilter(entry: KnowledgecardEntryLike, filter: SlotFilter): boolean {
   const slots = entry.insertion_slot
   if (filter === 'all') return true
   if (filter === 'unmounted') return slots.length === 0
@@ -181,8 +187,8 @@ export function SettingsPage() {
   const [tab, setTab] = useState<SettingsTab>('cards')
 
   /** 词条库：构建期内置快照 + 本机用户区（连上服务后会被真实内容替换） */
-  const [entries, setEntries] = useState<WorldbookEntryLike[]>(() => WORLDBOOK_BUILTIN.map((e) => ({ ...e })))
-  const [selectedId, setSelectedId] = useState<string>(() => WORLDBOOK_BUILTIN[0]?.id ?? '')
+  const [entries, setEntries] = useState<KnowledgecardEntryLike[]>(() => KNOWLEDGECARD_BUILTIN.map((e) => ({ ...e })))
+  const [selectedId, setSelectedId] = useState<string>(() => KNOWLEDGECARD_BUILTIN[0]?.id ?? '')
   const [search, setSearch] = useState('')
   const [slotFilter, setSlotFilter] = useState<SlotFilter>('all')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
@@ -216,7 +222,7 @@ export function SettingsPage() {
     state: 'checking' | 'online' | 'offline'
     dir: string
     builtinCount: number
-  }>({ state: 'checking', dir: '', builtinCount: WORLDBOOK_BUILTIN.length })
+  }>({ state: 'checking', dir: '', builtinCount: KNOWLEDGECARD_BUILTIN.length })
 
   const selected = entries.find((e) => e.id === selectedId) ?? null
 
@@ -224,11 +230,11 @@ export function SettingsPage() {
   const loadFromService = async () => {
     setBusy('正在读取本机知识卡库…')
     try {
-      const list = await api.worldbook()
-      const userEntries: WorldbookEntryLike[] = []
+      const list = await api.knowledgecard()
+      const userEntries: KnowledgecardEntryLike[] = []
       const nextSource: Record<string, EntrySource> = {}
       for (const p of list.packs) {
-        const pack = await api.worldbookPack(p.name)
+        const pack = await api.knowledgecardPack(p.name)
         let parsed: unknown
         try {
           parsed = JSON.parse(pack.text)
@@ -238,15 +244,18 @@ export function SettingsPage() {
         const arr = (parsed as { entries?: unknown }).entries
         if (!Array.isArray(arr)) continue
         for (const raw of arr) {
-          const e = raw as WorldbookEntryLike
+          const e = raw as KnowledgecardEntryLike
           if (!e || typeof e.id !== 'string' || !e.id) continue
-          userEntries.push({ ...e })
-          nextSource[e.id] = { kind: 'user', pack: p.name }
+          const mapped = LEGACY_CARD_ID[e.id]
+          const entry = { ...e, id: mapped ?? e.id }
+          if (mapped && entry.kind === undefined) entry.kind = 'anim_rule'
+          userEntries.push(entry)
+          nextSource[entry.id] = { kind: 'user', pack: p.name }
         }
       }
       const userIds = new Set(userEntries.map((e) => e.id))
       const merged = [
-        ...WORLDBOOK_BUILTIN.filter((b) => !userIds.has(b.id)).map((b) => ({ ...b })),
+        ...KNOWLEDGECARD_BUILTIN.filter((b) => !userIds.has(b.id)).map((b) => ({ ...b })),
         ...userEntries,
       ]
       setEntries(merged)
@@ -257,7 +266,7 @@ export function SettingsPage() {
       setSelectedId((prev) => (merged.some((e) => e.id === prev) ? prev : (merged[0]?.id ?? '')))
       return true
     } catch (err) {
-      setService({ state: 'offline', dir: '', builtinCount: WORLDBOOK_BUILTIN.length })
+      setService({ state: 'offline', dir: '', builtinCount: KNOWLEDGECARD_BUILTIN.length })
       setNotice(`连不上本机知识卡库：${(err as Error).message}。当前显示构建期快照，编辑不会落盘。`)
       return false
     } finally {
@@ -281,7 +290,7 @@ export function SettingsPage() {
    * 改一条词条。
    * 改内置 ⇒ 立刻转成同 id 的覆盖副本（§9.3 ①），保存时落到 `<id>.json`。
    */
-  const patch = (id: string, next: Partial<WorldbookEntryLike>) => {
+  const patch = (id: string, next: Partial<KnowledgecardEntryLike>) => {
     const asOverride = packOf(id) === null
     setEntries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...next, ...(asOverride ? { origin: 'user' } : {}) } : e)),
@@ -292,7 +301,7 @@ export function SettingsPage() {
 
   const addEntry = () => {
     const id = `local-${Date.now().toString(36)}`
-    const entry: WorldbookEntryLike = {
+    const entry: KnowledgecardEntryLike = {
       id,
       title: '新建卡片',
       origin: 'user',
@@ -356,7 +365,7 @@ export function SettingsPage() {
       setNotice('本机服务未启动，无法保存。开发期请用 3-OpenRules.bat 起服务。')
       return
     }
-    const groups = new Map<string, WorldbookEntryLike[]>()
+    const groups = new Map<string, KnowledgecardEntryLike[]>()
     for (const e of entries) {
       const pack = packOf(e.id)
       if (!pack) continue
@@ -372,7 +381,7 @@ export function SettingsPage() {
     try {
       let total = 0
       for (const [pack, list] of groups) {
-        await api.saveWorldbookPack(pack, packText(list))
+        await api.saveKnowledgecardPack(pack, packText(list))
         total += list.length
       }
       await loadFromService()
@@ -395,8 +404,8 @@ export function SettingsPage() {
     setBusy('正在删除…')
     try {
       const rest = entries.filter((e) => e.id !== selected.id && packOf(e.id) === pack)
-      if (rest.length === 0) await api.deleteWorldbookPack(pack)
-      else await api.saveWorldbookPack(pack, packText(rest))
+      if (rest.length === 0) await api.deleteKnowledgecardPack(pack)
+      else await api.saveKnowledgecardPack(pack, packText(rest))
       await loadFromService()
       setNotice(`已删除「${selected.title}」。`)
     } catch (err) {
@@ -421,7 +430,7 @@ export function SettingsPage() {
     }
     setBusy('正在恢复内置…')
     try {
-      const r = await api.restoreWorldbookBuiltin()
+      const r = await api.restoreKnowledgecardBuiltin()
       await loadFromService()
       const extra = r.problems?.length
         ? `；有 ${r.problems.length} 个问题没处理：${r.problems.slice(0, 3).join(' / ')}`
@@ -453,7 +462,7 @@ export function SettingsPage() {
     if (!window.confirm(`把导入内容写入 ${importName}？（同名文件会被覆盖，覆盖前自动备份）`)) return
     setBusy('正在导入…')
     try {
-      await api.saveWorldbookPack(importName, importText)
+      await api.saveKnowledgecardPack(importName, importText)
       await loadFromService()
       setNotice(`已导入并保存到 ${importName}。`)
     } catch (err) {
@@ -511,7 +520,7 @@ export function SettingsPage() {
   }, [entries, search, slotFilter, kindFilter])
 
   const grouped = useMemo(() => {
-    const map = new Map<CardKind, WorldbookEntryLike[]>()
+    const map = new Map<CardKind, KnowledgecardEntryLike[]>()
     for (const e of visible) {
       const k = kindOf(e)
       const list = map.get(k) ?? []
@@ -525,7 +534,7 @@ export function SettingsPage() {
     // 导出 = 当前所有 user 词条（含覆盖副本），与落盘用同一套规范化。
     const userOnly = entries.filter((e) => packOf(e.id) !== null)
     return `${JSON.stringify(
-      { format: WORLDBOOK_PACK_FORMAT, version: WORLDBOOK_PACK_VERSION, entries: userOnly.map(cleanEntry) },
+      { format: KNOWLEDGECARD_PACK_FORMAT, version: KNOWLEDGECARD_PACK_VERSION, entries: userOnly.map(cleanEntry) },
       null,
       2,
     )}\n`
@@ -567,7 +576,7 @@ export function SettingsPage() {
       {tab === 'cards' ? (
         <>
       {/* ── v1.1.9：本机落盘工具栏（保存 / 恢复内置 / 重新读取）── */}
-      <section data-od-region="worldbook-service" className="rounded-md border border-slate-200 bg-white px-4 py-2">
+      <section data-od-region="knowledgecard-service" className="rounded-md border border-slate-200 bg-white px-4 py-2">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span
             className={`rounded px-2 py-0.5 font-medium ${
@@ -596,7 +605,7 @@ export function SettingsPage() {
           <span className="flex-1" />
           <button
             type="button"
-            data-od-action="worldbook-save"
+            data-od-action="knowledgecard-save"
             className="rounded bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-40"
             disabled={busy !== null || service.state !== 'online' || dirtyIds.size === 0}
             onClick={() => void saveAll()}
@@ -605,7 +614,7 @@ export function SettingsPage() {
           </button>
           <button
             type="button"
-            data-od-action="worldbook-restore-builtin"
+            data-od-action="knowledgecard-restore-builtin"
             className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 disabled:opacity-40"
             disabled={busy !== null || service.state !== 'online'}
             onClick={() => void restoreBuiltin()}
@@ -615,7 +624,7 @@ export function SettingsPage() {
           </button>
           <button
             type="button"
-            data-od-action="worldbook-reload"
+            data-od-action="knowledgecard-reload"
             className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 disabled:opacity-40"
             disabled={busy !== null}
             onClick={() => {
@@ -627,8 +636,8 @@ export function SettingsPage() {
           </button>
         </div>
         <p className="mt-1 text-[11px] text-slate-500">
-          保存到 <code>ai-rules/worldbook/</code>（发布版在{' '}
-          <code>{'%APPDATA%\\physics-animation-studio\\data\\ai-rules\\worldbook\\'}</code>）。
+          保存到 <code>ai-rules/knowledgecard/</code>（发布版在{' '}
+          <code>{'%APPDATA%\\physics-animation-studio\\data\\ai-rules\\knowledgecard\\'}</code>）。
           内置只读；<strong>编辑内置会自动生成同 id 的覆盖副本</strong>；「恢复内置」只撤销覆盖，不删你自己新建的卡。
           {busy && <span className="ml-1 font-medium text-slate-700">{busy}</span>}
         </p>
@@ -642,7 +651,7 @@ export function SettingsPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(240px,300px)_1fr_minmax(320px,420px)]">
         {/* ── 左：卡片列表（§9.5） ── */}
-        <section data-od-region="worldbook-list" className="rounded-md border border-slate-200 bg-white">
+        <section data-od-region="knowledgecard-list" className="rounded-md border border-slate-200 bg-white">
           <header className="border-b border-slate-200 px-3 py-2">
             <h2 className="text-sm font-semibold text-slate-900">知识卡</h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
@@ -653,7 +662,7 @@ export function SettingsPage() {
 
           <div className="space-y-2 border-b border-slate-200 px-3 py-2">
             <input
-              data-od-field="worldbook-search"
+              data-od-field="knowledgecard-search"
               aria-label="搜索知识卡"
               className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
               placeholder="搜索 id / 标题 / 关键词 / 正文"
@@ -665,7 +674,7 @@ export function SettingsPage() {
                 <button
                   key={f}
                   type="button"
-                  data-od-action={`worldbook-filter-${f}`}
+                  data-od-action={`knowledgecard-filter-${f}`}
                   aria-pressed={slotFilter === f}
                   className={`rounded px-2 py-0.5 text-[11px] ${
                     slotFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -681,7 +690,7 @@ export function SettingsPage() {
                 <button
                   key={f}
                   type="button"
-                  data-od-action={`worldbook-kind-filter-${f}`}
+                  data-od-action={`knowledgecard-kind-filter-${f}`}
                   aria-pressed={kindFilter === f}
                   className={`rounded px-2 py-0.5 text-[11px] ${
                     kindFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -750,7 +759,7 @@ export function SettingsPage() {
         </section>
 
         {/* ── 中：卡片编辑 + 导入导出 ── */}
-        <section data-od-region="worldbook-editor" className="space-y-4">
+        <section data-od-region="knowledgecard-editor" className="space-y-4">
           {selected ? (
             <div className="rounded-md border border-slate-200 bg-white p-4">
               <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -759,7 +768,7 @@ export function SettingsPage() {
                   <label className="flex items-center gap-1 text-xs text-slate-600">
                     <input
                       type="checkbox"
-                      data-od-field="worldbook-enabled"
+                      data-od-field="knowledgecard-enabled"
                       checked={selected.enabled}
                       onChange={(e) => {
                         const next = e.target.checked
@@ -779,7 +788,7 @@ export function SettingsPage() {
                   </label>
                   <button
                     type="button"
-                    data-od-action="worldbook-new"
+                    data-od-action="knowledgecard-new"
                     className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700"
                     onClick={addEntry}
                   >
@@ -787,7 +796,7 @@ export function SettingsPage() {
                   </button>
                   <button
                     type="button"
-                    data-od-action="worldbook-delete"
+                    data-od-action="knowledgecard-delete"
                     className="rounded border border-rose-200 px-2 py-0.5 text-[11px] text-rose-700"
                     onClick={() => void removeSelected()}
                     disabled={packOf(selected.id) === null}
@@ -805,7 +814,7 @@ export function SettingsPage() {
 
               {kindOf(selected) === 'anim_rule' && (!selected.enabled || !selected.constant) ? (
                 <p
-                  data-od-region="worldbook-anim-rule-disabled-warning"
+                  data-od-region="knowledgecard-anim-rule-disabled-warning"
                   className="mb-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-900"
                 >
                   ⚠ 这张动画规范卡{!selected.enabled ? '已停用' : '已取消常驻'}：动画阶段可能收不到它。它会悄无声息地让画面规范变少，建议保持「启用 + 常驻」。
@@ -816,7 +825,7 @@ export function SettingsPage() {
                 <Field label="id（库内唯一；已保存的 id 不可改，要换 id 请新建）">
                   <input
                     className="input"
-                    data-od-field="worldbook-id"
+                    data-od-field="knowledgecard-id"
                     value={selected.id}
                     readOnly={!newIds.has(selected.id)}
                     onChange={(e) => changeId(selected.id, e.target.value)}
@@ -825,7 +834,7 @@ export function SettingsPage() {
                 <Field label="标题">
                   <input
                     className="input"
-                    data-od-field="worldbook-title"
+                    data-od-field="knowledgecard-title"
                     value={selected.title}
                     onChange={(e) => patch(selected.id, { title: e.target.value })}
                   />
@@ -833,7 +842,7 @@ export function SettingsPage() {
                 <Field label="知识卡类型（只影响分组与注入顺序；不影响命中语义）">
                   <select
                     className="input"
-                    data-od-field="worldbook-kind"
+                    data-od-field="knowledgecard-kind"
                     value={kindOf(selected)}
                     onChange={(e) => patch(selected.id, { kind: e.target.value as CardKind })}
                   >
@@ -847,7 +856,7 @@ export function SettingsPage() {
                 <Field label="分类（仅分类展示与统计）">
                   <select
                     className="input"
-                    data-od-field="worldbook-category"
+                    data-od-field="knowledgecard-category"
                     value={selected.category}
                     onChange={(e) => patch(selected.id, { category: e.target.value })}
                   >
@@ -865,7 +874,7 @@ export function SettingsPage() {
                   <input
                     type="number"
                     className="input"
-                    data-od-field="worldbook-order"
+                    data-od-field="knowledgecard-order"
                     value={selected.order}
                     onChange={(e) => patch(selected.id, { order: Number(e.target.value) })}
                   />
@@ -873,7 +882,7 @@ export function SettingsPage() {
                 <Field label="priority（预算不足时 high 优先保留）">
                   <select
                     className="input"
-                    data-od-field="worldbook-priority"
+                    data-od-field="knowledgecard-priority"
                     value={selected.priority}
                     onChange={(e) => patch(selected.id, { priority: e.target.value })}
                   >
@@ -887,7 +896,7 @@ export function SettingsPage() {
                 <label className="flex items-center gap-1 text-xs text-slate-700">
                   <input
                     type="checkbox"
-                    data-od-field="worldbook-constant"
+                    data-od-field="knowledgecard-constant"
                     checked={selected.constant}
                     onChange={(e) => {
                       const next = e.target.checked
@@ -908,7 +917,7 @@ export function SettingsPage() {
                 <label className="flex items-center gap-1 text-xs text-slate-700">
                   <input
                     type="checkbox"
-                    data-od-field="worldbook-recursive"
+                    data-od-field="knowledgecard-recursive"
                     checked={selected.recursive}
                     onChange={(e) => patch(selected.id, { recursive: e.target.checked })}
                   />
@@ -923,7 +932,7 @@ export function SettingsPage() {
                     <label key={slot} className="flex items-center gap-1 text-xs text-slate-700">
                       <input
                         type="checkbox"
-                        data-od-field={`worldbook-slot-${slot}`}
+                        data-od-field={`knowledgecard-slot-${slot}`}
                         checked={selected.insertion_slot.includes(slot)}
                         onChange={(e) => {
                           const next = e.target.checked
@@ -942,7 +951,7 @@ export function SettingsPage() {
                 <Field label="keys（一行一条；`/…/flags` 视为正则，其余为字面量包含。字面量会做大小写与全半角归一化）">
                   <textarea
                     className="input h-20 font-mono"
-                    data-od-field="worldbook-keys"
+                    data-od-field="knowledgecard-keys"
                     value={selected.keys.join('\n')}
                     onChange={(e) =>
                       patch(selected.id, { keys: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })
@@ -978,7 +987,7 @@ export function SettingsPage() {
                       ) : (
                         <div
                           className="mt-0.5 flex max-h-24 flex-wrap gap-1 overflow-auto rounded border border-slate-200 p-1"
-                          data-od-field={`worldbook-${field}`}
+                          data-od-field={`knowledgecard-${field}`}
                         >
                           {options.map((v) => {
                             const on = chosen.includes(v)
@@ -993,7 +1002,7 @@ export function SettingsPage() {
                                 onClick={() =>
                                   patch(selected.id, {
                                     [field]: on ? chosen.filter((x) => x !== v) : [...chosen, v],
-                                  } as Partial<WorldbookEntryLike>)
+                                  } as Partial<KnowledgecardEntryLike>)
                                 }
                               >
                                 {v}
@@ -1011,7 +1020,7 @@ export function SettingsPage() {
                 <Field label="次级键逻辑">
                   <select
                     className="input"
-                    data-od-field="worldbook-logic"
+                    data-od-field="knowledgecard-logic"
                     value={selected.secondary_keys.logic}
                     onChange={(e) =>
                       patch(selected.id, { secondary_keys: { ...selected.secondary_keys, logic: e.target.value } })
@@ -1027,7 +1036,7 @@ export function SettingsPage() {
                 <Field label="次级键（一行一条）">
                   <textarea
                     className="input h-20 font-mono"
-                    data-od-field="worldbook-secondary"
+                    data-od-field="knowledgecard-secondary"
                     value={selected.secondary_keys.list.join('\n')}
                     onChange={(e) =>
                       patch(selected.id, {
@@ -1045,7 +1054,7 @@ export function SettingsPage() {
                 <Field label="正文 content（Markdown）">
                   <textarea
                     className="input h-56 font-mono text-[11px]"
-                    data-od-field="worldbook-content"
+                    data-od-field="knowledgecard-content"
                     value={selected.content}
                     onChange={(e) => patch(selected.id, { content: e.target.value })}
                   />
@@ -1056,7 +1065,7 @@ export function SettingsPage() {
                 <Field label="code_examples（每段之间用一行 --- 分隔）">
                   <textarea
                     className="input h-32 font-mono text-[11px]"
-                    data-od-field="worldbook-examples"
+                    data-od-field="knowledgecard-examples"
                     value={selected.code_examples.join('\n---\n')}
                     onChange={(e) =>
                       patch(selected.id, {
@@ -1072,7 +1081,7 @@ export function SettingsPage() {
               左侧选一张卡开始编辑，或
               <button
                 type="button"
-                data-od-action="worldbook-new-empty"
+                data-od-action="knowledgecard-new-empty"
                 className="mx-1 rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700"
                 onClick={addEntry}
               >
@@ -1083,30 +1092,30 @@ export function SettingsPage() {
           )}
 
           {/* ── 导入导出（§9.5 / §9.3 ③：默认只导 origin:user） ── */}
-          <div className="rounded-md border border-slate-200 bg-white p-4" data-od-region="worldbook-io">
+          <div className="rounded-md border border-slate-200 bg-white p-4" data-od-region="knowledgecard-io">
             <h2 className="text-sm font-semibold text-slate-900">导入 / 导出</h2>
             <p className="mt-1 text-[11px] text-slate-500">
-              导出含当前全部用户卡（§9.3 ③，含覆盖副本）。格式：<code>{WORLDBOOK_PACK_FORMAT}</code> v
-              {WORLDBOOK_PACK_VERSION}。导入会在 <strong>Node 侧做完整校验与旧名归一化</strong>
+              导出含当前全部用户卡（§9.3 ③，含覆盖副本）。格式：<code>{KNOWLEDGECARD_PACK_FORMAT}</code> v
+              {KNOWLEDGECARD_PACK_VERSION}。导入会在 <strong>Node 侧做完整校验与旧名归一化</strong>
               （scene_spec → scene_code，门禁 ㉒ 的 W11/W12 取证），通过后直接落盘；不通过会逐条报错。
             </p>
             <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
                 <p className="label">导出文本（可复制）</p>
-                <textarea className="input h-40 font-mono text-[11px]" data-od-field="worldbook-export" readOnly value={exportText} />
+                <textarea className="input h-40 font-mono text-[11px]" data-od-field="knowledgecard-export" readOnly value={exportText} />
               </div>
               <div>
                 <p className="label">导入文本（粘贴后选文件名，再"导入并保存"）</p>
                 <textarea
                   className="input h-40 font-mono text-[11px]"
-                  data-od-field="worldbook-import"
+                  data-od-field="knowledgecard-import"
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
                 />
                 <div className="mt-1 flex flex-wrap items-center gap-1">
                   <input
                     className="rounded border border-slate-300 px-2 py-1 text-[11px]"
-                    data-od-field="worldbook-import-name"
+                    data-od-field="knowledgecard-import-name"
                     aria-label="导入到的文件名"
                     value={importName}
                     onChange={(e) => setImportName(e.target.value)}
@@ -1114,7 +1123,7 @@ export function SettingsPage() {
                   />
                   <button
                     type="button"
-                    data-od-action="worldbook-import-check"
+                    data-od-action="knowledgecard-import-check"
                     className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-700"
                     onClick={() => setNotice(checkImportShape(importText))}
                   >
@@ -1122,7 +1131,7 @@ export function SettingsPage() {
                   </button>
                   <button
                     type="button"
-                    data-od-action="worldbook-import-save"
+                    data-od-action="knowledgecard-import-save"
                     className="rounded bg-slate-900 px-2 py-1 text-[11px] text-white disabled:opacity-40"
                     disabled={busy !== null || service.state !== 'online'}
                     onClick={() => void importPack()}
@@ -1136,7 +1145,7 @@ export function SettingsPage() {
         </section>
 
         {/* ── 右：实时试触发预览器（§9.5 / W15） ── */}
-        <section data-od-region="worldbook-preview" className="space-y-3">
+        <section data-od-region="knowledgecard-preview" className="space-y-3">
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <h2 className="text-sm font-semibold text-slate-900">实时试触发</h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
@@ -1144,7 +1153,7 @@ export function SettingsPage() {
             </p>
             <textarea
               className="input mt-2 h-24 text-[11px]"
-              data-od-field="worldbook-testtext"
+              data-od-field="knowledgecard-testtext"
               aria-label="试触发题面文本"
               value={testText}
               onChange={(e) => setTestText(e.target.value)}
@@ -1157,7 +1166,7 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="text-[10px] text-slate-500 underline"
-                  data-od-action="worldbook-clear-jury"
+                  data-od-action="knowledgecard-clear-jury"
                   onClick={() => {
                     setJury({ concepts: [], tags: [], elements: [] })
                     setJudgeNote('已清空判定 —— 触发退化为纯字面 keys（灰度口径）')
@@ -1173,7 +1182,7 @@ export function SettingsPage() {
               </p>
               <textarea
                 className="input mt-1 h-20 text-[11px]"
-                data-od-field="worldbook-judge-paste"
+                data-od-field="knowledgecard-judge-paste"
                 aria-label="粘贴模型转写以自动解析判定"
                 placeholder="把模型在【读题与判定】阶段的一段输出粘到这里，会自动解析出考点/题型/动画元件"
                 value={judgePaste}
@@ -1183,7 +1192,7 @@ export function SettingsPage() {
                 <button
                   type="button"
                   className="rounded border border-slate-300 px-2 py-0.5 text-[10px]"
-                  data-od-action="worldbook-parse-judge"
+                  data-od-action="knowledgecard-parse-judge"
                   onClick={() => {
                     if (!judgePaste.trim()) {
                       setJudgeNote('粘贴内容为空 —— 没有可解析的东西')
@@ -1221,9 +1230,9 @@ export function SettingsPage() {
           </div>
 
           {/* ── 词表浏览面板（计划 §S5：两套词表可浏览） ── */}
-          <Block title="⑤ 词表（只能从表里选；当前库用到的值）" region="worldbook-vocab">
+          <Block title="⑤ 词表（只能从表里选；当前库用到的值）" region="knowledgecard-vocab">
             <p className="text-[10px] text-slate-500">
-              判定与标注**只能**取这三张表里的值。表的**单源真相**是 <code>contracts/worldbook-concepts.json</code>
+              判定与标注**只能**取这三张表里的值。表的**单源真相**是 <code>contracts/knowledgecard-concepts.json</code>
               （schema 枚举、Prompt 注入、这里的三张清单都从它派生）。
               本期 137 条老词条还没带三栏 ⇒ 这里显示的是"**当前库里已经用到的值**"（含 0 条时为空），
               全集等 5.9 期写完新库自然补全。
@@ -1250,7 +1259,7 @@ export function SettingsPage() {
             </div>
           </Block>
 
-          <Block title="① 命中清单与命中方式" region="worldbook-hits">
+          <Block title="① 命中清单与命中方式" region="knowledgecard-hits">
             {preview.solve.result.provenance.length === 0 ? (
               <p className="text-xs text-slate-500">本次没有任何卡片命中（预览器必须显式说出来）。</p>
             ) : (
@@ -1270,19 +1279,19 @@ export function SettingsPage() {
             )}
           </Block>
 
-          <Block title="② 解题槽最终拼接内容" region="worldbook-solve">
+          <Block title="② 解题槽最终拼接内容" region="knowledgecard-solve">
             <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-[10px] text-slate-700">
-              {preview.solve.worldbookText || '（该槽本次未注入任何卡片）'}
+              {preview.solve.knowledgecardText || '（该槽本次未注入任何卡片）'}
             </pre>
           </Block>
 
-          <Block title="③ 动画槽最终拼接内容" region="worldbook-scene">
+          <Block title="③ 动画槽最终拼接内容" region="knowledgecard-scene">
             <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-[10px] text-slate-700">
-              {preview.scene_code.worldbookText || '（该槽本次未注入任何卡片）'}
+              {preview.scene_code.knowledgecardText || '（该槽本次未注入任何卡片）'}
             </pre>
           </Block>
 
-          <Block title="④ 空槽提示与截断告警" region="worldbook-slots">
+          <Block title="④ 空槽提示与截断告警" region="knowledgecard-slots">
             <p className="text-[11px] text-slate-700">
               空槽（静默跳过）：{preview.solve.result.emptySlots.length ? preview.solve.result.emptySlots.map((s) => SLOT_LABEL[s] ?? s).join(' / ') : '无'}
             </p>
@@ -1295,8 +1304,8 @@ export function SettingsPage() {
                     .join(' / ')}
             </p>
             <p className="mt-1 text-[10px] text-slate-500">
-              预算：深度 {WORLDBOOK_BUDGET.maxDepth} · 每槽 {WORLDBOOK_BUDGET.maxEntries} 条 · 每槽{' '}
-              {WORLDBOOK_BUDGET.maxChars} 字符
+              预算：深度 {KNOWLEDGECARD_BUDGET.maxDepth} · 每槽 {KNOWLEDGECARD_BUDGET.maxEntries} 条 · 每槽{' '}
+              {KNOWLEDGECARD_BUDGET.maxChars} 字符
             </p>
             {preview.solve.result.warnings.length > 0 && (
               <ul className="mt-2 space-y-0.5">
@@ -1309,7 +1318,7 @@ export function SettingsPage() {
             )}
           </Block>
 
-          <Block title="冲突提示（提示不阻断）" region="worldbook-conflicts">
+          <Block title="冲突提示（提示不阻断）" region="knowledgecard-conflicts">
             {conflicts.length === 0 ? (
               <p className="text-xs text-slate-500">没有发现冲突。</p>
             ) : (
@@ -1323,19 +1332,19 @@ export function SettingsPage() {
             )}
           </Block>
 
-          <Block title="内置卡覆盖率（§19.3）" region="worldbook-coverage">
+          <Block title="内置卡覆盖率（§19.3）" region="knowledgecard-coverage">
             <p className="text-[11px] text-slate-700">
-              共 {WORLDBOOK_COVERAGE.total} 条 · 结构合规{' '}
-              <strong>{(WORLDBOOK_COVERAGE.structuralRate * 100).toFixed(0)}%</strong>
-              （自检条款 {(WORLDBOOK_COVERAGE.selfCheckCoverage * 100).toFixed(0)}% · code_examples{' '}
-              {(WORLDBOOK_COVERAGE.exampleCoverage * 100).toFixed(0)}%）
+              共 {KNOWLEDGECARD_COVERAGE.total} 条 · 结构合规{' '}
+              <strong>{(KNOWLEDGECARD_COVERAGE.structuralRate * 100).toFixed(0)}%</strong>
+              （自检条款 {(KNOWLEDGECARD_COVERAGE.selfCheckCoverage * 100).toFixed(0)}% · code_examples{' '}
+              {(KNOWLEDGECARD_COVERAGE.exampleCoverage * 100).toFixed(0)}%）
             </p>
             <p className="mt-1 text-[11px] text-amber-800">
-              内容覆盖：<strong>未完成</strong> —— {WORLDBOOK_COVERAGE.reason}
+              内容覆盖：<strong>未完成</strong> —— {KNOWLEDGECARD_COVERAGE.reason}
             </p>
-            <p className="mt-1 text-[10px] text-slate-500">库哈希 {WORLDBOOK_HASH.slice(0, 16)}…</p>
+            <p className="mt-1 text-[10px] text-slate-500">库哈希 {KNOWLEDGECARD_HASH.slice(0, 16)}…</p>
             <ul className="mt-1 space-y-0.5">
-              {WORLDBOOK_SOURCES.map((s) => (
+              {KNOWLEDGECARD_SOURCES.map((s) => (
                 <li key={s.name} className="text-[10px] text-slate-500">
                   {s.kind === 'builtin' ? '内置' : '用户'} · {s.name} · {s.count} 条 · {s.sha256.slice(0, 10)}…
                 </li>
@@ -1430,8 +1439,10 @@ function checkImportShape(text: string): string {
   if (typeof obj !== 'object' || obj === null) return '顶层必须是对象。'
   const rec = obj as Record<string, unknown>
   const problems: string[] = []
-  if (rec.format !== WORLDBOOK_PACK_FORMAT) problems.push(`format 必须是 "${WORLDBOOK_PACK_FORMAT}"`)
-  if (rec.version !== WORLDBOOK_PACK_VERSION) problems.push(`version 必须是 ${WORLDBOOK_PACK_VERSION}`)
+  if (![KNOWLEDGECARD_PACK_FORMAT, 'od-worldbook'].includes(String(rec.format))) {
+    problems.push(`format 必须是 "${KNOWLEDGECARD_PACK_FORMAT}" 或兼容的 "od-worldbook"`)
+  }
+  if (rec.version !== KNOWLEDGECARD_PACK_VERSION) problems.push(`version 必须是 ${KNOWLEDGECARD_PACK_VERSION}`)
   if (!Array.isArray(rec.entries)) problems.push('entries 必须是数组')
   if (problems.length) return `形状有问题：${problems.join('；')}`
   const list = rec.entries as unknown[]

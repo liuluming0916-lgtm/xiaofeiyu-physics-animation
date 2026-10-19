@@ -1,5 +1,5 @@
 {
-  "format": "od-worldbook-concepts",
+  "format": "od-knowledgecard-concepts",
   "version": 2,
   "note": "★ 第 9 期开源版：本文件是**两套词表的单源真相**（考点 concepts / 动画元件 elements），schema 枚举、Prompt 注入、前端下拉都从它派生。第 9 期**清空了 tags**（题型标签原派生自第三方教辅，已移除）并清洗了 sources 里的第三方来源。",
   "fixture": false,
@@ -9,7 +9,7 @@
   "sources": {
     "concepts": [
       "第 5.7 期夹具版（56 考点，逐条保留；本轮只增 relativity 一条、并把 spring_systems 改名为 spring_force）",
-      "core/worldbook/source/*.json → 137 条老词条的 title 上位概念"
+      "core/knowledgecard/source/*.json → 137 条老词条的 title 上位概念"
     ],
     "elements": [
       "sdk/signature-summary.json → Draw.* Layer 1 原语名（23 个）",
@@ -1376,7 +1376,7 @@
   },
   "rules": {
     "emptyTags": "词条 tags 为空 = 该考点下的通用词条（方案 b 兜底）",
-    "tagBelongsToConcept": "每条 tags 必须属于该词条某个 concepts 的考点（运行期校验，见 core/worldbook/store.mjs）",
+    "tagBelongsToConcept": "每条 tags 必须属于该词条某个 concepts 的考点（运行期校验，见 core/knowledgecard/store.mjs）",
     "keysOnlyEntities": "keys 只许装实体名词（器材），不许是考点词/解析词（第 5.9 期起逐条执行）",
     "unknownsNotSilent": "表外词必须进 unknowns 如实报出，不得静默丢弃",
     "elementAlignment": "每个动画元件的 primitive 必须取自 sdk/signature-summary.json 的原语名；图元→词条覆盖率的判据即「每个 Layer 1 原语至少有一条元件指向它，A25 点名的标注类除外」（S6）",

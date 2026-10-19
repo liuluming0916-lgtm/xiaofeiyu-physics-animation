@@ -365,7 +365,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
 
         {/*
           ⚠ 第 9 期 v1.1.5：**过程文字从解题页的显眼位置撤走**（用户 2026-10-19 定），
-          收进这个默认收起的折叠面板里，与判据/世界书依据/自愈过程放在一起。
+          收进这个默认收起的折叠面板里，与判据/知识卡依据/自愈过程放在一起。
           为什么不彻底删掉：出问题时它是唯一能自己看出错在哪的证据。
         */}
         <details className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -423,13 +423,13 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
         */}
         <details className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <summary className="cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700">
-            判据 · 世界书依据 · 自愈过程（点开查看）
+            判据 · 知识卡依据 · 自愈过程（点开查看）
           </summary>
           <div className="space-y-4 border-t border-slate-100 p-5 pt-4">
         {st.run.verdict && <VerdictPanel run={st.run} skipped={skipped} />}
 
-        {/* 第 5 期：世界书依据（§15）——"为什么引用了这条知识、进了哪个槽位"必须让老师看得懂 */}
-        {st.run.worldbook && <WorldbookPanel run={st.run} />}
+        {/* 第 5 期：知识卡依据（§15）——"为什么引用了这条知识、进了哪个槽位"必须让老师看得懂 */}
+        {st.run.knowledgecard && <KnowledgecardPanel run={st.run} />}
 
         {/* 第 4 期：自愈过程对用户可见（B6）——修了几轮、改了哪些槽位、为什么改 */}
         {st.run.repairRounds.length > 0 && <RepairPanel run={st.run} />}
@@ -466,7 +466,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
 
 /* ────────────────────────────── 子组件 ────────────────────────────── */
 
-/** 命中方式的中文标签（与 `core/worldbook/engine.mjs` 的 `via` 取值逐一对应） */
+/** 命中方式的中文标签（与 `core/knowledgecard/engine.mjs` 的 `via` 取值逐一对应） */
 const WB_VIA_LABEL: Record<string, string> = {
   key: '主键命中',
   secondary: '次级键命中',
@@ -477,27 +477,27 @@ const WB_VIA_LABEL: Record<string, string> = {
 const WB_SLOT_LABEL: Record<string, string> = { solve: '解题', scene_code: '动画建模' }
 
 /**
- * 世界书依据面板（§15 解题页 / §9.2 第 6 步）。
+ * 知识卡依据面板（§15 解题页 / §9.2 第 6 步）。
  *
  * 老师要看懂三件事：**为什么引用了这条知识**（命中方式）、**它进了哪个槽位**、
  * **有没有因为预算被丢掉**。所以"空槽"与"被截断"必须分开显示 ——
- * 否则"动画槽空"与"该槽词条全被截断"在界面上长得一模一样（§9.2 的"重要边界"）。
+ * 否则"动画槽空"与"该槽卡片全被截断"在界面上长得一模一样（§9.2 的"重要边界"）。
  */
-function WorldbookPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'] }) {
-  const wb = run.worldbook
+function KnowledgecardPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'] }) {
+  const wb = run.knowledgecard
   if (!wb) return null
   if (wb.libraryCount === 0) {
     return (
-      <div data-od-region="worldbook-evidence" className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-medium text-slate-900">世界书依据</h2>
-        <p className="mt-1 text-sm text-slate-600">本次没有挂载任何词条（词条库为空）。</p>
+      <div data-od-region="knowledgecard-evidence" className="rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="text-base font-medium text-slate-900">知识卡依据</h2>
+        <p className="mt-1 text-sm text-slate-600">本次没有挂载任何卡片（知识卡库为空）。</p>
       </div>
     )
   }
   return (
-    <div data-od-region="worldbook-evidence" className="rounded-lg border border-slate-200 bg-white p-4">
+    <div data-od-region="knowledgecard-evidence" className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-base font-medium text-slate-900">世界书依据</h2>
+        <h2 className="text-base font-medium text-slate-900">知识卡依据</h2>
         <span className="text-xs text-slate-500">
           库 {wb.libraryCount} 条 · 命中 {wb.matched} 条 · 解题槽 {wb.injectedBySlot.solve ?? 0} 条 / 动画槽{' '}
           {wb.injectedBySlot.scene_code ?? 0} 条
@@ -506,7 +506,7 @@ function WorldbookPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'
 
       {wb.matched === 0 ? (
         <p className="mt-2 text-sm text-slate-600">
-          本次没有任何词条命中。这<strong>不是错误</strong>（空槽是正常情况，静默跳过），
+          本次没有任何卡片命中。这<strong>不是错误</strong>（空槽是正常情况，静默跳过），
           但说明这道题没有可用的规范支撑。
         </p>
       ) : (
@@ -552,7 +552,7 @@ function WorldbookPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'
             ⚠ {w.message}
           </p>
         ))}
-        <p className="mt-1 text-slate-400">词条集合哈希 {wb.hash.slice(0, 16)}…</p>
+        <p className="mt-1 text-slate-400">知识卡集合哈希 {wb.hash.slice(0, 16)}…</p>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@
  * Prompt 编辑器取证（第 6 期第 2 项 · §10.1 / §10.3 / §16）。
  *
  * 这一份要证明四件事：
- *   A 目录**不骗人**：能编辑的 7 份正文按"会不会跑"分组；worldbook / distill 已删除，不再有 not-wired 组；
+ *   A 目录**不骗人**：能编辑的 7 份正文按"会不会跑"分组；knowledgecard / distill 已删除，不再有 not-wired 组；
  *   B 硬门禁**在保存那一刻就红**：删掉 `read_problem` 的【考点】/【动画元件】会**静默**让世界书
  *     退化成按字面碰字（解析器容错极强，不会报错），所以必须拦在写盘之前；
  *   C 用户裁决的 C 方案：整份替换 + **内置变了要提醒**、能看差异、能换基线（rebase）；
@@ -164,7 +164,7 @@ async function main() {
       check('「每道题都会跑」恰好 5 份', byGroup('always').length === 5, byGroup('always').join(','));
       check('其中含 read_problem（第 0 步，纯文字题也跑）', byGroup('always').includes('read_problem'));
       check('「只在特定情况下跑」恰好 1 份（repair）', byGroup('conditional').join(',') === 'repair');
-      check('没有「还没接上主链路」分组（worldbook / distill 已删除）', byGroup('not-wired').length === 0, byGroup('not-wired').join(','));
+      check('没有「还没接上主链路」分组（knowledgecard / distill 已删除）', byGroup('not-wired').length === 0, byGroup('not-wired').join(','));
       check('「嵌在别的 Prompt 里」恰好 1 份（答案结构模板）', byGroup('embedded').join(',') === 'answer-structure');
 
       const embedded = cat.items.find((i) => i.id === 'answer-structure');
@@ -400,12 +400,12 @@ async function main() {
 
     /* ────────────────────────────── 『I』已删除的 Prompt 不允许再保存 ────────────────────────────── */
 
-    console.log('\n『I』worldbook / distill 已删除：保存必须被拒');
+    console.log('\n『I』knowledgecard / distill 已删除：保存必须被拒');
     {
       const dir = freshDir();
-      const wb = savePromptOverride({ dir, id: 'worldbook', text: '现在执行【世界书】阶段。\n把材料改写成词条。\n' });
+      const wb = savePromptOverride({ dir, id: 'knowledgecard', text: '现在执行【世界书】阶段。\n把材料改写成词条。\n' });
       const ds = savePromptOverride({ dir, id: 'distill', text: '现在执行【教辅蒸馏】阶段。\n' });
-      check('worldbook 保存被拒（prompt.unknown-id）', wb.ok === false && has(wb.issues, 'prompt.unknown-id'));
+      check('knowledgecard 保存被拒（prompt.unknown-id）', wb.ok === false && has(wb.issues, 'prompt.unknown-id'));
       check('distill 保存被拒（prompt.unknown-id）', ds.ok === false && has(ds.issues, 'prompt.unknown-id'));
     }
 

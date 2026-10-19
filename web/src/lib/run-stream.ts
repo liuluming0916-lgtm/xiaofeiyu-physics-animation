@@ -28,7 +28,7 @@
  */
 
 import { SLOT_KEYS, type AnimationSlots, type ProgramMode } from './host-protocol'
-import { WORLDBOOK_DEMO_EVENT } from './worldbook-demo'
+import { KNOWLEDGECARD_DEMO_EVENT } from './knowledgecard-demo'
 
 /** 与 `core/orchestrator/events.mjs` 一致的事件形状（前端只声明用到的字段） */
 export type RunEvent =
@@ -96,12 +96,12 @@ export type RunEvent =
   /** 第 5 期：本次解题实际命中了哪些词条、进了哪个槽、有没有空槽/截断（§9.2 第 6 步 / §15） */
   | {
       seq: number
-      type: 'worldbook_done'
+      type: 'knowledgecard_done'
       at: string
       hash: string
       libraryCount: number
       matched: number
-      entries: WorldbookProvenance[]
+      entries: KnowledgecardProvenance[]
       /** ⚠ 空槽与"被截断"是**两个**字段（§9.2 的"重要边界"）：空槽静默，截断必须显性告警 */
       emptySlots: string[]
       truncatedSlots: Array<{ slot: string; dropped: number; droppedIds: string[] }>
@@ -120,7 +120,7 @@ export type RunEvent =
   /**
    * 第 5.7 期（两侧分发）：**第 0 步判了什么**单独一条事件。
    *
-   * 为什么不塞进 `worldbook_done`：判定是"可复核的判定结果"，世界书是"据此抽到的词条"；
+   * 为什么不塞进 `knowledgecard_done`：判定是"可复核的判定结果"，世界书是"据此抽到的词条"；
    * 两者的消费方不同（前者给"判定是否可信"面板，后者给"依据"面板），而且判定发生在世界书之前。
    */
   | {
@@ -154,13 +154,13 @@ export type RunEvent =
     }
 
 /** 世界书依据（第 5 期 · §9.2 第 6 步 / §15 的"世界书依据"面板） */
-export interface WorldbookEvidence {
-  /** 本次使用词条集合的稳定哈希（与 `provenance.worldbookHash` 同源） */
+export interface KnowledgecardEvidence {
+  /** 本次使用词条集合的稳定哈希（与 `provenance.knowledgecardHash` 同源） */
   hash: string
   /** 库里一共有多少条（与"这次命中了几条"是两件事） */
   libraryCount: number
   matched: number
-  entries: WorldbookProvenance[]
+  entries: KnowledgecardProvenance[]
   /** ⚠ 空槽与"被截断"是**两个**字段：空槽静默跳过，截断必须显性告警（§9.2 的"重要边界"） */
   emptySlots: string[]
   truncatedSlots: Array<{ slot: string; dropped: number; droppedIds: string[] }>
@@ -169,8 +169,8 @@ export interface WorldbookEvidence {
   injectedBySlot: Record<string, number>
 }
 
-/** 一个词条的溯源记录（与 `core/worldbook/engine.mjs` 的第 6 步同形） */
-export interface WorldbookProvenance {
+/** 一个词条的溯源记录（与 `core/knowledgecard/engine.mjs` 的第 6 步同形） */
+export interface KnowledgecardProvenance {
   entry_id: string
   title: string
   /** 命中方式：key / secondary / constant / recursive */
@@ -196,7 +196,7 @@ export interface ProgramProvenance {
   /** 第 5 期起不再恒为 null（第 0 个阶段组装时就拿到了） */
   promptHash: string | null
   /** 第 5 期起不再写 'empty-phase3' 这个假值；空集合也算出一个真哈希 */
-  worldbookHash: string
+  knowledgecardHash: string
   generatedAt: string
   sdkVersion?: string
   templateVersion?: string
@@ -415,12 +415,12 @@ export function demoEventSource(): RunHandle {
     /**
      * 第 5 期：世界书依据（§15）。
      *
-     * ⚠ 这份数据的**触发与组装是真的**（构建期用 `core/worldbook/engine.mjs` 在真题题面上跑出来，
-     *   见 `tools/build-worldbook-web.mjs`）—— 世界书的命中只取决于题面与词条集合，与模型无关。
+     * ⚠ 这份数据的**触发与组装是真的**（构建期用 `core/knowledgecard/engine.mjs` 在真题题面上跑出来，
+     *   见 `tools/build-knowledgecard-web.mjs`）—— 世界书的命中只取决于题面与词条集合，与模型无关。
      *   所以演示源显示它不是"编一个好看的依据"，而是"用构建期的输入跑真引擎"。
-     *   演示源里的**具体词条**仍是构建期快照（用户区在 `ai-rules/worldbook/`，浏览器读不到）。
+     *   演示源里的**具体词条**仍是构建期快照（用户区在 `ai-rules/knowledgecard/`，浏览器读不到）。
      */
-    yield { seq: ++seq, type: 'worldbook_done', at: at(), ...WORLDBOOK_DEMO_EVENT }
+    yield { seq: ++seq, type: 'knowledgecard_done', at: at(), ...KNOWLEDGECARD_DEMO_EVENT }
 
     if (!ac.signal.aborted) {
       yield {

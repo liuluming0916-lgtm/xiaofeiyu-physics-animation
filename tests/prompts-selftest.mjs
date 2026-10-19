@@ -28,7 +28,7 @@ import { join } from 'node:path';
 import { PROJECT_ROOT } from '../tools/paths.mjs';
 
 import { PROMPTS, getPrompt, listPrompts, listExtensionPrompts, ANSWER_STRUCTURE_TEMPLATE, buildJudgementVocab } from '../core/prompts/templates.mjs';
-import { SLOT_KEY_NAMES, WORLDBOOK_CONCEPTS, WORLDBOOK_CONCEPT_IDS, WORLDBOOK_ELEMENT_IDS } from '../contracts/spec/frozen-keys.mjs';
+import { SLOT_KEY_NAMES, KNOWLEDGECARD_CONCEPTS, KNOWLEDGECARD_CONCEPT_IDS, KNOWLEDGECARD_ELEMENT_IDS } from '../contracts/spec/frozen-keys.mjs';
 import { sha256 } from '../contracts/generate-contracts.mjs';
 
 let passed = 0;
@@ -185,7 +185,7 @@ console.log('\n『C』三段结构（§10.2）');
 
   const withWb = buildConditionalSegment([{ title: '传送带模型', content: '共速后摩擦力为零' }]);
   check('条件段有词条时按 §9.2 的来源标记格式输出', withWb.text.includes('【世界书·解题：传送带模型】'));
-  const r2 = assemblePrompt({ problem: { text: 'x' }, worldbookEntries: [{ title: 'T', content: 'C' }] });
+  const r2 = assemblePrompt({ problem: { text: 'x' }, knowledgecardEntries: [{ title: 'T', content: 'C' }] });
   check('词条进 system 段（不在任务段）', r2.messages[0].content.includes('【世界书·解题：T】'));
   check('加词条**不改变** promptHash（条件段不属于固定前缀）', r2.promptHash === r.promptHash);
 }
@@ -205,7 +205,7 @@ console.log('\n『C-3』第 5 期：条件段的分槽标记与"本阶段指令"
   check('阶段指令有**自己的**标签', withInstruction.text.includes('【本阶段指令：解题】'));
   check('指令与词条标记**不混用**（同一段里两个标记都在，且各自独立）', withInstruction.text.includes('【世界书·解题：T】'));
   check('没有指令时不产生指令块', !buildConditionalSegment([{ title: 'T', content: 'C' }]).text.includes('【本阶段指令'));
-  check('条件段的两个组成部分由函数返回，不靠分隔符反推', withInstruction.instructionText.includes('只输出 8 个槽位') && withInstruction.worldbookText.includes('【世界书·解题：T】'));
+  check('条件段的两个组成部分由函数返回，不靠分隔符反推', withInstruction.instructionText.includes('只输出 8 个槽位') && withInstruction.knowledgecardText.includes('【世界书·解题：T】'));
   check(
     '词条正文里的空行不会把条件段切碎（用 split 反推会踩这个坑）',
     buildConditionalSegment([{ title: 'T', content: '第一段\n\n第二段' }]).text.includes('第一段\n\n第二段'),
@@ -217,10 +217,10 @@ console.log('\n『C-3』第 5 期：条件段的分槽标记与"本阶段指令"
     instructions: '指令正文',
     instructionLabel: '动画代码',
     stageSlot: 'scene_code',
-    worldbookSegment: '【世界书·动画建模：T】\nC',
+    knowledgecardSegment: '【世界书·动画建模：T】\nC',
   });
-  check('assemblePrompt 支持 stageSlot + worldbookSegment', ap.messages[0].content.includes('【本阶段指令：动画代码】') && ap.messages[0].content.includes('【世界书·动画建模：T】'));
-  check('segments.instruction / segments.worldbook 分别是两块', ap.segments.instruction.includes('指令正文') && ap.segments.worldbook.includes('【世界书·动画建模：T】'));
+  check('assemblePrompt 支持 stageSlot + knowledgecardSegment', ap.messages[0].content.includes('【本阶段指令：动画代码】') && ap.messages[0].content.includes('【世界书·动画建模：T】'));
+  check('segments.instruction / segments.knowledgecard 分别是两块', ap.segments.instruction.includes('指令正文') && ap.segments.knowledgecard.includes('【世界书·动画建模：T】'));
   check('带指令与词条都**不改变** promptHash（条件段不属于固定前缀）', ap.promptHash === base.promptHash);
 }
 
@@ -241,8 +241,8 @@ console.log('\n『D』§10.1 保留的 4 个阶段 Prompt（另有扩展 Prompt�
   const ids = listPrompts().map((p) => p.id);
   const expected = ['solve', 'answers', 'steps', 'scene_code'];
   check('§10.1 保留的 4 个阶段 Prompt 都在', expected.every((id) => ids.includes(id)), ids.join(','));
-  check('§10.1 只剩 4 个（worldbook / distill 已随蒸馏功能删除）', ids.length === 4, ids.join(','));
-  check('worldbook / distill 不再出现在阶段 Prompt 清单里', !ids.includes('worldbook') && !ids.includes('distill'), ids.join(','));
+  check('§10.1 只剩 4 个（knowledgecard / distill 已随蒸馏功能删除）', ids.length === 4, ids.join(','));
+  check('knowledgecard / distill 不再出现在阶段 Prompt 清单里', !ids.includes('knowledgecard') && !ids.includes('distill'), ids.join(','));
   check('加上答案结构模板共 5 项', ids.length === 4 && ANSWER_STRUCTURE_TEMPLATE.length > 0);
 
   for (const id of expected) {
@@ -347,18 +347,18 @@ console.log('\n『D-3』第 5/5.7 期：读题与判定（read_problem · 执行
     !rp.system.includes('没有图或图里没有就写"无"'),
   );
 
-  /* ── 词表注入（单源真相：contracts/worldbook-concepts.json 派生） ── */
-  const vocab = buildJudgementVocab(WORLDBOOK_CONCEPTS);
+  /* ── 词表注入（单源真相：contracts/knowledgecard-concepts.json 派生） ── */
+  const vocab = buildJudgementVocab(KNOWLEDGECARD_CONCEPTS);
   check('判定词表注入：**只有**动画元件表这一张（考点表 / 题型表已下线）', vocab.includes('【动画元件词表】') && !vocab.includes('【考点词表】') && !vocab.includes('【题型标签词表】'));
   check(
     '判定词表注入：**不**再把 57 个考点塞进去（省 1,468 字/题）',
-    WORLDBOOK_CONCEPT_IDS.length > 0 && !WORLDBOOK_CONCEPT_IDS.some((id) => vocab.includes(`- ${id}｜`)),
-    `${WORLDBOOK_CONCEPT_IDS.length} 个考点`,
+    KNOWLEDGECARD_CONCEPT_IDS.length > 0 && !KNOWLEDGECARD_CONCEPT_IDS.some((id) => vocab.includes(`- ${id}｜`)),
+    `${KNOWLEDGECARD_CONCEPT_IDS.length} 个考点`,
   );
   check(
     '判定词表注入：元件数量与契约派生的一致',
-    WORLDBOOK_ELEMENT_IDS.length > 0 && WORLDBOOK_ELEMENT_IDS.every((id) => vocab.includes(id)),
-    `${WORLDBOOK_ELEMENT_IDS.length} 个元件`,
+    KNOWLEDGECARD_ELEMENT_IDS.length > 0 && KNOWLEDGECARD_ELEMENT_IDS.every((id) => vocab.includes(id)),
+    `${KNOWLEDGECARD_ELEMENT_IDS.length} 个元件`,
   );
   check(
     '⚠ 负对照：**别名不进 Prompt**（别名只给程序归一化用；注入它只会增噪音，S1 实测提示词 +34%）',

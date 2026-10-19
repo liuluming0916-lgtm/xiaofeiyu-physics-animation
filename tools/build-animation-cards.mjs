@@ -14,11 +14,11 @@
  *   `--check` 会把这两步重跑一遍；任何一条过不了就 exit 1。
  *
  * 产出两样东西（都可以重新生成，**不要手改产物**）：
- *   ① `core/worldbook/source/92-animation-core.json` —— **3 张动画规范卡**（v1.1.9alpha 起全部常驻）：
+ *   ① `core/knowledgecard/source/92-animation-core.json` —— **3 张动画规范卡**（v1.1.9alpha 起全部常驻）：
  *        · 坐标 / 单位 / 颜色 / 读数约定
  *        · 阶段表与状态组织
  *        · 30 个元件的最小画法（总览）
- *   ② `core/worldbook/source/93-elements.json` —— **元件一件一卡**（第 9 期）：词表里每个元件一张卡，
+ *   ② `core/knowledgecard/source/93-elements.json` —— **元件一件一卡**（第 9 期）：词表里每个元件一张卡，
  *      卡里的 `state` / `draw` 就是上面那份被逐条 lint + 实跑过的代码，id 与 `elements` 由元件 id 派生。
  *
  * 用法：
@@ -36,7 +36,7 @@ import { dryRun } from '../core/dryrun/dry-run.mjs';
 /**
  * 常驻卡正文的**字数上限**（v1.1.9alpha：3 张动画规范卡全部常驻）。
  *
- * 世界书每个槽位的预算是 `WORLDBOOK_BUDGET.maxChars`（30000）。
+ * 世界书每个槽位的预算是 `KNOWLEDGECARD_BUDGET.maxChars`（30000）。
  * 常驻卡是"无条件注入"，它们吃掉的额度就是命中词条能用的额度，所以必须设上限：
  *   常驻 ≤ 10000（坐标约定 + 阶段表 + 元件总览），当前约 5.9k。
  * 超出就意味着"讲这道题的那几张"会被挤掉，而那是**静默变差**（链路照跑、规范变少）。
@@ -48,16 +48,16 @@ const MAX_CONSTANT_CHARS = 10000;
  */
 const MAX_CARD_CHARS = 16000;
 
-const SOURCE_DIR = join(PROJECT_ROOT, 'core', 'worldbook', 'source');
+const SOURCE_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'source');
 const CARD_FILE = join(SOURCE_DIR, '92-animation-core.json');
 
 /**
- * 动画元件词表的**单源真相**（`contracts/worldbook-concepts.json`）。
+ * 动画元件词表的**单源真相**（`contracts/knowledgecard-concepts.json`）。
  *
  * 为什么读它而不是抄一份：词表变了（加了新元件），这张总览卡就该跟着被要求补一条画法 ——
  * `--check` 里有一条断言："词表里的每个元件 id 都必须在本表里有一行"。抄一份就漏了这个提醒。
  */
-const CONCEPTS = JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'worldbook-concepts.json'), 'utf8'));
+const CONCEPTS = JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'knowledgecard-concepts.json'), 'utf8'));
 const OFFICIAL_ELEMENT_IDS = (CONCEPTS.elements ?? []).map((e) => e.id);
 
 /* ══════════════════════════════ ① 30 个元件的最小画法 ══════════════════════════════
@@ -288,7 +288,7 @@ export const ELEMENTS = [
  * ⇒ v1.1.9alpha 起三张动画规范卡（坐标约定 + 阶段表 + 元件总览）全部常驻。
  *
  * ⚠ 原件（三个 C1–C9 全绿的程序）留在
- *   `_retired-worldbook/source-2026-10-18/build-animation-cards.mjs`，要恢复搬回来即可。
+ *   `_retired-knowledgecard/source-2026-10-18/build-animation-cards.mjs`，要恢复搬回来即可。
  *   下面的 `verifyWorked` / `renderProgram` / `WORKED_EXAMPLES` **刻意没删**：
  *   它们是校验工具，以后要加新范文时直接用。
  */
@@ -362,7 +362,7 @@ drawFrame: \`
 /**
  * 动画规范·阶段表与状态组织（常驻）。
  *
- * 原先是 `core/worldbook/source/90-visual.json` 的 `wb_scene_stages`。
+ * 原先是 `core/knowledgecard/source/90-visual.json` 的 `wb_scene_stages`。
  * v1.1.9alpha 起三张动画规范卡全部由本生成器产出，原因：
  *   ① 只有在这一处才能统一加 `kind: 'anim_rule'` / `constant: true` / `order`；
  *   ② 生成器的 `MAX_CONSTANT_CHARS` 才能真正把三张常驻卡一起算进去。
@@ -592,7 +592,7 @@ export function buildCards() {
       content: overviewContent(),
       order: 3,
       kind: 'anim_rule',
-      // ⚠ `elements` 只能写词表里的正式 id（`contracts/worldbook-concepts.json`）。
+      // ⚠ `elements` 只能写词表里的正式 id（`contracts/knowledgecard-concepts.json`）。
       //   本表里额外画的 `text` 是**标注原语**、不是动画元件，所以不进这个字段。
       elements: OFFICIAL_ELEMENT_IDS,
       examples: [OVERVIEW_EXAMPLE],
@@ -722,7 +722,7 @@ async function checkAll() {
 /* ══════════════════════════════ ⑦ main ══════════════════════════════ */
 
 function writeCards() {
-  const pack = { format: 'od-worldbook', version: 1, entries: buildCards() };
+  const pack = { format: 'od-knowledgecard', version: 1, entries: buildCards() };
   writeFileSync(CARD_FILE, `${JSON.stringify(pack, null, 2)}\n`, 'utf8');
   return pack.entries.length;
 }
@@ -811,7 +811,7 @@ export function buildElementCards() {
 }
 
 function writeElementCards() {
-  const pack = { format: 'od-worldbook', version: 1, entries: buildElementCards() };
+  const pack = { format: 'od-knowledgecard', version: 1, entries: buildElementCards() };
   writeFileSync(ELEMENT_CARD_FILE, `${JSON.stringify(pack, null, 2)}\n`, 'utf8');
   return pack.entries.length;
 }
@@ -861,8 +861,8 @@ async function main() {
 
   const n = writeCards();
   const m = writeElementCards();
-  console.log(`✓ 已写出常驻动画卡片 ${n} 条 → core/worldbook/source/92-animation-core.json`);
-  console.log(`✓ 已写出元件卡 ${m} 条（一件一卡）→ core/worldbook/source/93-elements.json`);
+  console.log(`✓ 已写出常驻动画卡片 ${n} 条 → core/knowledgecard/source/92-animation-core.json`);
+  console.log(`✓ 已写出元件卡 ${m} 条（一件一卡）→ core/knowledgecard/source/93-elements.json`);
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {

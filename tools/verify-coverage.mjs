@@ -70,30 +70,30 @@ const EXEMPT_FILES = new Map([
       '它没有自己的 CLI 主流程，所以不出现在 STEPS 里。',
   ],
   [
-    'tools/rewrite-worldbook-entries.mjs',
-    '**已被挂载为子步骤**：`tests/worldbook-selftest.mjs`（门禁 ㉒）的『W14』会 import 它的 ' +
+    'tools/rewrite-knowledgecard-entries.mjs',
+    '**已被挂载为子步骤**：`tests/knowledgecard-selftest.mjs`（门禁 ㉒）的『W14』会 import 它的 ' +
       '`plannedFiles()`，并断言"盘上的内置库与脚本会写出的内容**逐字节一致**"。' +
       '它是内置词条的**唯一作者入口**，不是独立门禁步骤 —— 这是"子步骤"而非"漏挂"。',
   ],
   [
-    'tools/build-worldbook-web.mjs',
+    'tools/build-knowledgecard-web.mjs',
     '**已被挂载为子步骤**：`tools/web-build.mjs` 的 ⓪ 段会调用它（生成浏览器侧引擎副本 ' +
-      '`web/src/lib/worldbook-engine.js` 与演示数据），门禁 ⑬⑭ 因此覆盖到它；' +
-      '门禁 ㉒ 的『W10』还会直接断言"副本与 `core/worldbook/engine.mjs` 逐字节一致"。',
+      '`web/src/lib/knowledgecard-engine.js` 与演示数据），门禁 ⑬⑭ 因此覆盖到它；' +
+      '门禁 ㉒ 的『W10』还会直接断言"副本与 `core/knowledgecard/engine.mjs` 逐字节一致"。',
   ],
   [
-    'tools/build-worldbook-targets.mjs',
-    '**已被挂载为子步骤**：`tests/worldbook-selftest.mjs`（门禁 ㉒）的『W14』会 import 它的 ' +
-      '`targetFileText()`，并断言"盘上的 `core/worldbook/coverage-target.json` == 从书上重新抽取的结果' +
+    'tools/build-knowledgecard-targets.mjs',
+    '**已被挂载为子步骤**：`tests/knowledgecard-selftest.mjs`（门禁 ㉒）的『W14』会 import 它的 ' +
+      '`targetFileText()`，并断言"盘上的 `core/knowledgecard/coverage-target.json` == 从书上重新抽取的结果' +
       '（且**保留**已填的 entryId）"。它是覆盖目标/进度的**生成器**，不是独立门禁步骤。',
   ],
   [
-    'tools/check-worldbook-sources.mjs',
+    'tools/check-knowledgecard-sources.mjs',
     '**第 5.5 期的作者预检工具**，不是独立门禁步骤，也**不该**成为门禁步骤：它做的三件事全部被既有门禁覆盖 ——' +
-      '① 逐文件 `JSON.parse` 与必填字段检查 == `tools/rewrite-worldbook-entries.mjs` 的 `readSource()` + ' +
+      '① 逐文件 `JSON.parse` 与必填字段检查 == `tools/rewrite-knowledgecard-entries.mjs` 的 `readSource()` + ' +
       '`validateEntry()`（后者是**唯一权威**，且被门禁 ㉒『W14』以"逐字节一致"钉住）；' +
-      '② 主键互相包含 == `core/worldbook/engine.mjs` 的 `detectKeyCollisions()`（门禁 ㉒『W14-3』已有 11 条断言，' +
-      '含"真实内置库里没有撞车"）；③ 「生成后自检」小节存在性 == `core/worldbook/coverage.mjs`（带负对照）。' +
+      '② 主键互相包含 == `core/knowledgecard/engine.mjs` 的 `detectKeyCollisions()`（门禁 ㉒『W14-3』已有 11 条断言，' +
+      '含"真实内置库里没有撞车"）；③ 「生成后自检」小节存在性 == `core/knowledgecard/coverage.mjs`（带负对照）。' +
       '它存在的唯一理由是**给人更早、更精确的报错**（说清是哪个文件第几行第几列漏了个括号）——' +
       '这正是第 5.5 期手写 JSON 时最常犯的错，而权威通道只会以 `JSON.parse` 的原始信息中止。' +
       '**若把它挂进门禁，就等于把同一件事查两遍**（且第二遍的判据更弱）。',
@@ -103,7 +103,7 @@ const EXEMPT_FILES = new Map([
     '**已被挂载为子步骤**：门禁 ㉒ 的『W17』直接 `import` 它的 `WORKED` / `verifyWorked()` / `renderProgram()`，' +
       '并断言"三份范文实跑 C1–C9 全绿""卡片正文里嵌的就是那份跑过的程序（逐字）""常驻卡总字数 ≤ 15000"。' +
       '它是 5 张动画常驻卡与 28 条动画槽卡片「最小画法」节的**唯一作者入口**（与 ' +
-      '`tools/rewrite-worldbook-entries.mjs` 同一类处置），`--check` 会把每条画法重新 lint + 实跑一遍。',
+      '`tools/rewrite-knowledgecard-entries.mjs` 同一类处置），`--check` 会把每条画法重新 lint + 实跑一遍。',
   ],
   [
     'tools/electron-pack.mjs',
@@ -115,13 +115,13 @@ const EXEMPT_FILES = new Map([
     'tools/electron-build.mjs',
     '**构建/打包脚本**，不是检查脚本：它跑"发布构建 → 模板重建 → electron-builder"，' +
       '产物正确性由门禁 ㊷（`tests/electron-shell-selftest.mjs`）与 ㊳（发布构建开关）分别钉住。' +
-      '与 `tools/build-worldbook-web.mjs`、`tools/build-builtin-bundle.mjs` 同一类处置。',
+      '与 `tools/build-knowledgecard-web.mjs`、`tools/build-builtin-bundle.mjs` 同一类处置。',
   ],
   [
     'tools/build-builtin-bundle.mjs',
     '**已被挂载为子步骤**：门禁 ㊴（`tests/builtin-seal-selftest.mjs`）直接 `import` 它的 ' +
       '`buildBundleSource()`，并断言"盘上的 `builtin-bundle.generated.mjs` == 从 `data/` 重新生成的结果"' +
-      '（逐字节）。它是**生成器**而不是独立门禁步骤 —— 与 `tools/build-worldbook-web.mjs` 同一类处置。',
+      '（逐字节）。它是**生成器**而不是独立门禁步骤 —— 与 `tools/build-knowledgecard-web.mjs` 同一类处置。',
   ],
   [
     'tools/rules-service.mjs',

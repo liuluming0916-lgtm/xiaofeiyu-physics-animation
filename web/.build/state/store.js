@@ -30,7 +30,7 @@ const EMPTY_RUN = {
     repairConverged: null,
     banner: null,
     delivery: null,
-    worldbook: null,
+    knowledgecard: null,
     error: null,
     elapsedMs: 0,
 };
@@ -144,10 +144,10 @@ export const useApp = create((set) => ({
                 run.repairConverged = e.converged;
                 run.banner = e.banner ?? null;
                 break;
-            case 'worldbook_done':
+            case 'knowledgecard_done':
                 // 第 5 期：世界书依据（§15）。**整条载荷留着**：面板要显示命中方式、
                 // 实际注入槽位、字符数与"空槽 / 被截断"这两个**必须分开**的状态。
-                run.worldbook = {
+                run.knowledgecard = {
                     hash: e.hash,
                     libraryCount: e.libraryCount,
                     matched: e.matched,

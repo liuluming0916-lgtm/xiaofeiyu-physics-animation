@@ -102,7 +102,7 @@ function sampleRecord(runId) {
         ],
         observations: { drawRawCount: 1, drawRawUsage: 0.01 },
         frameCount: 120,
-        program: { slots: { PROBLEM: '题面' }, provenance: { model: 'model-b', promptHash: 'ph', worldbookHash: 'wh' } },
+        program: { slots: { PROBLEM: '题面' }, provenance: { model: 'model-b', promptHash: 'ph', knowledgecardHash: 'wh' } },
       },
       { seq: 8, type: 'run_done', at: '2026-10-17T10:00:07.000Z', verdict: 'fail', ms: 5000 },
     ],
@@ -154,6 +154,21 @@ async function main() {
     {
       const again = ensureSchema(opened.db);
       check('重复建库幂等（不报错、版本不变）', again.ok === true && again.version === SCHEMA_VERSION && again.created === false);
+    }
+
+    {
+      /* v1.1.9alpha v2 迁移：老库列名 worldbook_hash / worldbook_matched → knowledgecard_* */
+      opened.db.exec(`
+        ALTER TABLE runs RENAME COLUMN knowledgecard_hash TO worldbook_hash;
+        ALTER TABLE runs RENAME COLUMN knowledgecard_matched TO worldbook_matched;
+      `);
+      const mig = ensureSchema(opened.db);
+      const cols = opened.db.prepare('PRAGMA table_info(runs)').all().map((c) => c.name);
+      check(
+        '★ 老库迁移：worldbook_hash / worldbook_matched 改名为 knowledgecard_*',
+        mig.ok === true && cols.includes('knowledgecard_hash') && cols.includes('knowledgecard_matched') && !cols.includes('worldbook_hash') && !cols.includes('worldbook_matched'),
+        cols.join(','),
+      );
     }
 
     /* ══ B 写入与读回 ══════════════════════════════════ */

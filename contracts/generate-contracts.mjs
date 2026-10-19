@@ -21,7 +21,7 @@ import {
   SLOT_KEY_NAMES,
   TEMPLATE_VERSION,
   SDK_VERSION,
-  WORLDBOOK_ENUMS,
+  KNOWLEDGECARD_ENUMS,
 } from './spec/frozen-keys.mjs';
 import { EVIDENCE_PRECISIONS, PRECISION_LABELS, PRECISION_GUIDANCE } from './spec/diagnostic.mjs';
 
@@ -86,7 +86,7 @@ export function buildContractArtifacts() {
   )}\n`;
 
   // 世界书槽位名 = 目标阶段名（§9.1），同样单独落一份便于跨端复用
-  const slotNamesRel = 'contracts/worldbook-slot-names.json';
+  const slotNamesRel = 'contracts/knowledgecard-slot-names.json';
   files[slotNamesRel] = `${JSON.stringify(
     {
       frozen: true,
@@ -94,10 +94,10 @@ export function buildContractArtifacts() {
       insertionSlots: ['solve', 'scene_code'],
       importAliases: { scene_spec: 'scene_code', both: ['solve', 'scene_code'] },
       enums: {
-        origin: [...WORLDBOOK_ENUMS.origin],
-        category: [...WORLDBOOK_ENUMS.category],
-        secondaryLogic: [...WORLDBOOK_ENUMS.secondaryLogic],
-        priority: [...WORLDBOOK_ENUMS.priority],
+        origin: [...KNOWLEDGECARD_ENUMS.origin],
+        category: [...KNOWLEDGECARD_ENUMS.category],
+        secondaryLogic: [...KNOWLEDGECARD_ENUMS.secondaryLogic],
+        priority: [...KNOWLEDGECARD_ENUMS.priority],
       },
     },
     null,
@@ -135,7 +135,7 @@ export function buildContractArtifacts() {
     frozenBy: '物理解题动画软件 v1.0 自研方案 §3.2 / §3.3 / §9.1 / §11.1 / §12',
     contracts,
     slotKeys: slotKeysRel,
-    worldbookSlotNames: slotNamesRel,
+    knowledgecardSlotNames: slotNamesRel,
     diagnosticEvidence: evidenceRel,
   };
   // contractHash：对"不含 contractHash 字段"的清单做 SHA256，可复现、与时间无关

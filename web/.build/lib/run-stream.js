@@ -27,7 +27,7 @@
  * 现在就能被真实驱动与肉眼验证**，而"判定"这件事仍然只由后端说 —— 不会被前端伪装。
  */
 import { SLOT_KEYS } from './host-protocol';
-import { WORLDBOOK_DEMO_EVENT } from './worldbook-demo';
+import { KNOWLEDGECARD_DEMO_EVENT } from './knowledgecard-demo';
 /**
  * 三档证据强度的中文标签（**与契约同源**）。
  *
@@ -176,12 +176,12 @@ export function demoEventSource() {
         /**
          * 第 5 期：世界书依据（§15）。
          *
-         * ⚠ 这份数据的**触发与组装是真的**（构建期用 `core/worldbook/engine.mjs` 在真题题面上跑出来，
-         *   见 `tools/build-worldbook-web.mjs`）—— 世界书的命中只取决于题面与词条集合，与模型无关。
+         * ⚠ 这份数据的**触发与组装是真的**（构建期用 `core/knowledgecard/engine.mjs` 在真题题面上跑出来，
+         *   见 `tools/build-knowledgecard-web.mjs`）—— 世界书的命中只取决于题面与词条集合，与模型无关。
          *   所以演示源显示它不是"编一个好看的依据"，而是"用构建期的输入跑真引擎"。
-         *   演示源里的**具体词条**仍是构建期快照（用户区在 `ai-rules/worldbook/`，浏览器读不到）。
+         *   演示源里的**具体词条**仍是构建期快照（用户区在 `ai-rules/knowledgecard/`，浏览器读不到）。
          */
-        yield { seq: ++seq, type: 'worldbook_done', at: at(), ...WORLDBOOK_DEMO_EVENT };
+        yield { seq: ++seq, type: 'knowledgecard_done', at: at(), ...KNOWLEDGECARD_DEMO_EVENT };
         if (!ac.signal.aborted) {
             yield {
                 seq: ++seq,

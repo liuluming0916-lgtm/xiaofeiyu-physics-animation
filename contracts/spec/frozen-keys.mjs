@@ -83,7 +83,7 @@ export const PIPELINE_STAGES = Object.freeze([
   'scene_code',
   'dry_run',
   'repair',
-  'worldbook',
+  'knowledgecard',
 ]);
 
 /**
@@ -101,28 +101,28 @@ export const CLEANING_STAGES = Object.freeze([
   'answers',
   'steps',
   'scene_code',
-  'worldbook',
+  'knowledgecard',
 ]);
 
 /** 清洗枚举**不包含**的阶段：它们不产生需要清洗的模型文本（§12 的差异口径） */
 export const CLEANING_EXCLUDED_STAGES = Object.freeze(['dry_run', 'repair']);
 
 /** §9.1 世界书槽位名 = 目标阶段名（冻结） */
-export const WORLDBOOK_INSERTION_SLOTS = Object.freeze(['solve', 'scene_code']);
+export const KNOWLEDGECARD_INSERTION_SLOTS = Object.freeze(['solve', 'scene_code']);
 
 /**
- * §9.1 知识卡类型（**只含 worldbook 条目**）。
+ * §9.1 知识卡类型（**只含 knowledgecard 条目**）。
  *
  * ⚠ 产品层的“知识卡 5 类”是 UI 总集：提示词卡走 `core/prompts`、本地规则卡走
- *   `core/cleaner`，它们**不是 worldbook 条目**，所以不在这里。这里只允许
+ *   `core/cleaner`，它们**不是 knowledgecard 条目**，所以不在这里。这里只允许
  *   `anim_rule`（动画规范）、`element`（元件）、`scene`（场景）三种。
  *
  * 顺序即注入顺序：anim_rule → element → scene（类型内再按 order）。
  */
-export const WORLDBOOK_ENTRY_KINDS = Object.freeze(['anim_rule', 'element', 'scene']);
+export const KNOWLEDGECARD_ENTRY_KINDS = Object.freeze(['anim_rule', 'element', 'scene']);
 
 /** §9.1 字段枚举（冻结） */
-export const WORLDBOOK_ENUMS = Object.freeze({
+export const KNOWLEDGECARD_ENUMS = Object.freeze({
   origin: Object.freeze(['builtin', 'user']),
   category: Object.freeze(['solution_skill', 'scene_modeling', 'both_slot', 'user_lore']),
   secondaryLogic: Object.freeze(['AND_ANY', 'AND_ALL', 'OR', 'NOT']),
@@ -132,7 +132,7 @@ export const WORLDBOOK_ENUMS = Object.freeze({
 /* ───────────────── 第 5.7 期：三栏新字段的枚举**从词表派生** ───────────────── */
 
 /**
- * 两套词表的**单源真相**是 `contracts/worldbook-concepts.json`：
+ * 两套词表的**单源真相**是 `contracts/knowledgecard-concepts.json`：
  *   · `concepts[]` → 考点词表（解题侧一级）
  *   · `tags{<conceptId>: [...]}` → 题型标签 / 细考点词表（解题侧二级）
  *   · `elements[]` → 实体物理图元 · **动画元件**词表（动画侧）
@@ -145,62 +145,62 @@ export const WORLDBOOK_ENUMS = Object.freeze({
  * ⚠ 派生用 `readFileSync` 而不是 `import ... with { type: 'json' }`：
  *   后者在 Node 22 会打实验性告警，且本仓的脚本都要能被同一套 `node` 直接跑。
  */
-function loadWorldbookConcepts() {
-  const abs = fileURLToPath(new URL('../worldbook-concepts.json', import.meta.url));
+function loadKnowledgecardConcepts() {
+  const abs = fileURLToPath(new URL('../knowledgecard-concepts.json', import.meta.url));
   const raw = readFileSync(abs, 'utf8');
   const vocab = JSON.parse(raw);
   return { vocab, raw };
 }
 
-const { vocab: WORLDBOOK_CONCEPTS_OBJ, raw: WORLDBOOK_CONCEPTS_RAW } = loadWorldbookConcepts();
+const { vocab: KNOWLEDGECARD_CONCEPTS_OBJ, raw: KNOWLEDGECARD_CONCEPTS_RAW } = loadKnowledgecardConcepts();
 
 /**
- * 词表的**整份对象**（`contracts/worldbook-concepts.json` 的内容）。
+ * 词表的**整份对象**（`contracts/knowledgecard-concepts.json` 的内容）。
  *
  * ⚠ 导出整份而不是只导出枚举：编排层要用它渲染**注入 Prompt 的词表文本**
  *   （`core/prompts/templates.mjs` 的 `buildJudgementVocab`），
  *   而"再读一次文件"就是第二份事实来源。给同一个对象，谁都别自己读。
  */
-export const WORLDBOOK_CONCEPTS = WORLDBOOK_CONCEPTS_OBJ;
+export const KNOWLEDGECARD_CONCEPTS = KNOWLEDGECARD_CONCEPTS_OBJ;
 
 /** 考点 id（有序；顺序即词表里的顺序，前端下拉按此渲染） */
-export const WORLDBOOK_CONCEPT_IDS = Object.freeze(WORLDBOOK_CONCEPTS.concepts.map((c) => c.id));
+export const KNOWLEDGECARD_CONCEPT_IDS = Object.freeze(KNOWLEDGECARD_CONCEPTS.concepts.map((c) => c.id));
 
 /** 全部细考点（扁平、去重；顺序即词表里的顺序） */
-export const WORLDBOOK_TAG_NAMES = Object.freeze([
-  ...new Set(WORLDBOOK_CONCEPTS.concepts.flatMap((c) => WORLDBOOK_CONCEPTS.tags[c.id] ?? [])),
+export const KNOWLEDGECARD_TAG_NAMES = Object.freeze([
+  ...new Set(KNOWLEDGECARD_CONCEPTS.concepts.flatMap((c) => KNOWLEDGECARD_CONCEPTS.tags[c.id] ?? [])),
 ]);
 
 /** 动画元件 id（有序） */
-export const WORLDBOOK_ELEMENT_IDS = Object.freeze(WORLDBOOK_CONCEPTS.elements.map((d) => d.id));
+export const KNOWLEDGECARD_ELEMENT_IDS = Object.freeze(KNOWLEDGECARD_CONCEPTS.elements.map((d) => d.id));
 
 /**
  * 细考点 → 它所属的考点集合（跨字段约束要用：一条词条的 `tags`
- * **必须属于该词条某个 `concepts`**；`core/worldbook/store.mjs` 的 `validateEntry` 消费它）。
+ * **必须属于该词条某个 `concepts`**；`core/knowledgecard/store.mjs` 的 `validateEntry` 消费它）。
  * 用数组而不是单值：同一个细考点文本若出现在两个考点下（本仓当前为 0 处），
  * 这里如实记两处，而**不静默取第一个**。
  */
-export const WORLDBOOK_TAG_OWNERS = Object.freeze(
+export const KNOWLEDGECARD_TAG_OWNERS = Object.freeze(
   Object.fromEntries(
-    WORLDBOOK_TAG_NAMES.map((t) => [
+    KNOWLEDGECARD_TAG_NAMES.map((t) => [
       t,
-      WORLDBOOK_CONCEPTS.concepts.filter((c) => (WORLDBOOK_CONCEPTS.tags[c.id] ?? []).includes(t)).map((c) => c.id),
+      KNOWLEDGECARD_CONCEPTS.concepts.filter((c) => (KNOWLEDGECARD_CONCEPTS.tags[c.id] ?? []).includes(t)).map((c) => c.id),
     ]),
   ),
 );
 
 /** 词表原文的 SHA256（写进 manifest：词表一改，契约哈希必须跟着变） */
-export const WORLDBOOK_CONCEPTS_SHA256 = createHash('sha256').update(WORLDBOOK_CONCEPTS_RAW, 'utf8').digest('hex');
+export const KNOWLEDGECARD_CONCEPTS_SHA256 = createHash('sha256').update(KNOWLEDGECARD_CONCEPTS_RAW, 'utf8').digest('hex');
 
 /** 词表文件自身的格式标识（防"拿错文件当词表"） */
-export const WORLDBOOK_CONCEPTS_FORMAT = WORLDBOOK_CONCEPTS.format;
+export const KNOWLEDGECARD_CONCEPTS_FORMAT = KNOWLEDGECARD_CONCEPTS.format;
 
 /**
  * §9.1 旧名归一化别名（只发生在导入路径；导出与内部一律只写新名）
  *  - `scene_spec` → `scene_code`
  *  - v2 的字符串写法 `"both"` → `["solve","scene_code"]`
  */
-export const WORLDBOOK_IMPORT_ALIASES = Object.freeze({
+export const KNOWLEDGECARD_IMPORT_ALIASES = Object.freeze({
   slotName: Object.freeze({ scene_spec: 'scene_code' }),
   slotLiteralBoth: 'both',
 });
