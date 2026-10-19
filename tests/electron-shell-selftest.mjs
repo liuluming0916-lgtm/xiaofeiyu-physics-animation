@@ -154,7 +154,7 @@ async function main() {
     }
   }
 
-  /* ══ E 产物形态：发布构建里不该有设置页/规则页 ══ */
+  /* ══ E 产物形态：发布构建里不该有规则页/蒸馏页；设置页保留 ══ */
   console.log('\n『E』产物形态（依赖 dist，由门禁 ㊳ 保证发布构建）');
   {
     const distIndex = join(PROJECT_ROOT, 'web', 'dist', 'index.html');
@@ -193,17 +193,13 @@ async function main() {
     if (existsSync(packaged)) {
       const js = readFileSync(packaged, 'utf8');
       console.log(`      打包产物 app.js ${(js.length / 1024).toFixed(0)} KB`);
-      check('★ 打包产物里**有** SettingsPage（v1.1.2 起：词条编辑/导入导出对用户开放）', js.includes('SettingsPage'));
-      check('★ 打包产物里没有 RulesPage', !js.includes('RulesPage'));
+      check('★ 打包产物里**有** SettingsPage（v1.1.9alpha 起：唯一规则/知识入口）', js.includes('SettingsPage'));
+      check('★ 打包产物里没有 RulesPage / DistillPage（源码已删除，不是隐藏）', !js.includes('RulesPage') && !js.includes('DistillPage'));
       /**
-       * ⚠ v1.1.7 修正了一条**过时的断言**：原来这里要求"打包产物里仍有 DistillPage"。
-       *
-       * v1.1.5 起用户裁决：发布版把「蒸馏」锁成「写卡助手」占位（可见、不可点），
-       * 页面分支用 `!RELEASE` 守着 ⇒ Rollup 把 `DistillPage` **整页摇掉**。
-       * 也就是说"产物里还有 DistillPage"已经不是目标，而是**被修掉的毛病**。
-       * 留着旧断言会逼着后人把页面加回去，所以改成断言**它不在**。
+       * ⚠ v1.1.7 曾把"产物里仍有 DistillPage"改成"它不在"；
+       *   v1.1.9alpha 更进一步：`DistillPage.tsx` 与 `RulesPage.tsx` **源码已删除**，
+       *   所以这里只需要断言产物里没有这两个标识符。
        */
-      check('★ 蒸馏页在发布包里**不存在**（v1.1.5 起锁成「写卡助手」占位）', !js.includes('DistillPage'));
       check('★ 删两页没把别的删掉：连接设置齿轮与导出入口仍在', js.includes('连接设置') && js.includes('open-connection'));
     } else {
       console.log('      （没有 release/ 产物，跳过这一节）');

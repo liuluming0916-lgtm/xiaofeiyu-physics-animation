@@ -75,7 +75,7 @@ function main() {
    * ── 组装前**自己**保证 dist 是"发布形态" ──
    *
    * 为什么必须由本脚本负责（v1.0 第二次打包实测的教训）：
-   *   门禁 ⑬⑭ 每次都把 `web/dist` 构建成**开发版**（含设置页/规则页）。
+   *   门禁 ⑬⑭ 每次都把 `web/dist` 构建成**开发版**（含规则页/蒸馏页；设置页在两种形态里都有）。
    *   上一版打包只是"把现有 dist 拷进去"，于是装出来的软件里
    *   **导航栏还挂着「设置」「规则」**、横幅还写着"第 6 期"——
    *   用户一眼就看出来"这还是工程版"。
@@ -100,12 +100,15 @@ function main() {
 
   /**
    * 硬校验：dist 必须是发布版。
-   * 判据用**组件标识符**（`SettingsPage` / `RulesPage`）—— 与门禁 ㊳ 同一套口径，
+   * 判据用**组件标识符**（`RulesPage` / `DistillPage`）—— 与门禁 ㊳ 同一套口径，
    * 这里提前拦一次，避免"装出来才发现"。
+   *
+   * ⚠ v1.1.9alpha 起设置页是**必须存在**的（它是唯一的规则/知识入口），不能再把
+   *   `SettingsPage` 当成"开发版残留"来拦。
    */
   const bundlePath = join(PROJECT_ROOT, 'web', 'dist', 'assets', 'app.js');
   const bundle = readFileSync(bundlePath, 'utf8');
-  for (const marker of ['SettingsPage', 'RulesPage']) {
+  for (const marker of ['RulesPage', 'DistillPage']) {
     if (bundle.includes(marker)) {
       throw new Error(
         `dist 仍是开发版（含 ${marker}），拒绝打包。` +
@@ -113,7 +116,7 @@ function main() {
       );
     }
   }
-  console.log(`   ✓ dist 是发布版（app.js ${(bundle.length / 1024).toFixed(0)} KB，无设置页/规则页）`);
+  console.log(`   ✓ dist 是发布版（app.js ${(bundle.length / 1024).toFixed(0)} KB，无规则页/蒸馏页；设置页保留）`);
 
   if (!existsSync(join(PROJECT_ROOT, 'web', 'dist', 'index.html'))) {
     throw new Error('web/dist 不存在。先跑：OD_RELEASE=1 node tools/web-build.mjs');

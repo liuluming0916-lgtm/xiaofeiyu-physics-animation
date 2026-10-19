@@ -1,7 +1,12 @@
 /**
- * 设置页（§15 第三页）—— 世界书管理器 + 实时试触发预览器（M7 / M20 / §9.5）。
+ * 设置页（§15 第三页）—— v1.1.9alpha 起是**唯一**的规则/知识入口。
  *
- * ── 这一页现在能做什么（v1.1.9 起，不再只是"内存预览"）
+ * ── 页面结构（用户 2026-10-19 决议）
+ *
+ *   知识卡 / 提示词卡 / 本地规则卡 / AI 帮写（本轮只做可见占位）。
+ *   原「规则页」与「蒸馏页」删除；端点与 Key 仍走右上角 ⚙ 连接设置。
+ *
+ * ── 知识卡这一栏能做什么（v1.1.9 起，不再只是"内存预览"）
  *
  *   · 卡片列表 / 编辑 / 启用开关 / 冲突提示 / 实时试触发（不调用模型）
  *   · **保存到本机**：走 `/api/worldbook/*`（`tools/rules-service.mjs`）→ `ai-rules/worldbook/`，
@@ -24,6 +29,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
+import { CleaningPanel } from '../components/rules/CleaningPanel'
+import { PromptsPanel } from '../components/rules/PromptsPanel'
 import { api } from '../lib/rules-api'
 import {
   WORLDBOOK_BUDGET,
@@ -72,6 +79,15 @@ const LOGIC_LABEL: Record<string, string> = {
 }
 
 type SlotFilter = 'all' | 'solve' | 'scene_code' | 'dual' | 'unmounted'
+
+type SettingsTab = 'cards' | 'prompts' | 'cleaning' | 'ai'
+
+const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; hint: string }> = [
+  { id: 'cards', label: '知识卡', hint: '元件卡 / 场景卡 / 动画规范卡；能存回本机' },
+  { id: 'prompts', label: '提示词卡', hint: '按阶段改模型指令；下一题生效' },
+  { id: 'cleaning', label: '本地规则卡', hint: '模型输出后处理；内置 4 条锁定' },
+  { id: 'ai', label: 'AI 帮写', hint: '生成卡片草稿；本轮只做占位' },
+]
 
 /** 一条词条从哪来：内置（只读）或某个用户包（可写） */
 type EntrySource = { kind: 'builtin' } | { kind: 'user'; pack: string }
@@ -141,6 +157,8 @@ function matchesSlotFilter(entry: WorldbookEntryLike, filter: SlotFilter): boole
 }
 
 export function SettingsPage() {
+  const [tab, setTab] = useState<SettingsTab>('cards')
+
   /** 词条库：构建期内置快照 + 本机用户区（连上服务后会被真实内容替换） */
   const [entries, setEntries] = useState<WorldbookEntryLike[]>(() => WORLDBOOK_BUILTIN.map((e) => ({ ...e })))
   const [selectedId, setSelectedId] = useState<string>(() => WORLDBOOK_BUILTIN[0]?.id ?? '')
@@ -182,7 +200,7 @@ export function SettingsPage() {
 
   /** 从本机读用户区（登录/刷新/保存后都走这里，保证页面 = 磁盘） */
   const loadFromService = async () => {
-    setBusy('正在读取本机词条库…')
+    setBusy('正在读取本机知识卡库…')
     try {
       const list = await api.worldbook()
       const userEntries: WorldbookEntryLike[] = []
@@ -218,7 +236,7 @@ export function SettingsPage() {
       return true
     } catch (err) {
       setService({ state: 'offline', dir: '', builtinCount: WORLDBOOK_BUILTIN.length })
-      setNotice(`连不上本机词条库：${(err as Error).message}。当前显示构建期快照，编辑不会落盘。`)
+      setNotice(`连不上本机知识卡库：${(err as Error).message}。当前显示构建期快照，编辑不会落盘。`)
       return false
     } finally {
       setBusy(null)
@@ -254,7 +272,7 @@ export function SettingsPage() {
     const id = `local-${Date.now().toString(36)}`
     const entry: WorldbookEntryLike = {
       id,
-      title: '新建词条',
+      title: '新建卡片',
       origin: 'user',
       category: 'scene_modeling',
       enabled: true,
@@ -324,7 +342,7 @@ export function SettingsPage() {
       groups.set(pack, list)
     }
     if (groups.size === 0) {
-      setNotice('没有需要保存的用户词条。')
+      setNotice('没有需要保存的卡。')
       return
     }
     setBusy('正在保存…')
@@ -335,7 +353,7 @@ export function SettingsPage() {
         total += list.length
       }
       await loadFromService()
-      setNotice(`已保存 ${total} 条用户词条到 ${groups.size} 个文件（写前自动备份 5 份）。`)
+      setNotice(`已保存 ${total} 张卡到 ${groups.size} 个文件（写前自动备份 5 份）。`)
     } catch (err) {
       setNotice(`保存失败：${(err as Error).message}`)
     } finally {
@@ -347,7 +365,7 @@ export function SettingsPage() {
     if (!selected) return
     const pack = packOf(selected.id)
     if (!pack) {
-      setNotice('内置词条不能删除；可以关掉「启用」，或编辑它生成覆盖副本。')
+      setNotice('内置卡不能删除；可以关掉「启用」，或编辑它生成覆盖副本。')
       return
     }
     if (!window.confirm(`删除「${selected.title}」？删除前会自动备份。`)) return
@@ -373,7 +391,7 @@ export function SettingsPage() {
     }
     if (
       !window.confirm(
-        '恢复本版本内置词条：会删除你对内置词条的覆盖副本（删除前自动备份）；你自己新建的卡不受影响。继续？',
+        '恢复本版本内置卡：会删除你对内置卡的覆盖副本（删除前自动备份）；你自己新建的卡不受影响。继续？',
       )
     ) {
       return
@@ -491,6 +509,38 @@ export function SettingsPage() {
 
   return (
     <div data-od-region="settings-page" className="space-y-4">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">设置</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            知识卡、提示词卡与本地规则卡都在这里。改的是 <code className="rounded bg-slate-100 px-1">ai-rules/</code>{' '}
+            下的真实文件：原子写入、整批校验、整批生效或整批失败。
+          </p>
+        </div>
+        <p className="text-[11px] text-slate-500">端点与 Key 在右上角「⚙ 连接设置」。</p>
+      </header>
+
+      <nav data-od-region="settings-tabs" className="flex flex-wrap gap-1" aria-label="设置分类">
+        {SETTINGS_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            aria-current={tab === t.id ? 'page' : undefined}
+            className={`rounded-md border px-3 py-1.5 text-left text-xs ${
+              tab === t.id
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <span className="block font-medium">{t.label}</span>
+            <span className={tab === t.id ? 'text-slate-200' : 'text-slate-400'}>{t.hint}</span>
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'cards' ? (
+        <>
       {/* ── v1.1.9：本机落盘工具栏（保存 / 恢复内置 / 重新读取）── */}
       <section data-od-region="worldbook-service" className="rounded-md border border-slate-200 bg-white px-4 py-2">
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -504,9 +554,9 @@ export function SettingsPage() {
             }`}
           >
             {service.state === 'online'
-              ? '本机词条库已连接'
+              ? '本机知识卡库已连接'
               : service.state === 'checking'
-                ? '正在连接本机词条库…'
+                ? '正在连接本机知识卡库…'
                 : '本机服务未启动（只读快照）'}
           </span>
           {service.state === 'online' && (
@@ -534,7 +584,7 @@ export function SettingsPage() {
             className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 disabled:opacity-40"
             disabled={busy !== null || service.state !== 'online'}
             onClick={() => void restoreBuiltin()}
-            title="只撤销对内置词条的覆盖副本；你自己新建的卡不受影响"
+            title="只撤销对内置卡的覆盖副本；你自己新建的卡不受影响"
           >
             恢复 {__OD_APP_VERSION__} 内置
           </button>
@@ -569,7 +619,7 @@ export function SettingsPage() {
         {/* ── 左：卡片列表（§9.5） ── */}
         <section data-od-region="worldbook-list" className="rounded-md border border-slate-200 bg-white">
           <header className="border-b border-slate-200 px-3 py-2">
-            <h2 className="text-sm font-semibold text-slate-900">世界书词条</h2>
+            <h2 className="text-sm font-semibold text-slate-900">知识卡</h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
               共 {entries.length} 条 · 启用 {enabled.length} 条 · 内置 {service.builtinCount} 条 · 用户{' '}
               {Object.keys(sourceOf).length} 条
@@ -579,7 +629,7 @@ export function SettingsPage() {
           <div className="space-y-2 border-b border-slate-200 px-3 py-2">
             <input
               data-od-field="worldbook-search"
-              aria-label="搜索词条"
+              aria-label="搜索知识卡"
               className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
               placeholder="搜索 id / 标题 / 关键词 / 正文"
               value={search}
@@ -604,7 +654,7 @@ export function SettingsPage() {
           </div>
 
           <div className="max-h-[560px] overflow-y-auto">
-            {grouped.length === 0 && <p className="px-3 py-4 text-xs text-slate-500">没有匹配的词条。</p>}
+            {grouped.length === 0 && <p className="px-3 py-4 text-xs text-slate-500">没有匹配的卡片。</p>}
             {grouped.map(([category, list]) => (
               <div key={category}>
                 <div className="bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
@@ -662,7 +712,7 @@ export function SettingsPage() {
           {selected ? (
             <div className="rounded-md border border-slate-200 bg-white p-4">
               <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">编辑词条</h2>
+                <h2 className="text-sm font-semibold text-slate-900">编辑卡片</h2>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-1 text-xs text-slate-600">
                     <input
@@ -687,7 +737,7 @@ export function SettingsPage() {
                     className="rounded border border-rose-200 px-2 py-0.5 text-[11px] text-rose-700"
                     onClick={() => void removeSelected()}
                     disabled={packOf(selected.id) === null}
-                    title={packOf(selected.id) === null ? '内置词条不能删除' : '删除这条用户词条（先备份）'}
+                    title={packOf(selected.id) === null ? '内置卡不能删除' : '删除这张用户卡（先备份）'}
                   >
                     删除
                   </button>
@@ -695,7 +745,7 @@ export function SettingsPage() {
               </header>
               <p className="mb-2 text-[11px] text-slate-500">
                 {packOf(selected.id) === null
-                  ? '这是内置词条（只读）。改动会自动转成一条同 id 的「覆盖副本」，保存后生效；要还原点上面的「恢复内置」。'
+                  ? '这是内置卡（只读）。改动会自动转成一条同 id 的「覆盖副本」，保存后生效；要还原点上面的「恢复内置」。'
                   : `这条会保存到 ${packOf(selected.id)}${BUILTIN_IDS.has(selected.id) ? '（覆盖内置）' : ''}。`}
               </p>
 
@@ -930,7 +980,7 @@ export function SettingsPage() {
             </div>
           ) : (
             <div className="rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-500">
-              左侧选一条词条开始编辑，或
+              左侧选一张卡开始编辑，或
               <button
                 type="button"
                 data-od-action="worldbook-new-empty"
@@ -947,7 +997,7 @@ export function SettingsPage() {
           <div className="rounded-md border border-slate-200 bg-white p-4" data-od-region="worldbook-io">
             <h2 className="text-sm font-semibold text-slate-900">导入 / 导出</h2>
             <p className="mt-1 text-[11px] text-slate-500">
-              导出含当前全部用户词条（§9.3 ③，含覆盖副本）。格式：<code>{WORLDBOOK_PACK_FORMAT}</code> v
+              导出含当前全部用户卡（§9.3 ③，含覆盖副本）。格式：<code>{WORLDBOOK_PACK_FORMAT}</code> v
               {WORLDBOOK_PACK_VERSION}。导入会在 <strong>Node 侧做完整校验与旧名归一化</strong>
               （scene_spec → scene_code，门禁 ㉒ 的 W11/W12 取证），通过后直接落盘；不通过会逐条报错。
             </p>
@@ -1113,7 +1163,7 @@ export function SettingsPage() {
 
           <Block title="① 命中清单与命中方式" region="worldbook-hits">
             {preview.solve.result.provenance.length === 0 ? (
-              <p className="text-xs text-slate-500">本次没有任何词条命中（预览器必须显式说出来）。</p>
+              <p className="text-xs text-slate-500">本次没有任何卡片命中（预览器必须显式说出来）。</p>
             ) : (
               <ul className="space-y-1">
                 {preview.solve.result.provenance.map((p) => (
@@ -1133,13 +1183,13 @@ export function SettingsPage() {
 
           <Block title="② 解题槽最终拼接内容" region="worldbook-solve">
             <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-[10px] text-slate-700">
-              {preview.solve.worldbookText || '（该槽本次未注入任何词条）'}
+              {preview.solve.worldbookText || '（该槽本次未注入任何卡片）'}
             </pre>
           </Block>
 
           <Block title="③ 动画槽最终拼接内容" region="worldbook-scene">
             <pre className="max-h-52 overflow-auto whitespace-pre-wrap text-[10px] text-slate-700">
-              {preview.scene_code.worldbookText || '（该槽本次未注入任何词条）'}
+              {preview.scene_code.worldbookText || '（该槽本次未注入任何卡片）'}
             </pre>
           </Block>
 
@@ -1184,7 +1234,7 @@ export function SettingsPage() {
             )}
           </Block>
 
-          <Block title="内置词条覆盖率（§19.3）" region="worldbook-coverage">
+          <Block title="内置卡覆盖率（§19.3）" region="worldbook-coverage">
             <p className="text-[11px] text-slate-700">
               共 {WORLDBOOK_COVERAGE.total} 条 · 结构合规{' '}
               <strong>{(WORLDBOOK_COVERAGE.structuralRate * 100).toFixed(0)}%</strong>
@@ -1205,7 +1255,51 @@ export function SettingsPage() {
           </Block>
         </section>
       </div>
+        </>
+      ) : tab === 'prompts' ? (
+        <PromptsPanel />
+      ) : tab === 'cleaning' ? (
+        <CleaningPanel />
+      ) : (
+        <AiDraftPlaceholder />
+      )}
     </div>
+  )
+}
+
+/* ────────────────────────────── AI 帮写（本轮占位） ────────────────────────────── */
+
+function AiDraftPlaceholder() {
+  return (
+    <section data-od-region="settings-ai-draft" className="rounded-md border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">AI 帮写</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600">
+            目标流程：描述你要的卡片 → 生成草稿 → 立即在设置页编辑 → 导入 / 导出。
+            <strong>不自动保存、不自动发布</strong>；草稿仍然要走本机校验，保存动作永远由你点。
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled
+          title="本轮只做入口占位，暂不调用模型"
+          className="cursor-not-allowed rounded border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-400"
+        >
+          AI 帮写（暂未开放）
+        </button>
+      </div>
+      <div className="mt-4 rounded border border-dashed border-slate-300 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
+        <p className="font-medium text-slate-700">这一版为什么先占位</p>
+        <p className="mt-1">
+          生成草稿需要模型调用、JSON 容错、C1 校验与失败修复；这些不在 v1.1.9alpha 的页面合并范围内。
+          先把入口固定在这里，避免下个版本又在导航栏里多一个入口。
+        </p>
+        <p className="mt-2">
+          现在可用：左侧「知识卡」里新建 / 编辑 / 导入 / 保存到本机；「提示词卡」与「本地规则卡」各自有保存按钮。
+        </p>
+      </div>
+    </section>
   )
 }
 
@@ -1252,5 +1346,5 @@ function checkImportShape(text: string): string {
   if (!Array.isArray(rec.entries)) problems.push('entries 必须是数组')
   if (problems.length) return `形状有问题：${problems.join('；')}`
   const list = rec.entries as unknown[]
-  return `形状检查通过：${list.length} 条词条。（完整字段校验与旧名归一化在 Node 侧执行，落盘时再做一次。）`
+  return `形状检查通过：${list.length} 张卡。（完整字段校验与旧名归一化在 Node 侧执行，落盘时再做一次。）`
 }

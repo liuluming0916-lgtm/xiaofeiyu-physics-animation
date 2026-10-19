@@ -1,25 +1,23 @@
 /**
- * 应用外壳：三块页面之间切换（§15 的解题页 / 动画页 / 设置页；蒸馏页留第 7 期）。
+ * 应用外壳：三块页面之间切换（§15 的解题页 / 动画页 / 设置页）。
  *
  * 刻意**不引路由库**：三个页面、一个联合类型状态就能表达。
  * 引入 react-router 会为这点需求多带一个依赖与一套概念。
  *
- * ⚠ 第 5 期起多了"设置页"：本期它只落**世界书管理器 + 预览器**（M7/M20）；
- *   Prompt 编辑器 / 清洗规则 / 端点与分阶段模型排在**第 6 期**（§18 期 6）。
+ * ⚠ v1.1.9alpha 起：规则页与蒸馏页删除，设置页合并提示词卡 / 本地规则卡 / 知识卡 / AI 帮写。
+ *   导航只剩 解题 / 动画 / 设置 / 导出；端点与 Key 走右上角「⚙ 连接设置」。
  */
 
 import { useEffect, useState } from 'react'
 
 import { AnimationPage } from './pages/AnimationPage'
-import { DistillPage } from './pages/DistillPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { RulesPage } from './pages/RulesPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SolvePage } from './pages/SolvePage'
 import { requestExport } from './lib/export-bus'
 import { useApp } from './state/store'
 
-type Page = 'solve' | 'animation' | 'settings' | 'rules' | 'distill'
+type Page = 'solve' | 'animation' | 'settings'
 
 /**
  * 第 8 期：**发布构建开关**（用户 2026-10-17 裁决）。
@@ -62,32 +60,12 @@ export function App() {
             <NavButton active={page === 'animation'} onClick={() => setPage('animation')} disabled={!programSlots}>
               动画
             </NavButton>
-            {/* 第 9 期 v1.1.2：**设置页回到发布包**（里面有世界书管理器 / 词条编辑 / 导入导出）。
-                规则页仍然只有开发期有——它需要单独起本机规则服务，不是给用户用的。 */}
+            {/* v1.1.9alpha：设置页是**唯一**的规则/知识入口（知识卡 / 提示词卡 / 本地规则卡 / AI 帮写）。 */}
             <NavButton active={page === 'settings'} onClick={() => setPage('settings')}>
               设置
             </NavButton>
-            {!RELEASE && (
-              <NavButton active={page === 'rules'} onClick={() => setPage('rules')}>
-                规则
-              </NavButton>
-            )}
             {/*
-              v1.1.5：发布版把「蒸馏」锁成「写卡助手」占位 —— 按钮可见但不可点，
-              页面分支也用 !RELEASE 守着（Rollup 会把 DistillPage 整页摇掉，F12 也翻不出来）。
-              开发期仍保留「蒸馏」入口，方便继续调这个栏位。
-            */}
-            {RELEASE ? (
-              <NavButton active={false} disabled onClick={() => {}} title="写卡助手 · 暂未开放">
-                写卡助手
-              </NavButton>
-            ) : (
-              <NavButton active={page === 'distill'} onClick={() => setPage('distill')}>
-                蒸馏
-              </NavButton>
-            )}
-            {/*
-              ⚠ 第 9 期 v1.1.5（用户 2026-10-19）：**导出变成导航栏的一个键**，排在「蒸馏」右边。
+              ⚠ 第 9 期 v1.1.5（用户 2026-10-19）：**导出变成导航栏的一个键**，排在「设置」右边。
               这样动画页顶部那一整行工具栏可以彻底删掉，把高度让给画布。
               它只发请求（export-bus），真正的导出仍在动画页里做 —— 那里才有 iframe 的画布句柄。
             */}
@@ -138,7 +116,7 @@ export function App() {
         <div className="border-b border-amber-200 bg-amber-50">
           <div className="mx-auto max-w-[1400px] px-6 py-2 text-xs text-amber-900">
             解题/动画两页仍然跑的是<strong>演示源</strong>（不调模型、用本地真题驱动界面），判定显示为
-            <strong>「未校验」</strong>。真正能<strong>改配置</strong>的是<strong>「规则」</strong>页 ——
+            <strong>「未校验」</strong>。真正能<strong>改配置</strong>的是<strong>「设置」</strong>页 ——
             它需要一个本机服务（用 <code className="rounded bg-amber-100 px-1">3-OpenRules.bat</code> 打开才可用）。
             {verdict === 'skipped' && <span className="ml-1 font-medium">（当前这份结果就未经过校验）</span>}
           </div>
@@ -149,30 +127,16 @@ export function App() {
         {/* 每页一个错误边界：一块界面坏掉不该把整个应用变成白屏（第 6 期第 5 项的真实教训） */}
         <ErrorBoundary
           key={page}
-          label={
-            page === 'rules'
-              ? '规则'
-              : page === 'solve'
-                ? '解题'
-                : page === 'animation'
-                  ? '动画'
-                  : page === 'distill'
-                    ? '蒸馏'
-                    : '设置'
-          }
+          label={page === 'solve' ? '解题' : page === 'animation' ? '动画' : '设置'}
         >
           {page === 'solve' ? (
             <SolvePage onOpenAnimation={() => setPage('animation')} />
           ) : page === 'animation' ? (
             <AnimationPage />
-          ) : !RELEASE && page === 'distill' ? (
-            <DistillPage />
-          ) : !RELEASE && page === 'rules' ? (
-            <RulesPage />
           ) : page === 'settings' ? (
             <SettingsPage />
           ) : (
-            /* 发布版：未知页码（理论上到不了）也退回解题页，不白屏 */
+            /* 未知页码（理论上到不了）也退回解题页，不白屏 */
             <SolvePage onOpenAnimation={() => setPage('animation')} />
           )}
         </ErrorBoundary>
