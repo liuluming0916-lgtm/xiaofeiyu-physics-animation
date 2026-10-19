@@ -293,7 +293,7 @@ function buildMenu() {
             dialog.showMessageBox({
               type: 'info',
               title: '关于',
-              message: '物理解题动画 v1.1.10',
+              message: '物理解题动画 v1.1.11',
               detail:
                 '解题 → 动画 → 导出；设置页可改知识卡 / 提示词卡 / 本地规则卡（AI 帮写暂未开放）。\n' +
                 '画布不写数值，矢量靠颜色与长度表达（绿=速度 / 蓝=加速度 / 红=受力）。\n' +

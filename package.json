@@ -1,9 +1,9 @@
 {
   "name": "physics-animation-studio",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "private": true,
   "type": "module",
-  "description": "物理解题动画软件 v1.1.10 · 解题 → 动画 → 导出（知识卡 / 提示词卡 / 本地规则卡；画布不写数值，v/a 由运行时求导绘制）",
+  "description": "物理解题动画软件 v1.1.11 · 解题 → 动画 → 导出（知识卡 / 提示词卡 / 本地规则卡；画布不写数值，v/a 由运行时求导绘制）",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=20"
@@ -41,7 +41,7 @@
   "build": {
     "appId": "com.od.physics-animation",
     "productName": "物理解题动画",
-    "copyright": "v1.1.10 · 自研",
+    "copyright": "v1.1.11 · 自研",
     "directories": {
       "output": "release",
       "buildResources": "electron/resources"

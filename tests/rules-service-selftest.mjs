@@ -306,6 +306,31 @@ async function main() {
       const unknown = await call('GET', '/api/nope');
       check('未知接口 ⇒ 404 且是 JSON（前端只有一种解析方式）', unknown.status === 404 && unknown.json.ok === false);
     }
+
+    /* ── 全新用户目录：服务启动必须自动建工作区 ── */
+    console.log('\n『G』全新用户目录：不手工 init，服务启动自动建工作区');
+    {
+      const fresh = mkdtempSync(join(tmpdir(), 'od-svc-fresh-'));
+      created.push(fresh);
+      const svc2 = createRulesService({ port: 0, root: fresh, staticDir, serveStatic: false });
+      const port2 = await svc2.listen();
+      const base2 = `http://127.0.0.1:${port2}`;
+      try {
+        const prompts = await fetch(`${base2}/api/prompts`);
+        const promptsJson = await prompts.json();
+        check(
+          '★ 未手工 init：/api/prompts 仍可读（不再 rules.no-index）',
+          prompts.status === 200 && Array.isArray(promptsJson.items) && promptsJson.items.length === 7,
+          `${prompts.status} ${JSON.stringify(promptsJson).slice(0, 200)}`,
+        );
+        const cleaning = await fetch(`${base2}/api/cleaning`);
+        check('★ 未手工 init：/api/cleaning 仍可读', cleaning.status === 200);
+        check('自动写出 .workspace.json', existsSync(join(fresh, '.workspace.json')));
+        check('自动建出 prompts/ 目录', existsSync(join(fresh, 'prompts')));
+      } finally {
+        await svc2.close();
+      }
+    }
   } finally {
     await svc.close();
     for (const d of created) {

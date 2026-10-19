@@ -26,7 +26,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 
 import { PROJECT_ROOT } from './paths.mjs';
 import { PIPELINE_STAGES } from '../contracts/spec/frozen-keys.mjs';
-import { RULES_ROOT, describeJsonError, loadRulesWorkspace, readRulesIndex } from '../core/rules/index.mjs';
+import { RULES_ROOT, describeJsonError, initRulesWorkspace, loadRulesWorkspace, readRulesIndex } from '../core/rules/index.mjs';
 import {
   appVersion,
   buildReproPack,
@@ -323,6 +323,24 @@ export function createRulesService({
   const dir = root;
   // v1.1.9alpha：旧 ai-rules/worldbook/ 的包复制到 ai-rules/knowledgecard/（旧目录保留）
   migrateLegacyUserDir({ dir: join(dir, 'knowledgecard'), legacyDir: join(dir, 'worldbook') });
+
+  /**
+   * v1.1.11：全新安装 / 旧 AppData 可能没有 `.workspace.json`。
+   *
+   * v1.1.10 把提示词卡、本地规则卡并进设置页后，这两个入口会直接读规则工作区；
+   * 但打包形态的用户目录是空的，旧规则页里那个「建立规则工作区」按钮又随页面删掉了。
+   * 结果就是设置页报 `rules.no-index`，用户无路可走。
+   *
+   * 这里在服务启动时补一次初始化：只写空索引 + `prompts/`，不抄内置、不覆盖已有文件。
+   * 已有索引时 `initRulesWorkspace()` 不会改动它。
+   */
+  if (!existsSync(join(dir, '.workspace.json'))) {
+    const init = initRulesWorkspace({ dir });
+    if (!init.ok) {
+      // 初始化失败不阻塞服务启动：设置页会显示具体问题，用户仍可打开知识卡/解题。
+      console.warn(`⚠ 规则工作区初始化失败（${dir}）：`, init.issues);
+    }
+  }
   /** 观测目录（M22）：默认 `observability/`，可用 `OD_OBS_DIR` 或构造参数改（测试用） */
   const OBS_DIR = obsDir ?? resolveObsDir();
   /** 历史库（M23）：默认 `data/history.db`，可用 `OD_HISTORY_PATH` 或构造参数改（测试用） */
