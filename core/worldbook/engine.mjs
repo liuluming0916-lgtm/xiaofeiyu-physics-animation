@@ -115,7 +115,7 @@ export const WORLDBOOK_EXAMPLE_BUDGET = Object.freeze({
  *   constant     1  常驻（无条件注入，与题面无关）
  *   recursive    0  被别的词条唤醒（间接，最弱）
  *
- * ⚠ 顺序即 §9.2 第 4 步截断排序的第三个键（`priority → order → 命中强度`）。
+ * ⚠ 顺序即 §9.2 第 4 步截断排序的第四个键（`类型 → priority → order → 命中强度`）。
  *   这条已作为口径疑问记入交付说明（方案未定义，取"越直接越强"的直觉口径）。
  */
 export const HIT_STRENGTH = Object.freeze({
@@ -131,6 +131,31 @@ export const HIT_STRENGTH = Object.freeze({
 
 /** §9.1 世界书槽位名 = 目标阶段名（冻结） */
 export const WORLDBOOK_SLOTS = Object.freeze(['solve', 'scene_code']);
+
+/**
+ * 知识卡类型顺序（**只含 worldbook 条目**）。
+ *
+ * 产品层知识卡有 5 类，但提示词卡走 `core/prompts`、本地规则卡走 `core/cleaner`，
+ * 它们不是 worldbook 条目，所以这里只排 anim_rule / element / scene 三种。
+ * 类型内再按 `order`；`kind` 缺省按 element（旧包兼容）。
+ *
+ * ⚠ 本文件会被**逐字节复制**到浏览器（`web/src/lib/worldbook-engine.js`），
+ *   所以不能 import 任何 node: 模块。这份顺序与
+ *   `contracts/spec/frozen-keys.mjs` 的 `WORLDBOOK_ENTRY_KINDS` 同源，
+ *   门禁 ㉒ 会断言两者逐字一致。
+ */
+export const WORLDBOOK_KIND_ORDER = Object.freeze(['anim_rule', 'element', 'scene']);
+
+/** 取词条类型；未知/缺省一律按 element（旧包没有 kind） */
+export function kindOfEntry(entry) {
+  const k = entry?.kind;
+  return WORLDBOOK_KIND_ORDER.includes(k) ? k : 'element';
+}
+
+/** 类型排序键：anim_rule=0 / element=1 / scene=2 */
+function kindRank(entry) {
+  return WORLDBOOK_KIND_ORDER.indexOf(kindOfEntry(entry));
+}
 
 /**
  * 槽位在**来源标记**里的中文标签（§9.2 第 5 步⑤ 冻结格式）。
@@ -427,8 +452,17 @@ function orderOf(entry) {
   return Number.isFinite(entry?.order) ? entry.order : 100;
 }
 
-/** 预算保留顺序：`priority(high 先) → order(小先) → 命中强度(强先) → id` */
+/**
+ * 预算保留顺序：`类型(anim_rule → element → scene) → priority(high 先) → order(小先)
+ * → 命中强度(强先) → id`。
+ *
+ * 类型放在最前面，是为了让 3 张动画规范卡在预算不足时**一定**先保留；
+ * 否则元素卡一多，规范卡会被静默挤掉（链路照跑、规范变少，最难发现）。
+ */
 function compareForRetention(a, b) {
+  const ka = kindRank(a.record.entry);
+  const kb = kindRank(b.record.entry);
+  if (ka !== kb) return ka - kb;
   const pa = a.record.entry.priority === 'high' ? 0 : 1;
   const pb = b.record.entry.priority === 'high' ? 0 : 1;
   if (pa !== pb) return pa - pb;
@@ -441,8 +475,18 @@ function compareForRetention(a, b) {
   return cmp(String(a.record.entry.id), String(b.record.entry.id));
 }
 
-/** 注入顺序（§9.2 第 5 步③）：order 升序，同 order 按 id 稳定排序 */
+/**
+ * 注入顺序（§9.2 第 5 步③）：
+ * `类型(anim_rule → element → scene) → order 升序 → id`。
+ *
+ * 这是用户 2026-10-19 决议的顺序：动画规范卡 → 元件卡 → 场景卡。
+ * 提示词卡不在这里 —— 它在 `buildSlotConditional` 的 `instructionText` 里，
+ * 天然排在 worldbook 段之前。
+ */
 function compareForInjection(a, b) {
+  const ka = kindRank(a.record.entry);
+  const kb = kindRank(b.record.entry);
+  if (ka !== kb) return ka - kb;
   const oa = orderOf(a.record.entry);
   const ob = orderOf(b.record.entry);
   if (oa !== ob) return oa - ob;

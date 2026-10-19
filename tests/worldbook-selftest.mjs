@@ -56,9 +56,12 @@ import {
   parseKey,
   splitEntryContent,
   triggerWorldbook,
+  kindOfEntry,
   WORLDBOOK_BUDGET,
   WORLDBOOK_EXAMPLE_BUDGET,
+  WORLDBOOK_KIND_ORDER,
 } from '../core/worldbook/engine.mjs';
+import { WORLDBOOK_ENTRY_KINDS } from '../contracts/spec/frozen-keys.mjs';
 import { prepareWorldbook } from '../core/worldbook/index.mjs';
 import { lintSlot } from '../core/lint/contract-lint.mjs';
 import { assemblePrompt, buildFixedPrefix, buildStagePrefix, getPrompt } from '../core/prompts/index.mjs';
@@ -267,6 +270,31 @@ console.log('\n『W5』三重预算（按槽位独立）与截断顺序');
 
   // 强度 tie-break：同 order / 同 priority 时，主键命中强于递归唤醒
   const K = E({ id: 'K', keys: ['题面词'], order: 100, content: '含 唤醒词' });
+  /* ── v1.1.9alpha：类型顺序（anim_rule → element → scene） ── */
+  console.log('\n『W5.1』知识卡类型顺序（类型内再按 order）');
+  check('引擎的类型顺序与契约枚举同源', WORLDBOOK_KIND_ORDER.join(',') === WORLDBOOK_ENTRY_KINDS.join(','));
+  check('缺 kind 的旧条目按 element 处理', kindOfEntry(E({ id: 'legacy' })) === 'element');
+  {
+    const mixed = [
+      E({ id: 's1', kind: 'scene', keys: ['共同'], insertion_slot: ['scene_code'], order: 1 }),
+      E({ id: 'e1', kind: 'element', keys: ['共同'], insertion_slot: ['scene_code'], order: 1 }),
+      E({ id: 'a1', kind: 'anim_rule', keys: ['共同'], insertion_slot: ['scene_code'], order: 9 }),
+      E({ id: 'a2', kind: 'anim_rule', keys: ['共同'], insertion_slot: ['scene_code'], order: 2 }),
+    ];
+    const rm = triggerWorldbook({ entries: mixed, text: '共同' });
+    check(
+      '注入顺序：anim_rule → element → scene；类型内 order 升序',
+      injectedIds(rm, 'scene_code').join(',') === 'a2,a1,e1,s1',
+      injectedIds(rm, 'scene_code').join(','),
+    );
+    const tight = triggerWorldbook({ entries: mixed, text: '共同', budget: { maxEntries: 2 } });
+    check(
+      '预算不足时 anim_rule 先保留（不会被元件卡挤掉）',
+      injectedIds(tight, 'scene_code').join(',') === 'a2,a1',
+      injectedIds(tight, 'scene_code').join(','),
+    );
+  }
+
   const R = E({ id: 'R', keys: ['唤醒词'], order: 100, content: 'R' });
   const r3 = triggerWorldbook({ entries: [K, R], text: '题面词', budget: { maxEntries: 1 } });
   check('同 priority / 同 order ⇒ 命中强度决定保留（key 强于 recursive）', injectedIds(r3, 'solve').join(',') === 'K');
@@ -509,6 +537,12 @@ console.log('\n『W12』旧名归一化只发生在导入路径');
   check('数组里的旧名同样归一化', r.ok && r.entries.find((e) => e.id === 'old3').insertion_slot.sort().join(',') === 'scene_code,solve');
   check('UI 提示"已转换 N 条旧槽位名"（不静默改名）', /^已转换 \d+ 条旧槽位名$/.test(String(r.notice)));
   check('转换明细逐条可查', r.converted.length >= 3 && r.converted.every((c) => c.entryId && c.from && c.to));
+
+  /* v1.1.9alpha：旧包没有 kind ⇒ 按 element 落盘；非法 kind（如 prompt）必须拒绝 */
+  const oldKind = normalizeImportedPack({ format: 'od-worldbook', version: 1, entries: [E({ id: 'oldkind' })] });
+  check('旧包缺 kind ⇒ 导入落成 element（兼容，不整包拒绝）', oldKind.ok && oldKind.entries[0]?.kind === 'element');
+  const badKind = validateEntry(E({ id: 'badkind', kind: 'prompt' }));
+  check('反例：worldbook 条目的 kind 不允许 prompt / local_rule', badKind.some((p) => p.includes('kind')));
 
   const bad = normalizeImportedPack({ format: 'od-worldbook', version: 99, entries: [] });
   check('反例：不支持的版本被明确拒绝', bad.ok === false && bad.problems.some((p) => p.includes('不受支持')));
@@ -1287,24 +1321,52 @@ console.log('\n『W17』动画教学：code_examples 必须能过 C1；常驻卡
   const neg2 = auditCodeExamples([badEntry2]);
   check('负对照：`Draw.ball`（SDK 里没有）会被点名', neg2.problems.some((p) => p.includes('非 SDK 函数 Draw.ball')), neg2.problems.join('；') || '(无)');
 
-  /* 动画教学卡片：**2 张**（第 9 期：三份范文按用户裁决下线） */
+  /* 动画规范卡：**3 张常驻**（v1.1.9alpha：visual + anim 合并、scene_stages 改名） */
   const cards = lib.builtin.filter((e) => e.id.startsWith('wb_anim_'));
   check(
-    '动画教学卡正好 2 张（坐标约定 / 元件总览）——三份范文已下线',
-    cards.length === 2 && cards.map((c) => c.id).sort().join(',') === 'wb_anim_conventions,wb_anim_elements_overview',
+    '动画规范卡正好 3 张（坐标约定 / 阶段表 / 元件总览）',
+    cards.length === 3 &&
+      cards.map((c) => c.id).sort().join(',') === 'wb_anim_conventions,wb_anim_elements_overview,wb_anim_stages',
     cards.map((c) => c.id).join(','),
   );
   check(
-    '每张都只进 scene_code 槽、priority: high',
-    cards.every((c) => c.insertion_slot.includes('scene_code') && c.priority === 'high'),
-    cards.map((c) => `${c.id}:${c.insertion_slot.join('+')}/${c.priority}`).join(' '),
+    '每张都是 anim_rule、常驻、只进 scene_code、priority: high',
+    cards.every(
+      (c) =>
+        c.kind === 'anim_rule' &&
+        c.constant === true &&
+        c.insertion_slot.includes('scene_code') &&
+        c.priority === 'high',
+    ),
+    cards.map((c) => `${c.id}:${c.kind}/${c.constant}/${c.insertion_slot.join('+')}/${c.priority}`).join(' '),
+  );
+  check(
+    '三张动画规范卡的 order 依次为 1 / 2 / 3',
+    cards
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((c) => `${c.id}:${c.order}`)
+      .join(',') === 'wb_anim_conventions:1,wb_anim_stages:2,wb_anim_elements_overview:3',
+    cards.map((c) => `${c.id}:${c.order}`).join(','),
+  );
+  check(
+    '旧的 wb_visual_conventions / wb_scene_stages 不再存在',
+    !lib.builtin.some((e) => e.id === 'wb_visual_conventions' || e.id === 'wb_scene_stages'),
+  );
+  const elementCards = lib.builtin.filter((e) => e.id.startsWith('wb_el_'));
+  check(
+    `30 张元件卡 kind 全是 element（实际 ${elementCards.length} 张）`,
+    elementCards.length === 30 && elementCards.every((e) => e.kind === 'element'),
+    elementCards.filter((e) => e.kind !== 'element').map((e) => `${e.id}:${e.kind}`).join(','),
   );
 
   /**
-   * ── 第 9 期：**三份范文下线**（用户 2026-10-18 裁决：「不用留，相信大模型的能力」）──
+   * ── v1.1.9alpha：三张动画规范卡全部常驻 ──
    *
-   * 职责已经被别人接走：结构 → 提示词里那份验过的 8 槽位范例；单件画法 → 30 张元件卡；
-   * 阶段切分 → 约定卡 `wb_scene_stages`。所以常驻从 3 张降为 **2 张**（4738 字）。
+   * 4 张约定卡（visual / anim / stages / overview）合并为 3 张：
+   *   · visual 的坐标/颜色/虚线并入 conventions；
+   *   · stages 改名为 `wb_anim_stages`，内容修正为真实 `STEPS` 契约；
+   *   · overview 保留。
    *
    * ⚠ `WORKED` 现在是空数组 ⇒ 下面那段"逐份验范文"的循环**不会执行**。
    *   这是刻意的（没有范文就没有范文可验），但断言仍保留：以后要加范文，把 WORKED 填回去，
@@ -1314,21 +1376,14 @@ console.log('\n『W17』动画教学：code_examples 必须能过 C1；常驻卡
   const wantConstant = constantCardIds();
   const gotConstant = cards.filter((c) => c.constant === true).map((c) => c.id);
   check(
-    '常驻的正好是 2 张（坐标约定 / 元件总览），顺序与设计一致',
-    gotConstant.sort().join(',') === wantConstant.slice().sort().join(',') && gotConstant.length === 2,
+    '常驻的正好是 3 张，顺序与设计一致',
+    gotConstant.sort().join(',') === wantConstant.slice().sort().join(',') && gotConstant.length === 3,
     `实际 ${gotConstant.join(',')}`,
   );
   check(
     '没有残留的"按元件触发"教学卡（范文下线后应为 0 张）',
     cards.filter((c) => !c.constant).length === WORKED.length,
     `非恒常卡 ${cards.filter((c) => !c.constant).length} 张 / WORKED ${WORKED.length} 份`,
-  );
-  check(
-    '按元件触发的两张：constant 为假，且 elements 非空（否则永远不进上下文）',
-    cards
-      .filter((c) => !c.constant)
-      .every((c) => Array.isArray(c.elements) && c.elements.length > 0),
-    cards.filter((c) => !c.constant).map((c) => `${c.id}:${(c.elements ?? []).length}`).join(' '),
   );
 
   const constantChars = cards.filter((c) => c.constant).reduce((n, c) => n + c.content.length, 0);
@@ -1338,7 +1393,7 @@ console.log('\n『W17』动画教学：code_examples 必须能过 C1；常驻卡
     constantChars <= 10000,
     `实际 ${constantChars}`,
   );
-  check(`五张卡合计 ${cardChars} 字 ≤ 16000（非常驻卡只在命中时进上下文，这是防膨胀的粗上限）`, cardChars <= 16000, `实际 ${cardChars}`);
+  check(`三张卡合计 ${cardChars} 字 ≤ 16000（防膨胀的粗上限）`, cardChars <= 16000, `实际 ${cardChars}`);
   check(
     '正文池 30000 + 示例池 10000（第 8 期定案：40000 总预算；示例单条上限 2000）',
     WORLDBOOK_BUDGET.maxChars === 30000 &&

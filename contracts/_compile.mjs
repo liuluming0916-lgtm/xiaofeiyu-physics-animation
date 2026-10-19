@@ -6,7 +6,7 @@
  * 而不是靠人工比对。`contracts/verify-contracts.mjs` 会在 CI 里重跑生成并比对哈希。
  */
 
-import { SLOT_KEY_NAMES, WORLDBOOK_INSERTION_SLOTS, PIPELINE_STAGES, CLEANING_STAGES, CLEANING_EXCLUDED_STAGES, WORLDBOOK_CONCEPT_IDS, WORLDBOOK_TAG_NAMES, WORLDBOOK_ELEMENT_IDS, WORLDBOOK_TAG_OWNERS, WORLDBOOK_CONCEPTS_FORMAT } from './spec/frozen-keys.mjs';
+import { SLOT_KEY_NAMES, WORLDBOOK_INSERTION_SLOTS, WORLDBOOK_ENTRY_KINDS, PIPELINE_STAGES, CLEANING_STAGES, CLEANING_EXCLUDED_STAGES, WORLDBOOK_CONCEPT_IDS, WORLDBOOK_TAG_NAMES, WORLDBOOK_ELEMENT_IDS, WORLDBOOK_TAG_OWNERS, WORLDBOOK_CONCEPTS_FORMAT } from './spec/frozen-keys.mjs';
 import {
   EVIDENCE_PRECISIONS,
   PRECISION_LABELS,
@@ -405,6 +405,11 @@ export function assertContractInvariants(specs) {
     }
     const prioEnum = worldbook.defs.Priority.values.join('|');
     if (prioEnum !== 'normal|high') problems.push('§9.1 违反：priority 枚举必须是 normal|high');
+    const kindEnum = worldbook.defs.EntryKind?.values?.join('|');
+    if (kindEnum !== WORLDBOOK_ENTRY_KINDS.join('|')) {
+      problems.push(`§9.1 违反：kind 枚举必须是 [${WORLDBOOK_ENTRY_KINDS.join(', ')}]（提示词卡/本地规则卡不是 worldbook 条目）`);
+    }
+    if (!('kind' in worldbook.properties)) problems.push('§9.1 违反：词条缺少字段 kind');
 
     /* ── 第 5.7 期：三栏新字段的**派生**断言（§9.1 冻结字段集变更，裁决见 README A26） ──
      *

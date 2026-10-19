@@ -169,6 +169,8 @@ export interface WorldbookEntryLike {
   title: string
   origin: string
   category: string
+  /** v1.1.9alpha：知识卡类型；旧快照可能没有，缺省按 element */
+  kind?: 'anim_rule' | 'element' | 'scene'
   enabled: boolean
   constant: boolean
   recursive: boolean

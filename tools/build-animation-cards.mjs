@@ -14,10 +14,10 @@
  *   `--check` 会把这两步重跑一遍；任何一条过不了就 exit 1。
  *
  * 产出两样东西（都可以重新生成，**不要手改产物**）：
- *   ① `core/worldbook/source/92-animation-core.json` —— 5 条动画教学卡：
- *        · 坐标/正方向/量纲约定
+ *   ① `core/worldbook/source/92-animation-core.json` —— **3 张动画规范卡**（v1.1.9alpha 起全部常驻）：
+ *        · 坐标 / 单位 / 颜色 / 读数约定
+ *        · 阶段表与状态组织
  *        · 30 个元件的最小画法（总览）
- *        · 3 份大类范文（力学 / 场与电 / 波与图线），每份都是 C1–C9 全绿的真程序
  *   ② `core/worldbook/source/93-elements.json` —— **元件一件一卡**（第 9 期）：词表里每个元件一张卡，
  *      卡里的 `state` / `draw` 就是上面那份被逐条 lint + 实跑过的代码，id 与 `elements` 由元件 id 派生。
  *
@@ -34,18 +34,17 @@ import { lintSlot } from '../core/lint/contract-lint.mjs';
 import { dryRun } from '../core/dryrun/dry-run.mjs';
 
 /**
- * 常驻卡正文的**字数上限**（第 8 期调整：范文改条件触发后，常驻只剩 3 张）。
+ * 常驻卡正文的**字数上限**（v1.1.9alpha：3 张动画规范卡全部常驻）。
  *
- * 世界书每个槽位的预算是 `WORLDBOOK_BUDGET.maxChars`（第 8 期从 24000 提到 **32000**）。
+ * 世界书每个槽位的预算是 `WORLDBOOK_BUDGET.maxChars`（30000）。
  * 常驻卡是"无条件注入"，它们吃掉的额度就是命中词条能用的额度，所以必须设上限：
- *   常驻 ≤ 10000（约定 + 总览 + 力学范文），5 张全算 ≤ 15000。
+ *   常驻 ≤ 10000（坐标约定 + 阶段表 + 元件总览），当前约 5.9k。
  * 超出就意味着"讲这道题的那几张"会被挤掉，而那是**静默变差**（链路照跑、规范变少）。
  */
 const MAX_CONSTANT_CHARS = 10000;
 /**
- * 五张卡合计的粗上限（防膨胀）。
- * 真正约束预算的是上面那条"常驻 ≤ 10000"：非常驻卡只在命中时才进上下文，
- * 所以它们多一点不会直接挤压"讲这道题"的词条 —— 但仍要给一个天花板，避免无节制长大。
+ * 三张卡合计的粗上限（防膨胀）。
+ * 真正约束预算的是上面那条"常驻 ≤ 10000"；这里只是防止内容无节制长大。
  */
 const MAX_CARD_CHARS = 16000;
 
@@ -284,9 +283,9 @@ export const ELEMENTS = [
  *      由 `tools/_golden-probe.mjs` 用真判据跑过 C1–C9）——结构、槽位分工、RETURN/context、箭头 mag 全在里面；
  *   ② 元件已**一件一卡**（`93-elements.json`，每张写着"stateAt 里给什么、drawFrame 里写哪一行"）
  *      ——单个元件怎么画也已经被接走；
- *   ③ 剩下的"多段过程怎么切"由约定卡 `wb_scene_stages` 承担。
+ *   ③ 剩下的"多段过程怎么切"由阶段表卡 `wb_anim_stages` 承担。
  *
- * ⇒ 动画槽的常驻卡从 3 张降为 **2 张**（坐标约定 + 元件总览）。
+ * ⇒ v1.1.9alpha 起三张动画规范卡（坐标约定 + 阶段表 + 元件总览）全部常驻。
  *
  * ⚠ 原件（三个 C1–C9 全绿的程序）留在
  *   `_retired-worldbook/source-2026-10-18/build-animation-cards.mjs`，要恢复搬回来即可。
@@ -297,14 +296,20 @@ export const WORKED = [];
 
 /* ══════════════════════════════ ③ 常驻风格约定卡 ══════════════════════════════ */
 
-export const CONVENTIONS = `# 动画基本约定（常驻 · 任何题都适用）
+export const CONVENTIONS = `# 动画规范·坐标 / 单位 / 颜色 / 读数（常驻）
 
-这段代码由机器播放、机器量、机器对答案，所以"坐标、正方向、单位"必须**全片一套**。
+代码由机器播放与校验，坐标、正方向、单位必须**全片一套**。
 
 ## 坐标与尺寸
 - **世界坐标**：x 向右、y 向上、单位米；视口由系统算，**不许写像素**（\`pixels_per_meter\`、\`canvas.width\`、\`getContext\` 一律判失败）。
-- 长度就是题面的米数（板长 3 m 就画 3 m）；天文/微观用示意比例，并在图注写"示意图，未按比例"。
+- 长度用题面的米数（板长 3 m 就画 3 m）；天文/微观用示意比例，并注明"示意"。
 - 位置一律由物理量算出来（\`Draw.box([state.x, 0.15], …)\`），不要写死一屏坐标。
+
+## 画面
+- 一屏画完：主体居中、标注留余量；视口交给 AutoView，不写死尺寸。
+- 颜色是语义，由系统按 \`category\` 决定（速度绿、加速度蓝、受力红、辅助紫），**不要自己写 \`color\`**。
+- 画布上**不写任何文字**（方案 A）：\`Draw.text\` / \`Draw.latex\` / 箭头标签 / 尺寸文字都不显示；说明放画布外图例。
+- 虚线统一写 \`{ dash: true }\`，实线不写或写 \`dash: false\`；只有要自定义虚线间距时才写数字数组（如 \`[4, 3]\`），不要写字符串。
 
 ## 正方向（最容易翻车）
 - 解析里定了哪个方向为正，代码里就同一个：向右为正 ⇒ 向左的速度写负值，\`state.v\` 可以是负数。
@@ -322,16 +327,16 @@ export const CONVENTIONS = `# 动画基本约定（常驻 · 任何题都适用�
 - **槽位正文从第一行代码开始**：\`setup\` 的第一行就是 \`const …\`、\`readouts\` 的第一行就是 \`return [\`（函数头与收尾括号由装配器提供）。
 
 ## 读数（readouts）
-- 每项 \`{ label, value, unit }\`；\`label\` 与 \`ANSWERS.symbol\` **逐字一致**（C7 就靠它）。
+- 每项 \`{ key, label, value, unit }\`；\`key\` 与 \`ANSWERS.symbol\` **逐字一致**（C7 认 \`key\` 或 \`label\` 任一；\`label\` 写给人看的中文）。
 - 键集合与单位**全时段不变**（C8）；数值必须有限（C3：NaN / Infinity 直接判失败）。
-- 画面上显示数值用 \`Phys.format(value, unit)\`；中文说明放数据面板，不挂在箭头上。
+- 数值只出现在**画布外的图表 / 数据面板**，不画在画布上，也不挂在箭头上。
 - **符号题（\`value: null\`）照样要画图**：图表数据取 \`setup()\` 里的示意取值，并在图注写"示意"；不要因为没有数值就把图省掉。
 
 ## 生成后自检（必须逐条在代码中体现）
 - [ ] 全片没有像素量；**会动的物体都在 \`SIM.bodies\` 里声明了**，没有手写 v/a 箭头。
 - [ ] 还能画的箭头（force / aux）都带 \`category\` 与 \`mag\`，且没有 \`color\` / \`scale\`。
 - [ ] \`SIM.duration\` 与 \`STEPS\` 末步 \`t1\` 是同一个数（C5）。
-- [ ] \`readouts\` 的每个 \`label\` 都能在 \`ANSWERS.symbol\` 里找到（C7）。
+- [ ] \`readouts\` 的每个 \`key\` 都能在 \`ANSWERS.symbol\` 里找到（C7；\`label\` 只写中文）。
 - [ ] 角度在代码里是弧度；\`incline\` / \`arc\` 的角度制参数单独换算，两套单位没有混用。`;
 
 /** 约定卡的示例：v/a 不画，声明 bodies；只有推不出来的量才画 aux/force */
@@ -352,6 +357,43 @@ drawFrame: \`
   Draw.ground(-2.4, 0.6);
   Draw.box(p, 0.4, 0.3);
   // v 箭头由 bodies 自动生成（绿色、朝左），这里不用写
+\``;
+
+/**
+ * 动画规范·阶段表与状态组织（常驻）。
+ *
+ * 原先是 `core/worldbook/source/90-visual.json` 的 `wb_scene_stages`。
+ * v1.1.9alpha 起三张动画规范卡全部由本生成器产出，原因：
+ *   ① 只有在这一处才能统一加 `kind: 'anim_rule'` / `constant: true` / `order`；
+ *   ② 生成器的 `MAX_CONSTANT_CHARS` 才能真正把三张常驻卡一起算进去。
+ *
+ * ⚠ 原文写的是 `STAGES = [{ t0, t1, label }]`，与真实 8 槽位里的 `STEPS`
+ *   （`title / tex / t0 / t1`）不是同一个东西；这里按真实契约改正。
+ */
+export const ANIM_STAGES = `# 动画规范·阶段表与状态组织（常驻）
+
+## 什么时候用
+- 过程被切成多段、要与"上一步/下一步"对齐，或同时有多个物体在动。
+- 单段匀速/匀变速且只有一个物体：按 STEPS 一步走完，不必硬拆。
+
+## 阶段表
+- 阶段表就是 8 槽位里的 \`STEPS\`：每项 \`{ title, tex, t0, t1 }\`；**不要另造 STAGES 数组**。
+- 每段边界对准一个真实事件；\`t0/t1\` 首尾相接、不重叠；末步 \`t1 = SIM.duration\`（C5）。
+- 边界时刻在 \`setup()\` 里先算好（\`Phys.roots\` 或解析式），用 \`RETURN\` 导出，\`stateAt\` 读同一个数。
+- 每个会动物体一个 state 字段；\`force\`/\`aux\` 箭头从中心出发，\`v/a\` 由 \`SIM.bodies\` 自动生成。
+- 相邻两段在边界处**位置相等**；速度只在有冲量（碰撞/击打）时跳变，其余时刻连续。
+- 边界用**细虚线或几何标记**标出，不写文字。
+
+## 生成后自检（必须逐条在代码中体现）
+- [ ] \`STEPS\` 的 \`t0/t1\` 与真实事件一一对应，末步 \`t1 = SIM.duration\`（C5）。
+- [ ] 每个边界在 \`drawFrame\` 里有几何标记；画面不凭空变向。
+- [ ] \`stateAt\` 全程有定义且 O(1)：查表或解析式。`;
+
+/** 阶段表卡的示例：边界用细虚线标出，不写文字（C1 可过） */
+const STAGES_EXAMPLE = `drawFrame: \`
+  // 两个阶段边界：细虚线标出，不写文字
+  Draw.line([0, -0.2], [0, 2.2], { dash: true });
+  Draw.line([1, -0.2], [1, 2.2], { dash: true });
 \``;
 
 /* ══════════════════════════════ ⑤ 生成 ══════════════════════════════ */
@@ -426,12 +468,13 @@ function workedContent(w) {
   return L.join('\n');
 }
 
-function cardEntry({ id, title, content, order, elements = [], keys = [], examples = [], constant = true }) {
+function cardEntry({ id, title, content, order, kind = 'anim_rule', elements = [], keys = [], examples = [], constant = true }) {
   return {
     id,
     title,
     origin: 'builtin',
     category: 'scene_modeling',
+    kind,
     enabled: true,
     constant,
     recursive: false,
@@ -529,16 +572,26 @@ export function buildCards() {
   return [
     cardEntry({
       id: 'wb_anim_conventions',
-      title: '动画常驻·坐标与正方向（世界坐标 / 单位 / 时间 / 读数口径）',
+      title: '动画规范·坐标/单位/颜色/读数（常驻）',
       content: CONVENTIONS,
       order: 1,
+      kind: 'anim_rule',
       examples: [CONVENTIONS_EXAMPLE],
     }),
     cardEntry({
-      id: 'wb_anim_elements_overview',
-      title: '动画常驻·元件总览（30 个元件的最小画法，全部实测过）',
-      content: overviewContent(),
+      id: 'wb_anim_stages',
+      title: '动画规范·阶段表与状态组织（常驻）',
+      content: ANIM_STAGES,
       order: 2,
+      kind: 'anim_rule',
+      examples: [STAGES_EXAMPLE],
+    }),
+    cardEntry({
+      id: 'wb_anim_elements_overview',
+      title: '动画规范·元件总览（30 个元件的最小画法，全部实测过）',
+      content: overviewContent(),
+      order: 3,
+      kind: 'anim_rule',
       // ⚠ `elements` 只能写词表里的正式 id（`contracts/worldbook-concepts.json`）。
       //   本表里额外画的 `text` 是**标注原语**、不是动画元件，所以不进这个字段。
       elements: OFFICIAL_ELEMENT_IDS,
@@ -550,8 +603,9 @@ export function buildCards() {
         id: w.id,
         title: w.title,
         content: workedContent(w),
-        order: 3 + i,
-        // 力学范文（order 3）没有 trigger ⇒ 常驻；另两份按元件触发
+        order: 4 + i,
+        kind: 'anim_rule',
+        // 力学范文没有 trigger ⇒ 常驻；另两份按元件触发
         constant: trigger === null,
         elements: trigger ? trigger.elements : [],
         examples: [WORKED_EXAMPLES[w.id]],
@@ -657,9 +711,9 @@ async function checkAll() {
   }
   if (chars > MAX_CARD_CHARS) {
     bad += 1;
-    console.log(`✗ 五张卡正文合计 ${chars} 字，超过上限 ${MAX_CARD_CHARS}。`);
+    console.log(`✗ 三张卡正文合计 ${chars} 字，超过上限 ${MAX_CARD_CHARS}。`);
   } else {
-    console.log(`五张卡正文合计 ${chars} 字（上限 ${MAX_CARD_CHARS}）`);
+    console.log(`三张卡正文合计 ${chars} 字（上限 ${MAX_CARD_CHARS}）`);
   }
 
   return bad + badW === 0;
@@ -676,7 +730,7 @@ function writeCards() {
 /* ══════════════════════════════ ④′ 元件卡：**一件一卡**（第 9 期） ══════════════════════════════
  *
  * 用户 2026-10-18 裁决的目标状态：动画槽的元件**一件一卡**。
- * 所以本脚本除了 92 的 5 张教学卡，还生成 `93-elements.json` —— **词表里的每个元件一张卡**，
+ * 所以本脚本除了 92 的 3 张动画规范卡，还生成 `93-elements.json` —— **词表里的每个元件一张卡**，
  * 卡片 id 由元件 id 派生（`wb_el_<id>`），`elements` 只放它自己那一个。
  *
  * 为什么由脚本生成而不是手写 30 份 JSON：
@@ -739,6 +793,7 @@ export function buildElementCards() {
     title: `元件·${el.name}`,
     origin: 'builtin',
     category: 'scene_modeling',
+    kind: 'element',
     enabled: true,
     constant: false,
     recursive: false,
@@ -800,7 +855,7 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    console.log(`✓ 92 的 5 张教学卡与 ${buildElementCards().length} 张元件卡都与生成器一致`);
+    console.log(`✓ 92 的 3 张动画规范卡与 ${buildElementCards().length} 张元件卡都与生成器一致`);
     return;
   }
 

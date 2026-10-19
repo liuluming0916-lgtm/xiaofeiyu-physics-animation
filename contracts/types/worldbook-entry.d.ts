@@ -11,6 +11,12 @@ export type Origin = "builtin" | "user";
 
 export type Category = "solution_skill" | "scene_modeling" | "both_slot" | "user_lore";
 
+/**
+ * 知识卡类型（只含 worldbook 条目：动画规范 / 元件 / 场景）
+ * 提示词卡与本地规则卡属于产品层知识卡，但不是 worldbook 条目，不走这个字段。缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。
+ */
+export type EntryKind = "anim_rule" | "element" | "scene";
+
 export type SecondaryLogic = "AND_ANY" | "AND_ALL" | "OR" | "NOT";
 
 export type Priority = "normal" | "high";
@@ -57,6 +63,7 @@ export interface WorldbookEntry {
   "title": string;
   "origin": Origin;
   "category": Category;
+  "kind"?: EntryKind;
   "enabled": boolean;
   /**
    * 常驻：无条件注入

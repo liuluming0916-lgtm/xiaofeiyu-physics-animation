@@ -112,6 +112,17 @@ export const CLEANING_EXCLUDED_STAGES = Object.freeze(['dry_run', 'repair']);
 /** §9.1 世界书槽位名 = 目标阶段名（冻结） */
 export const WORLDBOOK_INSERTION_SLOTS = Object.freeze(['solve', 'scene_code']);
 
+/**
+ * §9.1 知识卡类型（**只含 worldbook 条目**）。
+ *
+ * ⚠ 产品层的“知识卡 5 类”是 UI 总集：提示词卡走 `core/prompts`、本地规则卡走
+ *   `core/cleaner`，它们**不是 worldbook 条目**，所以不在这里。这里只允许
+ *   `anim_rule`（动画规范）、`element`（元件）、`scene`（场景）三种。
+ *
+ * 顺序即注入顺序：anim_rule → element → scene（类型内再按 order）。
+ */
+export const WORLDBOOK_ENTRY_KINDS = Object.freeze(['anim_rule', 'element', 'scene']);
+
 /** §9.1 字段枚举（冻结） */
 export const WORLDBOOK_ENUMS = Object.freeze({
   origin: Object.freeze(['builtin', 'user']),

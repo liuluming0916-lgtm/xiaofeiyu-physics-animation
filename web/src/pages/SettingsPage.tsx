@@ -80,6 +80,26 @@ const LOGIC_LABEL: Record<string, string> = {
 
 type SlotFilter = 'all' | 'solve' | 'scene_code' | 'dual' | 'unmounted'
 
+type CardKind = 'anim_rule' | 'element' | 'scene'
+type KindFilter = 'all' | CardKind
+
+const CARD_KINDS: CardKind[] = ['anim_rule', 'element', 'scene']
+const KIND_LABEL: Record<CardKind, string> = {
+  anim_rule: '动画规范卡',
+  element: '元件卡',
+  scene: '场景卡',
+}
+const KIND_FILTER_LABEL: Record<KindFilter, string> = {
+  all: '全部类型',
+  anim_rule: '动画规范',
+  element: '元件',
+  scene: '场景',
+}
+
+/** 旧包没有 kind ⇒ 按 element；未知值也回落，避免下拉框出现空选项 */
+const kindOf = (e: WorldbookEntryLike): CardKind =>
+  CARD_KINDS.includes(e.kind as CardKind) ? (e.kind as CardKind) : 'element'
+
 type SettingsTab = 'cards' | 'prompts' | 'cleaning' | 'ai'
 
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; hint: string }> = [
@@ -108,6 +128,7 @@ function cleanEntry(e: WorldbookEntryLike) {
     title: e.title,
     origin: 'user' as const,
     category: e.category,
+    kind: kindOf(e),
     enabled: e.enabled,
     constant: e.constant,
     recursive: e.recursive,
@@ -164,6 +185,7 @@ export function SettingsPage() {
   const [selectedId, setSelectedId] = useState<string>(() => WORLDBOOK_BUILTIN[0]?.id ?? '')
   const [search, setSearch] = useState('')
   const [slotFilter, setSlotFilter] = useState<SlotFilter>('all')
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [testText, setTestText] = useState(
     '水平传送带以恒定速率 $u=2\\ \\mathrm{m/s}$ 向右运行。将质量 $m=1\\ \\mathrm{kg}$ 的物块无初速轻放在传送带左端，物块与传送带之间的动摩擦因数 $\\mu=0.2$，取 $g=10\\ \\mathrm{m/s^2}$。求共速所用时间与因摩擦产生的热量。',
   )
@@ -275,6 +297,7 @@ export function SettingsPage() {
       title: '新建卡片',
       origin: 'user',
       category: 'scene_modeling',
+      kind: 'element',
       enabled: true,
       constant: false,
       recursive: true,
@@ -286,7 +309,7 @@ export function SettingsPage() {
       insertion_slot: ['scene_code'],
       order: 1000,
       priority: 'normal',
-      content: '# 新建词条\n\n## 判据\n（什么时候用这张卡）\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] ',
+      content: '# 新建卡片\n\n## 判据\n（什么时候用这张卡）\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] ',
       code_examples: [],
     }
     setEntries((prev) => [entry, ...prev])
@@ -476,6 +499,7 @@ export function SettingsPage() {
     const q = search.trim().toLowerCase()
     return entries.filter((e) => {
       if (!matchesSlotFilter(e, slotFilter)) return false
+      if (kindFilter !== 'all' && kindOf(e) !== kindFilter) return false
       if (!q) return true
       return (
         e.id.toLowerCase().includes(q) ||
@@ -484,16 +508,17 @@ export function SettingsPage() {
         e.content.toLowerCase().includes(q)
       )
     })
-  }, [entries, search, slotFilter])
+  }, [entries, search, slotFilter, kindFilter])
 
   const grouped = useMemo(() => {
-    const map = new Map<string, WorldbookEntryLike[]>()
+    const map = new Map<CardKind, WorldbookEntryLike[]>()
     for (const e of visible) {
-      const list = map.get(e.category) ?? []
+      const k = kindOf(e)
+      const list = map.get(k) ?? []
       list.push(e)
-      map.set(e.category, list)
+      map.set(k, list)
     }
-    return [...map.entries()]
+    return CARD_KINDS.filter((k) => map.has(k)).map((k) => [k, map.get(k)!] as const)
   }, [visible])
 
   const exportText = useMemo(() => {
@@ -651,14 +676,30 @@ export function SettingsPage() {
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap gap-1" role="group" aria-label="按知识卡类型筛选">
+              {(Object.keys(KIND_FILTER_LABEL) as KindFilter[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  data-od-action={`worldbook-kind-filter-${f}`}
+                  aria-pressed={kindFilter === f}
+                  className={`rounded px-2 py-0.5 text-[11px] ${
+                    kindFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  onClick={() => setKindFilter(f)}
+                >
+                  {KIND_FILTER_LABEL[f]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="max-h-[560px] overflow-y-auto">
             {grouped.length === 0 && <p className="px-3 py-4 text-xs text-slate-500">没有匹配的卡片。</p>}
-            {grouped.map(([category, list]) => (
-              <div key={category}>
+            {grouped.map(([kind, list]) => (
+              <div key={kind}>
                 <div className="bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
-                  {CATEGORY_LABEL[category] ?? category}（{list.length}）
+                  {KIND_LABEL[kind]}（{list.length}）
                 </div>
                 <ul>
                   {list.map((e) => {
@@ -682,6 +723,7 @@ export function SettingsPage() {
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
                             <code>{e.id}</code>
+                            <span className="rounded bg-slate-100 px-1">{KIND_LABEL[kindOf(e)]}</span>
                             {packOf(e.id) === null ? (
                               <span className="rounded bg-slate-100 px-1">内置</span>
                             ) : BUILTIN_IDS.has(e.id) ? (
@@ -719,7 +761,19 @@ export function SettingsPage() {
                       type="checkbox"
                       data-od-field="worldbook-enabled"
                       checked={selected.enabled}
-                      onChange={(e) => patch(selected.id, { enabled: e.target.checked })}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                        if (
+                          !next &&
+                          kindOf(selected) === 'anim_rule' &&
+                          !window.confirm(
+                            '这是动画规范卡：停用后动画阶段不再收到这条规范（坐标/单位/阶段表/元件总览），画质可能下降。确定停用？',
+                          )
+                        ) {
+                          return
+                        }
+                        patch(selected.id, { enabled: next })
+                      }}
                     />
                     启用
                   </label>
@@ -749,6 +803,15 @@ export function SettingsPage() {
                   : `这条会保存到 ${packOf(selected.id)}${BUILTIN_IDS.has(selected.id) ? '（覆盖内置）' : ''}。`}
               </p>
 
+              {kindOf(selected) === 'anim_rule' && (!selected.enabled || !selected.constant) ? (
+                <p
+                  data-od-region="worldbook-anim-rule-disabled-warning"
+                  className="mb-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-900"
+                >
+                  ⚠ 这张动画规范卡{!selected.enabled ? '已停用' : '已取消常驻'}：动画阶段可能收不到它。它会悄无声息地让画面规范变少，建议保持「启用 + 常驻」。
+                </p>
+              ) : null}
+
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Field label="id（库内唯一；已保存的 id 不可改，要换 id 请新建）">
                   <input
@@ -766,6 +829,20 @@ export function SettingsPage() {
                     value={selected.title}
                     onChange={(e) => patch(selected.id, { title: e.target.value })}
                   />
+                </Field>
+                <Field label="知识卡类型（只影响分组与注入顺序；不影响命中语义）">
+                  <select
+                    className="input"
+                    data-od-field="worldbook-kind"
+                    value={kindOf(selected)}
+                    onChange={(e) => patch(selected.id, { kind: e.target.value as CardKind })}
+                  >
+                    {CARD_KINDS.map((k) => (
+                      <option key={k} value={k}>
+                        {KIND_LABEL[k]}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="分类（仅分类展示与统计）">
                   <select
@@ -812,7 +889,19 @@ export function SettingsPage() {
                     type="checkbox"
                     data-od-field="worldbook-constant"
                     checked={selected.constant}
-                    onChange={(e) => patch(selected.id, { constant: e.target.checked })}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                      if (
+                        !next &&
+                        kindOf(selected) === 'anim_rule' &&
+                        !window.confirm(
+                          '这是动画规范卡：取消「常驻」后它只在命中 keys 时注入（当前 keys 可能为空，等于不会注入）。确定取消？',
+                        )
+                      ) {
+                        return
+                      }
+                      patch(selected.id, { constant: next })
+                    }}
                   />
                   常驻（无条件注入）
                 </label>

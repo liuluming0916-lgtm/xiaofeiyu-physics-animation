@@ -42,6 +42,8 @@ export interface WorldbookEntryLike {
   title?: string
   origin?: string
   category?: string
+  /** v1.1.9alpha：知识卡类型；缺省按 element（旧包兼容） */
+  kind?: 'anim_rule' | 'element' | 'scene'
   enabled?: boolean
   constant?: boolean
   recursive?: boolean
@@ -168,6 +170,8 @@ export const WORLDBOOK_EXAMPLE_BUDGET: {
 }
 export const HIT_STRENGTH: Record<string, number>
 export const WORLDBOOK_SLOTS: readonly string[]
+export const WORLDBOOK_KIND_ORDER: readonly ('anim_rule' | 'element' | 'scene')[]
+export function kindOfEntry(entry: WorldbookEntryLike): 'anim_rule' | 'element' | 'scene'
 export const SLOT_MARKER_LABEL: Record<string, string>
 export const SELF_CHECK_HEADING: string
 export const WAKE_BY_TITLE_FOR_KEYLESS: boolean

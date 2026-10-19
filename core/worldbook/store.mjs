@@ -21,7 +21,15 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync,
 import { basename, join } from 'node:path';
 
 import { PROJECT_ROOT } from '../../tools/paths.mjs';
-import { WORLDBOOK_INSERTION_SLOTS, WORLDBOOK_ENUMS, WORLDBOOK_CONCEPT_IDS, WORLDBOOK_TAG_NAMES, WORLDBOOK_ELEMENT_IDS, WORLDBOOK_TAG_OWNERS } from '../../contracts/spec/frozen-keys.mjs';
+import {
+  WORLDBOOK_INSERTION_SLOTS,
+  WORLDBOOK_ENTRY_KINDS,
+  WORLDBOOK_ENUMS,
+  WORLDBOOK_CONCEPT_IDS,
+  WORLDBOOK_TAG_NAMES,
+  WORLDBOOK_ELEMENT_IDS,
+  WORLDBOOK_TAG_OWNERS,
+} from '../../contracts/spec/frozen-keys.mjs';
 import { parseKey } from './engine.mjs';
 import { BUILTIN_BUNDLE } from './builtin-bundle.generated.mjs';
 
@@ -80,6 +88,9 @@ export const ENTRY_FIELD_ORDER = Object.freeze([
   'title',
   'origin',
   'category',
+  /* v1.1.9alpha：知识卡类型（只含 anim_rule / element / scene）。放在 category 之后，
+   * 因为它是“这张卡是什么”的第一层分类；提示词卡 / 本地规则卡不走这个字段。 */
+  'kind',
   'enabled',
   'constant',
   'recursive',
@@ -100,6 +111,9 @@ export const ENTRY_FIELD_ORDER = Object.freeze([
 
 /** 可选字段的缺省值（§9.1 的 `default` 列）。规范化时**materialize**，让同语义同哈希 */
 export const ENTRY_DEFAULTS = Object.freeze({
+  /* 旧包没有 kind ⇒ 按 element 处理（最保守：元件卡是绝大多数）。
+   * 内置 3 张动画规范卡在数据里显式写 anim_rule，不依赖这个默认。 */
+  kind: 'element',
   constant: false,
   recursive: true,
   secondary_keys: Object.freeze({ logic: 'AND_ANY', list: Object.freeze([]) }),
@@ -144,6 +158,9 @@ export function validateEntry(entry, where = '词条') {
   }
   if ('category' in entry && !WORLDBOOK_ENUMS.category.includes(entry.category)) {
     p.push(`${where} 的 category 必须是 ${WORLDBOOK_ENUMS.category.join(' | ')}`);
+  }
+  if ('kind' in entry && !WORLDBOOK_ENTRY_KINDS.includes(entry.kind)) {
+    p.push(`${where} 的 kind 必须是 ${WORLDBOOK_ENTRY_KINDS.join(' | ')}（提示词卡 / 本地规则卡不是 worldbook 条目，不走这个字段）`);
   }
   if ('enabled' in entry && typeof entry.enabled !== 'boolean') p.push(`${where} 的 enabled 必须是布尔`);
   if ('constant' in entry && typeof entry.constant !== 'boolean') p.push(`${where} 的 constant 必须是布尔`);

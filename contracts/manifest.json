@@ -20,8 +20,8 @@
       "root": "WorldbookEntry",
       "schema": "contracts/worldbook-entry.schema.json",
       "types": "contracts/types/worldbook-entry.d.ts",
-      "schemaSha256": "eb03929c7306c78ad9b624e3109198de1e35128d9fb5021e80afeb61a368566c",
-      "typesSha256": "452c95603abd1e09deab653b875bad6d2bcad8310b5eac4d88fd7f96c72e8b8c"
+      "schemaSha256": "206c0cae0d9dbf7c5f27cdf695b7c31a3f759b4ea3b014a9fc928bab917e0687",
+      "typesSha256": "25008e4f03fa4213c1905f7b77b5d414b8be9ac4e552e27e0dfc7168308ba1dc"
     },
     {
       "id": "cleaning-rule",
@@ -67,5 +67,5 @@
   "slotKeys": "contracts/slot-keys.json",
   "worldbookSlotNames": "contracts/worldbook-slot-names.json",
   "diagnosticEvidence": "contracts/diagnostic-evidence.json",
-  "contractHash": "bd64199099b6a3d6d0b4c42d8c41b167c601f1c21b1a09c24380bc1ee2f93c26"
+  "contractHash": "a3d7d007d8dd57f527504820ed8afbaa9fd883d8215da26a15089c78fa4b6a59"
 }

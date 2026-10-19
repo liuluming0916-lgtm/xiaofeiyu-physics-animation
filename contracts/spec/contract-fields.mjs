@@ -11,6 +11,7 @@
 import {
   SLOT_KEY_NAMES,
   WORLDBOOK_INSERTION_SLOTS,
+  WORLDBOOK_ENTRY_KINDS,
   WORLDBOOK_ENUMS,
   WORLDBOOK_CONCEPT_IDS,
   WORLDBOOK_TAG_NAMES,
@@ -115,6 +116,14 @@ export const worldbookEntry = {
     },
     Origin: { kind: 'enum', values: [...WORLDBOOK_ENUMS.origin] },
     Category: { kind: 'enum', values: [...WORLDBOOK_ENUMS.category] },
+    EntryKind: {
+      kind: 'enum',
+      values: [...WORLDBOOK_ENTRY_KINDS],
+      title: '知识卡类型（只含 worldbook 条目：动画规范 / 元件 / 场景）',
+      description:
+        '提示词卡与本地规则卡属于产品层知识卡，但不是 worldbook 条目，不走这个字段。' +
+        '缺省按 element 处理（兼容旧包）；类型只影响 UI 分组与注入顺序，不影响命中语义。',
+    },
     SecondaryLogic: { kind: 'enum', values: [...WORLDBOOK_ENUMS.secondaryLogic] },
     Priority: { kind: 'enum', values: [...WORLDBOOK_ENUMS.priority] },
     SecondaryKeys: {
@@ -162,6 +171,9 @@ export const worldbookEntry = {
     title: f.string({ minLength: 1 }),
     origin: f.ref('Origin'),
     category: f.ref('Category', { description: '仅分类展示与统计' }),
+    kind: f.ref('EntryKind', {
+      description: '知识卡类型；缺省按 element 处理（旧包兼容）。只影响 UI 与注入顺序，不影响命中语义',
+    }),
     enabled: f.boolean(),
     constant: f.boolean({ default: false, description: '常驻：无条件注入' }),
     recursive: f.boolean({ default: true, description: '允许被级联唤醒 / 自身可唤醒别人' }),
