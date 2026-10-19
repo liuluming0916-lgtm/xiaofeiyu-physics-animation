@@ -35,20 +35,27 @@ ai-rules/keys.json
 # ── 用户层词条（用户自己的私有内容，不是源码）──
 ai-rules/worldbook/
 
-# ── 第三方教学素材：不随仓库分发（版权原因，见 README §20.10）──
+# ── 第三方教学素材：不随仓库分发（版权原因，见 项目现状与路线.md）──
 第5期世界书知识库参照/
 笔记电子版/
 测试用题目/
 _retired-worldbook/
+表情包参考/
+data/_s59-forces/
 
 # ── 本机缓存与工具目录 ──
 .npm-cache/
+.cache-electron/
 DB.Browser/
 .preview-cache/
 _preview-history/
 _preview-label-avoid/
 tests/reports/
 tests/.tmp/
+
+# ── 临时工作区（pip 残留；不参与者也不要让 git 去扫）──
+.tmp/
+build_tmp/
 
 # ── 日志与临时探针 ──
 *.log

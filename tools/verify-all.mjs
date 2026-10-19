@@ -161,7 +161,7 @@ const STEPS = [
     'tests/plan-a-textless-selftest.mjs',
   ],
   [
-    '㊳ 发布构建开关取证（第 8 期：`OD_RELEASE=1` 时设置/规则两页**在产物里不存在** —— 含开发构建负对照与发布产物真跑）',
+    '㊳ 发布构建开关取证（第 8 期：`OD_RELEASE=1` 时规则页/蒸馏页在产物里不存在、设置页在；含开发构建负对照与发布产物真跑）',
     'tests/release-switch-selftest.mjs',
   ],
   [

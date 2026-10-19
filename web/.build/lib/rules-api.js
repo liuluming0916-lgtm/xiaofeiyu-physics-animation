@@ -85,4 +85,5 @@ export const api = {
     createWorldbookPack: (name) => request('POST', '/worldbook/packs', { name }),
     deleteWorldbookPack: (name) => request('DELETE', `/worldbook/packs/${encodeURIComponent(name)}`),
     copyBuiltinWorldbook: (id) => request('POST', '/worldbook/copy', { id }),
+    restoreWorldbookBuiltin: () => request('POST', '/worldbook/restore', {}),
 };

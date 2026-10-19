@@ -241,6 +241,19 @@ export interface WorldbookPack {
   problems: string[]
 }
 
+/** 一键恢复本版本内置的结果（`POST /api/worldbook/restore`） */
+export interface WorldbookRestoreResult {
+  ok: boolean
+  builtinCount: number
+  overriddenIds: string[]
+  confirmList: string[]
+  removed: number
+  packsTouched: number
+  packsDeleted: number
+  backupDir: string
+  problems: string[]
+}
+
 /* ────────────────────────────── 接口 ────────────────────────────── */
 
 export const api = {
@@ -285,4 +298,5 @@ export const api = {
   createWorldbookPack: (name: string) => request<{ ok: boolean; name: string }>('POST', '/worldbook/packs', { name }),
   deleteWorldbookPack: (name: string) => request<{ ok: boolean }>('DELETE', `/worldbook/packs/${encodeURIComponent(name)}`),
   copyBuiltinWorldbook: (id: string) => request<{ ok: boolean; name: string }>('POST', '/worldbook/copy', { id }),
+  restoreWorldbookBuiltin: () => request<WorldbookRestoreResult>('POST', '/worldbook/restore', {}),
 }

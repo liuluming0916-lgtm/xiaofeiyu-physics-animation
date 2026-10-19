@@ -45,6 +45,7 @@ import {
   worldbookHashOf,
 } from '../core/worldbook/store.mjs';
 import { makeOverrideCopy, planExport, planRestoreDefault, planUpgrade, EDIT_OVERRIDE_HINT } from '../core/worldbook/governance.mjs';
+import { restoreBuiltinWorldbook } from '../core/worldbook/editor.mjs';
 import { buildExportPack, normalizeImportedPack, packToText } from '../core/worldbook/import-export.mjs';
 import { checkCoverage, checkEntryStructure, formatCoverageLine, targetFromFile } from '../core/worldbook/coverage.mjs';
 import {
@@ -583,6 +584,25 @@ console.log('\n『W13』origin 治理（覆盖副本 / 升级 / 恢复默认 / �
     check('载入后 entries 里该 id 只有一条，且是用户版本', withOverride.entries.filter((e) => e.id === target.id).length === 1 && withOverride.entries.find((e) => e.id === target.id).origin === 'user');
 
     check('用户文件在 sources 里带 SHA256（§16 规则工作区）', withOverride.sources.some((s) => s.kind === 'user' && /^[0-9a-f]{64}$/.test(s.sha256)));
+
+    /* ── v1.1.9：一键恢复本版本内置（文件级，设置页按钮的后端） ── */
+    writeUserPack(tmp, 'user-1.json', [copy, E({ id: 'mine-keep', title: '我自己的卡' })]);
+    const rr = restoreBuiltinWorldbook({ dir: tmp });
+    check('★ 一键恢复内置：删掉覆盖副本、保留用户自建卡', rr.ok && rr.removed === 1 && rr.packsTouched === 1, JSON.stringify(rr));
+    check(
+      '★ 恢复后文件里只剩用户自建卡',
+      JSON.parse(readFileSync(join(tmp, 'user-1.json'), 'utf8')).entries.map((e) => e.id).join(',') === 'mine-keep',
+    );
+    check('★ 恢复前留了滚动备份（恢复本身可撤销）', existsSync(join(tmp, '.backup', 'user-1.json.bak.1')));
+    check('（幂等）再恢复一次：removed = 0', restoreBuiltinWorldbook({ dir: tmp }).removed === 0);
+
+    writeUserPack(tmp, 'only-override.json', [copy]);
+    const rr3 = restoreBuiltinWorldbook({ dir: tmp });
+    check(
+      '★ 整包都是覆盖副本 ⇒ 删文件而不是留一个空包',
+      rr3.packsDeleted === 1 && !existsSync(join(tmp, 'only-override.json')),
+      JSON.stringify({ deleted: rr3.packsDeleted, exists: existsSync(join(tmp, 'only-override.json')) }),
+    );
 
     removeUserFile(tmp, 'user-1.json');
     const restored = loadLibrary({ builtinDir: BUILTIN_DIR, userDir: tmp });

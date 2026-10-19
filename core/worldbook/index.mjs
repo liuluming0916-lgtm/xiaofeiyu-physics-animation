@@ -9,7 +9,7 @@
  *   governance.mjs     纯决定：覆盖副本 / 升级只替换未被覆盖 / 恢复默认只影响内置 / 导出默认只导 user
  *   import-export.mjs  纯逻辑：od-worldbook v1 的归一化（旧名只在此处转换）与打包
  *   coverage.mjs       纯逻辑：内置词条的「生成后自检」+ code_examples 覆盖率
- *   data/*.json        内置最小集（第 5.5 期由《世界书知识库生成指导》扩到全题型）
+ *   data/*.json        内置最小集（第 5.5 期扩到全题型的作业书已随 `_retired-worldbook/` 删除）
  */
 
 export * from './engine.mjs';

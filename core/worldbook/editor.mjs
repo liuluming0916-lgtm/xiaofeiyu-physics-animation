@@ -19,6 +19,7 @@ import { join } from 'node:path';
 
 import { describeJsonError } from '../json-error.mjs';
 import { backupFile } from '../rules/backup.mjs';
+import { planRestoreDefault } from './governance.mjs';
 import {
   PACK_FORMAT,
   PACK_VERSION,
@@ -153,9 +154,97 @@ export function deleteWorldbookPack({ dir = USER_DIR, name } = {}) {
   return { ok: true, name };
 }
 
+/**
+ * 一键恢复**本版本内置词条**（设置页的「恢复内置」按钮）。
+ *
+ * 语义（与 §9.3 ④ / `planRestoreDefault` 完全一致）：
+ *   · 只删「用户区里 id 与内置相同」的**覆盖副本** ⇒ 删掉后内置原样生效；
+ *   · **绝不删用户自己新建的卡**（不是任何内置 id）；
+ *   · 每个被改动的文件写之前先滚动备份（`.backup/<name>.bak.1…5`），所以恢复本身可撤销；
+ *   · 整包都是覆盖副本 ⇒ 备份后删掉整个文件（否则会留下一个空包）。
+ *
+ * 为什么这就是"该版本发布时的内置"：内置层在发行产物里读的是**编译进代码的常量**
+ * （`builtin-bundle.generated.mjs`，构建期从 `core/worldbook/data/` 生成）。
+ * 所以每个版本装出来的程序，按这个按钮恢复到的就是**它自己那一版**的内置，不会串版。
+ *
+ * @param {{ dir?: string }} [opts]
+ */
+export function restoreBuiltinWorldbook({ dir = USER_DIR } = {}) {
+  const builtin = listBuiltinEntries();
+  const builtinIds = builtin.entries.map((e) => e.id);
+
+  const problems = [];
+  const packs = [];
+  for (const f of listUserFiles(dir)) {
+    const text = readFileSync(f.path, 'utf8');
+    const parsed = parseEntryFile(text, f.name);
+    if (parsed.problems.length) {
+      // 坏包不猜、不改：如实报出来，让人先修
+      problems.push(...parsed.problems.map((p) => `${f.name}: ${p}`));
+      continue;
+    }
+    packs.push({ name: f.name, entries: parsed.entries.map((e) => ({ ...e, origin: 'user' })) });
+  }
+
+  const plan = planRestoreDefault({
+    entries: packs.flatMap((p) => p.entries),
+    builtinIds,
+    all: true,
+  });
+  const targets = new Set(plan.toRemove);
+  const result = {
+    ok: problems.length === 0,
+    builtinCount: builtin.entries.length,
+    overriddenIds: plan.toRemove,
+    confirmList: plan.confirmList,
+    removed: 0,
+    packsTouched: 0,
+    packsDeleted: 0,
+    backupDir: join(dir, '.backup'),
+    problems,
+  };
+  if (targets.size === 0) return result;
+
+  for (const p of packs) {
+    const keep = p.entries.filter((e) => !targets.has(e.id));
+    const drop = p.entries.length - keep.length;
+    if (drop === 0) continue;
+
+    // 口径：恢复之前先备份（备份失败就不改，宁可让人看到错误）
+    const bak = backupFile({ dir, rel: p.name });
+    if (!bak.ok) {
+      result.ok = false;
+      result.problems.push(...(bak.issues ?? [{ message: `备份失败：${p.name}` }]).map((x) => `${p.name}: ${x.message ?? x}`));
+      continue;
+    }
+
+    if (keep.length === 0) {
+      const r = removeUserFile(dir, p.name);
+      if (r.removed) result.packsDeleted += 1;
+      else {
+        result.ok = false;
+        result.problems.push(`${p.name}: 删除失败（文件可能被占用）`);
+        continue;
+      }
+    } else {
+      try {
+        writeUserPack(dir, p.name, keep);
+        result.packsTouched += 1;
+      } catch (e) {
+        result.ok = false;
+        result.problems.push(`${p.name}: ${e?.message ?? e}`);
+        continue;
+      }
+    }
+    result.removed += drop;
+  }
+
+  return result;
+}
+
 /* ────────────────────────────── 内置（只读，用于"复制成覆盖副本"） ────────────────────────────── */
 
-/** 内置词条清单（只给摘要：78 条全给全文会太大） */
+/** 内置词条清单（只给摘要：全给全文会太大） */
 export function listBuiltinEntries() {
   const lib = loadLibrary({ userDir: join(tmpdir(), 'od-no-such-userdir') });
   return {

@@ -6,12 +6,12 @@
  *   · 覆盖率：`core/worldbook/coverage.mjs`
  * 生成时机：`node tools/web-build.mjs` 的 ⓪ 段（前端打包之前）。
  *
- * ── 诚实声明（与 App 顶部那条横幅同一口径）
+ * ── 说明（v1.1.9 改）
  *
- * 本期前端跑的是**演示源**：这些词条数据是**构建期快照**，页面里的编辑只存在内存中，
- * 「导出 JSON」能拿到文本，但**写回 `ai-rules/worldbook/` 需要本地服务（第 9 步接入）**。
- * 预览器的**触发与组装逻辑是真的**（用的是 `core/worldbook/engine.mjs` 的逐字节副本），
- * 只有"落盘"这一步是缺的 —— 不谎报。
+ * 这里是**构建期内置快照**：发行版的内置层读的是编译常量（`builtin-bundle.generated.mjs`）。
+ * **用户层**（`ai-rules/worldbook/`）不在这个文件里 —— 设置页通过 `/api/worldbook/*` 读写它。
+ * 本快照只用于"内置有哪些卡"的初始显示与覆盖关系判断。
+ * 预览器的**触发与组装逻辑是真的**（用的是 `core/worldbook/engine.mjs` 的逐字节副本）。
  */
 /**
  * ⚠ 这里**不要**写 `as const`：它会把 `insertion_slot` 变成 `readonly ["solve", …]`，

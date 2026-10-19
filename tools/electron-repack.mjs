@@ -21,7 +21,7 @@
  *   node tools/electron-repack.mjs --no-build # 不重建前端与模板（只重组载荷）
  */
 
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
@@ -31,11 +31,39 @@ import { nodeEnv, resolveNodeBin } from './node-bin.mjs';
 const NODE = resolveNodeBin().bin;
 const releaseDir = join(PROJECT_ROOT, 'release');
 const baseName = '物理解题动画';
-const basePkg = join(releaseDir, baseName); // v1.0 绿色版：Electron 运行时的来源
 /* 目录名跟 package.json 版本走 —— 写死 v1.1 会在发 1.1.2 时悄悄骗人 */
 const PKG_VERSION = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf8')).version;
 const targetName = `${baseName}-v${PKG_VERSION}`;
 const targetPkg = join(releaseDir, targetName);
+/**
+ * Electron 运行时的来源目录（**动态选**，不再写死 v1.0 的 `物理解题动画/`）。
+ *
+ * 为什么改：v1.0 那个目录一旦被清掉，整条离线打包路线就断了（实测 v1.1.9 收尾时踩到）。
+ * 现在的规则：release/ 里任何带 `<name>.exe` 与 `resources/app` 的目录都能当运行时来源，
+ * 优先选**不是当前目标**的那一个；如果只剩当前目标自己，就把它先挪成 `.runtime-src` 再复制回来
+ * （挪而不是删：打包中途失败时还能原样恢复）。
+ */
+let basePkg = null;
+let stashedBase = null;
+
+function pickRuntimeBase() {
+  const names = readdirSync(releaseDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .filter(
+      (n) =>
+        existsSync(join(releaseDir, n, `${baseName}.exe`)) &&
+        existsSync(join(releaseDir, n, 'resources', 'app')),
+    );
+  if (names.length === 0) {
+    throw new Error(
+      `release/ 里找不到可用的 Electron 运行时（需要 ${baseName}.exe + resources/app）。\n` +
+        '  → 先解压一个含运行时的旧版绿色包到 release/，或从 .cache-electron 的 Electron zip 重建。',
+    );
+  }
+  const preferred = names.filter((n) => n !== targetName);
+  return join(releaseDir, preferred[0] ?? targetName);
+}
 const payload = join(targetPkg, 'resources', 'app');
 
 const noBuild = process.argv.includes('--no-build');
@@ -79,15 +107,22 @@ function dirSize(p) {
 function assertBase() {
   const exe = join(basePkg, `${baseName}.exe`);
   if (!existsSync(exe)) {
-    throw new Error(`找不到 v1.0 绿色版运行时：${exe}\n  → 这条离线路线要求 release/ 里留着上一版的 Electron 运行时。`);
+    throw new Error(`找不到 Electron 运行时：${exe}\n  → release/ 里至少要有 一个带 exe 的绿色版目录。`);
   }
   if (!existsSync(join(basePkg, 'resources', 'app'))) {
-    throw new Error('v1.0 绿色版里没有 resources/app，无法从它取载荷骨架');
+    throw new Error('绿色版里没有 resources/app，无法从它取载荷骨架');
   }
 }
 
-/** 把 v1.0 的绿色版整份复制成 v1.1（运行时 + 旧载荷骨架） */
+/** 把运行时来源整份复制成当前版本目录（运行时 + 旧载荷骨架） */
 function cloneRuntime() {
+  if (basePkg === targetPkg) {
+    stashedBase = join(releaseDir, `${targetName}.runtime-src`);
+    rmSync(stashedBase, { recursive: true, force: true });
+    console.log(`\n当前版本既是目标又是唯一运行时来源：先挪到 ${targetName}.runtime-src`);
+    renameSync(targetPkg, stashedBase);
+    basePkg = stashedBase;
+  }
   if (existsSync(targetPkg)) {
     console.log(`\n清理旧目录：${targetName}`);
     rmSync(targetPkg, { recursive: true, force: true });
@@ -207,6 +242,8 @@ function checkPayload() {
 
 function main() {
   console.log(`${baseName} · 离线重打包（${VERSION}）`);
+  basePkg = pickRuntimeBase();
+  console.log(`运行时来源：${basePkg.replace(PROJECT_ROOT, '.')}`);
   assertBase();
 
   if (!noBuild) {
@@ -256,6 +293,10 @@ function main() {
   }
 
   console.log(`\n✓ 绿色版已生成：release\\${targetName}`);
+  if (stashedBase) {
+    rmSync(stashedBase, { recursive: true, force: true });
+    console.log('  ✓ 清理临时运行时源（打包成功，目标目录已完整）');
+  }
   if (!wantZip) console.log('  下一步压缩成 zip：加 --zip 参数重跑（约 130 MB，需要一点时间）。');
 }
 

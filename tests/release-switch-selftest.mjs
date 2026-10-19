@@ -149,17 +149,19 @@ async function main() {
     const rel = readBundle();
     const found = markersIn(rel);
     /**
-     * ⚠ 第 9 期 v1.1.2：口径变了，而且是**产品决定**不是放水。
-     *
-     * 第 8 期把「设置」与「规则」两页一起摇掉，前提是"用户不需要改词条"。
-     * v1.1.2 起**词条编辑 / 导入导出对用户开放**，而世界书管理器就在设置页里
-     * ⇒ 设置页必须进发布包。**规则页仍然只给开发期**（它要单独起本机规则服务）。
+     * ⚠ v1.1.2 起：设置页必须进发布包（词条编辑 / 导入导出对用户开放）。
+     *   v1.1.9 补了真正的落盘动作断言 —— 只看"页面在"是不够的：
+     *   页面在而存不了，等于没有这个能力（见下面的 worldbook-save / restore-builtin）。
+     *   规则页仍然只给开发期（它要单独起本机规则服务）。
      */
     check('★ 发布构建产物里**没有** RulesPage（开发期页面不外露）', !found.includes('RulesPage'), `仍残留：${found.join(' / ')}`);
-    check('★ 发布构建产物里**有** SettingsPage（v1.1.2：词条编辑对用户开放）', found.includes('SettingsPage'));
+    check('★ 发布构建产物里**有** SettingsPage（词条编辑对用户开放）', found.includes('SettingsPage'));
     /* v1.1.5：蒸馏页锁成「写卡助手」占位 ⇒ 页面代码与「蒸馏」内文都不该在发布包里 */
     check('★ 发布构建产物里**没有** DistillPage（写卡助手锁定后整页被摇掉）', !rel.includes('DistillPage'));
     check('★ 发布构建导航里有「写卡助手」占位（可见但不可点）', hasLabel(rel, '写卡助手'));
+    /* v1.1.9：设置页要能真的存卡，并且每个发布版都带"恢复本版内置"的入口 */
+    check('★ 发布构建里有「保存到本机」动作（设置页不再只是内存预览）', rel.includes('worldbook-save'));
+    check('★ 发布构建里有「恢复本版内置」动作（每版都必须能一键恢复本版内置）', rel.includes('worldbook-restore-builtin'));
     check('★ 编译期常量已被完全替换（没有残留 `__OD_RELEASE__`）', !rel.includes('__OD_RELEASE__'));
     check('发布产物更小（两页的代码真的被摇掉了）', statSync(BUNDLE).size < devBytes, `${statSync(BUNDLE).size} vs ${devBytes}`);
     console.log(`      dev ${Math.round(devBytes / 1024)} KB → release ${Math.round(statSync(BUNDLE).size / 1024)} KB`);

@@ -1,31 +1,30 @@
 /**
- * 设置页（§15 第三页）—— 第 5 期先落「**世界书管理器 + 实时试触发预览器**」（M7 / M20 / §9.5）。
+ * 设置页（§15 第三页）—— 世界书管理器 + 实时试触发预览器（M7 / M20 / §9.5）。
  *
- * ── 本期这一页能做什么、不能做什么（**必须显式告知，不能含糊**）
+ * ── 这一页现在能做什么（v1.1.9 起，不再只是"内存预览"）
  *
- * 能做：
- *   · 卡片列表（分类分栏 / 搜索 / 启用开关 / 常驻与递归标记 / 槽位标记与按槽位筛选）
- *   · 卡片编辑（§9.1 全字段 + 槽位多选 + 正文 + code_examples）
- *   · **实时试触发预览器**：边打字边给出四个区块（命中清单与命中方式 / 解题槽拼接 /
- *     动画槽拼接 / 空槽与截断提示）——**不调用模型、不保存**
- *   · 冲突提示（同名 id / 正则错误 / 递归环 / 未挂槽位 / 双槽无标题）
- *   · 导出 / 导入 JSON 文本
+ *   · 卡片列表 / 编辑 / 启用开关 / 冲突提示 / 实时试触发（不调用模型）
+ *   · **保存到本机**：走 `/api/worldbook/*`（`tools/rules-service.mjs`）→ `ai-rules/worldbook/`，
+ *     写前滚动备份 5 份、整批校验、原子写；关掉软件再打开还在
+ *   · **导入并保存**：粘贴 `od-worldbook` 包 → Node 侧完整校验后落盘
+ *   · **一键恢复本版本内置**：只撤销"覆盖内置"的副本，不删用户自己新建的卡
  *
- * 做不到（诚实声明）：
- *   · **写回 `ai-rules/worldbook/`**：浏览器读不到文件系统，需要一个本地服务（排在第 9 步）。
- *     页面里的编辑只存在内存中，"导出 JSON"能拿到文本。
- *   · 完整校验与旧名归一化（`scene_spec` → `scene_code`）在 Node 侧执行，
- *     由门禁 ㉒ 逐条取证；本页的导入只做**形状提示**。
+ * ── 两条必须说清的语义
+ *
+ *   ① **内置只读**。点编辑内置卡 ⇒ 自动生成一条同 id 的 `origin: user` 覆盖副本；
+ *      恢复内置 = 删掉这份副本，内置原样生效（§9.3 ④）。
+ *   ② **发行版自带本机服务**（Electron 主进程起 `rules-service`），所以装出来就能存；
+ *      开发期用 `3-OpenRules.bat` 起同一个服务。连不上时页面会明确说"只读快照，不会落盘"。
  *
  * ── 为什么"实时试触发"是真的
  *
  * 它调用的是 `web/src/lib/worldbook-engine.js` —— `core/worldbook/engine.mjs` 的
- * **逐字节副本**（构建期判据钉住）。所以这里的拼接结果与真实请求**必然一致**（W10），
- * 而不是"两处写得一样"。
+ * **逐字节副本**（构建期判据钉住）。所以这里的拼接结果与真实请求**必然一致**（W10）。
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
+import { api } from '../lib/rules-api'
 import {
   WORLDBOOK_BUDGET,
   buildSlotPreview,
@@ -45,7 +44,6 @@ import {
   WORLDBOOK_PACK_FORMAT,
   WORLDBOOK_PACK_VERSION,
   WORLDBOOK_SOURCES,
-  WORLDBOOK_USER,
   type WorldbookEntryLike,
 } from '../lib/worldbook-demo'
 
@@ -75,6 +73,46 @@ const LOGIC_LABEL: Record<string, string> = {
 
 type SlotFilter = 'all' | 'solve' | 'scene_code' | 'dual' | 'unmounted'
 
+/** 一条词条从哪来：内置（只读）或某个用户包（可写） */
+type EntrySource = { kind: 'builtin' } | { kind: 'user'; pack: string }
+
+/** 新建卡片默认落这个文件（一卡一文件是内置覆盖副本的做法；用户自建卡集中放这里） */
+const DEFAULT_PACK = 'my-cards.json'
+
+const BUILTIN_IDS = new Set(WORLDBOOK_BUILTIN.map((e) => e.id))
+
+/**
+ * 落盘前的规范化：只写 §9.1 认识的字段，顺序固定。
+ * 客户端对象里有页面自己的状态（比如来源标记），绝不能原样写进词条文件
+ * —— `validateEntry` 的 `additionalProperties: false` 会整批拒绝。
+ */
+function cleanEntry(e: WorldbookEntryLike) {
+  return {
+    id: e.id,
+    title: e.title,
+    origin: 'user' as const,
+    category: e.category,
+    enabled: e.enabled,
+    constant: e.constant,
+    recursive: e.recursive,
+    keys: e.keys,
+    secondary_keys: { logic: e.secondary_keys.logic, list: e.secondary_keys.list },
+    concepts: e.concepts ?? [],
+    tags: e.tags ?? [],
+    elements: e.elements ?? [],
+    insertion_slot: e.insertion_slot,
+    order: e.order,
+    priority: e.priority,
+    content: e.content,
+    code_examples: e.code_examples ?? [],
+  }
+}
+
+/** 一份 `od-worldbook` 包的文本（与导出的格式完全一致） */
+function packText(list: WorldbookEntryLike[]): string {
+  return `${JSON.stringify({ format: WORLDBOOK_PACK_FORMAT, version: WORLDBOOK_PACK_VERSION, entries: list.map(cleanEntry) }, null, 2)}\n`
+}
+
 const SLOT_FILTER_LABEL: Record<SlotFilter, string> = {
   all: '全部',
   solve: '解题槽',
@@ -103,11 +141,8 @@ function matchesSlotFilter(entry: WorldbookEntryLike, filter: SlotFilter): boole
 }
 
 export function SettingsPage() {
-  /** 词条库（构建期快照 + 本页的内存编辑） */
-  const [entries, setEntries] = useState<WorldbookEntryLike[]>(() => [
-    ...WORLDBOOK_BUILTIN.map((e) => ({ ...e })),
-    ...WORLDBOOK_USER.map((e) => ({ ...e })),
-  ])
+  /** 词条库：构建期内置快照 + 本机用户区（连上服务后会被真实内容替换） */
+  const [entries, setEntries] = useState<WorldbookEntryLike[]>(() => WORLDBOOK_BUILTIN.map((e) => ({ ...e })))
   const [selectedId, setSelectedId] = useState<string>(() => WORLDBOOK_BUILTIN[0]?.id ?? '')
   const [search, setSearch] = useState('')
   const [slotFilter, setSlotFilter] = useState<SlotFilter>('all')
@@ -131,7 +166,261 @@ export function SettingsPage() {
   const [judgePaste, setJudgePaste] = useState('')
   const [judgeNote, setJudgeNote] = useState<string | null>(null)
 
+  /* ── v1.1.9：本机落盘（保存 / 导入 / 恢复内置）── */
+  const [sourceOf, setSourceOf] = useState<Record<string, EntrySource>>({})
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set())
+  const [newIds, setNewIds] = useState<Set<string>>(() => new Set())
+  const [busy, setBusy] = useState<string | null>(null)
+  const [importName, setImportName] = useState('imported.json')
+  const [service, setService] = useState<{
+    state: 'checking' | 'online' | 'offline'
+    dir: string
+    builtinCount: number
+  }>({ state: 'checking', dir: '', builtinCount: WORLDBOOK_BUILTIN.length })
+
   const selected = entries.find((e) => e.id === selectedId) ?? null
+
+  /** 从本机读用户区（登录/刷新/保存后都走这里，保证页面 = 磁盘） */
+  const loadFromService = async () => {
+    setBusy('正在读取本机词条库…')
+    try {
+      const list = await api.worldbook()
+      const userEntries: WorldbookEntryLike[] = []
+      const nextSource: Record<string, EntrySource> = {}
+      for (const p of list.packs) {
+        const pack = await api.worldbookPack(p.name)
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(pack.text)
+        } catch {
+          continue
+        }
+        const arr = (parsed as { entries?: unknown }).entries
+        if (!Array.isArray(arr)) continue
+        for (const raw of arr) {
+          const e = raw as WorldbookEntryLike
+          if (!e || typeof e.id !== 'string' || !e.id) continue
+          userEntries.push({ ...e })
+          nextSource[e.id] = { kind: 'user', pack: p.name }
+        }
+      }
+      const userIds = new Set(userEntries.map((e) => e.id))
+      const merged = [
+        ...WORLDBOOK_BUILTIN.filter((b) => !userIds.has(b.id)).map((b) => ({ ...b })),
+        ...userEntries,
+      ]
+      setEntries(merged)
+      setSourceOf(nextSource)
+      setDirtyIds(new Set())
+      setNewIds(new Set())
+      setService({ state: 'online', dir: list.dir, builtinCount: list.builtinCount })
+      setSelectedId((prev) => (merged.some((e) => e.id === prev) ? prev : (merged[0]?.id ?? '')))
+      return true
+    } catch (err) {
+      setService({ state: 'offline', dir: '', builtinCount: WORLDBOOK_BUILTIN.length })
+      setNotice(`连不上本机词条库：${(err as Error).message}。当前显示构建期快照，编辑不会落盘。`)
+      return false
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  useEffect(() => {
+    void loadFromService()
+    // 只在进页面时读一次；之后由按钮显式刷新（避免编辑中被静默覆盖）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** 某条词条当前落在哪个用户包（内置返回 null） */
+  const packOf = (id: string): string | null => {
+    const s = sourceOf[id]
+    return s && s.kind === 'user' ? s.pack : null
+  }
+
+  /**
+   * 改一条词条。
+   * 改内置 ⇒ 立刻转成同 id 的覆盖副本（§9.3 ①），保存时落到 `<id>.json`。
+   */
+  const patch = (id: string, next: Partial<WorldbookEntryLike>) => {
+    const asOverride = packOf(id) === null
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, ...next, ...(asOverride ? { origin: 'user' } : {}) } : e)),
+    )
+    if (asOverride) setSourceOf((prev) => ({ ...prev, [id]: { kind: 'user', pack: `${id}.json` } }))
+    setDirtyIds((prev) => new Set(prev).add(id))
+  }
+
+  const addEntry = () => {
+    const id = `local-${Date.now().toString(36)}`
+    const entry: WorldbookEntryLike = {
+      id,
+      title: '新建词条',
+      origin: 'user',
+      category: 'scene_modeling',
+      enabled: true,
+      constant: false,
+      recursive: true,
+      keys: [],
+      secondary_keys: { logic: 'AND_ANY', list: [] },
+      concepts: [],
+      tags: [],
+      elements: [],
+      insertion_slot: ['scene_code'],
+      order: 1000,
+      priority: 'normal',
+      content: '# 新建词条\n\n## 判据\n（什么时候用这张卡）\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] ',
+      code_examples: [],
+    }
+    setEntries((prev) => [entry, ...prev])
+    setSourceOf((prev) => ({ ...prev, [id]: { kind: 'user', pack: DEFAULT_PACK } }))
+    setNewIds((prev) => new Set(prev).add(id))
+    setDirtyIds((prev) => new Set(prev).add(id))
+    setSelectedId(id)
+    setNotice('已新建一张空白卡：填好内容后点「保存到本机」。')
+  }
+
+  /** 只允许"新卡"改 id；已保存的 id 改了会让文件、覆盖关系对不上 */
+  const changeId = (oldId: string, raw: string) => {
+    const newId = raw.trim()
+    if (!newId || newId === oldId) return
+    if (entries.some((e) => e.id === newId)) {
+      setNotice(`id "${newId}" 已被占用。`)
+      return
+    }
+    setEntries((prev) => prev.map((e) => (e.id === oldId ? { ...e, id: newId } : e)))
+    setSourceOf((prev) => {
+      const src = prev[oldId]
+      const next = { ...prev }
+      delete next[oldId]
+      if (src) next[newId] = src
+      return next
+    })
+    setNewIds((prev) => {
+      const n = new Set(prev)
+      if (n.delete(oldId)) n.add(newId)
+      return n
+    })
+    setDirtyIds((prev) => {
+      const n = new Set(prev)
+      n.delete(oldId)
+      n.add(newId)
+      return n
+    })
+    setSelectedId(newId)
+  }
+
+  /** 保存：把每条用户词条写回它所属的包；内置不被改到（改过的已转为覆盖副本） */
+  const saveAll = async () => {
+    if (service.state !== 'online') {
+      setNotice('本机服务未启动，无法保存。开发期请用 3-OpenRules.bat 起服务。')
+      return
+    }
+    const groups = new Map<string, WorldbookEntryLike[]>()
+    for (const e of entries) {
+      const pack = packOf(e.id)
+      if (!pack) continue
+      const list = groups.get(pack) ?? []
+      list.push(e)
+      groups.set(pack, list)
+    }
+    if (groups.size === 0) {
+      setNotice('没有需要保存的用户词条。')
+      return
+    }
+    setBusy('正在保存…')
+    try {
+      let total = 0
+      for (const [pack, list] of groups) {
+        await api.saveWorldbookPack(pack, packText(list))
+        total += list.length
+      }
+      await loadFromService()
+      setNotice(`已保存 ${total} 条用户词条到 ${groups.size} 个文件（写前自动备份 5 份）。`)
+    } catch (err) {
+      setNotice(`保存失败：${(err as Error).message}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const removeSelected = async () => {
+    if (!selected) return
+    const pack = packOf(selected.id)
+    if (!pack) {
+      setNotice('内置词条不能删除；可以关掉「启用」，或编辑它生成覆盖副本。')
+      return
+    }
+    if (!window.confirm(`删除「${selected.title}」？删除前会自动备份。`)) return
+    setBusy('正在删除…')
+    try {
+      const rest = entries.filter((e) => e.id !== selected.id && packOf(e.id) === pack)
+      if (rest.length === 0) await api.deleteWorldbookPack(pack)
+      else await api.saveWorldbookPack(pack, packText(rest))
+      await loadFromService()
+      setNotice(`已删除「${selected.title}」。`)
+    } catch (err) {
+      setNotice(`删除失败：${(err as Error).message}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** 一键恢复本版本内置：只撤销覆盖副本，不删用户自建卡 */
+  const restoreBuiltin = async () => {
+    if (service.state !== 'online') {
+      setNotice('本机服务未启动，无法恢复内置。')
+      return
+    }
+    if (
+      !window.confirm(
+        '恢复本版本内置词条：会删除你对内置词条的覆盖副本（删除前自动备份）；你自己新建的卡不受影响。继续？',
+      )
+    ) {
+      return
+    }
+    setBusy('正在恢复内置…')
+    try {
+      const r = await api.restoreWorldbookBuiltin()
+      await loadFromService()
+      const extra = r.problems?.length
+        ? `；有 ${r.problems.length} 个问题没处理：${r.problems.slice(0, 3).join(' / ')}`
+        : ''
+      setNotice(
+        `已恢复 ${__OD_APP_VERSION__} 内置：撤销覆盖 ${r.removed} 条，涉及 ${r.packsTouched + r.packsDeleted} 个文件${extra}。`,
+      )
+    } catch (err) {
+      setNotice(`恢复失败：${(err as Error).message}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const importPack = async () => {
+    if (service.state !== 'online') {
+      setNotice('本机服务未启动，无法导入。')
+      return
+    }
+    const shape = checkImportShape(importText)
+    if (!shape.startsWith('形状检查通过')) {
+      setNotice(shape)
+      return
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/.test(importName)) {
+      setNotice('文件名不合法：只允许字母数字 . _ -，并以 .json 结尾。')
+      return
+    }
+    if (!window.confirm(`把导入内容写入 ${importName}？（同名文件会被覆盖，覆盖前自动备份）`)) return
+    setBusy('正在导入…')
+    try {
+      await api.saveWorldbookPack(importName, importText)
+      await loadFromService()
+      setNotice(`已导入并保存到 ${importName}。`)
+    } catch (err) {
+      setNotice(`导入失败：${(err as Error).message}`)
+    } finally {
+      setBusy(null)
+    }
+  }
 
   /**
    * 词表（供"只能从表里选"的多选与浏览面板用）。
@@ -151,10 +440,6 @@ export function SettingsPage() {
     }
     return { concepts: [...c].sort(), tags: [...t].sort(), elements: [...el].sort() }
   }, [entries])
-
-  const patch = (id: string, next: Partial<WorldbookEntryLike>) => {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...next } : e)))
-  }
 
   const enabled = useMemo(() => entries.filter((e) => e.enabled), [entries])
 
@@ -194,20 +479,91 @@ export function SettingsPage() {
   }, [visible])
 
   const exportText = useMemo(() => {
-    // ⚠ 这里的导出**只是给用户拿到文本**：完整规范化与旧名归一化由 Node 侧执行
-    //   （门禁 ㉒ 的 W11/W12 逐条取证）。格式常量从构建期快照来，并由 web-build 判据钉住。
-    const userOnly = entries.filter((e) => e.origin === 'user')
-    return JSON.stringify({ format: WORLDBOOK_PACK_FORMAT, version: WORLDBOOK_PACK_VERSION, entries: userOnly }, null, 2)
-  }, [entries])
+    // 导出 = 当前所有 user 词条（含覆盖副本），与落盘用同一套规范化。
+    const userOnly = entries.filter((e) => packOf(e.id) !== null)
+    return `${JSON.stringify(
+      { format: WORLDBOOK_PACK_FORMAT, version: WORLDBOOK_PACK_VERSION, entries: userOnly.map(cleanEntry) },
+      null,
+      2,
+    )}\n`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, sourceOf])
 
   return (
     <div data-od-region="settings-page" className="space-y-4">
-      <section data-od-region="worldbook-honesty" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
-        这一页是<strong>预览与分析</strong>用的：编辑只存在<strong>本页内存</strong>中，刷新即丢。
-        <strong>要真正写回 <code>ai-rules/worldbook/</code>，请去「规则」页的「世界书」页签</strong>（第 6 期已接上本机服务；
-        用 <code className="rounded bg-amber-100 px-1">3-OpenRules.bat</code> 打开才可用）。
-        本页的预览器<strong>触发与组装是真的</strong>（用的是 <code>core/worldbook/engine.mjs</code> 的逐字节副本）。
+      {/* ── v1.1.9：本机落盘工具栏（保存 / 恢复内置 / 重新读取）── */}
+      <section data-od-region="worldbook-service" className="rounded-md border border-slate-200 bg-white px-4 py-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span
+            className={`rounded px-2 py-0.5 font-medium ${
+              service.state === 'online'
+                ? 'bg-emerald-100 text-emerald-800'
+                : service.state === 'checking'
+                  ? 'bg-slate-100 text-slate-600'
+                  : 'bg-rose-100 text-rose-800'
+            }`}
+          >
+            {service.state === 'online'
+              ? '本机词条库已连接'
+              : service.state === 'checking'
+                ? '正在连接本机词条库…'
+                : '本机服务未启动（只读快照）'}
+          </span>
+          {service.state === 'online' && (
+            <code className="text-[10px] text-slate-500" title="保存位置">
+              {service.dir}
+            </code>
+          )}
+          <span className="text-slate-500">
+            内置 {service.builtinCount} 条 · 用户 {Object.keys(sourceOf).length} 条
+            {dirtyIds.size ? ` · ${dirtyIds.size} 条未保存` : ''}
+          </span>
+          <span className="flex-1" />
+          <button
+            type="button"
+            data-od-action="worldbook-save"
+            className="rounded bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-40"
+            disabled={busy !== null || service.state !== 'online' || dirtyIds.size === 0}
+            onClick={() => void saveAll()}
+          >
+            保存到本机{dirtyIds.size ? `（${dirtyIds.size}）` : ''}
+          </button>
+          <button
+            type="button"
+            data-od-action="worldbook-restore-builtin"
+            className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 disabled:opacity-40"
+            disabled={busy !== null || service.state !== 'online'}
+            onClick={() => void restoreBuiltin()}
+            title="只撤销对内置词条的覆盖副本；你自己新建的卡不受影响"
+          >
+            恢复 {__OD_APP_VERSION__} 内置
+          </button>
+          <button
+            type="button"
+            data-od-action="worldbook-reload"
+            className="rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 disabled:opacity-40"
+            disabled={busy !== null}
+            onClick={() => {
+              if (dirtyIds.size > 0 && !window.confirm(`有 ${dirtyIds.size} 条未保存的修改，重新读取会丢弃。继续？`)) return
+              void loadFromService()
+            }}
+          >
+            重新读取
+          </button>
+        </div>
+        <p className="mt-1 text-[11px] text-slate-500">
+          保存到 <code>ai-rules/worldbook/</code>（发布版在{' '}
+          <code>{'%APPDATA%\\physics-animation-studio\\data\\ai-rules\\worldbook\\'}</code>）。
+          内置只读；<strong>编辑内置会自动生成同 id 的覆盖副本</strong>；「恢复内置」只撤销覆盖，不删你自己新建的卡。
+          {busy && <span className="ml-1 font-medium text-slate-700">{busy}</span>}
+        </p>
       </section>
+
+      {notice && (
+        <p data-od-region="settings-notice" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-700">
+          {notice}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(240px,300px)_1fr_minmax(320px,420px)]">
         {/* ── 左：卡片列表（§9.5） ── */}
@@ -215,7 +571,8 @@ export function SettingsPage() {
           <header className="border-b border-slate-200 px-3 py-2">
             <h2 className="text-sm font-semibold text-slate-900">世界书词条</h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              共 {entries.length} 条 · 启用 {enabled.length} 条 · 内置 {WORLDBOOK_BUILTIN.length} 条
+              共 {entries.length} 条 · 启用 {enabled.length} 条 · 内置 {service.builtinCount} 条 · 用户{' '}
+              {Object.keys(sourceOf).length} 条
             </p>
           </header>
 
@@ -275,11 +632,18 @@ export function SettingsPage() {
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
                             <code>{e.id}</code>
-                            {e.origin === 'builtin' ? (
+                            {packOf(e.id) === null ? (
                               <span className="rounded bg-slate-100 px-1">内置</span>
+                            ) : BUILTIN_IDS.has(e.id) ? (
+                              <span className="rounded bg-amber-100 px-1 text-amber-700" title={`覆盖副本：${packOf(e.id)}`}>
+                                覆盖内置
+                              </span>
                             ) : (
-                              <span className="rounded bg-amber-100 px-1 text-amber-700">我的</span>
+                              <span className="rounded bg-amber-100 px-1 text-amber-700" title={`文件：${packOf(e.id)}`}>
+                                我的
+                              </span>
                             )}
+                            {dirtyIds.has(e.id) && <span className="rounded bg-rose-100 px-1 text-rose-700">未保存</span>}
                             {e.constant && <span className="rounded bg-rose-100 px-1 text-rose-700">常驻</span>}
                             {e.recursive && <span className="rounded bg-teal-100 px-1 text-teal-700">递归</span>}
                           </div>
@@ -297,30 +661,52 @@ export function SettingsPage() {
         <section data-od-region="worldbook-editor" className="space-y-4">
           {selected ? (
             <div className="rounded-md border border-slate-200 bg-white p-4">
-              <header className="mb-3 flex items-center justify-between">
+              <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-900">编辑词条</h2>
-                <label className="flex items-center gap-1 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    data-od-field="worldbook-enabled"
-                    checked={selected.enabled}
-                    onChange={(e) => patch(selected.id, { enabled: e.target.checked })}
-                  />
-                  启用
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      data-od-field="worldbook-enabled"
+                      checked={selected.enabled}
+                      onChange={(e) => patch(selected.id, { enabled: e.target.checked })}
+                    />
+                    启用
+                  </label>
+                  <button
+                    type="button"
+                    data-od-action="worldbook-new"
+                    className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700"
+                    onClick={addEntry}
+                  >
+                    新建
+                  </button>
+                  <button
+                    type="button"
+                    data-od-action="worldbook-delete"
+                    className="rounded border border-rose-200 px-2 py-0.5 text-[11px] text-rose-700"
+                    onClick={() => void removeSelected()}
+                    disabled={packOf(selected.id) === null}
+                    title={packOf(selected.id) === null ? '内置词条不能删除' : '删除这条用户词条（先备份）'}
+                  >
+                    删除
+                  </button>
+                </div>
               </header>
+              <p className="mb-2 text-[11px] text-slate-500">
+                {packOf(selected.id) === null
+                  ? '这是内置词条（只读）。改动会自动转成一条同 id 的「覆盖副本」，保存后生效；要还原点上面的「恢复内置」。'
+                  : `这条会保存到 ${packOf(selected.id)}${BUILTIN_IDS.has(selected.id) ? '（覆盖内置）' : ''}。`}
+              </p>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Field label="id（库内唯一；字母/数字/点/下划线/连字符）">
+                <Field label="id（库内唯一；已保存的 id 不可改，要换 id 请新建）">
                   <input
                     className="input"
                     data-od-field="worldbook-id"
                     value={selected.id}
-                    onChange={(e) => {
-                      const next = e.target.value
-                      setEntries((prev) => prev.map((x) => (x.id === selected.id ? { ...x, id: next } : x)))
-                      setSelectedId(next)
-                    }}
+                    readOnly={!newIds.has(selected.id)}
+                    onChange={(e) => changeId(selected.id, e.target.value)}
                   />
                 </Field>
                 <Field label="标题">
@@ -543,17 +929,27 @@ export function SettingsPage() {
               </div>
             </div>
           ) : (
-            <p className="rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-500">左侧选一条词条开始编辑。</p>
+            <div className="rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-500">
+              左侧选一条词条开始编辑，或
+              <button
+                type="button"
+                data-od-action="worldbook-new-empty"
+                className="mx-1 rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700"
+                onClick={addEntry}
+              >
+                新建一条
+              </button>
+              。
+            </div>
           )}
 
           {/* ── 导入导出（§9.5 / §9.3 ③：默认只导 origin:user） ── */}
           <div className="rounded-md border border-slate-200 bg-white p-4" data-od-region="worldbook-io">
             <h2 className="text-sm font-semibold text-slate-900">导入 / 导出</h2>
             <p className="mt-1 text-[11px] text-slate-500">
-              导出默认只含 <code>origin: user</code> 的词条（§9.3 ③）。格式：<code>{WORLDBOOK_PACK_FORMAT}</code> v
-              {WORLDBOOK_PACK_VERSION}。
-              <strong>完整校验与旧名归一化（scene_spec → scene_code）在 Node 侧执行</strong>（门禁 ㉒ 的 W11/W12 取证），
-              本页导入只做形状提示。
+              导出含当前全部用户词条（§9.3 ③，含覆盖副本）。格式：<code>{WORLDBOOK_PACK_FORMAT}</code> v
+              {WORLDBOOK_PACK_VERSION}。导入会在 <strong>Node 侧做完整校验与旧名归一化</strong>
+              （scene_spec → scene_code，门禁 ㉒ 的 W11/W12 取证），通过后直接落盘；不通过会逐条报错。
             </p>
             <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
@@ -561,28 +957,42 @@ export function SettingsPage() {
                 <textarea className="input h-40 font-mono text-[11px]" data-od-field="worldbook-export" readOnly value={exportText} />
               </div>
               <div>
-                <p className="label">导入文本（粘贴后点"检查形状"）</p>
+                <p className="label">导入文本（粘贴后选文件名，再"导入并保存"）</p>
                 <textarea
                   className="input h-40 font-mono text-[11px]"
                   data-od-field="worldbook-import"
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
                 />
-                <button
-                  type="button"
-                  data-od-action="worldbook-import-check"
-                  className="mt-1 rounded bg-slate-900 px-3 py-1 text-xs text-white"
-                  onClick={() => setNotice(checkImportShape(importText))}
-                >
-                  检查形状
-                </button>
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <input
+                    className="rounded border border-slate-300 px-2 py-1 text-[11px]"
+                    data-od-field="worldbook-import-name"
+                    aria-label="导入到的文件名"
+                    value={importName}
+                    onChange={(e) => setImportName(e.target.value)}
+                    size={18}
+                  />
+                  <button
+                    type="button"
+                    data-od-action="worldbook-import-check"
+                    className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-700"
+                    onClick={() => setNotice(checkImportShape(importText))}
+                  >
+                    检查形状
+                  </button>
+                  <button
+                    type="button"
+                    data-od-action="worldbook-import-save"
+                    className="rounded bg-slate-900 px-2 py-1 text-[11px] text-white disabled:opacity-40"
+                    disabled={busy !== null || service.state !== 'online'}
+                    onClick={() => void importPack()}
+                  >
+                    导入并保存
+                  </button>
+                </div>
               </div>
             </div>
-            {notice && (
-              <p data-od-region="worldbook-import-notice" className="mt-2 rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
-                {notice}
-              </p>
-            )}
           </div>
         </section>
 
@@ -591,7 +1001,7 @@ export function SettingsPage() {
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <h2 className="text-sm font-semibold text-slate-900">实时试触发</h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              边打字边出结果，<strong>不调用模型、不保存</strong>。用与真实请求同一份引擎代码，所以拼接结果逐字节一致。
+              边打字边出结果，<strong>不调用模型、不改磁盘</strong>。用与真实请求同一份引擎代码，所以拼接结果逐字节一致。
             </p>
             <textarea
               className="input mt-2 h-24 text-[11px]"

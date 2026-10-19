@@ -95,6 +95,7 @@ import {
   listWorldbookPacks,
   readBuiltinEntry,
   readWorldbookPack,
+  restoreBuiltinWorldbook,
   saveWorldbookPack,
 } from '../core/worldbook/index.mjs';
 /* 第 7 期 M17：导出产物（网页 / GIF）落盘与清单。
@@ -1059,6 +1060,16 @@ export function createRulesService({
           const r = copyBuiltinEntry({ dir: wbDir, id: String(body.id ?? ''), name: body.name });
           if (!r.ok) return bad(res, r.issues, 400);
           return ok(res, r);
+        }
+        /**
+         * 一键恢复**本版本内置**（设置页按钮）。
+         *
+         * 语义只动「覆盖内置」的用户副本，用户自己新建的卡一条不碰；写/删前都有滚动备份。
+         * 部分失败也返回 200 + `ok:false` + `problems`：界面要能把"恢复了几条、哪个文件没动"说清，
+         * 不能因为一个坏文件就把已经成功的恢复说成整体失败。
+         */
+        if (req.method === 'POST' && path === '/api/worldbook/restore') {
+          return ok(res, restoreBuiltinWorldbook({ dir: wbDir }));
         }
         if (req.method === 'POST' && path === '/api/worldbook/packs') {
           const body = await readJson(req);

@@ -10,7 +10,7 @@
  * 用法：node tests/rules-service-selftest.mjs
  */
 
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -266,6 +266,26 @@ async function main() {
       check('删除覆盖副本成功', del.status === 200);
       check('删掉覆盖副本后内置那条自动恢复生效（列表少一份）', (await call('GET', '/api/worldbook')).json.packs.length === 1);
       check('删不存在的包 ⇒ 400', (await call('DELETE', '/api/worldbook/packs/nope.json')).status === 400);
+
+      /* ── v1.1.9：一键恢复本版本内置（设置页按钮的真实 HTTP 通道）── */
+      const copied2 = await call('POST', '/api/worldbook/copy', { id: wb.json.builtinIds[0] });
+      check('再复制一份覆盖副本（恢复内置的前置）', copied2.status === 200, JSON.stringify(copied2.json));
+      const restored = await call('POST', '/api/worldbook/restore', {});
+      check(
+        '★ 一键恢复内置：删掉覆盖副本',
+        restored.status === 200 && restored.json.ok === true && restored.json.removed === 1,
+        JSON.stringify(restored.json),
+      );
+      check(
+        '恢复后用户区只剩原来的空包（覆盖副本没了）',
+        (await call('GET', '/api/worldbook')).json.packs.map((p) => p.name).join(',') === 'my-entries.json',
+      );
+      check(
+        '★ 恢复前留了滚动备份（恢复本身可撤销）',
+        existsSync(join(dir, 'worldbook', '.backup', `${copied2.json.name}.bak.1`)),
+      );
+      const again = await call('POST', '/api/worldbook/restore', {});
+      check('（幂等）再恢复一次：removed = 0', again.status === 200 && again.json.removed === 0);
     }
 
     /* ── 跨源与静态页 ── */
