@@ -18,7 +18,7 @@
  *   node tools/web-build.mjs --check  # 只做类型检查
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -505,5 +505,15 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   } catch (err) {
     console.error(`✗ ${err?.message ?? err}`);
     process.exitCode = 1;
+  }
+}
+
+/* ── 第 9 期 v1.1.5：静态资源（表情包）原样拷进 dist ── */
+{
+  const pub = join(WEB_DIR, 'public');
+  const out = join(WEB_DIR, 'dist');
+  if (existsSync(pub)) {
+    cpSync(pub, out, { recursive: true });
+    console.log('  ✓ web/public/ → dist/（静态资源：表情包）');
   }
 }

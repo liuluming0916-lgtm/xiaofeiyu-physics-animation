@@ -273,7 +273,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
                 />
                 <span>
                   <span className="font-medium">开发模式（不拦截校验）</span>
-                  ：C1–C9 照常校验、照常写报告，但**不再阻止动画生成**，代码直接进动画页播放。
+                  ：C1–C9 照常校验、照常写报告，但不再阻止动画生成，代码直接进动画页播放。
                   被放行的检查会在报告与导出文件里标明 —— 别用它出正式产物。
                 </span>
               </label>
@@ -307,7 +307,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
           {/* 两个都空时**说清楚**差什么，而不是让按钮灰着一个字不解释 */}
           {!running && !st.problemText.trim() && st.images.length === 0 && (
             <p className="mt-2 text-xs text-slate-500">
-              至少给一样：**题面文字**，或**一张题目图片**（纯图片题可以直接点上面的按钮）。
+              至少给一样：题面文字，或一张题目图片（纯图片题可以直接点上面的按钮）。
             </p>
           )}
 
@@ -359,6 +359,16 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
         */}
         {st.run.banner && <WarningBanner banner={st.run.banner} />}
 
+        {/*
+          ⚠ 第 9 期 v1.1.5：**过程文字从解题页的显眼位置撤走**（用户 2026-10-19 定），
+          收进这个默认收起的折叠面板里，与判据/世界书依据/自愈过程放在一起。
+          为什么不彻底删掉：出问题时它是唯一能自己看出错在哪的证据。
+        */}
+        <details className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <summary className="cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700">
+            过程与判据（点开查看）
+          </summary>
+          <div className="space-y-4 border-t border-slate-100 p-5 pt-4">
         {(st.run.stageText.solve || st.run.stageText.steps || st.run.stageText.answers) && (
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-base font-medium text-slate-900">解题过程</h2>
@@ -405,6 +415,16 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
 
         {/* 第 4 期：自愈过程对用户可见（B6）——修了几轮、改了哪些槽位、为什么改 */}
         {st.run.repairRounds.length > 0 && <RepairPanel run={st.run} />}
+          </div>
+        </details>
+
+        <FishStage
+          stage={
+            (st.run.stages.length ? st.run.stages : [...STAGE_CHAIN]).find(
+              (s) => (st.run.stageStatus[s] ?? 'pending') === 'running',
+            )
+          }
+        />
 
         {st.programSlots && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-4">
@@ -624,6 +644,46 @@ function RepairPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'] }
   )
 }
 
+/** 第 9 期 v1.1.5：每个阶段一句话，**只在跑的时候出现**（用户 2026-10-19 定的文案） */
+const STAGE_SAY: Record<string, string> = {
+  read_problem: '小肥鱼正在看题…',
+  solve: '小肥鱼正在解题…',
+  steps: '小肥鱼正在把答案切块…',
+  answers: '小肥鱼正在料理答案…',
+  scene_code: '小肥鱼正在努力画画…',
+  dry_run: '小肥鱼正在检查…',
+  repair: '小肥鱼正在完善…',
+}
+
+/** 阶段 → 表情包文件（图来自「表情包参考」，已拷进 web/public/fish/） */
+const STAGE_FISH: Record<string, string> = {
+  read_problem: 'stage1',
+  solve: 'stage2',
+  steps: 'stage3',
+  answers: 'stage4',
+  scene_code: 'stage5',
+  dry_run: 'stage6',
+  repair: 'stage7',
+}
+
+/**
+ * 表情包区：**没在跑的时候显示 idle**，跑到哪个阶段换哪张。
+ * ⚠ 刻意**不进导出的单文件网页**——导出页要自包含，一张 40KB 的图内联成 base64 就是 55KB。
+ */
+function FishStage({ stage }: { stage: string | undefined }) {
+  const name = stage ? STAGE_FISH[stage] : undefined
+  return (
+    <div className="flex min-h-[260px] flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <img
+        src={`/fish/${name ?? 'idle'}.webp`}
+        alt=""
+        draggable={false}
+        className="max-h-[420px] w-full object-contain"
+      />
+    </div>
+  )
+}
+
 function StageProgress({
   stages,
   status,
@@ -636,6 +696,9 @@ function StageProgress({
   /** 第 5 期：被跳过的原因（纯文字题跳过读图转写时必须说出来，不能默默少一步） */
   skipReason: Record<string, string>
 }) {
+  const runningStage = stages.find((s) => (status[s] ?? 'pending') === 'running')
+  const say = runningStage ? STAGE_SAY[runningStage] : null
+
   return (
     <ol className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-sm">
       {stages.map((s, i) => {
@@ -665,6 +728,9 @@ function StageProgress({
           </li>
         )
       })}
+      {say && (
+        <li className="w-full pt-1 text-sm font-medium text-blue-700">{say}</li>
+      )}
     </ol>
   )
 }

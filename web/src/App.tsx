@@ -49,7 +49,8 @@ export function App() {
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold text-slate-900">物理解题动画</h1>
             {/* 第 9 期：版本号**不再写死** —— 构建期从 package.json 注入（见 rollup replace） */}
-            <span className="text-xs text-slate-500">v{__OD_APP_VERSION__} · 解题 → 动画 → 教辅蒸馏</span>
+            <span className="text-xs text-slate-500">v{__OD_APP_VERSION__}</span>
+            <span className="text-xs font-medium text-slate-600">开源的物理动画平台</span>
           </div>
 
           <nav className="flex items-center gap-1" aria-label="主导航">
