@@ -267,6 +267,26 @@ export function AnimationPage() {
         const h = win?.ODExportHook;
         return h && h.available() ? h : null;
     }, []);
+    /**
+     * 第 9 期 v1.1.5：画布**不再固定 16:9**（用户 2026-10-19 · 方案 B：比例尺优先，GIF 让步）。
+     * 所以抓帧不能直接拉伸到 960×540 —— 那会把画面**拉变形**。
+     * 这里等比缩放 + 留白边合到目标尺寸，再交给 readScaled 取像素。
+     */
+    const letterboxTo = useCallback((src, w, h) => {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const g = c.getContext('2d');
+        if (!g)
+            return c;
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, w, h);
+        const scale = Math.min(w / src.width, h / src.height);
+        const dw = src.width * scale;
+        const dh = src.height * scale;
+        g.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        return c;
+    }, []);
     const exportPage = useCallback(async () => {
         const st0 = useApp.getState();
         if (!st0.programSlots)
@@ -336,7 +356,7 @@ export function AnimationPage() {
                 const canvas = h.renderAt(times[i]);
                 if (!canvas)
                     throw new Error(`第 ${i} 帧渲染失败`);
-                frames.push(readScaled(canvas, DEFAULT_GIF_WIDTH, DEFAULT_GIF_HEIGHT));
+                frames.push(readScaled(letterboxTo(canvas, DEFAULT_GIF_WIDTH, DEFAULT_GIF_HEIGHT), DEFAULT_GIF_WIDTH, DEFAULT_GIF_HEIGHT));
                 setBusy({ kind: 'gif', done: i + 1, total: times.length });
                 // 让出主线程：不这么做进度条永远不重绘，几十帧会看起来像卡死
                 await new Promise((resolve) => setTimeout(resolve, 0));
@@ -379,9 +399,9 @@ export function AnimationPage() {
         else
             void exportGif();
     }), [exportPage, exportGif]);
-    return (_jsxs("div", { className: "space-y-4", children: [st.run.banner && (_jsxs("div", { role: "alert", className: "rounded-lg border-2 border-amber-400 bg-amber-50 p-4 text-sm", children: [_jsxs("p", { className: "font-semibold text-amber-900", children: ["\u26A0 ", st.run.banner.title, st.run.banner.failedChecks.length > 0 && (_jsxs("span", { className: "ml-2 font-mono text-xs", children: ["\uFF08", st.run.banner.failedChecks.join(' / '), "\uFF09"] }))] }), _jsx("p", { className: "mt-1 text-amber-900", children: st.run.banner.message })] })), st.run.advisory && (_jsxs("p", { className: "rounded-lg border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900", "data-od-id": "advisory-banner-animation", children: [_jsx("strong", { children: "\u5F00\u53D1\u6A21\u5F0F" }), "\uFF1A\u8FD9\u6761\u52A8\u753B**\u6CA1\u6709\u901A\u8FC7\u786C\u5224\u636E**", st.run.gatesBypassed.length ? '（' + st.run.gatesBypassed.join(' / ') + '）' : '', "\u3002\u753B\u9762\u53EF\u4EE5\u770B\u3001\u53EF\u4EE5\u5BFC\u51FA\uFF0C\u4F46\u5BFC\u51FA\u6587\u4EF6\u91CC\u4F1A\u5199\u660E\u201C\u672A\u901A\u8FC7\u6821\u9A8C\u201D\u3002"] })), !st.programSlots && (_jsxs("p", { className: "rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900", children: ["\u8FD8\u6CA1\u6709\u53EF\u64AD\u653E\u7684\u52A8\u753B\uFF1A\u8BF7\u5148\u5230", _jsx("strong", { children: "\u89E3\u9898\u9875" }), "\u70B9\u300C\u5F00\u59CB\u751F\u6210\u52A8\u753B\u300D\u3002"] })), st.templateError && (_jsxs("div", { className: "rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900", children: [_jsxs("p", { className: "font-medium", children: ["\u6A21\u677F\u9875\u62A5\u544A\u9519\u8BEF\uFF1A", st.templateError.code] }), _jsx("p", { className: "mt-1", children: st.templateError.message })] })), st.programSlots && !st.templateReady && !st.templateError && (_jsx("p", { className: "text-sm text-slate-500", children: "\u6B63\u5728\u7B49\u5F85\u6A21\u677F\u9875\u5C31\u7EEA\u2026" })), _jsxs("details", { open: Boolean(st.programSlots) && !st.templateReady, className: "rounded-lg border border-slate-200 bg-white", children: [_jsxs("summary", { className: "cursor-pointer px-3 py-2 text-xs text-slate-600", children: ["\u5BBF\u4E3B \u2194 \u6A21\u677F \u901A\u4FE1\u65E5\u5FD7\uFF08", log.length, " \u6761\uFF09", !st.templateReady && st.programSlots ? ' —— 尚未就绪，请看下面' : ''] }), _jsx("pre", { className: "max-h-40 overflow-auto border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700", children: log.length ? log.join('\n') : '（还没有任何消息往来）' })] }), _jsx("div", { className: "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm", children: _jsx("iframe", { ref: iframeRef, title: "\u52A8\u753B\u6A21\u677F\u9875", src: TEMPLATE_URL, className: "h-[720px] w-full", 
+    return (_jsxs("div", { className: "space-y-4", children: [st.run.banner && (_jsxs("div", { role: "alert", className: "rounded-lg border-2 border-amber-400 bg-amber-50 p-4 text-sm", children: [_jsxs("p", { className: "font-semibold text-amber-900", children: ["\u26A0 ", st.run.banner.title, st.run.banner.failedChecks.length > 0 && (_jsxs("span", { className: "ml-2 font-mono text-xs", children: ["\uFF08", st.run.banner.failedChecks.join(' / '), "\uFF09"] }))] }), _jsx("p", { className: "mt-1 text-amber-900", children: st.run.banner.message })] })), st.run.advisory && (_jsxs("p", { className: "rounded-lg border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900", "data-od-id": "advisory-banner-animation", children: [_jsx("strong", { children: "\u5F00\u53D1\u6A21\u5F0F" }), "\uFF1A\u8FD9\u6761\u52A8\u753B**\u6CA1\u6709\u901A\u8FC7\u786C\u5224\u636E**", st.run.gatesBypassed.length ? '（' + st.run.gatesBypassed.join(' / ') + '）' : '', "\u3002\u753B\u9762\u53EF\u4EE5\u770B\u3001\u53EF\u4EE5\u5BFC\u51FA\uFF0C\u4F46\u5BFC\u51FA\u6587\u4EF6\u91CC\u4F1A\u5199\u660E\u201C\u672A\u901A\u8FC7\u6821\u9A8C\u201D\u3002"] })), !st.programSlots && (_jsxs("p", { className: "rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900", children: ["\u8FD8\u6CA1\u6709\u53EF\u64AD\u653E\u7684\u52A8\u753B\uFF1A\u8BF7\u5148\u5230", _jsx("strong", { children: "\u89E3\u9898\u9875" }), "\u70B9\u300C\u5F00\u59CB\u751F\u6210\u52A8\u753B\u300D\u3002"] })), st.templateError && (_jsxs("div", { className: "rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900", children: [_jsxs("p", { className: "font-medium", children: ["\u6A21\u677F\u9875\u62A5\u544A\u9519\u8BEF\uFF1A", st.templateError.code] }), _jsx("p", { className: "mt-1", children: st.templateError.message })] })), st.programSlots && !st.templateReady && !st.templateError && (_jsx("p", { className: "text-sm text-slate-500", children: "\u6B63\u5728\u7B49\u5F85\u6A21\u677F\u9875\u5C31\u7EEA\u2026" })), _jsx("div", { className: "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm", children: _jsx("iframe", { ref: iframeRef, title: "\u52A8\u753B\u6A21\u677F\u9875", src: TEMPLATE_URL, className: "h-[720px] w-full", 
                     // 模板页需要脚本（播放器就在里面）；同源即可
-                    sandbox: "allow-scripts allow-same-origin" }) }), _jsxs("p", { className: "text-xs text-slate-500", children: ["\u8BF4\u660E\uFF1A\u753B\u5E03\u3001\u4E09\u680F\u3001\u64AD\u653E\u63A7\u5236\u4E0E\u66F2\u7EBF\u56FE\u5168\u90E8\u7531", _jsx("strong", { children: "\u6A21\u677F\u9875\u81EA\u5DF1" }), "\u6E32\u67D3 \uFF08\u64AD\u653E\u5668\u5C31\u662F\u6A21\u677F\u9875\u672C\u8EAB\uFF09\uFF0C\u5BBF\u4E3B\u53EA\u8D1F\u8D23\u628A\u9898\u76EE\u6CE8\u5165\u8FDB\u53BB\u2014\u2014\u8FD9\u6837\u5BFC\u51FA\u7684\u6587\u4EF6 \u4E0E\u5C4F\u5E55\u4E0A\u770B\u5230\u7684\u624D\u662F\u540C\u4E00\u4E2A\u4E1C\u897F\u3002\u672C\u671F iframe \u6307\u5411\u6784\u5EFA\u4EA7\u7269", ' ', _jsx("code", { className: "rounded bg-slate-100 px-1", children: TEMPLATE_URL }), "\u3002"] }), (busy || result) && (_jsx("p", { className: result && !result.ok ? 'text-xs text-red-700' : 'text-xs text-slate-500', children: busy
+                    sandbox: "allow-scripts allow-same-origin" }) }), _jsxs("p", { className: "text-xs text-slate-500", children: ["\u8BF4\u660E\uFF1A\u753B\u5E03\u3001\u4E09\u680F\u3001\u64AD\u653E\u63A7\u5236\u4E0E\u66F2\u7EBF\u56FE\u5168\u90E8\u7531", _jsx("strong", { children: "\u6A21\u677F\u9875\u81EA\u5DF1" }), "\u6E32\u67D3 \uFF08\u64AD\u653E\u5668\u5C31\u662F\u6A21\u677F\u9875\u672C\u8EAB\uFF09\uFF0C\u5BBF\u4E3B\u53EA\u8D1F\u8D23\u628A\u9898\u76EE\u6CE8\u5165\u8FDB\u53BB\u2014\u2014\u8FD9\u6837\u5BFC\u51FA\u7684\u6587\u4EF6 \u4E0E\u5C4F\u5E55\u4E0A\u770B\u5230\u7684\u624D\u662F\u540C\u4E00\u4E2A\u4E1C\u897F\u3002\u672C\u671F iframe \u6307\u5411\u6784\u5EFA\u4EA7\u7269", ' ', _jsx("code", { className: "rounded bg-slate-100 px-1", children: TEMPLATE_URL }), "\u3002"] }), _jsxs("details", { open: Boolean(st.programSlots) && !st.templateReady, className: "rounded-lg border border-slate-200 bg-white", children: [_jsxs("summary", { className: "cursor-pointer px-3 py-2 text-xs text-slate-600", children: ["\u5BBF\u4E3B \u2194 \u6A21\u677F \u901A\u4FE1\u65E5\u5FD7\uFF08", log.length, " \u6761\uFF09", !st.templateReady && st.programSlots ? ' —— 尚未就绪，请看下面' : ''] }), _jsx("pre", { className: "max-h-40 overflow-auto border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700", children: log.length ? log.join('\n') : '（还没有任何消息往来）' })] }), (busy || result) && (_jsx("p", { className: result && !result.ok ? 'text-xs text-red-700' : 'text-xs text-slate-500', children: busy
                     ? busy.kind === 'gif'
                         ? `正在逐帧渲染… ${busy.done} / ${busy.total}`
                         : '正在打包单文件页…'

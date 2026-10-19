@@ -309,6 +309,26 @@ export function AnimationPage() {
     return h && h.available() ? h : null
   }, [])
 
+  /**
+   * 第 9 期 v1.1.5：画布**不再固定 16:9**（用户 2026-10-19 · 方案 B：比例尺优先，GIF 让步）。
+   * 所以抓帧不能直接拉伸到 960×540 —— 那会把画面**拉变形**。
+   * 这里等比缩放 + 留白边合到目标尺寸，再交给 readScaled 取像素。
+   */
+  const letterboxTo = useCallback((src: HTMLCanvasElement, w: number, h: number) => {
+    const c = document.createElement('canvas')
+    c.width = w
+    c.height = h
+    const g = c.getContext('2d')
+    if (!g) return c
+    g.fillStyle = '#ffffff'
+    g.fillRect(0, 0, w, h)
+    const scale = Math.min(w / src.width, h / src.height)
+    const dw = src.width * scale
+    const dh = src.height * scale
+    g.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh)
+    return c
+  }, [])
+
   const exportPage = useCallback(async () => {
     const st0 = useApp.getState()
     if (!st0.programSlots) return
@@ -381,7 +401,7 @@ export function AnimationPage() {
       for (let i = 0; i < times.length; i += 1) {
         const canvas = h.renderAt(times[i] as number)
         if (!canvas) throw new Error(`第 ${i} 帧渲染失败`)
-        frames.push(readScaled(canvas, DEFAULT_GIF_WIDTH, DEFAULT_GIF_HEIGHT))
+        frames.push(readScaled(letterboxTo(canvas, DEFAULT_GIF_WIDTH, DEFAULT_GIF_HEIGHT), DEFAULT_GIF_WIDTH, DEFAULT_GIF_HEIGHT))
         setBusy({ kind: 'gif', done: i + 1, total: times.length })
         // 让出主线程：不这么做进度条永远不重绘，几十帧会看起来像卡死
         await new Promise((resolve) => setTimeout(resolve, 0))
@@ -495,15 +515,7 @@ export function AnimationPage() {
         通信日志：**卡住时自动展开**（这是排查的关键），正常工作时折叠成一行。
         第 3 期交付后"停在空壳模板"两轮没修对，盲点就是看不到消息往来。
       */}
-      <details open={Boolean(st.programSlots) && !st.templateReady} className="rounded-lg border border-slate-200 bg-white">
-        <summary className="cursor-pointer px-3 py-2 text-xs text-slate-600">
-          宿主 ↔ 模板 通信日志（{log.length} 条）
-          {!st.templateReady && st.programSlots ? ' —— 尚未就绪，请看下面' : ''}
-        </summary>
-        <pre className="max-h-40 overflow-auto border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700">
-{log.length ? log.join('\n') : '（还没有任何消息往来）'}
-        </pre>
-      </details>
+      
 
       {/* ── iframe：模板页本体（导出 = 另存为它，§13.1） ── */}
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -526,6 +538,16 @@ export function AnimationPage() {
         与屏幕上看到的才是同一个东西。本期 iframe 指向构建产物{' '}
         <code className="rounded bg-slate-100 px-1">{TEMPLATE_URL}</code>。
       </p>
+
+<details open={Boolean(st.programSlots) && !st.templateReady} className="rounded-lg border border-slate-200 bg-white">
+        <summary className="cursor-pointer px-3 py-2 text-xs text-slate-600">
+          宿主 ↔ 模板 通信日志（{log.length} 条）
+          {!st.templateReady && st.programSlots ? ' —— 尚未就绪，请看下面' : ''}
+        </summary>
+        <pre className="max-h-40 overflow-auto border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700">
+{log.length ? log.join('\n') : '（还没有任何消息往来）'}
+        </pre>
+      </details>
 
       {/* 导出状态/结果：原来在顶部工具栏里，v1.1.5 起挪到页面最下面（平时不看） */}
       {(busy || result) && (
