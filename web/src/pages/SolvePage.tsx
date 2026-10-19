@@ -366,7 +366,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
         */}
         <details className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <summary className="cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700">
-            过程与判据（点开查看）
+            解题过程（点开查看）
           </summary>
           <div className="space-y-4 border-t border-slate-100 p-5 pt-4">
         {(st.run.stageText.solve || st.run.stageText.steps || st.run.stageText.answers) && (
@@ -408,6 +408,20 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
           </div>
         )}
 
+          </div>
+        </details>
+
+        {/*
+          ⚠ 用户 2026-10-19：过程与判据**分开**。
+          过程 = "这道题是怎么算出来的"（给老师看解法）；
+          判据 = "机器认为这份动画过不过关"（给老师看可信度）。
+          两类信息回答的不是同一个问题，混在一起会互相淹掉。
+        */}
+        <details className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <summary className="cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700">
+            判据 · 世界书依据 · 自愈过程（点开查看）
+          </summary>
+          <div className="space-y-4 border-t border-slate-100 p-5 pt-4">
         {st.run.verdict && <VerdictPanel run={st.run} skipped={skipped} />}
 
         {/* 第 5 期：世界书依据（§15）——"为什么引用了这条知识、进了哪个槽位"必须让老师看得懂 */}
