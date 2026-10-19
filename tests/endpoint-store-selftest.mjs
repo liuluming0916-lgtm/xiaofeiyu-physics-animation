@@ -237,12 +237,34 @@ async function main() {
       const dangling = saveEndpoints({ dir, endpoints: [endpoint()], stageModels: { solve: 'nope' } });
       check('stageModels 指向不存在的端点 ⇒ 拒', dangling.ok === false && has(dangling.issues, 'stageModels.dangling'));
 
-      // distill 视觉门控
-      const distill = saveEndpoints({ dir, endpoints: [endpoint()], stageModels: { distill: 'ep_local' } });
-      check('distill 指向不支持视觉的端点 ⇒ 拒（§11.2 视觉门控）', distill.ok === false && has(distill.issues, 'stageModels.distill.vision-required'));
+      /* v1.1.9alpha：distill 阶段已删除。
+         · 保存时旧键直接丢弃（不再因 unknown-stage 整份失败）；
+         · 读旧文件时丢弃并给 warning。 */
+      const legacySave = saveEndpoints({ dir, endpoints: [endpoint()], stageModels: { distill: 'ep_local', solve: null } });
+      check(
+        '旧 stageModels.distill 保存时被丢弃（不整份拒绝）',
+        legacySave.ok === true && !readFileSync(join(dir, 'endpoints.json'), 'utf8').includes('"distill"'),
+        JSON.stringify((legacySave.issues ?? []).map((i) => i.code)),
+      );
+
+      const legacyFile = {
+        configVersion: 1,
+        endpoints: [endpoint()],
+        stageModels: { distill: 'ep_local', solve: null },
+        keys: {},
+      };
+      writeFileSync(join(dir, 'endpoints.json'), `${JSON.stringify(legacyFile, null, 2)}\n`, 'utf8');
+      const legacyLoad = loadEndpointStore({ dir });
+      check(
+        '旧 endpoints.json 里的 distill 读时丢弃并 alert（软件不会打不开）',
+        legacyLoad.ok === true &&
+          !('distill' in legacyLoad.stageModels) &&
+          legacyLoad.warnings.some((w) => w.code === 'endpoints.legacy-stage-dropped'),
+        JSON.stringify((legacyLoad.issues ?? []).map((i) => i.code)),
+      );
 
       // 合法：全部通过
-      const ok = saveEndpoints({ dir, endpoints: [endpoint({ supportsVision: true })], stageModels: { distill: 'ep_local', solve: null } });
+      const ok = saveEndpoints({ dir, endpoints: [endpoint({ supportsVision: true })], stageModels: { solve: null } });
       check('（对照）合法配置能保存', ok.ok === true, JSON.stringify(ok.issues));
     }
 

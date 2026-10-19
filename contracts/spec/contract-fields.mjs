@@ -303,7 +303,7 @@ export const endpointConfig = {
   schemaId: 'https://open-design.local/contracts/endpoint.schema.json',
   description:
     '§11.1 字段 + §11.2 校验规则的可表达部分。HTTPS/无凭据/无查询参数/无片段/id 合法且不重复/≤300 项/'+
-    'apiKeyModelId 必须指向已存在端点且不得成环/stageModels 引用必须存在/distill 视觉门控——'+
+    'apiKeyModelId 必须指向已存在端点且不得成环/stageModels 引用必须存在——'+
     '这些是跨字段约束，JSON Schema 层只表达字段形状；跨字段部分由 contracts/validate.mjs 的 ' +
     'validateEndpointConfig 实现（第 3 期第 1 步补齐；逐条取证见 tests/contract-validator-selftest.mjs）。',
   root: 'EndpointConfig',

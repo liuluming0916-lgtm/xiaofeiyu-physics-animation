@@ -32,6 +32,7 @@ import { basename, dirname, join } from 'node:path';
 import { PROJECT_ROOT } from '../../tools/paths.mjs';
 import { validateEndpointConfig, ENDPOINT_CONFIG_VERSION, formatIssues } from '../../contracts/validate.mjs';
 import { PIPELINE_STAGES } from '../../contracts/spec/frozen-keys.mjs';
+import { normalizeLegacyStageModels } from './legacy-stages.mjs';
 import { describeJsonError } from '../json-error.mjs';
 import { sha256Hex, writeFileAtomic } from '../rules/index.mjs';
 import { backupFile } from '../rules/backup.mjs';
@@ -179,10 +180,24 @@ export function loadEndpointStore({ dir } = {}) {
     });
   }
 
+  /**
+   * v1.1.9alpha：`distill` 阶段已删除。旧 `endpoints.json` 里若还有这个键，
+   * 读时丢掉并报警（下一次保存会真正清掉），避免整份配置因 unknown-stage 打不开。
+   */
+  const legacy = normalizeLegacyStageModels(parsed?.stageModels);
+  for (const d of legacy.dropped) {
+    warnings.push({
+      code: 'endpoints.legacy-stage-dropped',
+      path: `stageModels.${d.stage}`,
+      message: `旧阶段 "${d.stage}" 已删除，已忽略：${d.reason}`,
+      hint: '下一次保存端点配置时会把磁盘上的这个键清掉；无需手工编辑',
+    });
+  }
+
   const config = {
     configVersion: parsed?.configVersion ?? ENDPOINT_CONFIG_VERSION,
     endpoints: endpointList,
-    stageModels: parsed?.stageModels ?? {},
+    stageModels: legacy.stageModels,
     keys,
   };
 
@@ -232,6 +247,8 @@ function conflictOrNull(files, expectedHash) {
  */
 export function saveEndpoints({ dir, endpoints, stageModels = {}, expectedHash, force = false }) {
   const files = pathsOf(dir);
+  // 旧版本前端/手改配置可能还带 distill；保存时直接清掉，不再校验它
+  stageModels = normalizeLegacyStageModels(stageModels).stageModels;
 
   if (!Array.isArray(endpoints)) {
     return { ok: false, issues: [err('endpoints.not-array', 'endpoints', 'endpoints 必须是数组')], warnings: [], hash: null, bytes: 0 };
@@ -444,6 +461,7 @@ export function clearKey({ dir, id }) {
  * @returns {{ text: string, bytes: number, hash: string }}
  */
 export function exportEndpointsText({ endpoints, stageModels = {}, knownKeys = [] }) {
+  stageModels = normalizeLegacyStageModels(stageModels).stageModels;
   const payload = { configVersion: ENDPOINT_CONFIG_VERSION, endpoints, stageModels, keys: {} };
   const text = `${JSON.stringify(payload, null, 2)}\n`;
 

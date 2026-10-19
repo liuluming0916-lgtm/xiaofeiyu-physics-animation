@@ -137,10 +137,6 @@ const STEPS = [
     'tests/export-selftest.mjs',
   ],
   [
-    '㉜ 教辅蒸馏取证（第 7 期 §15/M19 简版：成本预估 / 消息组装 / 解析四种形态 / 视觉门控 / 页级续做 / 人工确认才入库）',
-    'tests/distill-selftest.mjs',
-  ],
-  [
     '㉝ 安全脱敏与观测取证（第 8 期 M21/M22：Key 与绝对路径脱敏 / 运行记录指标 / 失败复现包 / HTTP 真打）',
     'tests/observability-selftest.mjs',
   ],

@@ -105,7 +105,6 @@ async function startService() {
   process.env.OD_OBS_DIR = path.join(dataDir, 'observability');
   /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\物理解题动画\导出」，用户找得到 */
   process.env.OD_EXPORT_DIR = exportDir();
-  process.env.OD_DISTILL_DIR = path.join(dataDir, 'distill');
   /**
    * ── v1.1.7「开源日志」的落点 = **程序目录**（用户点名要求）──
    *

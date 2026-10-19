@@ -69,9 +69,7 @@ import {
   updateCleaningRule,
 } from '../core/cleaner/editor.mjs';
 import {
-  buildUserMessage,
   clearKey,
-  collectChatCompletion,
   exportEndpointsText,
   formatConnectionResult,
   importEndpoints,
@@ -86,7 +84,6 @@ import {
   streamChatCompletion,
   testConnection,
 } from '../core/gateway/index.mjs';
-import { getPrompt } from '../core/prompts/templates.mjs';
 import {
   copyBuiltinEntry,
   createWorldbookPack,
@@ -109,17 +106,6 @@ import { EXPORT_DIR, exportPageToDisk, listExports, saveExportBinary } from '../
 import { runPipeline } from '../core/orchestrator/pipeline.mjs';
 import { makeEvent, toSseFrame } from '../core/orchestrator/events.mjs';
 import { loadLibrary } from '../core/worldbook/store.mjs';
-/* 第 7 期 M19：教辅蒸馏（简版）。候选只落 distill-sessions/，人工确认后才写规则区。 */
-import {
-  SESSION_DIR as DISTILL_SESSION_DIR,
-  applyPageResult as distillApplyPageResult,
-  commitCandidates as distillCommitCandidates,
-  createSession as distillCreateSession,
-  distillPage,
-  listSessions as distillListSessions,
-  loadSession as distillLoadSession,
-} from '../core/distill/index.mjs';
-
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -744,111 +730,6 @@ export function createRulesService({
         const result = saveExportBinary(url.searchParams.get('name') || 'animation.gif', buf);
         if (!result.ok) return bad(res, [{ code: result.code, path: 'body', message: result.message }]);
         return ok(res, { file: result.file, name: result.name, url: result.url, bytes: result.bytes });
-      }
-
-      /* ── 教辅蒸馏（M19 简版）─────────────────────────────────
-         链路：建会话（含成本预估）→ 逐页蒸馏（可中断续做）→ 人工勾选 → 入库。
-         ⚠ ① 不入库就不写 ai-rules：候选只落 `distill-sessions/`；
-           ② distill 端点必须 supportsVision（契约第 7 条），没有视觉能力当场拒；
-           ③ 每页结果单独落盘，重开能接着做；失败页如实报出。 */
-      if (req.method === 'GET' && path === '/api/distill/sessions') {
-        return ok(res, { dir: DISTILL_SESSION_DIR, items: distillListSessions() });
-      }
-
-      if (req.method === 'POST' && path === '/api/distill/sessions') {
-        const body = await readJson(req);
-        const session = distillCreateSession({
-          title: body.title,
-          source: body.source,
-          pages: body.pages,
-          endpointId: body.endpointId ?? null,
-        });
-        return ok(res, { session, estimate: session.estimate });
-      }
-
-      const distillSessionMatch = /^\/api\/distill\/sessions\/([A-Za-z0-9_-]+)$/.exec(path);
-      if (req.method === 'GET' && distillSessionMatch) {
-        const session = distillLoadSession({ id: distillSessionMatch[1] });
-        if (!session) return bad(res, [{ code: 'distill.no-session', path: 'id', message: '找不到这个蒸馏会话' }], 404);
-        return ok(res, { session });
-      }
-
-      if (req.method === 'POST' && path === '/api/distill/page') {
-        const body = await readJson(req);
-        const session = distillLoadSession({ id: body.sessionId });
-        if (!session) return bad(res, [{ code: 'distill.no-session', path: 'sessionId', message: '找不到这个蒸馏会话' }]);
-
-        const store = loadEndpointStore({ dir });
-        const wanted = body.endpointId || store.stageModels?.distill || null;
-        const endpoint =
-          store.endpoints.find((e) => e.id === wanted) ??
-          store.endpoints.find((e) => e.supportsVision === true) ??
-          store.endpoints[0];
-        const keys = loadKeys({ dir });
-        const apiKey = (keys.ok !== false && keys.keys ? keys.keys[endpoint?.id] : '') || '';
-
-        const page = {
-          kind: body.kind === 'text' ? 'text' : 'image',
-          text: body.text,
-          /* 前端传 base64（JSON 里没法传二进制）；这里还原成 { mime, data: Buffer }，
-             正好是 `checkImageInput()` 与 `toDataURI()` 认的形态。 */
-          image:
-            body.image && body.image.base64
-              ? {
-                  mime: String(body.image.mime || ''),
-                  name: body.image.name ? String(body.image.name) : undefined,
-                  data: Buffer.from(String(body.image.base64), 'base64'),
-                }
-              : null,
-        };
-        const promptText = getPrompt('distill', loadRulesWorkspace({ dir }).prompts ?? null);
-        const result = await distillPage({
-          endpoint,
-          apiKey,
-          page,
-          promptText,
-          pageIndex: Number(body.pageIndex) || 0,
-          pageCount: session.pages.length,
-          collect: collectChatCompletion,
-          buildUserMessage,
-        });
-        // 成功与失败都写回会话：失败页要能看到原因，也不能被当成"已完成"
-        const next = distillApplyPageResult({
-          session,
-          pageIndex: Number(body.pageIndex) || 0,
-          entries: result.entries,
-          issues: result.issues,
-          raw: result.raw,
-          status: result.ok ? (result.entries.length ? 'done' : 'done') : 'failed',
-        });
-        return ok(res, {
-          session: next,
-          pageIndex: Number(body.pageIndex) || 0,
-          entries: result.entries,
-          issues: result.issues,
-          ok: result.ok,
-          code: result.code ?? null,
-          message: result.message ?? null,
-        });
-      }
-
-      if (req.method === 'POST' && path === '/api/distill/commit') {
-        const body = await readJson(req);
-        const session = distillLoadSession({ id: body.sessionId });
-        if (!session) return bad(res, [{ code: 'distill.no-session', path: 'sessionId', message: '找不到这个蒸馏会话' }]);
-        const result = distillCommitCandidates({
-          dir,
-          sessionId: session.id,
-          picks: body.picks,
-          packName: body.packName,
-        });
-        if (!result.ok) return bad(res, result.issues);
-        // 审计（M23）：入库是"改了知识库"这件事，必须留痕。**只记条数与包名，不记正文**。
-        recordAudit(
-          { kind: 'distill.commit', detail: { sessionId: session.id, pack: result.name, entries: (result.entries ?? []).length } },
-          { path: HISTORY_PATH, secrets: collectSecrets({ dir }) },
-        );
-        return ok(res, { name: result.name, entries: result.entries });
       }
 
       /* ── Prompt ── */

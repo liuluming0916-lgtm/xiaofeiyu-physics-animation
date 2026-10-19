@@ -87,7 +87,7 @@ async function main() {
     console.log('\n『B』Prompt：改得动，改坏了被拒');
     {
       const cat = await call('GET', '/api/prompts');
-      check('目录接口通，9 项', cat.status === 200 && cat.json.items.length === 9, String(cat.json?.items?.length));
+      check('目录接口通，7 项', cat.status === 200 && cat.json.items.length === 7, String(cat.json?.items?.length));
       check('目录把"哪几段不能删"也一起给了（界面不用硬编码）', Array.isArray(cat.json.requirements.read_problem.errors));
 
       const one = await call('GET', '/api/prompts/solve');
@@ -115,7 +115,7 @@ async function main() {
     {
       const cat = await call('GET', '/api/prompts');
       const ids = (cat.json.items ?? []).map((i) => i.id);
-      check('目录里有 9 个 id', ids.length === 9, ids.join(','));
+      check('目录里有 7 个 id', ids.length === 7, ids.join(','));
 
       const bad = [];
       for (const id of ids) {

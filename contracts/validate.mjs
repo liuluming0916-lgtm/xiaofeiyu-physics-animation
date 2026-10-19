@@ -7,7 +7,7 @@
  *
  * 为什么是手写而不是引入 JSON Schema 校验器（ajv 之类）：
  *   ① §11.2 的一半规则**根本表达不了**在 JSON Schema 里
- *      （`apiKeyModelId` 不得成环、`stageModels` 引用必须存在、`distill` 视觉门控）；
+ *      （`apiKeyModelId` 不得成环、`stageModels` 引用必须存在）；
  *   ② 本项目从第 1 期就定下"依赖最小"的口径（后端至今只有 acorn + mathjax-full），
  *      为一个字段量很小的配置树引入校验器 + 它的依赖树不划算；
  *   ③ 手写还能给出**面向用户的中文诊断 + 可操作建议**（§21.1 第 5 条），
@@ -316,24 +316,6 @@ export function validateEndpointConfig(config, opts = {}) {
     }
   }
 
-  /* ── 规则 7：distill 阶段的视觉门控（§11.2 / §11.3） ── */
-  if (isPlainObject(config.stageModels)) {
-    const distillId = config.stageModels.distill;
-    if (typeof distillId === 'string' && byId.has(distillId)) {
-      const ep = byId.get(distillId);
-      if (ep.supportsVision !== true) {
-        issues.push(
-          err(
-            'stageModels.distill.vision-required',
-            'stageModels.distill',
-            `distill 阶段要处理扫描版 PDF 或图片，但端点 "${distillId}" 的 supportsVision 不是 true`,
-            '改用一个 supportsVision = true 的端点，或把 distill 设为 null（第 7 期才用得到）',
-          ),
-        );
-      }
-    }
-  }
-
   /* ── keys 的形状：端点 id → 非空字符串；并检查"孤儿 Key"── */
   if (isPlainObject(config.keys)) {
     for (const [endpointId, key] of Object.entries(config.keys)) {
@@ -361,8 +343,7 @@ export function validateEndpointConfig(config, opts = {}) {
 /** §16：清洗规则 ≤300 项 */
 export const CLEANING_RULES_MAX = 300;
 /**
- * ⚠ 第 5 期修掉的一处**第二个事实来源**：这里原先自己写了一份
- * `['solve','answers','steps','scene_code','worldbook','distill']`，
+ * ⚠ 第 5 期修掉的一处**第二个事实来源**：这里原先自己写了一份清洗阶段清单，
  * 而同一份清单在 `contracts/spec/frozen-keys.mjs` 里已经有一份（`CLEANING_STAGES`）。
  * 两份各自漂移不会被任何东西发现 —— 现在改成**直接引用**冻结常量。
  */

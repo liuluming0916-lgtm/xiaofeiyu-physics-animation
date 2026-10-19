@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs';
 
 import { validateEndpointConfig, formatIssues } from '../../contracts/validate.mjs';
+import { normalizeLegacyStageModels } from './legacy-stages.mjs';
 import { PIPELINE_STAGES } from '../../contracts/spec/frozen-keys.mjs';
 
 /** 配置不合法时抛这个：带全部 issue，便于 UI 逐条展示 */
@@ -89,14 +90,16 @@ export function loadEndpointConfig(absPath) {
     );
   }
 
-  const { ok, issues } = validateEndpointConfig(parsed, { rawText: text });
+  // v1.1.9alpha：旧配置里的 distill 读时丢弃（磁盘下一次保存时清掉）
+  const normalized = { ...parsed, stageModels: normalizeLegacyStageModels(parsed?.stageModels).stageModels };
+  const { ok, issues } = validateEndpointConfig(normalized, { rawText: text });
   if (!ok) throw new EndpointConfigError(issues, absPath);
 
   return {
-    raw: parsed,
-    endpoints: new Map(parsed.endpoints.map((ep) => [ep.id, ep])),
-    stageModels: { ...parsed.stageModels },
-    keys: { ...parsed.keys },
+    raw: normalized,
+    endpoints: new Map(normalized.endpoints.map((ep) => [ep.id, ep])),
+    stageModels: { ...normalized.stageModels },
+    keys: { ...normalized.keys },
   };
 }
 

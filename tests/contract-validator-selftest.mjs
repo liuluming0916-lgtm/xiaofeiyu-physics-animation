@@ -93,7 +93,6 @@ function validConfig(overrides = {}) {
       dry_run: null,
       repair: null,
       worldbook: null,
-      distill: null,
     },
     keys: { ep_main: 'sk-fake-not-a-real-key' },
     ...overrides,
@@ -103,11 +102,7 @@ function validConfig(overrides = {}) {
 console.log('契约跨字段校验取证（§11.2 / §12）\n');
 
 console.log('『正例』');
-expectAccepted('合法配置（含 Key 复用链、localhost 明文、distill 为 null）', validateEndpointConfig(validConfig()));
-expectAccepted(
-  'distill 指向 supportsVision=true 的端点',
-  validateEndpointConfig(validConfig({ stageModels: { ...validConfig().stageModels, distill: 'ep_main' } })),
-);
+expectAccepted('合法配置（含 Key 复用链、localhost 明文）', validateEndpointConfig(validConfig()));
 expectAccepted(
   '合法的清洗规则表（含一条真实正则）',
   validateCleaningRuleSet({
@@ -193,12 +188,10 @@ console.log('\n『§11.2 规则 6：stageModels 引用必须存在、键必须�
   c.stageModels.scene_review = 'ep_main';
   expectRejected('未知阶段名被拒', validateEndpointConfig(c), 'stageModels.unknown-stage');
 }
-
-console.log('\n『§11.2 规则 7：distill 视觉门控』');
 {
   const c = validConfig();
-  c.stageModels.distill = 'ep_reuse'; // supportsVision = false
-  expectRejected('distill 指向无视觉能力的端点被拒', validateEndpointConfig(c), 'stageModels.distill.vision-required');
+  c.stageModels.distill = 'ep_main';
+  expectRejected('distill 阶段已删除 ⇒ stageModels.distill 被当作未知阶段拒绝', validateEndpointConfig(c), 'stageModels.unknown-stage');
 }
 
 console.log('\n『§11.2 规则 8：体积与版本』');

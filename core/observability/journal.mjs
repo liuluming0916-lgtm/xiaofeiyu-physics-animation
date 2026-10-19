@@ -29,7 +29,7 @@
  *     runs/<runId>/dryrun.json ← Dry-Run 报告（可选，脱敏后）
  *     repro/<runId>-<时间戳>/  ← 失败复现包（`repro.mjs` 生成）
  *
- * 环境变量：`OD_OBS_DIR` 可把整个目录搬走（测试与多实例用；与 `OD_DISTILL_DIR` 同一写法）。
+ * 环境变量：`OD_OBS_DIR` 可把整个目录搬走（测试与多实例用；与 `OD_HISTORY_PATH` 同一写法）。
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';

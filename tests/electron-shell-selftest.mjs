@@ -101,7 +101,10 @@ async function main() {
     check('★ 显式调用 svc.listen() 拿真实端口', /await svc\.listen\(\)/.test(mainSrc));
     check('规则根目录指向用户数据目录（Program Files 只读）', /root:\s*path\.join\(dataDir,\s*'ai-rules'\)/.test(mainSrc));
     check('★ 打包形态打开发布词条常量（OD_BUILTIN_BUNDLE=1）', /OD_BUILTIN_BUNDLE\s*=\s*'1'/.test(mainSrc));
-    check('账本/观测/蒸馏落用户数据目录、导出落「文档」（第 9 期改）', ['OD_HISTORY_PATH', 'OD_OBS_DIR', 'OD_EXPORT_DIR', 'OD_DISTILL_DIR'].every((k) => mainSrc.includes(k)));
+    check(
+      '账本/观测落用户数据目录、导出落「文档」（第 9 期改）',
+      ['OD_HISTORY_PATH', 'OD_OBS_DIR', 'OD_EXPORT_DIR'].every((k) => mainSrc.includes(k)) && !mainSrc.includes('OD_DISTILL_DIR'),
+    );
     check('启动失败会弹窗说明原因（不留空窗口）', /showErrorBox/.test(mainSrc));
   }
 

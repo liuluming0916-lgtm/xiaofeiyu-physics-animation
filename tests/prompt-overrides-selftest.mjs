@@ -3,7 +3,7 @@
  * Prompt 编辑器取证（第 6 期第 2 项 · §10.1 / §10.3 / §16）。
  *
  * 这一份要证明四件事：
- *   A 目录**不骗人**：能编辑的 8 份正文按"会不会跑"分组，没接上主链路的那两份必须明说；
+ *   A 目录**不骗人**：能编辑的 7 份正文按"会不会跑"分组；worldbook / distill 已删除，不再有 not-wired 组；
  *   B 硬门禁**在保存那一刻就红**：删掉 `read_problem` 的【考点】/【动画元件】会**静默**让世界书
  *     退化成按字面碰字（解析器容错极强，不会报错），所以必须拦在写盘之前；
  *   C 用户裁决的 C 方案：整份替换 + **内置变了要提醒**、能看差异、能换基线（rebase）；
@@ -153,26 +153,20 @@ async function main() {
   try {
     /* ────────────────────────────── 『A』目录不骗人 ────────────────────────────── */
 
-    console.log('『A』目录：8 份正文按"会不会跑"分组');
+    console.log('『A』目录：7 份正文按"会不会跑"分组');
     {
       const dir = freshDir();
       const cat = listPromptCatalog({ dir });
       check('目录可读', cat.ok === true, JSON.stringify(cat.problems));
-      check('共 9 项（§10.1 的 6 + 扩展 repair + read_problem + 答案结构模板 = 8 份正文 + 嵌入项）', cat.items.length === 9, String(cat.items.length));
+      check('共 7 项（§10.1 保留 4 + 扩展 repair + read_problem + 答案结构模板）', cat.items.length === 7, String(cat.items.length));
 
       const byGroup = (g) => cat.items.filter((i) => i.group === g).map((i) => i.id);
       check('「每道题都会跑」恰好 5 份', byGroup('always').length === 5, byGroup('always').join(','));
       check('其中含 read_problem（第 0 步，纯文字题也跑）', byGroup('always').includes('read_problem'));
       check('「只在特定情况下跑」恰好 1 份（repair）', byGroup('conditional').join(',') === 'repair');
-      check('「还没接上主链路」恰好 2 份（worldbook / distill）', byGroup('not-wired').sort().join(',') === 'distill,worldbook');
+      check('没有「还没接上主链路」分组（worldbook / distill 已删除）', byGroup('not-wired').length === 0, byGroup('not-wired').join(','));
       check('「嵌在别的 Prompt 里」恰好 1 份（答案结构模板）', byGroup('embedded').join(',') === 'answer-structure');
 
-      const notWired = cat.items.find((i) => i.id === 'worldbook');
-      check(
-        '★ 没接上主链路的那组**明说改了不会立刻生效**（不许让用户以为改了就有效果）',
-        /不会立刻生效/.test(notWired.groupHint),
-        notWired.groupHint,
-      );
       const embedded = cat.items.find((i) => i.id === 'answer-structure');
       check('★ 答案结构模板说明它在 answers 里、且整份覆盖优先', /没有整体覆盖 answers/.test(embedded.groupHint), embedded.groupHint);
 
@@ -188,7 +182,7 @@ async function main() {
       // 分组口径与阶段清单**同源**：不是手写的第二份清单
       check('分组 id 与 MODEL_STAGES 同源（改阶段清单，分组自动跟着变）', PROMPT_SECTORS.always.ids.join(',') === 'read_problem,solve,steps,answers,scene_code');
       check('editablePromptIds 没有重复', new Set(editablePromptIds()).size === editablePromptIds().length);
-      check('editablePromptIds 共 9 个', editablePromptIds().length === 9, String(editablePromptIds().length));
+      check('editablePromptIds 共 7 个', editablePromptIds().length === 7, String(editablePromptIds().length));
     }
 
     /* ────────────────────────────── 『B』保存与打开 ────────────────────────────── */
@@ -404,14 +398,15 @@ async function main() {
       check('★ 此时再存结构模板 ⇒ 必须警告"不会生效"', has(r2.warnings, 'prompt.answer-structure-shadowed'));
     }
 
-    /* ────────────────────────────── 『I』没接上主链路的也要说清 ────────────────────────────── */
+    /* ────────────────────────────── 『I』已删除的 Prompt 不允许再保存 ────────────────────────────── */
 
-    console.log('\n『I』没接上主链路的 Prompt：能存，但必须警告');
+    console.log('\n『I』worldbook / distill 已删除：保存必须被拒');
     {
       const dir = freshDir();
-      const r = savePromptOverride({ dir, id: 'worldbook', text: '现在执行【世界书】阶段。\n把材料改写成词条。\n' });
-      check('保存成功', r.ok === true);
-      check('★ 带 prompt.not-wired 警告（改了不会立刻生效）', has(r.warnings, 'prompt.not-wired'));
+      const wb = savePromptOverride({ dir, id: 'worldbook', text: '现在执行【世界书】阶段。\n把材料改写成词条。\n' });
+      const ds = savePromptOverride({ dir, id: 'distill', text: '现在执行【教辅蒸馏】阶段。\n' });
+      check('worldbook 保存被拒（prompt.unknown-id）', wb.ok === false && has(wb.issues, 'prompt.unknown-id'));
+      check('distill 保存被拒（prompt.unknown-id）', ds.ok === false && has(ds.issues, 'prompt.unknown-id'));
     }
 
     /* ────────────────────────────── 『J』状态机与差异工具 ────────────────────────────── */

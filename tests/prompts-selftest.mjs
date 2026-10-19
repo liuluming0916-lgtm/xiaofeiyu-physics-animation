@@ -234,15 +234,16 @@ console.log('\n『C-2』任务段组成');
   check('无图片时 imageCount 为 0', t.imageCount === 0);
 }
 
-/* ────────────────────────────── 『D』7 个阶段 Prompt（§10.1） ────────────────────────────── */
+/* ────────────────────────────── 『D』4 个阶段 Prompt（§10.1 保留项） ────────────────────────────── */
 
-console.log('\n『D』§10.1 的 6 个阶段 Prompt（另有 1 个第 4 期的扩展 Prompt）');
+console.log('\n『D』§10.1 保留的 4 个阶段 Prompt（另有扩展 Prompt）');
 {
   const ids = listPrompts().map((p) => p.id);
-  const expected = ['solve', 'answers', 'steps', 'scene_code', 'worldbook', 'distill'];
-  check('§10.1 的 6 个阶段 Prompt 都在', expected.every((id) => ids.includes(id)), ids.join(','));
-  check('§10.1 仍**恰好** 6 个（扩展 Prompt 不得混进这张清单）', ids.length === 6, ids.join(','));
-  check('加上答案结构模板共 7 项', ids.length === 6 && ANSWER_STRUCTURE_TEMPLATE.length > 0);
+  const expected = ['solve', 'answers', 'steps', 'scene_code'];
+  check('§10.1 保留的 4 个阶段 Prompt 都在', expected.every((id) => ids.includes(id)), ids.join(','));
+  check('§10.1 只剩 4 个（worldbook / distill 已随蒸馏功能删除）', ids.length === 4, ids.join(','));
+  check('worldbook / distill 不再出现在阶段 Prompt 清单里', !ids.includes('worldbook') && !ids.includes('distill'), ids.join(','));
+  check('加上答案结构模板共 5 项', ids.length === 4 && ANSWER_STRUCTURE_TEMPLATE.length > 0);
 
   for (const id of expected) {
     const p = getPrompt(id);
@@ -379,7 +380,7 @@ console.log('\n『D-3』第 5/5.7 期：读题与判定（read_problem · 执行
     '⚠ 负对照：词表缺失时**明说缺**，而不是静默给一张空表（否则模型会自造词）',
     rp.buildUser({ problem: 'x' }).includes('词表缺失'),
   );
-  check('read_problem 不在 PROMPTS 里（§10.1 仍恰好 6 项）', !('read_problem' in PROMPTS));
+  check('read_problem 不在 PROMPTS 里（§10.1 保留项仍恰好 4 项）', !('read_problem' in PROMPTS));
 }
 
 /* ────────────────────────────── 『E』§10.3 安全边界 ────────────────────────────── */

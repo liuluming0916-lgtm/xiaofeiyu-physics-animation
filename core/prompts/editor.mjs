@@ -6,11 +6,11 @@
  *   · 能不能删某一段（硬约束）与代际状态   → `core/prompts/overlay.mjs`
  *   · 实际生效                        → `getPrompt(id, rules)`（`templates.mjs`）
  *
- * ── 为什么编辑器要把 Prompt **分成三组**（用户裁决：不能平铺）
+ * ── 为什么编辑器要把 Prompt **分组**（用户裁决：不能平铺）
  *
- * 程序里能编辑的有 8 份正文（§10.1 的 6 份 + 扩展的 repair + 嵌在 answers 里的答案结构模板）。
- * 但它们**不是都会跑**：`worldbook` 与 `distill` 在当前主链路上根本没有阶段，
- * 改了不会有任何反应。若平铺成一排，用户会以为"改了没效果 = 坏了"，或者更糟——
+ * 程序里能编辑的有 7 份正文（§10.1 保留的 4 份 + 扩展 repair / read_problem + 答案结构模板）。
+ * 其中 `read_problem` 与 `repair` 不是每道题都跑；答案结构模板嵌在 answers 里。
+ * 若平铺成一排，用户会以为"改了没效果 = 坏了"，或者更糟——
  * 以为自己在用一份自定义的规则，其实那份规则从未被调用。
  * 这个项目已经栽过一次"看着在管、实际不管"（第 5.7 期的 3 条空检查），所以这里必须显式分组。
  */
@@ -46,11 +46,6 @@ export const PROMPT_SECTORS = Object.freeze({
     hint: '目前只有 repair：代码没通过校验时才会用到',
     ids: Object.freeze(PHASE5_STAGES.filter((s) => !MODEL_STAGES.includes(s) && s !== 'dry_run')),
   },
-  'not-wired': {
-    title: '还没接上主链路',
-    hint: '主链路上没有这个阶段：改了**不会立刻生效**（worldbook 供词条入库、distill 供第 7 期教辅蒸馏）',
-    ids: Object.freeze(['worldbook', 'distill']),
-  },
   embedded: {
     title: '嵌在别的 Prompt 里',
     hint: '答案结构模板没有自己的阶段，它是 answers 正文里的一段；只有在你**没有整体覆盖 answers** 时生效',
@@ -81,12 +76,11 @@ function metaOf(id) {
   return { id, label: p?.label ?? id, duty: p?.duty ?? '', sector };
 }
 
-/** 全部可编辑 Prompt 的 id（§10.1 的 6 份 + 扩展 2 份 + 答案结构模板 = 8 + 模板 = 9？见下） */
+/** 全部可编辑 Prompt 的 id（5 个阶段 + repair + 答案结构模板 = 7） */
 export function editablePromptIds() {
   return [
     ...[...PROMPT_SECTORS.always.ids],
     ...[...PROMPT_SECTORS.conditional.ids],
-    ...[...PROMPT_SECTORS['not-wired'].ids],
     ANSWER_STRUCTURE_PROMPT_ID,
   ];
 }
@@ -236,15 +230,6 @@ export function savePromptOverride({ dir, id, text, expectedHash, force = false 
   }
 
   const warnings = [...check.warnings];
-  const meta = metaOf(id);
-  if (meta.sector === 'not-wired') {
-    warnings.push({
-      code: 'prompt.not-wired',
-      path: rel,
-      message: '这一份 Prompt 现在**不会被调用**，保存了也不会立刻生效',
-      hint: '它属于"还没接上主链路"的那一组（worldbook 供词条入库、distill 供第 7 期教辅蒸馏）',
-    });
-  }
   if (id === ANSWER_STRUCTURE_PROMPT_ID) {
     const loaded = loadRulesWorkspace(dir ? { dir } : undefined);
     if (loaded.ok && loaded.prompts?.answers) {

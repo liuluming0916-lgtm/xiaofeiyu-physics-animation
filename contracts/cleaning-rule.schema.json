@@ -52,8 +52,7 @@
         "answers",
         "steps",
         "scene_code",
-        "worldbook",
-        "distill"
+        "worldbook"
       ],
       "title": "§12 stage 枚举（有模型文本产出的阶段）"
     }

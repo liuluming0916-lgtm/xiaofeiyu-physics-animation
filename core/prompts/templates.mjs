@@ -10,7 +10,8 @@
  *      它由 `tools/_golden-probe.mjs` 用**真判据内核**跑过 C1–C9，不是"看起来对"的样例；
  *   ③ **一行速查**：其余规则压成一条一条可扫读的短句，长讲义留给世界书。
  *
- * ⚠ §10.1 的清单**一条没动**（仍恰好 6 个阶段 + 答案结构模板）；
+ * ⚠ v1.1.9alpha：§10.1 原 6 项里删掉 `worldbook` / `distill` 两份未接主链路的 Prompt，
+ *   保留 4 项（solve / answers / steps / scene_code）+ 扩展 read_problem / repair + 答案结构模板 = 7 项目录；
  *   §10.3 的安全边界也一字未改：Prompt 是只读文本，写什么都关不掉 C1–C9。
  *
  * ⚠ `ROLE_AND_OUTPUT_RULES` 是**固定前缀**的一部分 ⇒ 改它会变 `promptHash`（预期行为，见 §5）。
@@ -111,11 +112,12 @@ const ROW_TABLE_NOTE = [
 /* ────────────────────────────── 各阶段 Prompt ────────────────────────────── */
 
 /**
- * §10.1 的 6 个阶段 Prompt（另有答案结构模板，共 7 项）。
+ * worldbook 条目相关的 4 个阶段 Prompt（另有答案结构模板，共 5 项）。
  *
  * ⚠ 第 4 期新增的 `repair`、第 5 期新增的 `read_problem` 是**扩展 Prompt**，
- *   不在这张表里（见 `EXTENSION_PROMPTS`）。§10.1 的清单属于方案正文，
- *   加一项进去就等于改方案；自检里断言"§10.1 仍恰好 6 个"。
+ *   不在这张表里（见 `EXTENSION_PROMPTS`）。
+ *   v1.1.9alpha 删掉了原 §10.1 的 `worldbook` / `distill` 两份（都没接主链路），
+ *   所以这里只剩 4 项；自检按 4 项断言。
  */
 export const PROMPTS = Object.freeze({
   solve: {
@@ -268,57 +270,18 @@ export const PROMPTS = Object.freeze({
       ].join('\n'),
   },
 
-  worldbook: {
-    id: 'worldbook',
-    label: '世界书',
-    duty: '世界书相关阶段的输出规约（含蒸馏候选词条的结构）',
-    /**
-     * 第 9 期：口径与**重写后的世界书本体**对齐 —— 短、三段式、示例必须能真跑。
-     */
-    system: [
-      '现在执行【世界书】阶段。',
-      '把给定的知识材料改写成世界书词条。',
-      '',
-      '每条词条包含：id / title / category / keys（触发关键词，字面量或 /正则/）/',
-      'insertion_slot（只能填 solve 或 scene_code）/ order / priority / content / code_examples。',
-      '',
-      '正文按三段写，短到能一屏读完：',
-      '  ## 判据 —— 看到什么条件就用这条卡；',
-      '  ## 一条式子 —— 只留最有用的那一条；',
-      '  ## 生成后自检（必须逐条在代码中体现）—— 可逐条核对的小清单。',
-      '',
-      '`code_examples` 至少 1 段，必须是能过静态预检的真代码（只调 SDK 登记过的函数）。',
-    ].join('\n'),
-    buildUser: ({ material }) => ['【待改写材料】', material].join('\n'),
-  },
-
-  distill: {
-    id: 'distill',
-    label: '教辅蒸馏',
-    duty: '教辅蒸馏：要求输出"该页题目文本 + 公式 + 配图方位描述"',
-    system: [
-      '现在执行【教辅蒸馏】阶段。',
-      '逐页阅读给定材料，为每一页输出三部分：',
-      '  ① 该页的题目文本（原样转录，含小问）；',
-      '  ② 该页出现的公式（LaTeX）；',
-      '  ③ 配图的**方位描述**（图里有什么、相对位置关系如何）——描述图，而不是识别题目。',
-      '',
-      '页面看不清或没有内容时写"本页无可提取内容"，保持诚实。',
-    ].join('\n'),
-    buildUser: ({ pageText }) => ['【本页材料】', pageText].join('\n'),
-  },
 });
 
 /**
  * 扩展 Prompt（**不属于 §10.1 的清单**）。
  *
  * `repair` —— 第 4 期（M30 自愈循环）新增。§18 期 4 要求"注入错误代码 → 自动修复收敛"，
- * 而自愈必须有一份"只改出错槽位、怎么改"的指令。它**不改变 §10.1 的 6 项清单**。
+ * 而自愈必须有一份"只改出错槽位、怎么改"的指令。它**不改变 §10.1 的清单**。
  *
  * `read_problem`（第 5 期新增为 `read_image`，**第 5.7 期改名**）—— 执行链的**第 0 步**：
  * 把题目（图 + 文字）转成**结构化文字**，好让世界书的第一次触发在图片题上也有文本可匹配；
  * 第 5.7 期起还**判出【考点】【题型】【动画元件】**，作为世界书两侧分发的触发源。
- * 同样**不改变 §10.1 的 6 项清单**（自检里断言 §10.1 仍恰好 6 项）。
+ * 同样**不改变 §10.1 的清单**。
  *
  * ⚠ 这两份 Prompt 同样是**只读文本**（§10.3）：里面没有任何"可以放宽校验"的措辞，
  *   而且即便有也无效 —— 判据在 `core/dryrun`，不在 Prompt 里。
@@ -438,7 +401,7 @@ export const EXTENSION_PROMPTS = Object.freeze({
   },
 });
 
-/** 供 UI 与自检枚举（§10.1 的 6 项） */export function listPrompts() {
+/** 供 UI 与自检枚举（§10.1 保留的 4 项） */export function listPrompts() {
   return Object.values(PROMPTS).map((p) => ({ id: p.id, label: p.label, duty: p.duty }));
 }
 

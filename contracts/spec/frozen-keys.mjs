@@ -84,7 +84,6 @@ export const PIPELINE_STAGES = Object.freeze([
   'dry_run',
   'repair',
   'worldbook',
-  'distill',
 ]);
 
 /**
@@ -103,7 +102,6 @@ export const CLEANING_STAGES = Object.freeze([
   'steps',
   'scene_code',
   'worldbook',
-  'distill',
 ]);
 
 /** 清洗枚举**不包含**的阶段：它们不产生需要清洗的模型文本（§12 的差异口径） */
