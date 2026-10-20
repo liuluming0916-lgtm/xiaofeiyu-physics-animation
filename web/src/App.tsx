@@ -71,7 +71,7 @@ export function App() {
             */}
             <details className="relative">
               <summary
-                className="inline-flex cursor-pointer list-none select-none items-center rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                className="inline-flex cursor-pointer list-none select-none items-center rounded-md px-3 py-1.5 font-sans text-sm font-normal text-slate-700 hover:bg-slate-100"
                 title="导出网页 / GIF（需先在动画页生成）"
               >
                 导出
@@ -176,7 +176,7 @@ function NavButton({
       onClick={onClick}
       title={title}
       aria-current={active ? 'page' : undefined}
-      className={`rounded-md px-3 py-1.5 text-sm ${
+      className={`rounded-md px-3 py-1.5 font-sans text-sm font-normal ${
         active ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
       } ${disabled ? 'cursor-not-allowed text-slate-300 hover:bg-transparent' : ''}`}
     >

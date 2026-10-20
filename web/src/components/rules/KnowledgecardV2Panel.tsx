@@ -538,7 +538,7 @@ export function KnowledgecardV2Panel() {
         </section>
 
         {/* 中：编辑 */}
-        <section className="lg:col-span-9 rounded border border-slate-200 bg-white p-4">
+        <section className="lg:col-span-6 rounded border border-slate-200 bg-white p-4">
           {draft ? (
             <>
               <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -682,22 +682,21 @@ export function KnowledgecardV2Panel() {
         </section>
 
         {/* 实时试触发：不调模型，只用当前库 + 当前编辑中的草稿算命中 */}
-        <section className="lg:col-span-12 rounded border border-slate-200 bg-white p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <section className="lg:col-span-3 rounded border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-start justify-between gap-1">
             <div>
               <h3 className="text-xs font-semibold text-slate-800">实时试触发</h3>
-              <p className="mt-0.5 text-[10px] text-slate-500">
-                不调模型、不改磁盘：勾选模型可能判出的元件/场景，看当前库（含你正在编辑的这张）会命中谁、正文多少字。
+              <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+                不调模型、不改磁盘：勾选元件/场景，看当前库（含正在编辑的这张）命中谁、正文多少字。
               </p>
             </div>
-            {draft && (
-              <span className={`rounded px-2 py-0.5 text-[10px] ${previewHits.list.some((x) => x.entry.id === draft.id) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                当前编辑卡：{previewHits.list.some((x) => x.entry.id === draft.id) ? '会命中' : '不会命中'}
-              </span>
-            )}
           </div>
-
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {draft && (
+            <div className={`mt-2 rounded px-2 py-1 text-[10px] ${previewHits.list.some((x) => x.entry.id === draft.id) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+              当前编辑卡：{previewHits.list.some((x) => x.entry.id === draft.id) ? '会命中' : '不会命中'}
+            </div>
+          )}
+          <div className="mt-2 grid grid-cols-1 gap-2">
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-medium text-slate-600">① 动画元件（可多选）</span>
@@ -705,7 +704,7 @@ export function KnowledgecardV2Panel() {
                   清空
                 </button>
               </div>
-              <div className="mt-1 grid max-h-36 grid-cols-2 gap-x-2 overflow-y-auto rounded border border-slate-100 p-1">
+              <div className="mt-1 grid max-h-36 grid-cols-1 gap-x-2 overflow-y-auto rounded border border-slate-100 p-1">
                 {(lib?.vocab.elements ?? []).filter((e) => e.enabled !== false).map((e) => (
                   <label key={e.id} className="flex items-center gap-1 py-0.5 text-[10px] text-slate-700">
                     <input
