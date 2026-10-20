@@ -1909,6 +1909,51 @@ function parseKeyValues(block, slot, index, lineNos = null) {
       out[key] = collected.join(' ').trim();
       continue;
     }
+    /**
+     * ── 容错（v1.1.16）：起始 `"""` 后面**直接跟正文** ──
+     *
+     * 模型常写成 `tex: """第一行正文`，而不是把 `"""` 单独占一行。
+     * 旧口径会把它当成单行值，随后正文里的每一行（如 `\[`）都会报
+     * “STEPS 第 1 条无法解析这一行”，整份程序连模板都加载不了。
+     *
+     * 现在：`"""` 之后的内容当作第一行，直到遇到独占一行的 `"""`，
+     * 或某一行以 `"""` 结尾；同一行 `"""abc"""` 也支持。
+     */
+    if (rest.startsWith('"""')) {
+      const body = rest.slice(3);
+      const collected = [];
+      let closed = false;
+      const sameLineEnd = body.indexOf('"""');
+      if (sameLineEnd >= 0) {
+        collected.push(body.slice(0, sameLineEnd));
+        i += 1;
+        closed = true;
+      } else {
+        if (body.trim()) collected.push(body);
+        i += 1;
+        while (i < block.length) {
+          const cur = block[i];
+          const t = cur.trim();
+          if (t === '"""') {
+            closed = true;
+            i += 1;
+            break;
+          }
+          if (t.endsWith('"""')) {
+            const head = cur.slice(0, cur.lastIndexOf('"""'));
+            if (head.trim()) collected.push(head);
+            closed = true;
+            i += 1;
+            break;
+          }
+          collected.push(cur);
+          i += 1;
+        }
+      }
+      if (!closed) throw new Error(`${slot} 第 ${index + 1} 条的 ${key} 多行值（"""）未闭合`);
+      out[key] = collected.join('\n').trim();
+      continue;
+    }
     out[key] = rest;
     i += 1;
   }

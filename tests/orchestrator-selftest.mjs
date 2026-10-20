@@ -15,6 +15,7 @@
 import { runPipeline, collectEvents, deriveTimeAxis, deriveEntryLabel, snapshotConfig } from '../core/orchestrator/pipeline.mjs';
 import { encodePng, decodePng } from '../core/images/png-crop.mjs';
 import { dryRun } from '../core/dryrun/dry-run.mjs';
+import { normalizeDataSlot } from '../sdk/runtime/animation-runtime.mjs';
 import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
 import { SLOT_KEY_NAMES } from '../contracts/spec/frozen-keys.mjs';
 import { ModelError, buildUserMessage } from '../core/gateway/index.mjs';
@@ -740,6 +741,40 @@ console.log('\n『Z』接线对账：state / context 的“提供 vs 消费”�
     const { report } = await dryRun({ slots, entry: 'wiring-optional' });
     check('可选读取 state?.z 不算消费（不误报）', report.checks.find((c) => c.id === 'C1')?.status === 'pass');
   }
+}
+
+/* ────────────────────────────── 『AA』v1.1.16 数据槽位容错：`tex: """正文` 同一行 ────────────────────────────── */
+
+console.log('\n『AA』STEPS 多行值：起始 """ 后面直接跟正文也要能解析');
+{
+  const mk = (texBlock) => `title: 第 1 步\n${texBlock}\nt0: 0\nt1: 1`;
+  const inline = 'tex: """第一行\n\\[\nx=v_0t\n\\]\n"""';
+  try {
+    const rows = normalizeDataSlot(mk(inline), 'STEPS');
+    check('★ 起始 """ 后直接跟正文 ⇒ 正常解析（不再报“无法解析这一行：\\[”）', rows[0]?.tex?.includes('x=v_0t'));
+    check('多行值保留了换行结构', String(rows[0]?.tex ?? '').split('\n').length === 4, JSON.stringify(rows[0]?.tex));
+  } catch (e) {
+    check('★ 起始 """ 后直接跟正文 ⇒ 正常解析', false, e.message);
+  }
+  const sameLine = 'tex: """abc"""';
+  try {
+    check('同一行 """abc""" 也能解析', normalizeDataSlot(mk(sameLine), 'STEPS')[0]?.tex === 'abc');
+  } catch (e) {
+    check('同一行 """abc""" 也能解析', false, e.message);
+  }
+  const oldStyle = 'tex: """\n第一行\n\\[\nx\n\\]\n"""';
+  try {
+    check('旧写法（""" 独占一行）逐字不变', normalizeDataSlot(mk(oldStyle), 'STEPS')[0]?.tex === '第一行\n\\[\nx\n\\]');
+  } catch (e) {
+    check('旧写法（""" 独占一行）逐字不变', false, e.message);
+  }
+  let threw = false;
+  try {
+    normalizeDataSlot(mk('tex: """未闭合'), 'STEPS');
+  } catch {
+    threw = true;
+  }
+  check('未闭合仍然报错（不静默吞掉）', threw);
 }
 
 /* ────────────────────────────── 汇总 ────────────────────────────── */
