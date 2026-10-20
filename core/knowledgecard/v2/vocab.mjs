@@ -101,6 +101,28 @@ export function validateVocab(vocab, { primitiveNames = null } = {}) {
   const elements = readList('elements', 'element').filter(Boolean);
   const scenes = readList('scenes', 'scene').filter(Boolean);
 
+  /* 用户层“本地关闭”开关：disabled.elements / disabled.scenes。 */
+  const disabled = vocab.disabled;
+  if (disabled != null) {
+    if (!isObject(disabled)) problems.push('disabled 必须是对象');
+    else {
+      for (const key of Object.keys(disabled)) {
+        if (!['elements', 'scenes'].includes(key)) problems.push(`disabled 含未知字段 "${key}"`);
+      }
+      for (const key of ['elements', 'scenes']) {
+        if (disabled[key] == null) continue;
+        if (!Array.isArray(disabled[key])) {
+          problems.push(`disabled.${key} 必须是数组`);
+          continue;
+        }
+        for (const id of disabled[key]) {
+          if (typeof id !== 'string' || !ID_RE.test(id)) problems.push(`disabled.${key} 含非法 id：${JSON.stringify(id)}`);
+          else if (!ids.has(id)) warnings.push(`disabled.${key} 里的 "${id}" 不在词表里（可能已删除）`);
+        }
+      }
+    }
+  }
+
   // 别名冲突：只告警；解析时按“正式名优先、先注册优先”处理（与 v1 同口径）。
   const aliasOwner = new Map();
   for (const item of [...elements.map((e) => ({ ...e, kind: 'element' })), ...scenes.map((s) => ({ ...s, kind: 'scene' }))]) {
@@ -162,6 +184,12 @@ export function mergeVocab(builtin, user, { primitiveNames = null } = {}) {
     }
     vocab.scenes.push(structuredClone(s));
   }
+
+  /* 本地关闭开关：不删除词表项，只把 enabled 置 false；Prompt 不再列出它。 */
+  const disabledElements = new Set(user?.disabled?.elements ?? []);
+  const disabledScenes = new Set(user?.disabled?.scenes ?? []);
+  vocab.elements = vocab.elements.map((e) => ({ ...e, enabled: !disabledElements.has(e.id) }));
+  vocab.scenes = vocab.scenes.map((s) => ({ ...s, enabled: !disabledScenes.has(s.id) }));
 
   /* 合并后整体再校验一次：跨内置/用户的别名冲突在这里才会暴露。 */
   const mergedCheck = validateVocab(vocab, { primitiveNames });

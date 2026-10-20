@@ -87,6 +87,15 @@ console.log('\n『B』内置 + 用户词表合并');
   badPrimitive.elements = [{ id: 'x', name: 'X', aliases: [], primitive: 'Draw.nope' }];
   const m4 = mergeVocab(v2, badPrimitive, { primitiveNames });
   check(m4.problems.some((p) => p.includes('不在 SDK 函数表里')), '未知 primitive 被拒绝', m4.problems.join('；'));
+
+  const disabled = clone(user);
+  disabled.elements = [];
+  disabled.disabled = { elements: ['belt'], scenes: [] };
+  const m5 = mergeVocab(v2, disabled, { primitiveNames });
+  check(m5.vocab.elements.find((e) => e.id === 'belt')?.enabled === false, 'disabled 开关把 belt 置为 enabled=false');
+  const promptText = buildJudgementVocabV2(m5.vocab);
+  check(!promptText.includes('- belt｜'), '被关闭的元件不进 Prompt 词表');
+  check(promptText.includes('- block｜'), '未关闭的元件仍在 Prompt 词表');
 }
 
 console.log('\n『C』条目 v2 校验');

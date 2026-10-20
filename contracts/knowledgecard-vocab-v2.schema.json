@@ -16,6 +16,15 @@
     "scenes": {
       "type": "array",
       "items": { "$ref": "#/$defs/Scene" }
+    },
+    "disabled": {
+      "type": "object",
+      "description": "用户层：本地关闭某些词条（不删除词表项）。内置词表不写这个字段。",
+      "additionalProperties": false,
+      "properties": {
+        "elements": { "type": "array", "items": { "$ref": "#/$defs/Id" }, "uniqueItems": true },
+        "scenes": { "type": "array", "items": { "$ref": "#/$defs/Id" }, "uniqueItems": true }
+      }
     }
   },
   "$defs": {

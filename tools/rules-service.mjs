@@ -109,6 +109,7 @@ import { migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
 import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
 import { saveV2Entry } from '../core/knowledgecard/v2/editor.mjs';
+import { addVocabEntry, removeVocabEntry, saveVocabState } from '../core/knowledgecard/v2/vocab-editor.mjs';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -980,6 +981,48 @@ export function createRulesService({
             return bad(
               res,
               (r.issues ?? ['保存失败']).map((message) => ({ code: 'knowledgecard.v2.invalid', path: 'entry', message })),
+              400,
+            );
+          }
+          return ok(res, r);
+        }
+
+        if (req.method === 'POST' && path === '/api/knowledgecard/v2/vocab-state') {
+          const body = await readJson(req);
+          const r = saveVocabState({
+            path: join(dir, 'vocab.json'),
+            disabledElements: Array.isArray(body?.disabledElements) ? body.disabledElements : [],
+            disabledScenes: Array.isArray(body?.disabledScenes) ? body.disabledScenes : [],
+          });
+          return ok(res, r);
+        }
+        if (req.method === 'POST' && path === '/api/knowledgecard/v2/vocab-entry') {
+          const body = await readJson(req);
+          const builtinVocab = JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'knowledgecard-vocab-v2.json'), 'utf8'));
+          const sdk = JSON.parse(readFileSync(join(PROJECT_ROOT, 'sdk', 'signature-summary.json'), 'utf8'));
+          const r = addVocabEntry({
+            path: join(dir, 'vocab.json'),
+            kind: body?.kind,
+            entry: body?.entry,
+            builtinVocab,
+            primitiveNames: (sdk.functions ?? []).map((f) => f.name),
+          });
+          if (!r.ok) {
+            return bad(
+              res,
+              (r.issues ?? ['词表新增失败']).map((message) => ({ code: 'knowledgecard.v2.vocab-invalid', path: 'vocab', message })),
+              400,
+            );
+          }
+          return ok(res, r);
+        }
+        if (req.method === 'DELETE' && path === '/api/knowledgecard/v2/vocab-entry') {
+          const body = await readJson(req);
+          const r = removeVocabEntry({ path: join(dir, 'vocab.json'), kind: body?.kind, id: body?.id });
+          if (!r.ok) {
+            return bad(
+              res,
+              (r.issues ?? ['词表删除失败']).map((message) => ({ code: 'knowledgecard.v2.vocab-invalid', path: 'vocab', message })),
               400,
             );
           }

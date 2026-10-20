@@ -88,4 +88,10 @@ export const api = {
     restoreKnowledgecardBuiltin: () => request('POST', '/knowledgecard/restore', {}),
     knowledgecardV2: () => request('GET', '/knowledgecard/v2'),
     saveKnowledgecardV2Entry: (entry) => request('POST', '/knowledgecard/v2/entry', { entry }),
+    saveKnowledgecardV2VocabState: (disabledElements, disabledScenes) => request('POST', '/knowledgecard/v2/vocab-state', {
+        disabledElements,
+        disabledScenes,
+    }),
+    addKnowledgecardV2VocabEntry: (kind, entry) => request('POST', '/knowledgecard/v2/vocab-entry', { kind, entry }),
+    removeKnowledgecardV2VocabEntry: (kind, id) => request('DELETE', '/knowledgecard/v2/vocab-entry', { kind, id }),
 };

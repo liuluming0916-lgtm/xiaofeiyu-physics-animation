@@ -30,10 +30,16 @@ const SPLIT_RE = /[,，、;；/|]+/;
 export function buildJudgementVocabV2(vocab) {
   const L = [];
   L.push('【动画元件词表】（elements：只能从下列 id 里选，可多选；依据图片 + 题面，纯文字题按题面）');
-  for (const e of vocab?.elements ?? []) L.push(`- ${e.id}｜${e.name}`);
+  for (const e of vocab?.elements ?? []) {
+    if (e.enabled === false) continue;
+    L.push(`- ${e.id}｜${e.name}`);
+  }
   L.push('');
   L.push('【场景词表】（scenes：只能从下列 id 里选；一道题最多 1 个场景；判不出写"无"）');
-  for (const s of vocab?.scenes ?? []) L.push(`- ${s.id}｜${s.name}`);
+  for (const s of vocab?.scenes ?? []) {
+    if (s.enabled === false) continue;
+    L.push(`- ${s.id}｜${s.name}`);
+  }
   return L.join('\n');
 }
 

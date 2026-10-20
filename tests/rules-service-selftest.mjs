@@ -374,6 +374,35 @@ async function main() {
         `${bad.status} ${JSON.stringify(bad.json)}`,
       );
     }
+
+    /* ── 知识卡 v2：本地开关 + 新增词表项（Phase 3C-2） ── */
+    console.log('\n『I』知识卡 v2：本地开关 + 新增/删除用户词表项');
+    {
+      const off = await call('POST', '/api/knowledgecard/v2/vocab-state', { disabledElements: ['belt'], disabledScenes: [] });
+      check('★ 关闭 belt 开关 → 200', off.status === 200 && off.json.ok === true, `${off.status} ${JSON.stringify(off.json)}`);
+      const afterOff = await call('GET', '/api/knowledgecard/v2');
+      check(
+        '关闭后 belt 的 enabled=false（词条还在）',
+        afterOff.json.vocab?.elements?.find((e) => e.id === 'belt')?.enabled === false,
+        JSON.stringify(afterOff.json.vocab?.elements?.find((e) => e.id === 'belt')),
+      );
+
+      const on = await call('POST', '/api/knowledgecard/v2/vocab-state', { disabledElements: [], disabledScenes: [] });
+      check('重新启用 → belt.enabled=true', on.status === 200 && (await call('GET', '/api/knowledgecard/v2')).json.vocab.elements.find((e) => e.id === 'belt')?.enabled === true);
+
+      const add = await call('POST', '/api/knowledgecard/v2/vocab-entry', {
+        kind: 'element',
+        entry: { id: 'test_widget', name: '测试零件', aliases: ['测试件'], primitive: 'Draw.box' },
+      });
+      check('★ 新增用户元件 → 200', add.status === 200 && add.json.ok === true, `${add.status} ${JSON.stringify(add.json)}`);
+      const afterAdd = await call('GET', '/api/knowledgecard/v2');
+      check('新增后元件 31 个，且 test_widget 在', afterAdd.json.vocab?.elements?.length === 31 && afterAdd.json.vocab.elements.some((e) => e.id === 'test_widget'));
+
+      const del = await call('DELETE', '/api/knowledgecard/v2/vocab-entry', { kind: 'element', id: 'test_widget' });
+      check('★ 删除用户元件 → 200', del.status === 200 && del.json.ok === true, `${del.status} ${JSON.stringify(del.json)}`);
+      const afterDel = await call('GET', '/api/knowledgecard/v2');
+      check('删除后回到 30 个', afterDel.json.vocab?.elements?.length === 30);
+    }
   } finally {
     await svc.close();
     for (const d of created) {

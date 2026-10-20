@@ -260,11 +260,13 @@ export interface V2VocabElement {
   name: string
   aliases: string[]
   primitive: string
+  enabled?: boolean
 }
 export interface V2VocabScene {
   id: string
   name: string
   aliases: string[]
+  enabled?: boolean
 }
 export interface V2Vocab {
   format: string
@@ -350,4 +352,13 @@ export const api = {
   knowledgecardV2: () => request<V2Library>('GET', '/knowledgecard/v2'),
   saveKnowledgecardV2Entry: (entry: V2Entry) =>
     request<{ ok: boolean; entry: V2Entry; name: string }>('POST', '/knowledgecard/v2/entry', { entry }),
+  saveKnowledgecardV2VocabState: (disabledElements: string[], disabledScenes: string[]) =>
+    request<{ ok: boolean; disabled: { elements: string[]; scenes: string[] } }>('POST', '/knowledgecard/v2/vocab-state', {
+      disabledElements,
+      disabledScenes,
+    }),
+  addKnowledgecardV2VocabEntry: (kind: 'element' | 'scene', entry: Record<string, unknown>) =>
+    request<{ ok: boolean; kind: string; entry: unknown; warnings: RuleIssue[] }>('POST', '/knowledgecard/v2/vocab-entry', { kind, entry }),
+  removeKnowledgecardV2VocabEntry: (kind: 'element' | 'scene', id: string) =>
+    request<{ ok: boolean }>('DELETE', '/knowledgecard/v2/vocab-entry', { kind, id }),
 }
