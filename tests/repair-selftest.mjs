@@ -41,6 +41,7 @@ import {
   shouldContinue,
   roundBudget,
   involvesCodeSlots,
+  repairModeOf,
   hintsForDiagnostics,
 } from '../core/repair/index.mjs';
 import { mergeRepairOutput, ProgramBuildError } from '../core/cleaner/index.mjs';
@@ -171,7 +172,11 @@ function routedStream({ sceneCode: sceneReply, repair }) {
   const calls = [];
   const impl = async (opts) => {
     const sys = String(opts.messages?.[0]?.content ?? '');
-    const isRepair = sys.includes('自愈修复');
+    /**
+     * v1.1.16：代码槽位的自愈改成"整段重画" —— 它发的是 `scene_code` 的提示词，
+     * 系统段里没有"自愈修复"四个字。用 `round > 0` 来认出"这是修复轮"。
+     */
+    const isRepair = Boolean(opts.round) || sys.includes('自愈修复');
     const labels = ['解题', '答案抽取', '分步解析', '动画代码'];
     const label =
       labels.find((l) => sys.includes(`【本阶段指令：${l}】`)) ?? labels.find((l) => sys.includes(`【世界书·解题：${l}】`));
@@ -315,6 +320,23 @@ export async function main() {
       const p = planRepair({ report: report([{ id: 'C8', status: 'fail', blocking: false, diagnostics: [] }]), round: 0, slots: {} });
       check('C8/C9 是告警 ⇒ 不触发修复（不阻塞交付）', p.slots.length === 0 && p.visualsOnly === true);
     }
+
+    /* ── v1.1.16：自愈分模式（代码槽位 ⇒ 整段重画；数据槽位 ⇒ 补丁） ── */
+    check(
+      '🎯 动到代码型槽位 ⇒ 自愈走「整段重画」，不走补丁',
+      repairModeOf(['VIEW', 'setup', 'stateAt', 'drawFrame', 'readouts']) === 'regenerate' &&
+        repairModeOf(['drawFrame']) === 'regenerate' &&
+        repairModeOf(['stateAt']) === 'regenerate',
+      repairModeOf(['drawFrame']),
+    );
+    check(
+      '🎯 只有数据型槽位 ⇒ 才允许补丁（STEPS/ANSWERS 局部改不会破坏别处）',
+      repairModeOf(['STEPS']) === 'patch' && repairModeOf(['ANSWERS']) === 'patch' && repairModeOf([]) === 'patch',
+    );
+    check(
+      '🎯 混合时按"代码优先"处理（宁可重画，不冒局部补丁的风险）',
+      repairModeOf(['STEPS', 'ANSWERS', 'stateAt']) === 'regenerate',
+    );
 
     check(
       'CHECK_TO_SLOTS 覆盖 C1–C9 全部检查号（漏一个就会悄悄不修）',
@@ -544,61 +566,41 @@ export async function main() {
     check('repair_done 报出"同一错误"停止原因', /同一错误/.test(repairDone?.stoppedReason ?? ''), repairDone?.stoppedReason);
   }
 
-  /* ────────────────────── 『B3』槽位级重生成 ────────────────────── */
+  /* ────────────────────── 『B3』v1.1.16：代码槽位出错 ⇒ 整段重画 ────────────────────── */
 
-  console.log('\n『B3』槽位级重生成：只重发生错槽位，其余逐字节不变');
+  console.log('\n『B3』代码槽位出错 ⇒ 整段重画（不再局部补丁；数据槽位冻结）');
   {
     const original = sceneCode({ drawFrame: '/*BAD-DRAW*/ Draw.dot(NaN, 0);' });
     const origSlots = slotsOf(original);
+    const regenerated = sceneCode({ drawFrame: '/*FIXED-DRAW*/ Draw.dot(0, 0);', VIEW: '/*FP-VIEW2*/ SIM.duration = 1;' });
     const dryImpl = fakeDryRun([
       fakeReport({ verdict: 'fail', failed: ['C3'], diagnostics: [{ check: 'C3', slot: 'drawFrame', line: 1, precision: 'exact', message: '命令坐标非有限' }] }),
       fakeReport({ verdict: 'pass' }),
     ]);
     const stream = routedStream({
       sceneCode: original,
-      repair: partialOutput('drawFrame', '/*FIXED-DRAW*/ Draw.dot(0, 0);'),
+      repair: regenerated,
     });
 
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dryImpl }));
     const repairCall = stream.calls.find((c) => c.stage === 'repair');
     const finalSlots = [...events].reverse().find((e) => e.type === 'dryrun_done').program.slots;
-    const untouched = SLOT_KEY_NAMES.filter((k) => k !== 'drawFrame');
 
-    check('只调了 1 次修复', stream.calls.filter((c) => c.stage === 'repair').length === 1);
-    check('修复 Prompt 只含出错槽位的代码块', repairCall.user.includes('/*BAD-DRAW*/') && !repairCall.user.includes('/*FP-SETUP*/'));
-    check(
-      '修复 Prompt 的"允许改动"清单 = §8.1 的表 ∪ 诊断指名的槽位（这里是 stateAt + drawFrame）',
-      repairCall.user.includes('本轮只允许你改动这些槽位') &&
-        repairCall.user.includes('· stateAt') &&
-        repairCall.user.includes('· drawFrame') &&
-        !/\n· readouts/.test(repairCall.user) &&
-        !/\n· setup/.test(repairCall.user),
-      repairCall.user.slice(repairCall.user.indexOf('本轮只允许'), repairCall.user.indexOf('本轮只允许') + 90),
-    );
-    check('修复 Prompt 带了该槽位的诊断（[C3] drawFrame）', repairCall.user.includes('[C3] drawFrame'));
-    check(
-      '修复 Prompt 的"当前代码"块数 = 允许改动的槽位数（不夹带其它槽位）',
-      (repairCall.user.match(/```js/g) ?? []).length === 2,
-      String((repairCall.user.match(/```js/g) ?? []).length),
-    );
-    check(
-      '修复 Prompt **没有**夹带已通过校验的槽位代码（readouts/setup/VIEW）',
-      !repairCall.user.includes('/*FP-READOUTS*/') && !repairCall.user.includes('/*FP-SETUP*/') && !repairCall.user.includes('/*FP-VIEW*/'),
-    );
-    const changed = untouched.filter((k) => origSlots[k] !== finalSlots[k]);
-    check(`未涉及的 ${untouched.length} 个槽位**逐字节不变**`, changed.length === 0, `变了：${changed.join(',')}`);
+    check('只调了 1 次重画', stream.calls.filter((c) => c.stage === 'repair').length === 1);
+    check('★ 走的是「整段重画」：Prompt 里写明“上一轮为什么没过”', repairCall.user.includes('【上一轮为什么没过'));
+    check('★ 重画 Prompt 带上完整输入（STEPS 在输入里，不靠猜）', repairCall.user.includes('【steps 输出】'));
+    check('★ 重画 Prompt 要求只输出 5 个代码槽位（数据槽位冻结）', repairCall.user.includes('只输出这 5 个代码槽位'));
+    check('★ 重画 Prompt 附了上一轮代码，并允许整体重排', repairCall.user.includes('/*BAD-DRAW*/') && repairCall.user.includes('允许'));
+    check('重画 Prompt **不是**“只改这几行”的口径', !repairCall.user.includes('本轮只允许你改动这些槽位'));
+
+    const dataSlots = ['PROBLEM', 'STEPS', 'ANSWERS'];
+    const dataChanged = dataSlots.filter((k) => origSlots[k] !== finalSlots[k]);
+    check('★ 数据槽位（PROBLEM/STEPS/ANSWERS）逐字节不变', dataChanged.length === 0, dataChanged.join(','));
     check('出错的 drawFrame 确实换成了新版本', finalSlots.drawFrame.includes('FIXED-DRAW'));
 
     const round = events.find((e) => e.type === 'repair_round');
-    check('repair_round 报告 updated = [drawFrame]', round?.updated?.join(',') === 'drawFrame', round?.updated?.join(','));
-    check('repair_round 报告 7 个槽位未改动', round?.unchanged?.length === 7, String(round?.unchanged?.length));
+    check('★ repair_round 标出 mode = regenerate', round?.mode === 'regenerate', String(round?.mode));
     check('repair_round 带诊断快照（B6）', Array.isArray(round?.diagnostics) && round.diagnostics.length >= 1);
-    check('repair_round 带本轮耗时与判定', Number.isFinite(round?.ms) && round?.verdict === 'pass');
-    check(
-      'repair_round 带的是**触发本轮**的诊断（不是修复后的空报告）',
-      round?.diagnostics?.[0]?.check === 'C3' && round.diagnostics[0].diagnostics[0].precision === 'exact',
-      JSON.stringify(round?.diagnostics?.[0]?.check),
-    );
     check('repair_round 记下触发本轮的检查号', round?.triggeringChecks?.join(',') === 'C3', round?.triggeringChecks?.join(','));
   }
 

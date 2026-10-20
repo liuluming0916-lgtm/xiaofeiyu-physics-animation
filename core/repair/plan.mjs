@@ -550,3 +550,17 @@ export function roundBudget(slotNames, slots) {
 export function involvesCodeSlots(slotNames) {
   return slotNames.some((s) => CODE_SLOTS.includes(s));
 }
+
+/**
+ * v1.1.16：自愈的两种模式。
+ *
+ * 判据只看**要改的是哪类槽位**，与题目、画面长什么样无关：
+ *   · 只要动到代码型槽位 ⇒ `regenerate`（整段重画 `scene_code`，禁止局部补丁）；
+ *   · 只有数据型槽位（STEPS/ANSWERS）⇒ `patch`（局部补丁）。
+ *
+ * 为什么代码槽位不许补丁：几何是全局的。实测中自愈为了补一个 `state.yB`，
+ * 把滑轮从 y=1.3 抬到 3.0 —— 检查绿了，绳断了、悬挂物沉到地下。
+ */
+export function repairModeOf(slotNames = []) {
+  return involvesCodeSlots(slotNames) ? 'regenerate' : 'patch';
+}

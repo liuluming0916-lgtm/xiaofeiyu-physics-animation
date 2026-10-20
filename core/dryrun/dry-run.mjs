@@ -43,6 +43,7 @@ import * as Runtime from '../../sdk/runtime/animation-runtime.mjs';
 import { emptyLabelAvoid } from '../../sdk/runtime/label-avoid.mjs';
 import { planLabelLayout } from './label-avoid.mjs';
 import { lintProgram } from '../lint/contract-lint.mjs';
+import { auditWiring } from './wiring.mjs';
 import { createSlotContext } from './vm-context.mjs';
 import { runScanInWorker } from './worker-sandbox.mjs';
 import { traceSlot } from './trace.mjs';
@@ -2271,14 +2272,47 @@ export async function dryRun(input) {
   if (run.truncated === 'step-budget') c2Offenders.push({ t: null, reason: '扫描因步数预算提前截断', snippet: `truncated=${run.truncated}` });
 
   checks.push(
-    result(
-      'C1',
-      lint.ok,
-      lint.ok
-        ? `8 槽位全部通过（代码型槽位走 §6.2 全表；数据型槽位走行式表/JSON 结构校验）`
+    (() => {
+      /**
+       * v1.1.16：**接线对账**并入 C1。
+       *
+       * 静态 lint 只看语法与白名单；`stateAt` 少返回一个键、`setup` 少 `RETURN` 一个名字，
+       * 静态是看不出来的，只有跑到 `drawFrame` 才炸（而且报错指向消费方，把自愈带偏）。
+       * 这里在**画第一帧之前**把“提供 vs 消费”的差集算出来，直接挂在 C1 上。
+       */
+      const wiring = (() => {
+        if (!run.program) return { issues: [], skipped: true };
+        /**
+         * ⚠ 一帧都没有（多半是画图时崩了）时，`run.stateAt` 只是个占位；
+         * 这时用一个**独立的只读探针**重建并取样 —— 否则最该报的“读了缺失的键”反而报不出来。
+         */
+        const framesEmpty = !Array.isArray(run.frames) || run.frames.length === 0;
+        if (!framesEmpty) return auditWiring(slots, run);
+        let probe = null;
+        const wiringRun = {
+          ...run,
+          stateAt: (t) => {
+            if (!probe) probe = makeStateProbe(slots, execOpts.mode);
+            return probe(t);
+          },
+        };
+        try {
+          return auditWiring(slots, wiringRun);
+        } catch {
+          return { issues: [], skipped: true };
+        }
+      })();
+      const wiringIssues = wiring.issues ?? [];
+      const lintDiags = lint.results.flatMap((r) => r.diagnostics.map((d) => ({ slot: r.slot, ...d, entry })));
+      const ok = lint.ok && wiringIssues.length === 0;
+      const detail = ok
+        ? wiring.skipped
+          ? `8 槽位全部通过（代码型槽位走 §6.2 全表；数据型槽位走行式表/JSON 结构校验；接线对账未执行）`
+          : `8 槽位全部通过（静态契约 + 接线对账：${wiring.provided.state.length} 个 state 键 / ${wiring.provided.context.length} 个 context 键都对上了）`
         : `${lint.totalDiagnostics} 条静态诊断（其中 ${lint.advisoryDiagnostics ?? 0} 条为告警、` +
-          `${lint.blockingDiagnostics ?? 0} 条硬拦）`,
-      {
+          `${lint.blockingDiagnostics ?? 0} 条硬拦）` +
+          (wiringIssues.length ? `；接线错误 ${wiringIssues.length} 条` : '');
+      return result('C1', ok, detail, {
         /**
          * ── 第 9 期「判据分级」（交接单 §8）──
          *
@@ -2289,16 +2323,18 @@ export async function dryRun(input) {
          *
          * ⚠ 沙箱逃逸类（`require` / `eval` / `process.x`）**不会**因此被放过：
          * 它们还会命中 `banned-identifier`，那条不计入 `advisoryDiagnostics`。
+         * ⚠ 接线错误一律**硬拦**：它必然在运行期变成 undefined/NaN，提前拦住才有意义。
          */
-        blocking: lint.ok ? true : (lint.blockingDiagnostics ?? 0) > 0,
+        blocking: ok ? true : (lint.blockingDiagnostics ?? 0) > 0 || wiringIssues.length > 0,
         // ⚠ 补上 `slot`：lint 的一部分诊断只给了规则与行列号，
         // 报告里不带槽位名的话，"第 6 行"到底指哪个槽位就得靠猜（第 2 期修）。
-        diagnostics: lint.results.flatMap((r) => r.diagnostics.map((d) => ({ slot: r.slot, ...d, entry }))),
+        diagnostics: [...lintDiags, ...wiringIssues],
         minimalRepro: lint.results.flatMap((r) => r.minimalRepro),
         advisoryDiagnostics: lint.advisoryDiagnostics ?? 0,
-        blockingDiagnostics: lint.blockingDiagnostics ?? 0,
-      },
-    ),
+        blockingDiagnostics: (lint.blockingDiagnostics ?? 0) + wiringIssues.length,
+        wiring: { provided: wiring.provided, skipped: Boolean(wiring.skipped) },
+      });
+    })(),
   );
   checks.push(
     cancelled

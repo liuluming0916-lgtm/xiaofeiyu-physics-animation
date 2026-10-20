@@ -87,7 +87,7 @@ export function OpenLogNotice() {
           <h2 id="open-log-title" className="text-base font-medium text-slate-900">
             公测版会自动导出运行日志
           </h2>
-          <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">v1.1.7 · 公测</span>
+          <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">v1.2 · 公测</span>
         </div>
 
         <p className="mt-2 text-sm text-slate-700">

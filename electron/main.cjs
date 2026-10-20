@@ -106,6 +106,11 @@ async function startService() {
   process.env.OD_BUILTIN_BUNDLE = '1';
   process.env.OD_HISTORY_PATH = path.join(dataDir, 'history.db');
   process.env.OD_OBS_DIR = path.join(dataDir, 'observability');
+  /**
+   * v1.1.16 探针版：导出链路逐步写 `%TEMP%\od-export-probe.log`（同步写，进程崩了也在）。
+   * 定位"写盘成功 → 响应前"的原生崩溃（0xC0000005）用；定位完就删掉这一行。
+   */
+  process.env.OD_EXPORT_PROBE = '1';
   /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\物理解题动画\导出」，用户找得到 */
   process.env.OD_EXPORT_DIR = exportDir();
   /**

@@ -14,6 +14,7 @@
 
 import { runPipeline, collectEvents, deriveTimeAxis, deriveEntryLabel, snapshotConfig } from '../core/orchestrator/pipeline.mjs';
 import { encodePng, decodePng } from '../core/images/png-crop.mjs';
+import { dryRun } from '../core/dryrun/dry-run.mjs';
 import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
 import { SLOT_KEY_NAMES } from '../contracts/spec/frozen-keys.mjs';
 import { ModelError, buildUserMessage } from '../core/gateway/index.mjs';
@@ -697,6 +698,48 @@ console.log('\n『Y』拆图：读题给【示意图范围】→ 程序真裁 �
     '写动画那一步的 user 文本里说明了"附了示意图"',
     JSON.stringify(sceneUser?.content ?? '').includes('【示意图】'),
   );
+}
+
+/* ────────────────────────────── 『Z』v1.1.16 接线对账：读了但没提供 ⇒ C1 指对槽位 ────────────────────────────── */
+
+console.log('\n『Z』接线对账：state / context 的“提供 vs 消费”对不上时，C1 指向正确槽位');
+{
+  const base = {
+    PROBLEM: '测试',
+    STEPS: 'title: 第 1 步\ntex: x\nt0: 0\nt1: 1',
+    ANSWERS: 'symbol: x\nvalue: 1\nunit: m\nat_t: 1\nstep: 1',
+    VIEW: "SIM = { duration: 1, bodies: [{ id: 'A', at: (s) => [s.x, 0] }] };",
+    setup: "const y = 0; RETURN('y', y);",
+    stateAt: 'return { x: t };',
+    drawFrame: 'Draw.box([state.x, 0], 0.3, 0.3);',
+    readouts: "return [{ key: 'x', label: 'x', value: state.x, unit: 'm' }];",
+  };
+
+  {
+    const { report } = await dryRun({ slots: base, entry: 'wiring-ok' });
+    check('正常程序：接线对账通过（不误报）', report.checks.find((c) => c.id === 'C1')?.status === 'pass');
+  }
+  {
+    const slots = { ...base, drawFrame: 'Draw.box([state.x, state.yB], 0.3, 0.3);' };
+    const { report } = await dryRun({ slots, entry: 'wiring-missing-state' });
+    const c1 = report.checks.find((c) => c.id === 'C1');
+    const diag = (c1?.diagnostics ?? []).find((d) => d.rule === 'state-key-missing');
+    check('★ 读了 state.yB 但 stateAt 没返回 ⇒ C1 失败', c1?.status === 'fail');
+    check('★ 诊断指向 stateAt（而不是 drawFrame）', diag?.slot === 'stateAt' && diag?.name === 'yB', JSON.stringify(diag));
+    check('诊断里写明“别去改 drawFrame 凑”', String(diag?.message ?? '').includes('不要去改 drawFrame'));
+  }
+  {
+    const slots = { ...base, stateAt: 'return { x: context.k };' };
+    const { report } = await dryRun({ slots, entry: 'wiring-missing-context' });
+    const c1 = report.checks.find((c) => c.id === 'C1');
+    const diag = (c1?.diagnostics ?? []).find((d) => d.rule === 'context-key-missing');
+    check('★ 读了 context.k 但 setup 没导出 ⇒ C1 失败且指向 setup', c1?.status === 'fail' && diag?.slot === 'setup', JSON.stringify(diag));
+  }
+  {
+    const slots = { ...base, drawFrame: 'Draw.box([state.x, state?.z ?? 0], 0.3, 0.3);' };
+    const { report } = await dryRun({ slots, entry: 'wiring-optional' });
+    check('可选读取 state?.z 不算消费（不误报）', report.checks.find((c) => c.id === 'C1')?.status === 'pass');
+  }
 }
 
 /* ────────────────────────────── 汇总 ────────────────────────────── */

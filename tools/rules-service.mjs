@@ -21,8 +21,26 @@
  */
 
 import { createServer } from 'node:http';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
+
+/**
+ * ── v1.1.16 导出崩溃探针（临时）──
+ *
+ * 打包版"导出成功写盘 → 响应前"主进程原生崩溃（0xC0000005），日志拿不到。
+ * 这里在导出链路上按顺序同步写几行到临时文件（同步写 = 进程立刻死也不会丢），
+ * 事后看最后一行就知道死在哪一步。`OD_EXPORT_PROBE=1` 时启用（本版由 main.cjs 打开）。
+ */
+function probe(step, extra) {
+  if (process.env.OD_EXPORT_PROBE !== '1') return;
+  try {
+    const line = `${new Date().toISOString()} ${process.pid} ${step}${extra === undefined ? '' : ' ' + JSON.stringify(extra)}\n`;
+    appendFileSync(join(tmpdir(), 'od-export-probe.log'), line, 'utf8');
+  } catch {
+    /* 探针自己不许影响导出 */
+  }
+}
 
 import { PROJECT_ROOT } from './paths.mjs';
 import { PIPELINE_STAGES } from '../contracts/spec/frozen-keys.mjs';
@@ -751,7 +769,9 @@ export function createRulesService({
       }
 
       if (req.method === 'POST' && path === '/api/export/page') {
+        probe('export:request');
         const body = await readJson(req);
+        probe('export:body-parsed', { slots: Object.keys(body.slots ?? {}).length });
         const result = await exportPageToDisk({
           slots: body.slots,
           id: body.id,
@@ -771,11 +791,16 @@ export function createRulesService({
           advisory: body.advisory === true,
           gatesBypassed: Array.isArray(body.gatesBypassed) ? body.gatesBypassed : [],
         });
+        probe('export:page-written', { bytes: result.bytes, name: result.name });
         if (!result.ok) return bad(res, [{ code: result.code, path: 'body', message: result.message }]);
         recordAudit(
           { kind: 'export.page', detail: { name: result.name, bytes: result.bytes, model: body.model ?? null } },
           { path: HISTORY_PATH, secrets: collectSecrets({ dir }) },
         );
+        probe('export:audit-written');
+        res.on('close', () => probe('export:response-close'));
+        res.on('finish', () => probe('export:response-finish'));
+        probe('export:before-respond');
         return ok(res, {
           file: result.file,
           name: result.name,

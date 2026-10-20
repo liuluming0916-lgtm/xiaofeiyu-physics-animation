@@ -50,6 +50,9 @@ import {
   involvesCodeSlots,
   planC7Alias,
   REPAIR_MAX_ROUNDS,
+  CODE_SLOTS,
+  orderSlots,
+  repairModeOf,
 } from '../repair/index.mjs';
 import { PHASE5_STAGES, MODEL_STAGES, makeEvent } from './events.mjs';
 import { parseDiagramBox, cropPngNormalized } from '../images/png-crop.mjs';
@@ -895,6 +898,17 @@ export async function* runPipeline(input) {
       }
 
       const plan = planRepair({ report, round, slots: program.slots });
+      /**
+       * ── v1.1.16：自愈分模式 ──
+       *
+       * 判据只看"要改的是哪类槽位"，不看画面长什么样：
+       *   · 只要动到代码槽位（VIEW/setup/stateAt/drawFrame/readouts）⇒ **整段重画** `scene_code`；
+       *   · 只有数据槽位（STEPS/ANSWERS）⇒ 才允许局部补丁。
+       *
+       * 为什么：几何是全局的。第 2 次实测里，自愈为了补一个 `state.yB` 把滑轮抬到 3.0，
+       * 结果是"检查绿了、绳断了、B 沉到地下"。局部补丁必然按倒葫芦起了瓢。
+       */
+      const repairMode = repairModeOf(plan.slots);
       if (!plan.slots.length) {
         // 阻塞失败但没有任何槽位可归因 —— 如实说明并停止（不假装修过）
         repairStoppedReason = `第 ${round + 1} 轮找不到可重发的槽位（失败检查：${plan.failingChecks.join(' / ') || '—'}）`;
@@ -916,29 +930,82 @@ export async function* runPipeline(input) {
       }
 
       const roundNo = round + 1;
-      yield emit('stage_start', { stage: 'repair', index: repairStageIndex, total: repairTotal, round: roundNo, maxRounds, slots: plan.slots });
+      yield emit('stage_start', { stage: 'repair', index: repairStageIndex, total: repairTotal, round: roundNo, maxRounds, slots: plan.slots, mode: repairMode });
 
       const stageStarted = Date.now();
       const previousReport = report;
       const chunks = [];
       let text = '';
       try {
-        const prompt = getPrompt('repair', snapshot.rules);
-        const repairTask = buildRepairTask({
-          problem: problem.text,
-          plan,
-          report,
-          slots: program.slots,
-          previousRounds: repairRounds,
-          codeSlot: involvesCodeSlots(plan.slots),
-        });
-        const resolved = { repairTask };
-        const assembled = assemblePrompt({
-          problem: { text: prompt.buildUser(resolved) },
-          knowledgecardEntries: [{ title: prompt.label, content: prompt.system }],
-          // 自愈要重写槽位代码 ⇒ 必须拿**完整前缀**（角色 + 模板骨架 + SDK 摘要）
-          stage: 'repair',
-        });
+        let assembled;
+        let vision = false;
+        if (repairMode === 'regenerate') {
+          /**
+           * ── 代码槽位：**整段重画** ──
+           *
+           * 不是"修复任务"，而是拿**首次生成 scene_code 的那套提示词**重发一遍，
+           * 只在末尾加两段：上一轮为什么没过 + 上一轮代码（可整体重排）。
+           * 输出要求只给 5 个代码槽位 —— 数据槽位（PROBLEM/STEPS/ANSWERS）冻结，不让重画碰。
+           */
+          const scenePrompt = getPrompt('scene_code', snapshot.rules);
+          const sceneSeg = knowledgecardForStage('scene_code');
+          const failures = (report.checks ?? [])
+            .filter((c) => c.blocking && c.status === 'fail')
+            .map((c) => `· ${c.id}：${c.detail ?? c.message ?? ''}`);
+          const prevCode = CODE_SLOTS.map((k) => ['```js', `/* ${k} */`, program.slots[k] ?? '', '```'].join('\n')).join('\n\n');
+          const baseUser = scenePrompt.buildUser({
+            problem: problem.text,
+            solution: outputs.solve,
+            steps: outputs.steps,
+            answers: outputs.answers,
+            timeAxis: deriveTimeAxis(outputs.steps),
+            readProblem: outputs.read_problem,
+            hasDiagram: Boolean(diagram),
+          });
+          const userText = [
+            baseUser,
+            '',
+            '【上一轮为什么没过（这一轮允许整体重排，不要求保留原来的写法或结构）】',
+            ...(failures.length ? failures : ['· （报告没有给出可定位的失败项）']),
+            '',
+            '【上一轮代码（仅作参考：哪里别扭就整段换掉，不要只改一两行）】',
+            prevCode,
+            '',
+            '【本轮输出要求】',
+            '· 只输出这 5 个代码槽位：VIEW / setup / stateAt / drawFrame / readouts；',
+            '· PROBLEM / STEPS / ANSWERS 已被冻结，**不要重复输出**，也不要去改它们；',
+            '· 允许推翻上一版的做法：优先保证几何自洽（绳、滑轮、地面、物体位置），再谈细节。',
+          ].join('\n');
+          assembled = assemblePrompt({
+            problem: { text: userText },
+            instructions: scenePrompt.system,
+            instructionLabel: scenePrompt.label,
+            stageSlot: 'scene_code',
+            knowledgecardSegment: sceneSeg.text,
+            stage: 'scene_code',
+          });
+          if (diagram) {
+            assembled.messages[1] = buildUserMessage({ text: assembled.messages[1].content, images: [diagram] });
+            vision = true;
+          }
+        } else {
+          const prompt = getPrompt('repair', snapshot.rules);
+          const repairTask = buildRepairTask({
+            problem: problem.text,
+            plan,
+            report,
+            slots: program.slots,
+            previousRounds: repairRounds,
+            codeSlot: involvesCodeSlots(plan.slots),
+          });
+          const resolved = { repairTask };
+          assembled = assemblePrompt({
+            problem: { text: prompt.buildUser(resolved) },
+            knowledgecardEntries: [{ title: prompt.label, content: prompt.system }],
+            // 自愈要重写槽位代码 ⇒ 必须拿**完整前缀**（角色 + 模板骨架 + SDK 摘要）
+            stage: 'repair',
+          });
+        }
 
         const result = await streamImpl({
           endpoint: snapshot.endpoint,
@@ -955,7 +1022,7 @@ export async function* runPipeline(input) {
           round: roundNo,
           messages: assembled.messages,
           signal: ac.signal,
-          vision: false,
+          vision,
           onDelta: (d) => {
             if (typeof d === 'string' && d.length) chunks.push(d);
           },
@@ -1018,6 +1085,8 @@ export async function* runPipeline(input) {
 
       const roundRecord = {
         round: roundNo,
+        /** v1.1.16：这一轮是"补丁"还是"整段重画"（日志与界面都要能区分） */
+        mode: repairMode,
         requested: plan.slots,
         updated,
         // 未涉及的槽位 —— 断言"逐字节不变"时用它们做证据
