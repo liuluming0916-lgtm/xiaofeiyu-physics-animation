@@ -27,7 +27,10 @@ const { app, BrowserWindow, shell, dialog, Menu, ipcMain, crashReporter } = requ
 const path = require('node:path');
 const fs = require('node:fs');
 
-/** 程序根：开发时是仓库根；打包后是 app.asar 的上一级（resources/app） */
+/** 版本号唯一真源：仓库根 package.json（打包后它在 app.asar 里，require 照样读得到） */
+const PKG = require('../package.json');
+
+/** 程序根：开发时是仓库根；打包后是 app.asar 自己（`resources/app.asar`） */
 const APP_ROOT = path.join(__dirname, '..');
 const DIST_INDEX = path.join(APP_ROOT, 'web', 'dist', 'index.html');
 
@@ -178,6 +181,13 @@ async function createWindow(port) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      /**
+       * v1.1.12：发布形态**关掉 DevTools**。
+       * 这不是安全边界（前端代码本来就在磁盘上），而是"别让用户一按 F12 就看到
+       * 内部 DOM / API / 状态"——排查问题靠「启动并诊断.bat」与 `%TEMP%\od-shell.log`。
+       * 开发运行仍可 F12。
+       */
+      devTools: !app.isPackaged,
       /* iframe 里的播放器页面是同源（同一个 127.0.0.1 端口）⇒ 不需要放开跨域 */
       webSecurity: true,
     },
@@ -283,7 +293,17 @@ function buildMenu() {
           click: () => shell.openPath(userDataDir()),
         },
         {
-          /* v1.1.7：公测期最常被问的一句是"日志在哪" —— 给它一个直接入口 */
+          /* v1.1.12：知识卡在用户数据目录里，**不在程序目录**（asar 只读，也不该让用户改程序） */
+          label: '知识卡目录（可直接改 JSON）',
+          click: () => {
+            const dir = path.join(userDataDir(), 'ai-rules', 'knowledgecard');
+            try {
+              fs.mkdirSync(dir, { recursive: true });
+            } catch {}
+            shell.openPath(dir);
+          },
+        },
+        {
           label: '开源日志（公测自动导出）',
           click: () => shell.openPath(process.env.OD_OPEN_LOG_DIR || APP_ROOT),
         },
@@ -293,12 +313,13 @@ function buildMenu() {
             dialog.showMessageBox({
               type: 'info',
               title: '关于',
-              message: '物理解题动画 v1.1.11',
+              message: `物理解题动画 v${PKG.version}`,
               detail:
                 '解题 → 动画 → 导出；设置页可改知识卡 / 提示词卡 / 本地规则卡（AI 帮写暂未开放）。\n' +
                 '画布不写数值，矢量靠颜色与长度表达（绿=速度 / 蓝=加速度 / 红=受力）。\n' +
                 '公测版会自动导出运行日志（门禁 / 对话 / 动画代码 / 解题过程），\n' +
                 `位置：${process.env.OD_OPEN_LOG_DIR || '程序目录\\开源日志'}\n` +
+                `知识卡（可改）：${path.join(userDataDir(), 'ai-rules', 'knowledgecard')}\n` +
                 `数据目录：${userDataDir()}`,
             }),
         },
@@ -374,25 +395,65 @@ if (!gotLock) {
           historyNote = String(e && e.message ? e.message : e);
         }
         const hasRoot = indexHtml.includes('<div id="root"');
+        /**
+         * ── v1.1.12：Worker 沙箱也得从 asar 里起得来 ──
+         *
+         * dry-run 的「C2 硬终止」靠 `worker_threads`；`new Worker(<asar 里的 .mjs>)`
+         * 如果 Electron 不支持，会退化到主线程 vm 回退（功能还在，但抢不回死循环的 CPU）。
+         * 这一步用**最小载荷**把 Worker 真起一次：起得来 = 线程能加载 asar 里的 ESM；
+         * 起不来 = 错误信息会带回 `ERR_MODULE_NOT_FOUND` 之类，打包不能算通过。
+         */
+        let workerOk = false;
+        let workerNote = '';
+        try {
+          const { pathToFileURL } = require('node:url');
+          const mod = await import(pathToFileURL(path.join(APP_ROOT, 'core', 'dryrun', 'worker-sandbox.mjs')).href);
+          const w = await mod.runScanInWorker({}, { wallClockMs: 5000 });
+          const msg = String(w?.error?.message ?? '');
+          workerOk = w?.available !== false && !/ERR_MODULE_NOT_FOUND|Cannot find module|ERR_UNKNOWN_FILE_EXTENSION/i.test(msg);
+          workerNote = `available=${w?.available} kind=${w?.error?.kind ?? 'ok'} ${msg.slice(0, 160)}`;
+        } catch (e) {
+          workerNote = String(e && e.message ? e.message : e);
+        }
         logLine(
           `selftest port=${started.port} health=${JSON.stringify(health).slice(0, 160)} ` +
-            `index=${hasRoot} history=${historyOk} ${historyNote} ` +
-            `electron=${process.versions.electron} node=${process.versions.node}`,
+            `index=${hasRoot} history=${historyOk} worker=${workerOk} ${workerNote} ` +
+            `asar=${APP_ROOT.endsWith('.asar')} electron=${process.versions.electron} node=${process.versions.node}`,
         );
         console.log('[selftest] port          =', started.port);
         console.log('[selftest] /api/health   =', JSON.stringify(health).slice(0, 160));
         console.log('[selftest] 首页可取        =', indexHtml.includes('<div id="root"'));
         console.log('[selftest] 首页含 DevTools 入口 =', indexHtml.includes('assets/app.js'));
         console.log('[selftest] 账本可用        =', historyOk, historyNote);
+        console.log('[selftest] Worker 可用     =', workerOk, workerNote);
+        console.log('[selftest] 载荷形态        =', APP_ROOT.endsWith('.asar') ? 'app.asar' : 'resources/app（散开）');
         console.log('[selftest] electron        =', process.versions.electron, '· node', process.versions.node);
         try {
+          /**
+           * 自检结果落一份文件，给"没有控制台的打包机"读。
+           * `OD_SELFTEST_OUT`：打包脚本显式指定落点（程序目录），避免 `%TEMP%` 在受限环境里不可写。
+           */
+          const selftestOut =
+            process.env.OD_SELFTEST_OUT || path.join(process.env.TEMP || process.env.TMP || '.', 'od-selftest.txt');
           fs.writeFileSync(
-            path.join(process.env.TEMP || process.env.TMP || '.', 'od-selftest.txt'),
-            [`port=`, `health=`, `index=`, `history= `, `electron= node=`].join('\n'),
+            selftestOut,
+            [
+              `port=${started.port}`,
+              `health=${JSON.stringify(health)}`,
+              `index=${hasRoot}`,
+              `history=${historyOk}`,
+              `worker=${workerOk}`,
+              `payload=${APP_ROOT.endsWith('.asar') ? 'app.asar' : 'resources/app'}`,
+              `workerNote=${workerNote}`,
+              `electron=${process.versions.electron}`,
+              `node=${process.versions.node}`,
+            ].join('\n'),
             'utf8',
           );
         } catch {}
-        const ok = Boolean(health && health.ok !== false && indexHtml.includes('<div id="root"'));
+        const ok = Boolean(
+          health && health.ok !== false && indexHtml.includes('<div id="root"') && historyOk && workerOk,
+        );
         await service.close();
         service = null;
         app.exit(ok ? 0 : 1);

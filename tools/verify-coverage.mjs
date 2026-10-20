@@ -112,6 +112,18 @@ const EXEMPT_FILES = new Map([
       '与 `tools/electron-build.mjs` 同一类处置。',
   ],
   [
+    'tools/asar-archive.mjs',
+    '**ASAR 读写工具库**（pack / list / extract），被 `pack-payload.mjs` 与两个打包脚本 import；' +
+      '它的 `list` / `extract` 是排障入口，不是判定。asar 格式本身已用 Electron 自带的 ' +
+      '`default_app.asar` 反读 + SHA-256 核对过，产物形态由 `pack-payload.mjs` 的校验与门禁 ㊷/㊳ 覆盖。',
+  ],
+  [
+    'tools/pack-payload.mjs',
+    '**载荷构建 / 封装库**（唯一载荷清单），被 `electron-pack.mjs` / `electron-repack.mjs` 调用；' +
+      '它的 `verify` 子命令是**打包后的产物自检**（由 repack 的冒烟步骤调用），不是独立门禁步骤。' +
+      '发布产物形态由门禁 ㊷（桌面壳）与 ㊳（发布构建开关）钉住。',
+  ],
+  [
     'tools/electron-build.mjs',
     '**构建/打包脚本**，不是检查脚本：它跑"发布构建 → 模板重建 → electron-builder"，' +
       '产物正确性由门禁 ㊷（`tests/electron-shell-selftest.mjs`）与 ㊳（发布构建开关）分别钉住。' +
