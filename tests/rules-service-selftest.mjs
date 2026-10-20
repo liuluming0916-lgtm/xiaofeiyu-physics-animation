@@ -403,6 +403,63 @@ async function main() {
       const afterDel = await call('GET', '/api/knowledgecard/v2');
       check('删除后回到 30 个', afterDel.json.vocab?.elements?.length === 30);
     }
+
+    /* ── 知识卡 v2：导出/导入/删除卡/恢复内置（Phase 3C-3） ── */
+    console.log('\n『J』知识卡 v2：导出 / 导入 / 删除卡 / 恢复内置');
+    {
+      const exp = await call('GET', '/api/knowledgecard/v2/export');
+      check(
+        '★ 导出 v2 包 → 200，含用户卡与用户词表',
+        exp.status === 200 && exp.json.ok === true && exp.json.text.includes('"test.v2"'),
+        `${exp.status} ${JSON.stringify(exp.json).slice(0, 300)}`,
+      );
+
+      const bundle = {
+        format: 'od-knowledgecard-bundle',
+        version: 2,
+        vocab: { elements: [{ id: 'import_widget', name: '导入零件', aliases: ['导入件'], primitive: 'Draw.box' }], scenes: [] },
+        entries: [
+          {
+            id: 'import.card',
+            title: '导入卡',
+            kind: 'element',
+            origin: 'user',
+            enabled: true,
+            elements: ['import_widget'],
+            content: '导入正文',
+            code_examples: [],
+          },
+        ],
+      };
+      const imp = await call('POST', '/api/knowledgecard/v2/import', { text: JSON.stringify(bundle) });
+      check('★ 导入 v2 包（带用户词表）→ 200', imp.status === 200 && imp.json.ok === true && imp.json.entries === 1, `${imp.status} ${JSON.stringify(imp.json)}`);
+      const afterImp = await call('GET', '/api/knowledgecard/v2');
+      check(
+        '导入后卡与词表都在',
+        afterImp.json.entries?.some((e) => e.id === 'import.card') && afterImp.json.vocab?.elements?.some((e) => e.id === 'import_widget'),
+      );
+
+      const delCard = await call('DELETE', '/api/knowledgecard/v2/entry', { id: 'import.card' });
+      check('★ 删除用户卡 → 200', delCard.status === 200 && delCard.json.ok === true, `${delCard.status} ${JSON.stringify(delCard.json)}`);
+      const delVocab = await call('DELETE', '/api/knowledgecard/v2/vocab-entry', { kind: 'element', id: 'import_widget' });
+      check('删除导入的用户元件 → 200', delVocab.status === 200 && delVocab.json.ok === true);
+
+      const override = await call('POST', '/api/knowledgecard/v2/entry', {
+        entry: {
+          id: 'wb_el_incline',
+          title: '覆盖斜面',
+          kind: 'element',
+          origin: 'user',
+          enabled: true,
+          elements: ['incline'],
+          content: '覆盖正文',
+          code_examples: [],
+        },
+      });
+      check('保存内置卡的覆盖副本 → 200', override.status === 200 && override.json.ok === true);
+      const restored = await call('POST', '/api/knowledgecard/v2/restore', {});
+      check('★ 恢复内置 → 200 且撤销覆盖', restored.status === 200 && restored.json.removed >= 1, `${restored.status} ${JSON.stringify(restored.json)}`);
+    }
   } finally {
     await svc.close();
     for (const d of created) {

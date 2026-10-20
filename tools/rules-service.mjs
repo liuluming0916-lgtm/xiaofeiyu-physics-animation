@@ -109,7 +109,10 @@ import { migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
 import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
 import { saveV2Entry } from '../core/knowledgecard/v2/editor.mjs';
+import { removeV2Entry } from '../core/knowledgecard/v2/editor.mjs';
 import { addVocabEntry, removeVocabEntry, saveVocabState } from '../core/knowledgecard/v2/vocab-editor.mjs';
+import { exportV2Bundle, importV2Bundle } from '../core/knowledgecard/v2/bundle.mjs';
+import { restoreV2Builtin } from '../core/knowledgecard/v2/restore.mjs';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -985,6 +988,41 @@ export function createRulesService({
             );
           }
           return ok(res, r);
+        }
+        if (req.method === 'DELETE' && path === '/api/knowledgecard/v2/entry') {
+          const body = await readJson(req);
+          const r = removeV2Entry({ dir: wbDir, id: body?.id });
+          if (!r.ok) {
+            return bad(res, (r.issues ?? ['删除失败']).map((message) => ({ code: 'knowledgecard.v2.delete', path: 'entry', message })), 400);
+          }
+          return ok(res, r);
+        }
+        if (req.method === 'GET' && path === '/api/knowledgecard/v2/export') {
+          const r = exportV2Bundle({ dir: wbDir, vocabPath: join(dir, 'vocab.json') });
+          if (!r.ok) {
+            return bad(res, (r.issues ?? ['导出失败']).map((message) => ({ code: 'knowledgecard.v2.export', path: 'export', message })), 400);
+          }
+          return ok(res, r);
+        }
+        if (req.method === 'POST' && path === '/api/knowledgecard/v2/import') {
+          const body = await readJson(req);
+          const builtinVocab = JSON.parse(readFileSync(join(PROJECT_ROOT, 'contracts', 'knowledgecard-vocab-v2.json'), 'utf8'));
+          const sdk = JSON.parse(readFileSync(join(PROJECT_ROOT, 'sdk', 'signature-summary.json'), 'utf8'));
+          const r = importV2Bundle({
+            dir: wbDir,
+            vocabPath: join(dir, 'vocab.json'),
+            text: String(body?.text ?? ''),
+            builtinVocab,
+            primitiveNames: (sdk.functions ?? []).map((f) => f.name),
+          });
+          if (!r.ok) {
+            return bad(res, (r.issues ?? ['导入失败']).map((message) => ({ code: 'knowledgecard.v2.import', path: 'import', message })), 400);
+          }
+          return ok(res, r);
+        }
+        if (req.method === 'POST' && path === '/api/knowledgecard/v2/restore') {
+          const lib = loadV2Library({ userDir: wbDir, userVocabPath: join(dir, 'vocab.json') });
+          return ok(res, restoreV2Builtin({ dir: wbDir, builtinIds: lib.builtin.map((e) => e.id) }));
         }
 
         if (req.method === 'POST' && path === '/api/knowledgecard/v2/vocab-state') {

@@ -8,7 +8,7 @@
  *   · 写入前用合并词表做完整校验。
  */
 
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { backupFile } from '../../rules/backup.mjs';
@@ -62,4 +62,20 @@ export function saveV2Entry({ dir, entry, vocab } = {}) {
   }
   writeFileAtomic(abs, `${JSON.stringify({ format: 'od-knowledgecard', version: 2, entries: [next] }, null, 2)}\n`);
   return { ok: true, entry: next, name };
+}
+
+/** 删除一张用户卡（内置卡不能删，只能删它的覆盖副本） */
+export function removeV2Entry({ dir, id } = {}) {
+  if (typeof id !== 'string' || !ID_RE.test(id)) return { ok: false, issues: ['id 非法'] };
+  const name = `${id}.json`;
+  const abs = join(dir, name);
+  if (!existsSync(abs)) return { ok: false, issues: [`用户卡文件不存在：${name}`] };
+  try {
+    backupFile({ dir, rel: name });
+  } catch {
+    /* 备份失败不阻断删除？删除是危险操作，备份失败应当拒绝 */
+    return { ok: false, issues: ['删除前备份失败，已拒绝删除'] };
+  }
+  unlinkSync(abs);
+  return { ok: true, id, name };
 }

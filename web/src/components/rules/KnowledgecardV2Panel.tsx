@@ -50,6 +50,7 @@ export function KnowledgecardV2Panel() {
   const [vocabForm, setVocabForm] = useState({ id: '', name: '', aliases: '', primitive: 'Draw.box' })
   const [selectedVocab, setSelectedVocab] = useState<Set<string>>(() => new Set())
   const [vocabBusy, setVocabBusy] = useState(false)
+  const [ioBusy, setIoBusy] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -221,6 +222,106 @@ export function KnowledgecardV2Panel() {
     }
   }
 
+  const deleteCard = async () => {
+    if (!draft) return
+    if (draft.origin === 'builtin') {
+      setError('内置卡不能删除；只能停用，或编辑后保存成覆盖副本。')
+      return
+    }
+    if (!window.confirm(`删除用户卡「${draft.title}」？\n会先备份，再删 ${draft.id}.json。`)) return
+    setIoBusy(true)
+    setError(null)
+    try {
+      await api.deleteKnowledgecardV2Entry(draft.id)
+      setSelectedId(null)
+      setDraft(null)
+      await load()
+      setNotice(`已删除 ${draft.id}（删前已备份）`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setIoBusy(false)
+    }
+  }
+
+  const exportBundle = async () => {
+    setIoBusy(true)
+    setError(null)
+    try {
+      const r = await api.exportKnowledgecardV2()
+      const blob = new Blob([r.text], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = r.name
+      a.click()
+      URL.revokeObjectURL(url)
+      setNotice(`已导出 ${r.entries} 张用户卡 + 用户词表（${r.elements} 元件 / ${r.scenes} 场景）`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setIoBusy(false)
+    }
+  }
+
+  const importBundle = async (file: File) => {
+    if (!window.confirm(`导入「${file.name}」？\n会先把包里的用户词表合并进来，再写卡；任何一张不合法就整包拒绝。`)) return
+    setIoBusy(true)
+    setError(null)
+    try {
+      const text = await file.text()
+      const r = await api.importKnowledgecardV2(text)
+      await load()
+      setNotice(`已导入 ${r.entries} 张卡；新增词表 ${r.vocabAdded.elements} 元件 / ${r.vocabAdded.scenes} 场景`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setIoBusy(false)
+    }
+  }
+
+  const restoreBuiltin = async () => {
+    if (!window.confirm('恢复内置：会删除所有“内置卡的覆盖副本”，不删你自己新建的卡。继续？')) return
+    setIoBusy(true)
+    setError(null)
+    try {
+      const r = await api.restoreKnowledgecardV2Builtin()
+      await load()
+      setNotice(`已恢复内置：撤销覆盖 ${r.removed} 条`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setIoBusy(false)
+    }
+  }
+
+  const removeVocab = async (kind: 'element' | 'scene', id: string) => {
+    if (!window.confirm(`删除用户词表项「${id}」？\n内置项不能删；删除后引用它的卡会变成“触发已关闭”。`)) return
+    setVocabBusy(true)
+    setError(null)
+    try {
+      await api.removeKnowledgecardV2VocabEntry(kind, id)
+      await load()
+      setNotice(`已删除用户词表项 ${id}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setVocabBusy(false)
+    }
+  }
+
+  const disabledKeys = useMemo(() => {
+    const s = new Set<string>()
+    for (const e of lib?.vocab.elements ?? []) if (e.enabled === false) s.add(`e:${e.id}`)
+    for (const x of lib?.vocab.scenes ?? []) if (x.enabled === false) s.add(`s:${x.id}`)
+    return s
+  }, [lib])
+
+  const isTriggerDisabled = (entry: V2Entry | null) => {
+    if (!entry) return false
+    return [...(entry.elements ?? []).map((id) => `e:${id}`), ...(entry.scenes ?? []).map((id) => `s:${id}`)].some((k) => disabledKeys.has(k))
+  }
+
   if (loading) return <p className="rounded border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">正在读取 v2 知识卡库…</p>
 
   if (error && !lib) {
@@ -252,9 +353,29 @@ export function KnowledgecardV2Panel() {
             内置 {lib?.builtinCount ?? 0} · 用户 {lib?.userCount ?? 0} · 元件 {lib?.vocab.elements.length ?? 0} · 场景{' '}
             {lib?.vocab.scenes.length ?? 0}
           </div>
-          <div className="mt-1 flex justify-end gap-2">
+          <div className="mt-1 flex flex-wrap justify-end gap-2">
             <button type="button" className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700" onClick={() => setNewCardOpen((v) => !v)}>
               新建卡
+            </button>
+            <button type="button" className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 disabled:opacity-40" disabled={ioBusy} onClick={() => void exportBundle()}>
+              导出 v2 包
+            </button>
+            <label className={`cursor-pointer rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 ${ioBusy ? 'opacity-40' : ''}`}>
+              导入 v2 包
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                disabled={ioBusy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.currentTarget.value = ''
+                  if (f) void importBundle(f)
+                }}
+              />
+            </label>
+            <button type="button" className="rounded border border-rose-300 px-2 py-0.5 text-[11px] text-rose-700 disabled:opacity-40" disabled={ioBusy} onClick={() => void restoreBuiltin()}>
+              恢复内置
             </button>
             <button type="button" className="underline" onClick={() => void load()}>
               重新读取
@@ -381,6 +502,7 @@ export function KnowledgecardV2Panel() {
                           <span className="rounded bg-slate-100 px-1">{e.origin === 'builtin' ? '内置' : '用户'}</span>
                           {e.constant && <span className="rounded bg-rose-100 px-1 text-rose-700">常驻</span>}
                           {!e.enabled && <span className="rounded bg-slate-200 px-1">停用</span>}
+                          {isTriggerDisabled(e) && <span className="rounded bg-amber-100 px-1 text-amber-800">触发关闭</span>}
                         </div>
                       </button>
                     </li>
@@ -421,6 +543,15 @@ export function KnowledgecardV2Panel() {
                   </label>
                   <button
                     type="button"
+                    className="rounded border border-rose-300 px-2 py-1.5 text-xs text-rose-700 disabled:opacity-40"
+                    disabled={ioBusy || draft.origin === 'builtin'}
+                    title={draft.origin === 'builtin' ? '内置卡不能删除；只能停用或保存成覆盖副本' : '删除用户卡'}
+                    onClick={() => void deleteCard()}
+                  >
+                    删除
+                  </button>
+                  <button
+                    type="button"
                     className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white disabled:opacity-40"
                     disabled={!dirty || saving}
                     onClick={() => void save()}
@@ -429,6 +560,12 @@ export function KnowledgecardV2Panel() {
                   </button>
                 </div>
               </header>
+
+              {isTriggerDisabled(draft) && (
+                <div className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                  ⚠ 这张卡的触发词条在“词表开关”里被关闭了：它现在不会命中。需要时在右栏重新启用，或改触发对象。
+                </div>
+              )}
 
               <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
                 {draft.kind === 'anim_rule' && <p>常驻卡：每道题都会注入，不需要触发条件。</p>}
@@ -592,6 +729,11 @@ export function KnowledgecardV2Panel() {
                       />
                       <code className="text-slate-800">{e.id}</code>
                       <span className="ml-auto text-slate-400">×{usedBy.get(key) ?? 0}</span>
+                      {e.origin === 'user' && (
+                        <button type="button" className="text-[9px] text-rose-600 underline" onClick={() => void removeVocab('element', e.id)}>
+                          删
+                        </button>
+                      )}
                     </div>
                     <div className="ml-10 text-slate-500">{e.name}</div>
                     <div className="ml-10 text-[9px] text-slate-400">{e.primitive}</div>
@@ -631,6 +773,11 @@ export function KnowledgecardV2Panel() {
                       />
                       <code className="text-slate-800">{s.id}</code>
                       <span className="ml-auto text-slate-400">×{usedBy.get(key) ?? 0}</span>
+                      {s.origin === 'user' && (
+                        <button type="button" className="text-[9px] text-rose-600 underline" onClick={() => void removeVocab('scene', s.id)}>
+                          删
+                        </button>
+                      )}
                     </div>
                     <div className="ml-10 text-slate-500">{s.name}</div>
                   </div>

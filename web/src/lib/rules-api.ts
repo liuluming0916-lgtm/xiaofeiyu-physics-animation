@@ -261,12 +261,14 @@ export interface V2VocabElement {
   aliases: string[]
   primitive: string
   enabled?: boolean
+  origin?: 'builtin' | 'user'
 }
 export interface V2VocabScene {
   id: string
   name: string
   aliases: string[]
   enabled?: boolean
+  origin?: 'builtin' | 'user'
 }
 export interface V2Vocab {
   format: string
@@ -361,4 +363,12 @@ export const api = {
     request<{ ok: boolean; kind: string; entry: unknown; warnings: RuleIssue[] }>('POST', '/knowledgecard/v2/vocab-entry', { kind, entry }),
   removeKnowledgecardV2VocabEntry: (kind: 'element' | 'scene', id: string) =>
     request<{ ok: boolean }>('DELETE', '/knowledgecard/v2/vocab-entry', { kind, id }),
+  deleteKnowledgecardV2Entry: (id: string) => request<{ ok: boolean; id: string; name: string }>('DELETE', '/knowledgecard/v2/entry', { id }),
+  exportKnowledgecardV2: () =>
+    request<{ ok: boolean; name: string; text: string; entries: number; elements: number; scenes: number }>('GET', '/knowledgecard/v2/export'),
+  importKnowledgecardV2: (text: string) =>
+    request<{ ok: boolean; entries: number; vocabAdded: { elements: number; scenes: number }; warnings: RuleIssue[] }>('POST', '/knowledgecard/v2/import', {
+      text,
+    }),
+  restoreKnowledgecardV2Builtin: () => request<KnowledgecardRestoreResult>('POST', '/knowledgecard/v2/restore', {}),
 }

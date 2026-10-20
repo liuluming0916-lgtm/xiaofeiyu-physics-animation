@@ -188,8 +188,16 @@ export function mergeVocab(builtin, user, { primitiveNames = null } = {}) {
   /* 本地关闭开关：不删除词表项，只把 enabled 置 false；Prompt 不再列出它。 */
   const disabledElements = new Set(user?.disabled?.elements ?? []);
   const disabledScenes = new Set(user?.disabled?.scenes ?? []);
-  vocab.elements = vocab.elements.map((e) => ({ ...e, enabled: !disabledElements.has(e.id) }));
-  vocab.scenes = vocab.scenes.map((s) => ({ ...s, enabled: !disabledScenes.has(s.id) }));
+  vocab.elements = vocab.elements.map((e) => ({
+    ...e,
+    enabled: !disabledElements.has(e.id),
+    origin: builtinElementIds.has(e.id) ? 'builtin' : 'user',
+  }));
+  vocab.scenes = vocab.scenes.map((s) => ({
+    ...s,
+    enabled: !disabledScenes.has(s.id),
+    origin: builtinSceneIds.has(s.id) ? 'builtin' : 'user',
+  }));
 
   /* 合并后整体再校验一次：跨内置/用户的别名冲突在这里才会暴露。 */
   const mergedCheck = validateVocab(vocab, { primitiveNames });

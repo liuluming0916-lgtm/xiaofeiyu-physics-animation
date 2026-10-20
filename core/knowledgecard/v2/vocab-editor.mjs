@@ -41,7 +41,7 @@ export function readUserVocab(path) {
   };
 }
 
-function writeUserVocab(path, vocab) {
+export function writeUserVocab(path, vocab) {
   mkdirSync(dirname(path), { recursive: true });
   try {
     backupFile({ dir: dirname(path), rel: 'vocab.json' });
