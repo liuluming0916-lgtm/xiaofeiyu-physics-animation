@@ -460,6 +460,28 @@ async function main() {
       const restored = await call('POST', '/api/knowledgecard/v2/restore', {});
       check('★ 恢复内置 → 200 且撤销覆盖', restored.status === 200 && restored.json.removed >= 1, `${restored.status} ${JSON.stringify(restored.json)}`);
     }
+
+    /* ── 知识卡 v2：模拟 read_problem 回复解析（实时试触发） ── */
+    console.log('\n『K』知识卡 v2：模拟 read_problem 回复解析');
+    {
+      const text = '【动画元件】belt、block\n【场景】conveyor_block\n【判定依据】水平传送带上的物块';
+      const parsed = await call('POST', '/api/knowledgecard/v2/parse', { text });
+      check(
+        '★ 解析出 belt/block + conveyor_block，无结构问题',
+        parsed.status === 200 &&
+          parsed.json.elements?.join(',') === 'belt,block' &&
+          parsed.json.scenes?.join(',') === 'conveyor_block' &&
+          parsed.json.problems?.length === 0,
+        `${parsed.status} ${JSON.stringify(parsed.json)}`,
+      );
+
+      const bad = await call('POST', '/api/knowledgecard/v2/parse', { text: '【动画元件】nope\n【场景】nope\n【判定依据】x' });
+      check(
+        '★ 表外词如实报出（unknown-element / unknown-scene）',
+        bad.status === 200 && bad.json.problems?.some((p) => p.code === 'unknown-element') && bad.json.problems?.some((p) => p.code === 'unknown-scene'),
+        `${bad.status} ${JSON.stringify(bad.json)}`,
+      );
+    }
   } finally {
     await svc.close();
     for (const d of created) {

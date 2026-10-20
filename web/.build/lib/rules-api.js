@@ -94,6 +94,7 @@ export const api = {
     }),
     addKnowledgecardV2VocabEntry: (kind, entry) => request('POST', '/knowledgecard/v2/vocab-entry', { kind, entry }),
     removeKnowledgecardV2VocabEntry: (kind, id) => request('DELETE', '/knowledgecard/v2/vocab-entry', { kind, id }),
+    parseKnowledgecardV2Judgement: (text) => request('POST', '/knowledgecard/v2/parse', { text }),
     deleteKnowledgecardV2Entry: (id) => request('DELETE', '/knowledgecard/v2/entry', { id }),
     exportKnowledgecardV2: () => request('GET', '/knowledgecard/v2/export'),
     importKnowledgecardV2: (text) => request('POST', '/knowledgecard/v2/import', {

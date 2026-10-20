@@ -113,6 +113,7 @@ import { removeV2Entry } from '../core/knowledgecard/v2/editor.mjs';
 import { addVocabEntry, removeVocabEntry, saveVocabState } from '../core/knowledgecard/v2/vocab-editor.mjs';
 import { exportV2Bundle, importV2Bundle } from '../core/knowledgecard/v2/bundle.mjs';
 import { restoreV2Builtin } from '../core/knowledgecard/v2/restore.mjs';
+import { parseJudgementV2 } from '../core/knowledgecard/v2/prompt.mjs';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -1025,6 +1026,18 @@ export function createRulesService({
           return ok(res, restoreV2Builtin({ dir: wbDir, builtinIds: lib.builtin.map((e) => e.id) }));
         }
 
+        if (req.method === 'POST' && path === '/api/knowledgecard/v2/parse') {
+          const body = await readJson(req);
+          const lib = loadV2Library({ userDir: wbDir, userVocabPath: join(dir, 'vocab.json') });
+          const parsed = parseJudgementV2(String(body?.text ?? ''), { vocab: lib.vocab });
+          return ok(res, {
+            elements: parsed.elements,
+            scenes: parsed.scenes,
+            problems: parsed.problems,
+            unknowns: parsed.unknowns,
+            why: parsed.why,
+          });
+        }
         if (req.method === 'POST' && path === '/api/knowledgecard/v2/vocab-state') {
           const body = await readJson(req);
           const r = saveVocabState({

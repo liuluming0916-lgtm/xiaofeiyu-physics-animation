@@ -305,6 +305,14 @@ export interface V2Library {
   migration: Array<{ id: string; action: 'convert' | 'disable'; reasons: string[]; warnings: string[] }>
 }
 
+export interface V2ParsedJudgement {
+  elements: string[]
+  scenes: string[]
+  problems: Array<{ code: string; message: string; word?: string; field?: string }>
+  unknowns: { elements: string[]; scenes: string[] }
+  why: string
+}
+
 /* ────────────────────────────── 接口 ────────────────────────────── */
 
 export const api = {
@@ -363,6 +371,8 @@ export const api = {
     request<{ ok: boolean; kind: string; entry: unknown; warnings: RuleIssue[] }>('POST', '/knowledgecard/v2/vocab-entry', { kind, entry }),
   removeKnowledgecardV2VocabEntry: (kind: 'element' | 'scene', id: string) =>
     request<{ ok: boolean }>('DELETE', '/knowledgecard/v2/vocab-entry', { kind, id }),
+  parseKnowledgecardV2Judgement: (text: string) =>
+    request<V2ParsedJudgement>('POST', '/knowledgecard/v2/parse', { text }),
   deleteKnowledgecardV2Entry: (id: string) => request<{ ok: boolean; id: string; name: string }>('DELETE', '/knowledgecard/v2/entry', { id }),
   exportKnowledgecardV2: () =>
     request<{ ok: boolean; name: string; text: string; entries: number; elements: number; scenes: number }>('GET', '/knowledgecard/v2/export'),

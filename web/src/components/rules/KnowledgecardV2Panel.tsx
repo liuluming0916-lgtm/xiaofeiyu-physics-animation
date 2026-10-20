@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-import { api, type V2CardKind, type V2Entry, type V2Library } from '../../lib/rules-api'
+import { api, type V2CardKind, type V2Entry, type V2Library, type V2ParsedJudgement } from '../../lib/rules-api'
 
 const KIND_LABEL: Record<V2CardKind, string> = {
   anim_rule: '动画规范',
@@ -50,8 +50,10 @@ export function KnowledgecardV2Panel() {
   const [vocabForm, setVocabForm] = useState({ id: '', name: '', aliases: '', primitive: 'Draw.box' })
   const [vocabBusy, setVocabBusy] = useState(false)
   const [ioBusy, setIoBusy] = useState(false)
-  const [testElements, setTestElements] = useState<Set<string>>(() => new Set())
-  const [testScenes, setTestScenes] = useState<Set<string>>(() => new Set())
+  const [judgeText, setJudgeText] = useState('')
+  const [parsed, setParsed] = useState<V2ParsedJudgement | null>(null)
+  const [parseBusy, setParseBusy] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -76,6 +78,43 @@ export function KnowledgecardV2Panel() {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * 实时试触发：用户粘贴 read_problem 的回复 → 后端用同一份 v2 词表解析
+   * → 前端只看命中，不调模型、不改磁盘。
+   * 350ms 防抖，避免每敲一个字都打一次 HTTP。
+   */
+  useEffect(() => {
+    const text = judgeText.trim()
+    if (!text) {
+      setParsed(null)
+      setParseError(null)
+      setParseBusy(false)
+      return
+    }
+    let live = true
+    const timer = window.setTimeout(async () => {
+      setParseBusy(true)
+      try {
+        const r = await api.parseKnowledgecardV2Judgement(text)
+        if (live) {
+          setParsed(r)
+          setParseError(null)
+        }
+      } catch (e) {
+        if (live) {
+          setParsed(null)
+          setParseError(e instanceof Error ? e.message : String(e))
+        }
+      } finally {
+        if (live) setParseBusy(false)
+      }
+    }, 350)
+    return () => {
+      live = false
+      window.clearTimeout(timer)
+    }
+  }, [judgeText])
 
   const original = useMemo(() => lib?.entries.find((e) => e.id === selectedId) ?? null, [lib, selectedId])
   const dirty = useMemo(() => Boolean(draft && original && JSON.stringify(draft) !== JSON.stringify(original)), [draft, original])
@@ -325,12 +364,14 @@ export function KnowledgecardV2Panel() {
   const previewHits = useMemo(() => {
     const rank: Record<V2CardKind, number> = { anim_rule: 0, element: 1, scene: 2 }
     const entries = (lib?.entries ?? []).map((e) => (e.id === draft?.id ? draft : e)).filter((e) => e.enabled !== false)
+    const els = new Set(parsed?.elements ?? [])
+    const sc = new Set(parsed?.scenes ?? [])
     const list = entries
       .map((e) => {
         let via: string | null = null
         if (e.constant) via = '常驻'
-        else if (e.kind === 'element' && (e.elements ?? []).some((id) => testElements.has(id))) via = '元件命中'
-        else if (e.kind === 'scene' && (e.scenes ?? []).some((id) => testScenes.has(id))) via = '场景命中'
+        else if (e.kind === 'element' && (e.elements ?? []).some((id) => els.has(id))) via = '元件命中'
+        else if (e.kind === 'scene' && (e.scenes ?? []).some((id) => sc.has(id))) via = '场景命中'
         if (!via) return null
         const chars = (e.content ?? '').length + (e.code_examples ?? []).join('').length
         return { entry: e, via, chars }
@@ -338,7 +379,7 @@ export function KnowledgecardV2Panel() {
       .filter(Boolean) as Array<{ entry: V2Entry; via: string; chars: number }>
     list.sort((a, b) => rank[a.entry.kind] - rank[b.entry.kind] || (a.entry.order ?? 100) - (b.entry.order ?? 100))
     return { list, chars: list.reduce((n, x) => n + x.chars, 0) }
-  }, [lib, draft, testElements, testScenes])
+  }, [lib, draft, parsed])
 
   if (loading) return <p className="rounded border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">正在读取知识卡库…</p>
 
@@ -681,72 +722,57 @@ export function KnowledgecardV2Panel() {
           )}
         </section>
 
-        {/* 实时试触发：不调模型，只用当前库 + 当前编辑中的草稿算命中 */}
+        {/* 实时试触发：用户模拟 read_problem 的回复，后端用同一份词表解析 */}
         <section className="lg:col-span-3 rounded border border-slate-200 bg-white p-3">
-          <div className="flex flex-wrap items-start justify-between gap-1">
-            <div>
-              <h3 className="text-xs font-semibold text-slate-800">实时试触发</h3>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
-                不调模型、不改磁盘：勾选元件/场景，看当前库（含正在编辑的这张）命中谁、正文多少字。
-              </p>
-            </div>
+          <h3 className="text-xs font-semibold text-slate-800">实时试触发</h3>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+            把模型在【读题与判定】阶段的回复粘到这里；自动解析【动画元件】【场景】，看当前库（含正在编辑的这张）命中谁。
+          </p>
+
+          <textarea
+            className="input mt-2 h-28 w-full font-mono text-[10px]"
+            placeholder={'【动画元件】belt、block\n【场景】conveyor_block\n【判定依据】水平传送带上的物块'}
+            value={judgeText}
+            onChange={(e) => setJudgeText(e.target.value)}
+          />
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+            {parseBusy ? '解析中…' : judgeText.trim() ? '已按当前回复解析' : '粘贴后自动解析；空着时只显示常驻卡'}
           </div>
+          {parseError && <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-[10px] text-rose-700">{parseError}</p>}
+
+          {parsed && (
+            <div className="mt-2 space-y-1 rounded border border-slate-100 bg-slate-50 p-2 text-[10px]">
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="font-medium text-slate-700">解析：</span>
+                <span>元件 {parsed.elements.length}</span>
+                <span>· 场景 {parsed.scenes.length}</span>
+                {parsed.problems.length > 0 && <span className="text-amber-700">· 结构问题 {parsed.problems.length}</span>}
+              </div>
+              {(parsed.elements.length > 0 || parsed.scenes.length > 0) && (
+                <div className="flex flex-wrap gap-1">
+                  {parsed.elements.map((id) => (
+                    <span key={`e-${id}`} className="rounded bg-blue-100 px-1 text-blue-800">{id}</span>
+                  ))}
+                  {parsed.scenes.map((id) => (
+                    <span key={`s-${id}`} className="rounded bg-emerald-100 px-1 text-emerald-800">{id}</span>
+                  ))}
+                </div>
+              )}
+              {parsed.problems.length > 0 && (
+                <ul className="list-disc pl-4 text-amber-800">
+                  {parsed.problems.slice(0, 3).map((p, i) => (
+                    <li key={`${p.code}-${i}`}>{p.message}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {draft && (
             <div className={`mt-2 rounded px-2 py-1 text-[10px] ${previewHits.list.some((x) => x.entry.id === draft.id) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
               当前编辑卡：{previewHits.list.some((x) => x.entry.id === draft.id) ? '会命中' : '不会命中'}
             </div>
           )}
-          <div className="mt-2 grid grid-cols-1 gap-2">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-medium text-slate-600">① 动画元件（可多选）</span>
-                <button type="button" className="text-[10px] text-slate-500 underline" onClick={() => setTestElements(new Set())}>
-                  清空
-                </button>
-              </div>
-              <div className="mt-1 grid max-h-36 grid-cols-1 gap-x-2 overflow-y-auto rounded border border-slate-100 p-1">
-                {(lib?.vocab.elements ?? []).filter((e) => e.enabled !== false).map((e) => (
-                  <label key={e.id} className="flex items-center gap-1 py-0.5 text-[10px] text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={testElements.has(e.id)}
-                      onChange={(ev) =>
-                        setTestElements((prev) => {
-                          const next = new Set(prev)
-                          if (ev.target.checked) next.add(e.id)
-                          else next.delete(e.id)
-                          return next
-                        })
-                      }
-                    />
-                    <code>{e.id}</code>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-medium text-slate-600">② 场景（最多 1 个）</span>
-                <button type="button" className="text-[10px] text-slate-500 underline" onClick={() => setTestScenes(new Set())}>
-                  清空
-                </button>
-              </div>
-              <div className="mt-1 max-h-36 overflow-y-auto rounded border border-slate-100 p-1">
-                {(lib?.vocab.scenes ?? []).filter((s) => s.enabled !== false).map((s) => (
-                  <label key={s.id} className="flex items-center gap-1 py-0.5 text-[10px] text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={testScenes.has(s.id)}
-                      onChange={(ev) => setTestScenes(ev.target.checked ? new Set([s.id]) : new Set())}
-                    />
-                    <code>{s.id}</code>
-                    <span className="text-slate-400">{s.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-600">
             <span>
@@ -755,7 +781,7 @@ export function KnowledgecardV2Panel() {
             {isTriggerDisabled(draft) && <span className="rounded bg-amber-100 px-1 text-amber-800">当前卡触发已关闭</span>}
           </div>
 
-          <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto rounded border border-slate-100 p-2 text-[10px]">
+          <ul className="mt-1 max-h-36 space-y-0.5 overflow-y-auto rounded border border-slate-100 p-2 text-[10px]">
             {previewHits.list.length === 0 && <li className="text-slate-400">（无命中；至少会命中 3 张常驻规范卡）</li>}
             {previewHits.list.map((x) => (
               <li key={x.entry.id} className="flex items-center gap-2">
