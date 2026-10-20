@@ -374,8 +374,14 @@ export function KnowledgecardV2Panel() {
                 }}
               />
             </label>
-            <button type="button" className="rounded border border-rose-300 px-2 py-0.5 text-[11px] text-rose-700 disabled:opacity-40" disabled={ioBusy} onClick={() => void restoreBuiltin()}>
-              恢复内置
+            <button
+              type="button"
+              data-od-action="knowledgecard-restore-builtin"
+              className="rounded border border-rose-300 px-2 py-0.5 text-[11px] text-rose-700 disabled:opacity-40"
+              disabled={ioBusy}
+              onClick={() => void restoreBuiltin()}
+            >
+              恢复本版内置
             </button>
             <button type="button" className="underline" onClick={() => void load()}>
               重新读取
@@ -552,6 +558,7 @@ export function KnowledgecardV2Panel() {
                   </button>
                   <button
                     type="button"
+                    data-od-action="knowledgecard-save"
                     className="rounded bg-slate-900 px-3 py-1.5 text-xs text-white disabled:opacity-40"
                     disabled={!dirty || saving}
                     onClick={() => void save()}
