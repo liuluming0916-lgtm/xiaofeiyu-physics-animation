@@ -447,12 +447,14 @@ export function createRulesService({
        ⚠ Phase 3 过渡：UI 仍写 v1 卡；v2 store 会自动迁移有 elements 的用户卡，
           只有 keys 的用户卡会停用+报告。Phase 4 再把引擎/页面全切 v2。 */
     let knowledgecardEntries = [];
+    let knowledgecardVocab = null;
     try {
       const lib = loadV2Library({
         userDir: join(dir, 'knowledgecard'),
         userVocabPath: join(dir, 'vocab.json'),
       });
       knowledgecardEntries = lib.entries.map(v2ToV1RuntimeEntry);
+      knowledgecardVocab = lib.vocab;
       if (lib.problems.length) console.warn(`[knowledgecard v2] ${lib.problems.length} 条问题：${lib.problems.slice(0, 3).join('；')}`);
       if (lib.migration.length) console.warn(`[knowledgecard v2] 迁移 ${lib.migration.length} 条用户卡`);
     } catch (e) {
@@ -465,6 +467,8 @@ export function createRulesService({
       regexRules: [],
       mode,
       knowledgecardEntries,
+      knowledgecardVersion: 2,
+      ...(knowledgecardVocab ? { knowledgecardVocab } : {}),
       /**
        * 第 8 期：**开发模式（不拦截）**。前端勾上后随 `/api/run` 传 `devMode:true`：
        * 校验照做、报告照写，但 C1–C9 不再拦住交付（也不跑自愈），

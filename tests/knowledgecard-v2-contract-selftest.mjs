@@ -23,6 +23,7 @@ import { buildJudgementVocabV2, parseJudgementV2 } from '../core/knowledgecard/v
 import { triggerKnowledgecardV2 } from '../core/knowledgecard/v2/runtime.mjs';
 import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
 import { triggerKnowledgecard } from '../core/knowledgecard/engine.mjs';
+import { getPrompt } from '../core/prompts/index.mjs';
 
 const ROOT = join(import.meta.dirname, '..');
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
@@ -290,6 +291,34 @@ console.log('\n『G』Phase 3 过渡：v2 卡接进 v1 引擎');
   check(!prov.some((p) => p.endsWith(':key')), '适配后没有 key 命中路径', prov.join(' '));
   check(r.text.scene_code.includes('元件·传送带'), '传送带卡正文进了 v1 引擎拼接文本');
   check(r.slots.solve.empty === true, 'solve 槽仍为空');
+}
+
+console.log('\n『H』Phase 3 读题 v2 + 场景触发');
+{
+  const p = getPrompt('read_problem_v2');
+  check(Boolean(p) && p.system.includes('【场景】'), 'read_problem_v2 存在且要求【场景】');
+  const sceneEntry = v2ToV1RuntimeEntry({
+    id: 'scene.conveyor-demo',
+    title: '场景·传送带+物块（演示）',
+    kind: 'scene',
+    origin: 'user',
+    enabled: true,
+    constant: false,
+    scenes: ['conveyor_block'],
+    order: 10,
+    priority: 'high',
+    content: '先地面，再传送带，再物块。',
+    code_examples: [],
+  });
+  const r = triggerKnowledgecard({
+    entries: [sceneEntry],
+    text: '',
+    concepts: [],
+    tags: [],
+    elements: [],
+    scenes: ['conveyor_block'],
+  });
+  check(r.provenance.some((x) => x.entry_id === 'scene.conveyor-demo' && x.via === 'scene'), 'v1 引擎也能按 scenes 命中（Phase 3 过渡）', JSON.stringify(r.provenance));
 }
 
 console.log(bad ? `\n✗ 知识卡 v2 契约自检失败 ${bad} 条` : '\n✓ 知识卡 v2 契约自检全部通过');

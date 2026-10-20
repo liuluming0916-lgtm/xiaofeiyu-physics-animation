@@ -33,7 +33,7 @@ import { ROLE_AND_OUTPUT_RULES, STAGE_ROLES } from './templates.mjs';
 const CODE_STAGES = new Set(['scene_code', 'repair']);
 
 /** 有自己前缀的阶段（顺序固定 ⇒ 哈希可复现） */
-export const PREFIX_STAGES = Object.freeze(['read_problem', 'solve', 'steps', 'answers', 'scene_code', 'repair']);
+export const PREFIX_STAGES = Object.freeze(['read_problem', 'read_problem_v2', 'solve', 'steps', 'answers', 'scene_code', 'repair']);
 
 /** SDK 签名摘要的落点（由 `sdk/generate-signature-summary.mjs` 生成；门禁 ② 保证它与 SDK 导出面一致） */
 const SIGNATURE_SUMMARY_PATH = join(PROJECT_ROOT, 'sdk', 'signature-summary.md');

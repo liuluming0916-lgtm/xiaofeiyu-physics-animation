@@ -125,6 +125,7 @@ export const HIT_STRENGTH = Object.freeze({
   secondary: 2,
   'element+concept': 2,
   element: 1,
+  scene: 1,
   constant: 1,
   recursive: 0,
 });
@@ -512,19 +513,22 @@ function compareForInjection(a, b) {
  * @returns {{ hit: boolean, via: string|null, matched: { concepts: string[], tags: string[], elements: string[] } }}
  */
 export function matchByConcepts(entry, judgement) {
-  const empty = { hit: false, via: null, matched: { concepts: [], tags: [], elements: [] } };
+  const empty = { hit: false, via: null, matched: { concepts: [], tags: [], elements: [], scenes: [] } };
   if (!entry || !judgement) return empty;
   const jConcepts = Array.isArray(judgement.concepts) ? judgement.concepts : [];
   const jTags = Array.isArray(judgement.tags) ? judgement.tags : [];
   const jElements = Array.isArray(judgement.elements) ? judgement.elements : [];
+  const jScenes = Array.isArray(judgement.scenes) ? judgement.scenes : [];
 
   const eConcepts = Array.isArray(entry.concepts) ? entry.concepts : [];
   const eTags = Array.isArray(entry.tags) ? entry.tags : [];
   const eElements = Array.isArray(entry.elements) ? entry.elements : [];
+  const eScenes = Array.isArray(entry.scenes) ? entry.scenes : [];
 
   const conceptHit = eConcepts.filter((c) => jConcepts.includes(c));
   const tagHit = eTags.filter((t) => jTags.includes(t));
   const elementHit = eElements.filter((d) => jElements.includes(d));
+  const sceneHit = eScenes.filter((s) => jScenes.includes(s));
 
   /* ── 动画侧优先判 ──
    * ⚠ 顺序很重要：一条词条**同时**声明了 concepts 与 elements 时，两侧都可能命中。
@@ -535,10 +539,10 @@ export function matchByConcepts(entry, judgement) {
   if (elementHit.length) {
     if (!eConcepts.length) {
       // 通用条（例如"阶段怎么切""视觉规范"）—— 没有考点可收窄，允许纯元件命中
-      return { hit: true, via: 'element', matched: { concepts: [], tags: [], elements: elementHit } };
+      return { hit: true, via: 'element', matched: { concepts: [], tags: [], elements: elementHit, scenes: [] } };
     }
     if (conceptHit.length) {
-      return { hit: true, via: 'element+concept', matched: { concepts: conceptHit, tags: [], elements: elementHit } };
+      return { hit: true, via: 'element+concept', matched: { concepts: conceptHit, tags: [], elements: elementHit, scenes: [] } };
     }
     // 元件命中、但考点不相交 ⇒ **不收窄就不注入**（防止"图上有弹簧"就教"弹簧振子"）。
     // ⚠ 这里**不 fallthrough 到解题侧**：它声明了元件、却没声明"这题考这个元件"，
@@ -546,11 +550,16 @@ export function matchByConcepts(entry, judgement) {
     return empty;
   }
 
+  /* ── v2 场景侧：场景卡只按场景 id 命中（Phase 3 过渡；v1 卡没有 scenes 字段，不受影响） ── */
+  if (sceneHit.length) {
+    return { hit: true, via: 'scene', matched: { concepts: [], tags: [], elements: [], scenes: sceneHit } };
+  }
+
   /* ── 解题侧 ── */
   if (conceptHit.length) {
     // `tags` 为空 = 该考点下的通用词条（方案 b）：考点对上就注入，不需要题型也对上
-    if (!eTags.length) return { hit: true, via: 'concept', matched: { concepts: conceptHit, tags: [], elements: [] } };
-    if (tagHit.length) return { hit: true, via: 'concept+tag', matched: { concepts: conceptHit, tags: tagHit, elements: [] } };
+    if (!eTags.length) return { hit: true, via: 'concept', matched: { concepts: conceptHit, tags: [], elements: [], scenes: [] } };
+    if (tagHit.length) return { hit: true, via: 'concept+tag', matched: { concepts: conceptHit, tags: tagHit, elements: [], scenes: [] } };
   }
 
   return empty;
@@ -627,8 +636,9 @@ export function triggerKnowledgecard(input = {}) {
     concepts: Array.isArray(input.concepts) ? input.concepts : [],
     tags: Array.isArray(input.tags) ? input.tags : [],
     elements: Array.isArray(input.elements) ? input.elements : [],
+    scenes: Array.isArray(input.scenes) ? input.scenes : [],
   };
-  const hasJudgement = !!(judgement.concepts.length || judgement.tags.length || judgement.elements.length);
+  const hasJudgement = !!(judgement.concepts.length || judgement.tags.length || judgement.elements.length || judgement.scenes.length);
   if (hasJudgement) {
     for (const e of all) {
       if (records.has(e.id)) continue; // 已由主键/次级命中的，保持原 via（灰度期旧路径优先）

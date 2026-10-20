@@ -31,6 +31,7 @@ export function v2ToV1RuntimeEntry(entry) {
     concepts: [],
     tags: [],
     elements: [...(entry.elements ?? [])],
+    scenes: [...(entry.scenes ?? [])],
     insertion_slot: ['scene_code'],
     order: Number.isInteger(entry.order) ? entry.order : 100,
     priority: entry.priority === 'high' ? 'high' : 'normal',

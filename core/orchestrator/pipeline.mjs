@@ -36,6 +36,7 @@ import {
 import { getPrompt, assemblePrompt, buildJudgementVocab } from '../prompts/index.mjs';
 import { triggerKnowledgecard, mergeKnowledgecardStages, knowledgecardHashOf } from '../knowledgecard/index.mjs';
 import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledgecard/concepts.mjs';
+import { buildJudgementVocabV2, parseJudgementV2 } from '../knowledgecard/v2/prompt.mjs';
 import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
 import { parseAnswersSlot } from '../../sdk/runtime/animation-runtime.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
@@ -62,7 +63,7 @@ import { PHASE5_STAGES, MODEL_STAGES, makeEvent } from './events.mjs';
 export function snapshotConfig(config) {
   // ⚠ 第 8 期：`mode` 不再从 config 取（数值/符号按条目走，见下面快照里的注释）
   // `devMode` = 用户的「开发模式（不拦截）」，也进快照（跑一半改它不该影响这一题）
-  const { prompts, endpoint, apiKey, regexRules, wallClockMs, stagedOverrides, maxRepairRounds, knowledgecardEntries, knowledgecardBudget, rulesSnapshot, devMode } = config;
+  const { prompts, endpoint, apiKey, regexRules, wallClockMs, stagedOverrides, maxRepairRounds, knowledgecardEntries, knowledgecardBudget, knowledgecardVersion, knowledgecardVocab, rulesSnapshot, devMode } = config;
 
   /**
    * 世界书集合进快照（第 5 期 · 16.4 第 2 条）。
@@ -150,6 +151,10 @@ export function snapshotConfig(config) {
       hash: knowledgecardHashOf(knowledgecardList),
       budget: knowledgecardBudget ? Object.freeze({ ...knowledgecardBudget }) : null,
       source: Array.isArray(knowledgecardEntries) ? 'provided' : 'empty',
+      /** Phase 3：2 = 读题输出元件+场景；1 = 旧版只输出元件 */
+      version: knowledgecardVersion === 2 ? 2 : 1,
+      /** Phase 3：v2 合并词表（内置 + 用户）；v1 时可为 null */
+      vocab: knowledgecardVocab ? Object.freeze(structuredClone(knowledgecardVocab)) : null,
     }),
     snapshotAt: new Date().toISOString(),
     // 记下调用方传进来的 prompts 字段（第 6 期可编辑 Prompt 时会用到），本期恒为 undefined
@@ -249,7 +254,7 @@ export async function* runPipeline(input) {
    * 初值是三个空数组 ⇒ 万一第 0 步没判出任何东西，
    * 触发会**退化为纯字面 keys**（灰度期口径），而不是报错。
    */
-  let judgement = { concepts: [], tags: [], elements: [] };
+  let judgement = { concepts: [], tags: [], elements: [], scenes: [] };
   let judgementProblems = [];
   let judgementUnknowns = { concept: [], tag: [], element: [] };
 
@@ -285,6 +290,7 @@ export async function* runPipeline(input) {
       concepts: judgement.concepts,
       tags: judgement.tags,
       elements: judgement.elements,
+      scenes: judgement.scenes,
       ...(snapshot.knowledgecard.budget ? { budget: snapshot.knowledgecard.budget } : {}),
     });
     knowledgecardResults[stage] = result;
@@ -311,7 +317,10 @@ export async function* runPipeline(input) {
         problem: problem.text,
         ...(problem.description ? { description: problem.description } : {}),
         ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
-        vocab: judgementVocab,
+        vocab:
+          snapshot.knowledgecard.version === 2 && snapshot.knowledgecard.vocab
+            ? buildJudgementVocabV2(snapshot.knowledgecard.vocab)
+            : judgementVocab,
       },
       solve: { problem: problem.text },
       steps: { problem: problem.text, solution: () => outputs.solve },
@@ -340,7 +349,8 @@ export async function* runPipeline(input) {
         return;
       }
 
-      const prompt = getPrompt(stage, snapshot.rules);
+      const promptId = stage === 'read_problem' && snapshot.knowledgecard.version === 2 ? 'read_problem_v2' : stage;
+      const prompt = getPrompt(promptId, snapshot.rules);
       const rawInput = stageInputs[stage] ?? {};
       // 把"惰性取值"解开：这样阶段之间不必关心依赖顺序，缺依赖会在这里明确报错
       const resolved = {};
@@ -508,26 +518,51 @@ export async function* runPipeline(input) {
        *   没有这条，"模型判错了什么"在 UI 上完全看不见，S1 那种人工复核就没法在真实运行里做。
        */
       if (stage === 'read_problem') {
-        const parsed = parseJudgement(text, { vocab: KNOWLEDGECARD_CONCEPTS, index: vocabIndex });
-        judgement = { concepts: parsed.concepts, tags: parsed.tags, elements: parsed.elements };
-        judgementProblems = parsed.problems;
-        judgementUnknowns = summarizeUnknowns(parsed);
-        /**
-         * 解析结果单独发一条事件（而不是塞进 `stage_done`）：
-         *   · `stage_done` 的字段是"每阶段都一样"的形状，塞进去会让消费者要按阶段分支；
-         *   · 判定是**可复核的判定结果**，与"这一步跑了多久/多少字"是两类信息。
-         */
-        yield emit('judgement_done', {
-          stage,
-          concepts: judgement.concepts,
-          tags: judgement.tags,
-          elements: judgement.elements,
-          unknowns: judgementUnknowns,
-          problems: judgementProblems,
-          why: parsed.why,
-          /** 判定是否为空 —— 前端据此提示"这次退化为字面匹配" */
-          empty: !(judgement.concepts.length || judgement.tags.length || judgement.elements.length),
-        });
+        if (snapshot.knowledgecard.version === 2) {
+          const parsed = parseJudgementV2(text, {
+            vocab: snapshot.knowledgecard.vocab ?? { elements: [], scenes: [] },
+          });
+          judgement = { concepts: [], tags: [], elements: parsed.elements, scenes: parsed.scenes };
+          judgementProblems = parsed.problems;
+          judgementUnknowns = {
+            concept: [],
+            tag: [],
+            element: parsed.unknowns.elements,
+            scene: parsed.unknowns.scenes,
+          };
+          yield emit('judgement_done', {
+            stage,
+            concepts: [],
+            tags: [],
+            elements: parsed.elements,
+            scenes: parsed.scenes,
+            unknowns: judgementUnknowns,
+            problems: judgementProblems,
+            why: parsed.why,
+            empty: !(parsed.elements.length || parsed.scenes.length),
+          });
+        } else {
+          const parsed = parseJudgement(text, { vocab: KNOWLEDGECARD_CONCEPTS, index: vocabIndex });
+          judgement = { concepts: parsed.concepts, tags: parsed.tags, elements: parsed.elements, scenes: [] };
+          judgementProblems = parsed.problems;
+          judgementUnknowns = summarizeUnknowns(parsed);
+          /**
+           * 解析结果单独发一条事件（而不是塞进 `stage_done`）：
+           *   · `stage_done` 的字段是"每阶段都一样"的形状，塞进去会让消费者要按阶段分支；
+           *   · 判定是**可复核的判定结果**，与"这一步跑了多久/多少字"是两类信息。
+           */
+          yield emit('judgement_done', {
+            stage,
+            concepts: judgement.concepts,
+            tags: judgement.tags,
+            elements: judgement.elements,
+            unknowns: judgementUnknowns,
+            problems: judgementProblems,
+            why: parsed.why,
+            /** 判定是否为空 —— 前端据此提示"这次退化为字面匹配" */
+            empty: !(judgement.concepts.length || judgement.tags.length || judgement.elements.length),
+          });
+        }
       }
     }
 
@@ -568,7 +603,7 @@ export async function* runPipeline(input) {
         judgement: { ...judgement },
         judgementUnknowns,
         judgementProblems,
-        judgementEmpty: !(judgement.concepts.length || judgement.tags.length || judgement.elements.length),
+        judgementEmpty: !(judgement.concepts.length || judgement.tags.length || judgement.elements.length || judgement.scenes.length),
       });
     }
 

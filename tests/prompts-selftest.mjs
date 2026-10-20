@@ -278,7 +278,11 @@ console.log('\n『D』§10.1 保留的 4 个阶段 Prompt（另有扩展 Prompt�
 console.log('\n『D-2』扩展 Prompt：repair（第 4 期）+ read_problem（第 5 期新增，第 5.7 期改名）（**都不属于 §10.1**）');
 {
   const ext = listExtensionPrompts();
-  check('扩展 Prompt 恰好 2 个：repair 与 read_problem', ext.length === 2 && ext.map((e) => e.id).join(',') === 'repair,read_problem', ext.map((e) => e.id).join(','));
+  check(
+    '扩展 Prompt 恰好 3 个：repair、read_problem 与 read_problem_v2',
+    ext.length === 3 && ext.map((e) => e.id).join(',') === 'repair,read_problem,read_problem_v2',
+    ext.map((e) => e.id).join(','),
+  );
   check(
     '它们能被追溯到是哪一期来的（since / renamedIn）',
     ext.find((e) => e.id === 'repair')?.since === 'phase4' &&
