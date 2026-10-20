@@ -111,6 +111,12 @@ async function startService() {
    * 定位"写盘成功 → 响应前"的原生崩溃（0xC0000005）用；定位完就删掉这一行。
    */
   process.env.OD_EXPORT_PROBE = '1';
+  /**
+   * v1.1.16 探针版：**打包形态暂时关掉审计**。
+   * 证据：导出探针停在 `export:page-written`，`export:audit-written` 没出现；而打包版 `history.db` 从未生成。
+   * 关掉它再导出，用来判定崩溃是否由审计（better-sqlite3）引起；开发版不受影响。
+   */
+  process.env.OD_DISABLE_AUDIT = '1';
   /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\物理解题动画\导出」，用户找得到 */
   process.env.OD_EXPORT_DIR = exportDir();
   /**

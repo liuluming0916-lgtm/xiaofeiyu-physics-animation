@@ -793,11 +793,29 @@ export function createRulesService({
         });
         probe('export:page-written', { bytes: result.bytes, name: result.name });
         if (!result.ok) return bad(res, [{ code: result.code, path: 'body', message: result.message }]);
-        recordAudit(
-          { kind: 'export.page', detail: { name: result.name, bytes: result.bytes, model: body.model ?? null } },
-          { path: HISTORY_PATH, secrets: collectSecrets({ dir }) },
-        );
-        probe('export:audit-written');
+        /**
+         * ── v1.1.16 探针版：审计暂时可以关掉 ──
+         *
+         * 探针证明崩溃发生在"页面已写盘 → 审计落库"之间；而打包版里 `history.db`
+         * 从来没被创建过。把审计摘掉再导出，就能判定"是不是它"。
+         * 打包形态由 main.cjs 设 `OD_DISABLE_AUDIT=1`；开发版不受影响。
+         */
+        if (process.env.OD_DISABLE_AUDIT === '1') {
+          probe('export:audit-skipped');
+        } else {
+          try {
+            const secrets = collectSecrets({ dir });
+            probe('export:secrets-collected');
+            recordAudit(
+              { kind: 'export.page', detail: { name: result.name, bytes: result.bytes, model: body.model ?? null } },
+              { path: HISTORY_PATH, secrets },
+            );
+            probe('export:audit-written');
+          } catch (e) {
+            /* 审计失败绝不影响导出（它本来也只是留痕） */
+            probe('export:audit-failed', { message: String(e?.message ?? e) });
+          }
+        }
         res.on('close', () => probe('export:response-close'));
         res.on('finish', () => probe('export:response-finish'));
         probe('export:before-respond');
