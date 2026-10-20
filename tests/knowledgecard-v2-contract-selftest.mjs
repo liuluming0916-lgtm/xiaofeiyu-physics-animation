@@ -6,8 +6,9 @@
  * 运行：node tests\knowledgecard-v2-contract-selftest.mjs
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import {
   VOCAB_FORMAT,
@@ -17,6 +18,9 @@ import {
   validateVocab,
 } from '../core/knowledgecard/v2/vocab.mjs';
 import { migrateEntryV1toV2, validateEntryV2 } from '../core/knowledgecard/v2/entry.mjs';
+import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
+import { buildJudgementVocabV2, parseJudgementV2 } from '../core/knowledgecard/v2/prompt.mjs';
+import { triggerKnowledgecardV2 } from '../core/knowledgecard/v2/runtime.mjs';
 
 const ROOT = join(import.meta.dirname, '..');
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
@@ -176,6 +180,96 @@ console.log('\n『D』v1 → v2 迁移');
   const v1Scene = { ...keysOnly, id: 'card.scene-v1', kind: 'scene', keys: ['传送带'], concepts: ['conveyor_belt'] };
   const r4 = migrateEntryV1toV2(v1Scene, { vocab: v2 });
   check(!r4.ok && r4.action === 'disable', 'v1 场景卡被停用（等重绑）', JSON.stringify(r4));
+}
+
+console.log('\n『E』v2 运行时库 / 判定 / 触发');
+{
+  const lib = loadV2Library();
+  check(lib.ok, 'v2 运行时库加载无问题', lib.problems.join('；'));
+  check(lib.entries.length === 33, '内置 33 张 v2 卡', String(lib.entries.length));
+  check(lib.vocab.elements.length === 30 && lib.vocab.scenes.length === 3, '词表 30 元件 + 3 场景');
+
+  const judgeText = '【动画元件】belt、block\n【场景】conveyor_block\n【判定依据】水平传送带和物块';
+  const judgeVocab = buildJudgementVocabV2(lib.vocab);
+  check(judgeVocab.includes('【动画元件词表】') && judgeVocab.includes('【场景词表】'), '词表文本包含元件与场景两段');
+  const parsed = parseJudgementV2(judgeText, { vocab: lib.vocab });
+  check(parsed.elements.join(',') === 'belt,block', '解析出 belt/block', parsed.elements.join(','));
+  check(parsed.scenes.join(',') === 'conveyor_block', '解析出 conveyor_block', parsed.scenes.join(','));
+  check(parsed.problems.length === 0, '完整判定无问题', parsed.problems.map((p) => p.code).join(','));
+
+  const sceneCard = {
+    id: 'scene.conveyor-demo',
+    title: '场景·传送带+物块（演示）',
+    kind: 'scene',
+    origin: 'user',
+    enabled: true,
+    constant: false,
+    scenes: ['conveyor_block'],
+    order: 10,
+    priority: 'high',
+    content: '# 场景·传送带+物块\n\n先地面，再传送带，再物块。',
+    code_examples: [],
+  };
+  check(validateEntryV2(sceneCard, { vocab: lib.vocab }).length === 0, '演示场景卡通过 v2 校验');
+
+  const result = triggerKnowledgecardV2({
+    entries: [...lib.entries, sceneCard],
+    elements: parsed.elements,
+    scenes: parsed.scenes,
+  });
+  const prov = result.provenance.map((p) => `${p.entry_id}:${p.via}`);
+  check(prov.includes('wb_el_block:element') && prov.includes('wb_el_belt:element'), '元件卡按 elements 命中', prov.join(' '));
+  check(prov.includes('scene.conveyor-demo:scene'), '场景卡按 scenes 命中', prov.join(' '));
+  check(result.text.scene_code.includes('场景·传送带+物块'), '场景卡正文进了拼接文本');
+  check(!prov.some((p) => p.endsWith(':key')), '没有 key 触发路径', prov.join(' '));
+
+  const bad = parseJudgementV2('【动画元件】nope\n【场景】no_scene\n【判定依据】x', { vocab: lib.vocab });
+  check(bad.elements.length === 0 && bad.scenes.length === 0, '表外词不产出 id');
+  check(bad.problems.some((p) => p.code === 'unknown-element') && bad.problems.some((p) => p.code === 'unknown-scene'), '表外词如实报出', bad.problems.map((p) => p.code).join(','));
+}
+
+console.log('\n『F』v1 用户卡在 v2 库里的迁移');
+{
+  const tmp = mkdtempSync(join(tmpdir(), 'kc-v2-'));
+  try {
+    const v1Pack = {
+      format: 'od-knowledgecard',
+      version: 1,
+      entries: [
+        {
+          id: 'user.incline',
+          title: '用户·斜面',
+          origin: 'user',
+          category: 'scene_modeling',
+          enabled: true,
+          keys: ['斜面'],
+          insertion_slot: ['scene_code'],
+          content: '用户斜面卡',
+          elements: ['incline'],
+          code_examples: [],
+        },
+        {
+          id: 'user.keys-only',
+          title: '用户·只有关键字',
+          origin: 'user',
+          category: 'scene_modeling',
+          enabled: true,
+          keys: ['传送带'],
+          insertion_slot: ['scene_code'],
+          content: '只有关键字',
+          code_examples: [],
+        },
+      ],
+    };
+    writeFileSync(join(tmp, 'pack.json'), JSON.stringify(v1Pack, null, 2), 'utf8');
+    const lib = loadV2Library({ userDir: tmp, userVocabPath: join(tmp, 'no-vocab.json') });
+    check(lib.ok, '带 v1 用户卡的库加载无硬错误', lib.problems.join('；'));
+    check(lib.entries.length === 34, '内置 33 + 迁移成功的 1 张用户卡', String(lib.entries.length));
+    check(lib.user.some((e) => e.id === 'user.incline' && e.elements?.[0] === 'incline'), '有 elements 的 v1 用户卡迁移成功');
+    check(lib.migration.some((m) => m.id === 'user.keys-only' && m.action === 'disable'), '只有 keys 的用户卡被停用+报告');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 console.log(bad ? `\n✗ 知识卡 v2 契约自检失败 ${bad} 条` : '\n✓ 知识卡 v2 契约自检全部通过');
