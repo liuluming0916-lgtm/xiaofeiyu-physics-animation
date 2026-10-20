@@ -23,6 +23,7 @@
     "dryrun": "node core/dryrun/run-suite.mjs",
     "inject:test": "node tests/negative-injection/run-injection.mjs",
     "lint:selftest": "node tests/lint-selftest.mjs",
+    "kc:v2": "node tests/knowledgecard-v2-contract-selftest.mjs",
     "render:check": "node tools/render-check.mjs",
     "tex:build": "node tools/build-tex-svg.mjs",
     "template:build": "node template/build-template.mjs",

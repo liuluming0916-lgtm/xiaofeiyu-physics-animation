@@ -1,0 +1,182 @@
+#!/usr/bin/env node
+/**
+ * 知识卡 v2 契约自检（Phase 1）。
+ *
+ * 只测“词表 + 条目 + 迁移”的纯函数，不接运行时、不改 UI。
+ * 运行：node tests\knowledgecard-v2-contract-selftest.mjs
+ */
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import {
+  VOCAB_FORMAT,
+  VOCAB_VERSION,
+  buildVocabIndexV2,
+  mergeVocab,
+  validateVocab,
+} from '../core/knowledgecard/v2/vocab.mjs';
+import { migrateEntryV1toV2, validateEntryV2 } from '../core/knowledgecard/v2/entry.mjs';
+
+const ROOT = join(import.meta.dirname, '..');
+const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
+
+const v2 = readJson('contracts/knowledgecard-vocab-v2.json');
+const sdk = readJson('sdk/signature-summary.json');
+const primitiveNames = sdk.functions.map((f) => f.name);
+
+let bad = 0;
+const check = (ok, name, detail = '') => {
+  if (ok) console.log(`✓ ${name}`);
+  else {
+    bad += 1;
+    console.error(`✗ ${name}${detail ? ` — ${detail}` : ''}`);
+  }
+};
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+console.log('『A』词表 v2 自身');
+{
+  const r = validateVocab(v2, { primitiveNames });
+  check(r.ok, '30 元件 + 场景词表通过校验', r.problems.join('；'));
+  check(v2.format === VOCAB_FORMAT && v2.version === VOCAB_VERSION, 'format/version 正确', `${v2.format}/${v2.version}`);
+  check(v2.elements.length === 30, '元件正好 30 个', String(v2.elements.length));
+  check(v2.scenes.length >= 1, '至少 1 个种子场景', String(v2.scenes.length));
+  check(
+    v2.elements.every((e) => primitiveNames.includes(e.primitive)),
+    '每个元件的 primitive 都在 SDK 函数表里',
+    v2.elements.filter((e) => !primitiveNames.includes(e.primitive)).map((e) => `${e.id}:${e.primitive}`).join(','),
+  );
+  const idx = buildVocabIndexV2(v2);
+  check(idx.byWord.get('incline')?.id === 'incline', '按 id 能索引到 incline');
+  check(idx.byWord.get('斜面')?.id === 'incline', '按中文别名能索引到 incline');
+}
+
+console.log('\n『B』内置 + 用户词表合并');
+{
+  const user = {
+    format: VOCAB_FORMAT,
+    version: VOCAB_VERSION,
+    elements: [{ id: 'maglev_car', name: '磁悬浮小车', aliases: ['磁悬浮'], primitive: 'Draw.box' }],
+    scenes: [],
+  };
+  const m = mergeVocab(v2, user, { primitiveNames });
+  check(m.problems.length === 0, '新增用户元件不报错', m.problems.join('；'));
+  check(m.vocab.elements.length === 31, '合并后元件 31 个', String(m.vocab.elements.length));
+  check(m.vocab.elements.some((e) => e.id === 'maglev_car'), '新元件进了合并词表');
+
+  const override = clone(user);
+  override.elements = [{ id: 'block', name: '覆盖物块', aliases: [], primitive: 'Draw.box' }];
+  const m2 = mergeVocab(v2, override, { primitiveNames });
+  check(m2.problems.some((p) => p.includes('不能覆盖内置')), '用户不能覆盖内置 id', m2.problems.join('；'));
+
+  const aliasClash = clone(user);
+  aliasClash.elements = [{ id: 'maglev_car', name: '磁悬浮小车', aliases: ['物块'], primitive: 'Draw.box' }];
+  const m3 = mergeVocab(v2, aliasClash, { primitiveNames });
+  check(m3.warnings.some((w) => w.includes('别名/名称冲突')), '用户别名撞内置别名时告警', m3.warnings.join('；'));
+
+  const badPrimitive = clone(user);
+  badPrimitive.elements = [{ id: 'x', name: 'X', aliases: [], primitive: 'Draw.nope' }];
+  const m4 = mergeVocab(v2, badPrimitive, { primitiveNames });
+  check(m4.problems.some((p) => p.includes('不在 SDK 函数表里')), '未知 primitive 被拒绝', m4.problems.join('；'));
+}
+
+console.log('\n『C』条目 v2 校验');
+{
+  const base = {
+    id: 'card.demo',
+    title: '演示卡',
+    kind: 'element',
+    enabled: true,
+    origin: 'user',
+    constant: false,
+    elements: ['block'],
+    content: '演示',
+    code_examples: ['drawFrame: `Draw.box([0, 0], 1, 1);`'],
+  };
+  check(validateEntryV2(base, { vocab: v2 }).length === 0, '合法 element 卡通过', validateEntryV2(base, { vocab: v2 }).join('；'));
+
+  const scene = { ...base, id: 'card.scene', kind: 'scene', elements: undefined, scenes: ['conveyor_block'] };
+  check(validateEntryV2(scene, { vocab: v2 }).length === 0, '合法 scene 卡通过', validateEntryV2(scene, { vocab: v2 }).join('；'));
+
+  const rule = { ...base, id: 'card.rule', kind: 'anim_rule', elements: undefined, constant: true };
+  check(validateEntryV2(rule, { vocab: v2 }).length === 0, '合法 anim_rule 卡通过', validateEntryV2(rule, { vocab: v2 }).join('；'));
+
+  check(
+    validateEntryV2({ ...base, elements: undefined }, { vocab: v2 }).some((p) => p.includes('至少 1 个 elements')),
+    'element 卡缺 elements 被拒',
+  );
+  check(
+    validateEntryV2({ ...base, kind: 'scene', elements: undefined, scenes: ['conveyor_block', 'incline_block'] }, { vocab: v2 }).some((p) =>
+      p.includes('恰好 1 个'),
+    ),
+    'scene 卡多于 1 个场景被拒',
+  );
+  check(
+    validateEntryV2({ ...base, constant: true }, { vocab: v2 }).some((p) => p.includes('constant 必须为 false')),
+    'element 卡不能 constant',
+  );
+  check(
+    validateEntryV2({ ...base, elements: ['nope'] }, { vocab: v2 }).some((p) => p.includes('词表外元件')),
+    '词表外元件被拒',
+  );
+  check(
+    validateEntryV2({ ...base, keys: ['旧字段'] }, { vocab: v2 }).some((p) => p.includes('v2 不认识的字段')),
+    '旧字段 keys 被拒',
+  );
+  check(
+    validateEntryV2({ ...base, scenes: ['conveyor_block'] }, { vocab: v2 }).some((p) => p.includes('不应有 scenes')),
+    'element 卡带 scenes 被拒',
+  );
+}
+
+console.log('\n『D』v1 → v2 迁移');
+{
+  const builtin93 = readJson('core/knowledgecard/data/93-elements.json').entries;
+  const builtin92 = readJson('core/knowledgecard/data/92-animation-core.json').entries;
+  let converted = 0;
+  let disabled = 0;
+  const problems = [];
+  for (const e of [...builtin93, ...builtin92]) {
+    const r = migrateEntryV1toV2(e, { vocab: v2 });
+    if (r.ok) converted += 1;
+    else disabled += 1;
+    if (r.ok) {
+      const p = validateEntryV2(r.entry, { vocab: v2 });
+      if (p.length) problems.push(`${e.id}: ${p.join('；')}`);
+      if ('keys' in r.entry) problems.push(`${e.id}: 迁移后仍带 keys`);
+    }
+  }
+  check(converted === 33 && disabled === 0, '33 张内置卡全部迁移成功', `converted=${converted} disabled=${disabled}`);
+  check(problems.length === 0, '迁移后的 33 张卡都通过 v2 校验', problems.slice(0, 5).join('；'));
+
+  const keysOnly = {
+    id: 'card.keys-only',
+    title: '只有关键字',
+    kind: 'element',
+    enabled: true,
+    origin: 'user',
+    keys: ['传送带'],
+    insertion_slot: ['scene_code'],
+    content: 'x',
+  };
+  const r1 = migrateEntryV1toV2(keysOnly, { vocab: v2 });
+  check(!r1.ok && r1.action === 'disable', '只有 keys 的卡被停用', JSON.stringify(r1));
+
+  const conceptsOnly = { ...keysOnly, id: 'card.concepts-only', keys: [], concepts: ['conveyor_belt'] };
+  const r2 = migrateEntryV1toV2(conceptsOnly, { vocab: v2 });
+  check(!r2.ok && r2.action === 'disable', '只有 concepts 的卡被停用', JSON.stringify(r2));
+
+  const solveCard = { ...keysOnly, id: 'card.solve', keys: ['斜面'], elements: ['incline'], insertion_slot: ['solve'] };
+  const r3 = migrateEntryV1toV2(solveCard, { vocab: v2 });
+  check(r3.ok && !('insertion_slot' in r3.entry), 'solve 卡迁移后没有 insertion_slot');
+  check(r3.warnings.some((w) => w.includes('solve')), 'solve 卡迁移有 warning');
+
+  const v1Scene = { ...keysOnly, id: 'card.scene-v1', kind: 'scene', keys: ['传送带'], concepts: ['conveyor_belt'] };
+  const r4 = migrateEntryV1toV2(v1Scene, { vocab: v2 });
+  check(!r4.ok && r4.action === 'disable', 'v1 场景卡被停用（等重绑）', JSON.stringify(r4));
+}
+
+console.log(bad ? `\n✗ 知识卡 v2 契约自检失败 ${bad} 条` : '\n✓ 知识卡 v2 契约自检全部通过');
+if (bad) process.exitCode = 1;

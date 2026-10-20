@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/knowledgecard-vocab-v2.schema.json",
+  "title": "知识卡词表 v2（元件 + 场景）",
+  "description": "词表是知识卡触发的单源真相。元件必须有 Draw.* 画法；场景不绑定画法。用户层只能新增，不能覆盖内置 id。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "elements", "scenes"],
+  "properties": {
+    "format": { "const": "od-knowledgecard-vocab" },
+    "version": { "const": 2 },
+    "elements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Element" }
+    },
+    "scenes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Scene" }
+    }
+  },
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "Name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Aliases": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "Element": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "primitive"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "$ref": "#/$defs/Name" },
+        "aliases": { "$ref": "#/$defs/Aliases", "default": [] },
+        "primitive": {
+          "type": "string",
+          "pattern": "^Draw\\.[A-Za-z]+$",
+          "description": "必须对应 sdk/signature-summary.json 里已登记的 Draw.* 函数"
+        }
+      }
+    },
+    "Scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "$ref": "#/$defs/Name" },
+        "aliases": { "$ref": "#/$defs/Aliases", "default": [] }
+      }
+    }
+  }
+}

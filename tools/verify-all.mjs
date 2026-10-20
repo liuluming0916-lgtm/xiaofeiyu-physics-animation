@@ -200,6 +200,10 @@ const STEPS = [
     '㊽ 本地运动学矢量取证（v1.1.9：bodies 求导 / 边界集含 phases / 碰后取值 / 跳变画点 / 模型 v/a 过滤 / 两条渲染路径同口径）',
     'tests/kinematic-vectors-selftest.mjs',
   ],
+  [
+    '㊾ 知识卡 v2 契约自检（Phase 1：词表合并 / 元件·场景·规范三类卡 / v1→v2 迁移 / 旧字段拒绝）',
+    'tests/knowledgecard-v2-contract-selftest.mjs',
+  ],
 ];
 
 function canSpawn() {

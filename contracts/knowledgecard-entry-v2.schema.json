@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-design.local/contracts/knowledgecard-entry-v2.schema.json",
+  "title": "知识卡条目 v2（词表驱动）",
+  "description": "v2 删除了 keys / secondary_keys / concepts / tags / category / insertion_slot / recursive。触发只来自词表：element 卡用 elements，scene 卡用 scenes，anim_rule 卡 constant。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "kind", "enabled", "origin", "content"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["anim_rule", "element", "scene"] },
+    "enabled": { "type": "boolean" },
+    "origin": { "enum": ["builtin", "user"] },
+    "constant": { "type": "boolean", "default": false },
+    "elements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" }
+    },
+    "order": { "type": "integer", "default": 100 },
+    "priority": { "enum": ["normal", "high"], "default": "normal" },
+    "content": { "type": "string", "minLength": 1 },
+    "code_examples": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": []
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "element" } }, "required": ["kind"] },
+      "then": {
+        "required": ["elements"],
+        "properties": {
+          "constant": { "const": false },
+          "scenes": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "scene" } }, "required": ["kind"] },
+      "then": {
+        "required": ["scenes"],
+        "properties": {
+          "constant": { "const": false },
+          "elements": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "anim_rule" } }, "required": ["kind"] },
+      "then": {
+        "required": ["constant"],
+        "properties": {
+          "constant": { "const": true },
+          "elements": { "maxItems": 0 },
+          "scenes": { "maxItems": 0 }
+        }
+      }
+    }
+  ]
+}
