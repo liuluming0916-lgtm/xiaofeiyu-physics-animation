@@ -30,6 +30,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useEffect, useMemo, useState } from 'react';
 import { CleaningPanel } from '../components/rules/CleaningPanel';
 import { PromptsPanel } from '../components/rules/PromptsPanel';
+import { KnowledgecardV2Panel } from '../components/rules/KnowledgecardV2Panel';
 import { api } from '../lib/rules-api';
 import { KNOWLEDGECARD_BUDGET, buildSlotPreview, detectConflicts, } from '../lib/knowledgecard-engine.js';
 /**
@@ -79,7 +80,7 @@ const LEGACY_CARD_ID = {
     wb_scene_stages: 'wb_anim_stages',
 };
 const SETTINGS_TABS = [
-    { id: 'cards', label: '知识卡', hint: '元件卡 / 场景卡 / 动画规范卡；能存回本机' },
+    { id: 'cardsV2', label: '知识卡 v2', hint: '词表驱动：元件 / 场景 / 动画规范' },
     { id: 'prompts', label: '提示词卡', hint: '按阶段改模型指令；下一题生效' },
     { id: 'cleaning', label: '本地规则卡', hint: '模型输出后处理；内置 4 条锁定' },
     { id: 'ai', label: 'AI 帮写', hint: '生成卡片草稿；本轮只做占位' },
@@ -148,7 +149,7 @@ function matchesSlotFilter(entry, filter) {
     return slots.length === 1 && slots[0] === filter;
 }
 export function SettingsPage() {
-    const [tab, setTab] = useState('cards');
+    const [tab, setTab] = useState('cardsV2');
     /** 词条库：构建期内置快照 + 本机用户区（连上服务后会被真实内容替换） */
     const [entries, setEntries] = useState(() => KNOWLEDGECARD_BUILTIN.map((e) => ({ ...e })));
     const [selectedId, setSelectedId] = useState(() => KNOWLEDGECARD_BUILTIN[0]?.id ?? '');
@@ -493,7 +494,7 @@ export function SettingsPage() {
     }, [entries, sourceOf]);
     return (_jsxs("div", { "data-od-region": "settings-page", className: "space-y-4", children: [_jsxs("header", { className: "flex flex-wrap items-start justify-between gap-3", children: [_jsxs("div", { children: [_jsx("h2", { className: "text-base font-semibold text-slate-900", children: "\u8BBE\u7F6E" }), _jsxs("p", { className: "mt-1 text-xs text-slate-500", children: ["\u77E5\u8BC6\u5361\u3001\u63D0\u793A\u8BCD\u5361\u4E0E\u672C\u5730\u89C4\u5219\u5361\u90FD\u5728\u8FD9\u91CC\u3002\u6539\u7684\u662F ", _jsx("code", { className: "rounded bg-slate-100 px-1", children: "ai-rules/" }), ' ', "\u4E0B\u7684\u771F\u5B9E\u6587\u4EF6\uFF1A\u539F\u5B50\u5199\u5165\u3001\u6574\u6279\u6821\u9A8C\u3001\u6574\u6279\u751F\u6548\u6216\u6574\u6279\u5931\u8D25\u3002"] })] }), _jsx("p", { className: "text-[11px] text-slate-500", children: "\u7AEF\u70B9\u4E0E Key \u5728\u53F3\u4E0A\u89D2\u300C\u2699 \u8FDE\u63A5\u8BBE\u7F6E\u300D\u3002" })] }), _jsx("nav", { "data-od-region": "settings-tabs", className: "flex flex-wrap gap-1", "aria-label": "\u8BBE\u7F6E\u5206\u7C7B", children: SETTINGS_TABS.map((t) => (_jsxs("button", { type: "button", onClick: () => setTab(t.id), "aria-current": tab === t.id ? 'page' : undefined, className: `rounded-md border px-3 py-1.5 text-left text-xs ${tab === t.id
                         ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`, children: [_jsx("span", { className: "block font-medium", children: t.label }), _jsx("span", { className: tab === t.id ? 'text-slate-200' : 'text-slate-400', children: t.hint })] }, t.id))) }), tab === 'cards' ? (_jsxs(_Fragment, { children: [_jsxs("section", { "data-od-region": "knowledgecard-service", className: "rounded-md border border-slate-200 bg-white px-4 py-2", children: [_jsxs("div", { className: "flex flex-wrap items-center gap-2 text-xs", children: [_jsx("span", { className: `rounded px-2 py-0.5 font-medium ${service.state === 'online'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`, children: [_jsx("span", { className: "block font-medium", children: t.label }), _jsx("span", { className: tab === t.id ? 'text-slate-200' : 'text-slate-400', children: t.hint })] }, t.id))) }), tab === 'cardsV2' ? (_jsx(KnowledgecardV2Panel, {})) : tab === 'cards' ? (_jsxs(_Fragment, { children: [_jsxs("section", { "data-od-region": "knowledgecard-service", className: "rounded-md border border-slate-200 bg-white px-4 py-2", children: [_jsxs("div", { className: "flex flex-wrap items-center gap-2 text-xs", children: [_jsx("span", { className: `rounded px-2 py-0.5 font-medium ${service.state === 'online'
                                             ? 'bg-emerald-100 text-emerald-800'
                                             : service.state === 'checking'
                                                 ? 'bg-slate-100 text-slate-600'

@@ -31,6 +31,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { CleaningPanel } from '../components/rules/CleaningPanel'
 import { PromptsPanel } from '../components/rules/PromptsPanel'
+import { KnowledgecardV2Panel } from '../components/rules/KnowledgecardV2Panel'
 import { api } from '../lib/rules-api'
 import {
   KNOWLEDGECARD_BUDGET,
@@ -106,10 +107,10 @@ const LEGACY_CARD_ID: Record<string, string> = {
   wb_scene_stages: 'wb_anim_stages',
 }
 
-type SettingsTab = 'cards' | 'prompts' | 'cleaning' | 'ai'
+type SettingsTab = 'cardsV2' | 'cards' | 'prompts' | 'cleaning' | 'ai'
 
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; hint: string }> = [
-  { id: 'cards', label: '知识卡', hint: '元件卡 / 场景卡 / 动画规范卡；能存回本机' },
+  { id: 'cardsV2', label: '知识卡 v2', hint: '词表驱动：元件 / 场景 / 动画规范' },
   { id: 'prompts', label: '提示词卡', hint: '按阶段改模型指令；下一题生效' },
   { id: 'cleaning', label: '本地规则卡', hint: '模型输出后处理；内置 4 条锁定' },
   { id: 'ai', label: 'AI 帮写', hint: '生成卡片草稿；本轮只做占位' },
@@ -184,7 +185,7 @@ function matchesSlotFilter(entry: KnowledgecardEntryLike, filter: SlotFilter): b
 }
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<SettingsTab>('cards')
+  const [tab, setTab] = useState<SettingsTab>('cardsV2')
 
   /** 词条库：构建期内置快照 + 本机用户区（连上服务后会被真实内容替换） */
   const [entries, setEntries] = useState<KnowledgecardEntryLike[]>(() => KNOWLEDGECARD_BUILTIN.map((e) => ({ ...e })))
@@ -573,7 +574,9 @@ export function SettingsPage() {
         ))}
       </nav>
 
-      {tab === 'cards' ? (
+      {tab === 'cardsV2' ? (
+        <KnowledgecardV2Panel />
+      ) : tab === 'cards' ? (
         <>
       {/* ── v1.1.9：本机落盘工具栏（保存 / 恢复内置 / 重新读取）── */}
       <section data-od-region="knowledgecard-service" className="rounded-md border border-slate-200 bg-white px-4 py-2">

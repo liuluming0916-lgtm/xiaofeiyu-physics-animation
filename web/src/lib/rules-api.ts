@@ -254,6 +254,53 @@ export interface KnowledgecardRestoreResult {
   problems: string[]
 }
 
+/** v2 词表项 */
+export interface V2VocabElement {
+  id: string
+  name: string
+  aliases: string[]
+  primitive: string
+}
+export interface V2VocabScene {
+  id: string
+  name: string
+  aliases: string[]
+}
+export interface V2Vocab {
+  format: string
+  version: number
+  elements: V2VocabElement[]
+  scenes: V2VocabScene[]
+}
+
+export type V2CardKind = 'anim_rule' | 'element' | 'scene'
+export interface V2Entry {
+  id: string
+  title: string
+  kind: V2CardKind
+  origin: 'builtin' | 'user'
+  enabled: boolean
+  constant?: boolean
+  elements?: string[]
+  scenes?: string[]
+  order?: number
+  priority?: 'normal' | 'high'
+  content: string
+  code_examples?: string[]
+}
+
+export interface V2Library {
+  ok: boolean
+  dir: string
+  vocab: V2Vocab
+  entries: V2Entry[]
+  builtinCount: number
+  userCount: number
+  problems: string[]
+  warnings: string[]
+  migration: Array<{ id: string; action: 'convert' | 'disable'; reasons: string[]; warnings: string[] }>
+}
+
 /* ────────────────────────────── 接口 ────────────────────────────── */
 
 export const api = {
@@ -299,4 +346,8 @@ export const api = {
   deleteKnowledgecardPack: (name: string) => request<{ ok: boolean }>('DELETE', `/knowledgecard/packs/${encodeURIComponent(name)}`),
   copyBuiltinKnowledgecard: (id: string) => request<{ ok: boolean; name: string }>('POST', '/knowledgecard/copy', { id }),
   restoreKnowledgecardBuiltin: () => request<KnowledgecardRestoreResult>('POST', '/knowledgecard/restore', {}),
+
+  knowledgecardV2: () => request<V2Library>('GET', '/knowledgecard/v2'),
+  saveKnowledgecardV2Entry: (entry: V2Entry) =>
+    request<{ ok: boolean; entry: V2Entry; name: string }>('POST', '/knowledgecard/v2/entry', { entry }),
 }

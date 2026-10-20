@@ -108,6 +108,7 @@ import { makeEvent, toSseFrame } from '../core/orchestrator/events.mjs';
 import { migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
 import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
+import { saveV2Entry } from '../core/knowledgecard/v2/editor.mjs';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -953,6 +954,37 @@ export function createRulesService({
       /* ── 世界书（只写 ai-rules/knowledgecard/；内置只读） ── */
       if (path.startsWith('/api/knowledgecard')) {
         const wbDir = join(dir, 'knowledgecard');
+
+        /**
+         * v2 知识卡（Phase 3C-1）：读整库 + 保存单卡。
+         * 旧 v1 端点保留给旧页面；新页面只走这两个。
+         */
+        if (req.method === 'GET' && path === '/api/knowledgecard/v2') {
+          const lib = loadV2Library({ userDir: wbDir, userVocabPath: join(dir, 'vocab.json') });
+          return ok(res, {
+            dir: wbDir,
+            vocab: lib.vocab,
+            entries: lib.entries,
+            builtinCount: lib.builtin.length,
+            userCount: lib.user.length,
+            problems: lib.problems,
+            warnings: lib.warnings,
+            migration: lib.migration,
+          });
+        }
+        if (req.method === 'POST' && path === '/api/knowledgecard/v2/entry') {
+          const body = await readJson(req);
+          const lib = loadV2Library({ userDir: wbDir, userVocabPath: join(dir, 'vocab.json') });
+          const r = saveV2Entry({ dir: wbDir, entry: body?.entry, vocab: lib.vocab });
+          if (!r.ok) {
+            return bad(
+              res,
+              (r.issues ?? ['保存失败']).map((message) => ({ code: 'knowledgecard.v2.invalid', path: 'entry', message })),
+              400,
+            );
+          }
+          return ok(res, r);
+        }
 
         if (req.method === 'GET' && path === '/api/knowledgecard') {
           const listed = listKnowledgecardPacks({ dir: wbDir });

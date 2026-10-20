@@ -86,4 +86,6 @@ export const api = {
     deleteKnowledgecardPack: (name) => request('DELETE', `/knowledgecard/packs/${encodeURIComponent(name)}`),
     copyBuiltinKnowledgecard: (id) => request('POST', '/knowledgecard/copy', { id }),
     restoreKnowledgecardBuiltin: () => request('POST', '/knowledgecard/restore', {}),
+    knowledgecardV2: () => request('GET', '/knowledgecard/v2'),
+    saveKnowledgecardV2Entry: (entry) => request('POST', '/knowledgecard/v2/entry', { entry }),
 };

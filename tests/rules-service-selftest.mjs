@@ -331,6 +331,49 @@ async function main() {
         await svc2.close();
       }
     }
+
+    /* ── 知识卡 v2：读整库 + 保存单卡（Phase 3C-1） ── */
+    console.log('\n『H』知识卡 v2：读整库 + 保存单卡');
+    {
+      const v2 = await call('GET', '/api/knowledgecard/v2');
+      check(
+        '★ GET /api/knowledgecard/v2 → 200，33 张内置 + 30 元件 + 3 场景',
+        v2.status === 200 &&
+          v2.json.entries?.length === 33 &&
+          v2.json.vocab?.elements?.length === 30 &&
+          v2.json.vocab?.scenes?.length === 3,
+        `${v2.status} ${JSON.stringify(v2.json).slice(0, 300)}`,
+      );
+
+      const entry = {
+        id: 'test.v2',
+        title: '测试 v2 卡',
+        kind: 'element',
+        origin: 'user',
+        enabled: true,
+        elements: ['block'],
+        content: '测试正文',
+        code_examples: [],
+      };
+      const saved = await call('POST', '/api/knowledgecard/v2/entry', { entry });
+      check('★ POST /api/knowledgecard/v2/entry → 200 并落盘', saved.status === 200 && saved.json.ok === true, `${saved.status} ${JSON.stringify(saved.json)}`);
+      check('一卡一文件 test.v2.json 已写出', existsSync(join(dir, 'knowledgecard', 'test.v2.json')));
+
+      const again = await call('GET', '/api/knowledgecard/v2');
+      check(
+        '重新读取能看到用户卡（33 内置 + 1 用户）',
+        again.json.entries?.length === 34 && again.json.entries.some((e) => e.id === 'test.v2' && e.origin === 'user'),
+        JSON.stringify(again.json.entries?.map((e) => `${e.id}:${e.origin}`)),
+      );
+
+      const badEntry = { ...entry, id: 'test.bad', keys: ['旧字段'] };
+      const bad = await call('POST', '/api/knowledgecard/v2/entry', { entry: badEntry });
+      check(
+        '★ 带 keys 的 v2 保存被拒（400 + issues）',
+        bad.status === 400 && Array.isArray(bad.json.issues) && bad.json.issues.length > 0,
+        `${bad.status} ${JSON.stringify(bad.json)}`,
+      );
+    }
   } finally {
     await svc.close();
     for (const d of created) {
