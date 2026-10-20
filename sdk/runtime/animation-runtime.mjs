@@ -2180,7 +2180,18 @@ function drawArrow(ctx, T, rec, vectorMax = null, offset = null) {
    * 因为箭头**不参与取景**，这里不需要经过世界单位，也就没有"名义相机 vs 实际相机"
    * 的偏差（实测过：绕世界单位会少画 28%）。
    */
-  const [uxDir, uyDir] = arrowDirection(rec);
+  const [uxDir, uyDirWorld] = arrowDirection(rec);
+  /**
+   * ⚠ v1.1.16（用户实测）：**世界 y 向上、屏幕 y 向下**，方向必须在这里翻一次 y。
+   *
+   * 之前直接把世界单位向量加到**屏幕像素**上（`p.y + uyDir * lenPx`），于是
+   * **竖直分量反号**——水平箭头正常、竖直箭头上下颠倒（v 向上时箭头朝下）。
+   * 这个 bug 不报错、不越界，判据也看不见，只能靠人眼发现（用户 2026-10-20 报）。
+   *
+   * ⚠ `arrowDirection()` 本身**不能改**：包络计算（`expandEnvelope`）与
+   * 标注避让还在用它算**世界坐标**的箭头端点。翻转只发生在"屏幕像素"这一步。
+   */
+  const uyDir = -uyDirWorld;
   let lenPx = arrowLengthPx(rec, vectorMax);
 
   /* 防出画面：箭头不参与取景，极端情况下可能戳出画布被裁掉（图例写明了会收缩） */

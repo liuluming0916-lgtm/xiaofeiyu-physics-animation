@@ -241,6 +241,15 @@ export function serverEventSource(baseURL, input) {
             body: JSON.stringify({
                 problem: input.problem,
                 images: input.images.map((i) => ({ mime: i.mime, dataUrl: i.dataUrl })),
+                /* v1.1.16：参考答案（可选，原样透传；后端没收到就当没有） */
+                ...(input.reference
+                    ? {
+                        reference: {
+                            text: input.reference.text,
+                            images: input.reference.images.map((i) => ({ mime: i.mime, dataUrl: i.dataUrl })),
+                        },
+                    }
+                    : {}),
                 mode: input.mode,
                 devMode: input.devMode === true,
             }),

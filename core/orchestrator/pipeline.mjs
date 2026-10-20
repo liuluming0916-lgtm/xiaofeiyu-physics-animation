@@ -52,6 +52,7 @@ import {
   REPAIR_MAX_ROUNDS,
 } from '../repair/index.mjs';
 import { PHASE5_STAGES, MODEL_STAGES, makeEvent } from './events.mjs';
+import { parseDiagramBox, cropPngNormalized } from '../images/png-crop.mjs';
 
 /**
  * 每题一份的**配置快照**（§2.3）。
@@ -193,6 +194,14 @@ export async function* runPipeline(input) {
   const {
     problem,
     images = [],
+    /**
+     * v1.1.16：**老师提供的参考答案 / 解析**（可选）。
+     *
+     * 有它 ⇒ `solve` 阶段换一套指令：不自己重算，按解析整理过程与结论；
+     * 没有 ⇒ 与上一版**逐字一致**（这是"不勾选 = 行为不变"的保证）。
+     * 形状：`{ text?: string, images?: [{ mime, data, name }] }`（图片是已解码的 Buffer）
+     */
+    reference = null,
     config,
     signal,
     dryRunImpl = dryRun,
@@ -257,6 +266,11 @@ export async function* runPipeline(input) {
   let judgement = { concepts: [], tags: [], elements: [], scenes: [] };
   let judgementProblems = [];
   let judgementUnknowns = { concept: [], tag: [], element: [] };
+  /**
+   * v1.1.16：从原题图里裁出的**示意图**（`{ mime, data, name }`）。没有就是 null。
+   * 只在 `scene_code` 这一步随消息附上，让写动画的模型能"看到图"。
+   */
+  let diagram = null;
 
   const knowledgecardForStage = (stage) => {
     const slot = STAGE_SLOT[stage];
@@ -322,7 +336,7 @@ export async function* runPipeline(input) {
             ? buildJudgementVocabV2(snapshot.knowledgecard.vocab)
             : judgementVocab,
       },
-      solve: { problem: problem.text },
+      solve: { problem: problem.text, ...(reference ? { reference } : {}) },
       steps: { problem: problem.text, solution: () => outputs.solve },
       /**
        * ⚠ 第 9 期：`answers` **必须拿到 STEPS**。
@@ -337,6 +351,9 @@ export async function* runPipeline(input) {
         steps: () => outputs.steps,
         answers: () => outputs.answers,
         timeAxis: () => deriveTimeAxis(outputs.steps),
+        /* v1.1.16：把读题的几何转写交给写动画这一步（之前它只用来触发知识卡） */
+        readProblem: () => outputs.read_problem,
+        hasDiagram: () => Boolean(diagram),
       },
     };
 
@@ -359,7 +376,24 @@ export async function* runPipeline(input) {
       // 图片只进 solve 阶段（后面几步都是纯文本推理；这也避免了把图片重复发多遍）
       // 图片进 `read_problem`（第 0 步：读题与判定）与 `solve`（解题复查）两个阶段。
       // 其余阶段都是纯文本推理 —— 这也避免了把同一张图重复发多遍。
-      const withImages = stage === 'solve' || stage === 'read_problem' ? images : [];
+      // v1.1.16：`solve` 额外带上**解析图片**（老师给的答案截图），只在这一步用。
+      const withImages = stage === 'solve'
+        ? [...images, ...((reference?.images ?? []))]
+        : stage === 'read_problem'
+          ? images
+          : stage === 'scene_code'
+            ? (diagram ? [diagram] : [])
+            : [];
+
+      /**
+       * v1.1.16：带参考解析时，`solve` 换成**另一套 system**（"按解析整理"），
+       * 而不是只在 user 里补一句 —— 否则 system（"写出完整解题过程"）与 user 打架，
+       * 模型会两边讨好。没有解析时仍用原来的 system，逐字不变。
+       */
+      const stageInstructions =
+        stage === 'solve' && reference && typeof prompt.systemWithReference === 'string'
+          ? prompt.systemWithReference
+          : prompt.system;
 
       /**
        * ── 第 0 步的前置判定（第 5 期引入；**第 5.7 期删掉了"纯文字题跳过"**）
@@ -414,7 +448,7 @@ export async function* runPipeline(input) {
               ? { knownConditions: `原题：${resolved.problem}` }
               : {}),
           },
-          instructions: prompt.system,
+          instructions: stageInstructions,
           instructionLabel: prompt.label,
           stageSlot: wb.slot,
           knowledgecardSegment: wb.text,
@@ -495,6 +529,26 @@ export async function* runPipeline(input) {
       });
 
       /**
+       * ── v1.1.16：**参考答案与题目对不上就立刻停** ──
+       *
+       * 提示词要求模型在这种情况下只输出 `【解析与题目不一致】` 并说明原因；
+       * 这里再兜一层：宁可少跑后面三步，也不要把"另一道题"画成动画。
+       * 只在**这次真的带了参考解析**时生效（没带 ⇒ 与旧版完全一致）。
+       */
+      if (stage === 'solve' && reference && text.includes('【解析与题目不一致】')) {
+        yield emit('stage_error', {
+          stage,
+          error: {
+            kind: 'reference.mismatch',
+            message: '模型判断：你填的参考解析与这道题不是同一道（或关键数据对不上），已停止后续步骤。',
+            hint: '核对一下解析是不是这道题的；改正后重新运行。',
+          },
+        });
+        yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage, referenceMismatch: true });
+        return;
+      }
+
+      /**
        * 第 5 期追加：**纯图片题**开跑时没有标题（题面是空的），转写出来后回填一次。
        *
        * 只在"题面本来就空"时回填 —— 用户手打了题面就用他的话，别拿模型的转写去顶替。
@@ -518,6 +572,38 @@ export async function* runPipeline(input) {
        *   没有这条，"模型判错了什么"在 UI 上完全看不见，S1 那种人工复核就没法在真实运行里做。
        */
       if (stage === 'read_problem') {
+        /**
+         * ── v1.1.16：**拆图** ──
+         *
+         * 读题阶段会让模型给出【示意图范围】（归一化矩形）。这里按它**真裁一张图**，
+         * 供后面写动画时参考 —— 这样"滑轮在哪、绳怎么走、哪端高"不必只靠文字猜。
+         *
+         * 三条边界：
+         *   ① 只有"有题目图 + 端点支持看图"才做（不支持视觉的模型给图也没用）；
+         *   ② 只支持 PNG（零依赖裁剪，见 `core/images/png-crop.mjs`）；
+         *      JPEG / 框歪 / 裁失败 ⇒ **退回整幅原题图**，并如实说明原因；
+         *   ③ 纯文字题（没有图）⇒ 什么都不加。
+         */
+        if (images.length > 0 && snapshot.endpoint?.supportsVision === true) {
+          const box = parseDiagramBox(text);
+          let info = { ok: false, reason: 'no-box' };
+          if (box && Buffer.isBuffer(images[0]?.data)) {
+            const cropped = cropPngNormalized(images[0].data, box);
+            if (cropped) {
+              diagram = { mime: 'image/png', data: cropped.buffer, name: 'diagram.png' };
+              info = { ok: true, bbox: box, width: cropped.width, height: cropped.height };
+            } else {
+              info = { ok: false, reason: 'crop-failed', bbox: box };
+            }
+          }
+          if (!diagram) {
+            /* 退回整图：给一个"地点不明但至少看得见"的参考，比什么都没有强 */
+            diagram = { mime: images[0].mime ?? 'image/png', data: images[0].data, name: 'problem-full.png' };
+            info = { ...info, fallbackWhole: true };
+          }
+          yield emit('diagram_done', info);
+        }
+
         if (snapshot.knowledgecard.version === 2) {
           const parsed = parseJudgementV2(text, {
             vocab: snapshot.knowledgecard.vocab ?? { elements: [], scenes: [] },

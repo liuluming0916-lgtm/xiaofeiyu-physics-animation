@@ -39,6 +39,13 @@ export function useRun() {
         ...(st.knownConditions ? { knownConditions: st.knownConditions } : {}),
       },
       images: st.images,
+      /**
+       * v1.1.16：老师填了「参考答案 / 解析」才带这个字段。
+       * 不带 ⇒ 后端走原来那套提示词（与旧版逐字一致）。
+       */
+      ...(st.referenceText.trim() || st.referenceImages.length
+        ? { reference: { text: st.referenceText.trim(), images: st.referenceImages } }
+        : {}),
       mode: st.mode,
       /** 第 8 期：开发模式（不拦截）—— 勾了就把"别拦我"这句话传到后端 */
       devMode: st.devMode === true,

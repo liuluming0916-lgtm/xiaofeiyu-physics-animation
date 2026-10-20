@@ -13,6 +13,7 @@
  */
 
 import { runPipeline, collectEvents, deriveTimeAxis, deriveEntryLabel, snapshotConfig } from '../core/orchestrator/pipeline.mjs';
+import { encodePng, decodePng } from '../core/images/png-crop.mjs';
 import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
 import { SLOT_KEY_NAMES } from '../contracts/spec/frozen-keys.mjs';
 import { ModelError, buildUserMessage } from '../core/gateway/index.mjs';
@@ -580,12 +581,12 @@ console.log('\n『E-3』图片只进 read_problem 与 solve 两个阶段，且�
     const u = c.messages.find((m) => m.role === 'user');
     return Array.isArray(u.content) && u.content.some((p) => p.type === 'image_url');
   });
-  // ⚠ 第 5.7 期：`read_problem`（第 0 步）也需要图，所以带图的阶段是 2 个（read_problem 与 solve）。
-  //   其余阶段（抽答案 / 分步 / 动画代码）仍是纯文本 —— 避免把同一张图重复发多遍。
-  check('图片进 read_problem 与 solve 两个阶段', withImage.length === 2, `实际 ${withImage.length} 个阶段带图`);
+  // ⚠ v1.1.16：带图的阶段从 2 个变成 3 个 —— `scene_code` 也要图了（拆出来的示意图，
+  //   裁不了时退回整幅原题图）。理由：写动画时看不到图，是"滑轮摆歪/绳不平行"的直接原因。
+  check('带图的阶段是 read_problem / solve / scene_code', withImage.length === 3, `实际 ${withImage.length} 个阶段带图`);
   check(
-    '带图的阶段恰好是 read_problem 与 solve',
-    withImage.map((c) => detectStage(c.messages)).sort().join(',') === 'read_problem,solve',
+    '带图的阶段恰好是 read_problem、solve、scene_code',
+    withImage.map((c) => detectStage(c.messages)).sort().join(',') === 'read_problem,scene_code,solve',
     withImage.map((c) => detectStage(c.messages)).join(','),
   );
   check('带图时用了 vision（endpoint 的视觉开关生效）', withImage.every((c) => c.vision === true));
@@ -626,6 +627,76 @@ console.log('\n『A-4』第 5.7 期延续：纯图片题的运行标题回填（
   const evTxt = await collectEvents(baseInput({ streamImpl: streamTxt, dryRunImpl: fakeDryRun('pass') }));
   check('负对照：纯文字题**不**发 run_label（用户打了题面就用他的话）', !evTxt.some((e) => e.type === 'run_label'));
   check('负对照：纯文字题的标题就是题面开头', String(evTxt.find((e) => e.type === 'run_start')?.entry).startsWith('一物块从斜面顶端滑下'));
+}
+
+/* ────────────────────────────── 『Z』参考答案与题目对不上（v1.1.16） ────────────────────────────── */
+
+console.log('\n『Z』参考答案：与题目对不上时**停在解题之后**，不继续拆步骤/画动画');
+{
+  const stream = fakeStream({
+    read_problem: '【题面复述】一物块从斜面顶端滑下……',
+    solve: '【解析与题目不一致】这份解析讲的是传送带，而题面是斜面。',
+  });
+  const events = await collectEvents(
+    baseInput({ streamImpl: stream, dryRunImpl: fakeDryRun('pass'), reference: { text: '解析：传送带共速……', images: [] } }),
+  );
+  const done = events.find((e) => e.type === 'run_done');
+  const err = events.find((e) => e.type === 'stage_error');
+  const stages = events.filter((e) => e.type === 'stage_start').map((e) => e.stage);
+
+  check('run_done 是 error，并标记 referenceMismatch', done?.verdict === 'error' && done?.referenceMismatch === true, JSON.stringify(done));
+  check('只跑了 read_problem + solve（没有继续后面的阶段）', stages.join(',') === 'read_problem,solve', stages.join(','));
+  check('stage_error 的 kind 是 reference.mismatch', err?.error?.kind === 'reference.mismatch', JSON.stringify(err));
+  check('停止时不产生 stage_done(answers/steps/scene_code)', !events.some((e) => e.type === 'stage_done' && ['answers', 'steps', 'scene_code'].includes(e.stage)));
+}
+
+/* ────────────────────────────── 『Y』v1.1.16 拆图：读题给框 → 裁出示意图 → 写动画时附上 ────────────────────────────── */
+
+console.log('\n『Y』拆图：读题给【示意图范围】→ 程序真裁 → 写动画那一步能看到图');
+{
+  /* 造一张 40×40 的真 PNG（渐变），框住中间一半 ⇒ 应裁出 20×20 */
+  const W = 40;
+  const H = 40;
+  const px = Buffer.alloc(W * H * 4);
+  for (let y = 0; y < H; y += 1) {
+    for (let x = 0; x < W; x += 1) {
+      const i = (y * W + x) * 4;
+      px[i] = x * 6;
+      px[i + 1] = y * 6;
+      px[i + 2] = 128;
+      px[i + 3] = 255;
+    }
+  }
+  const png = encodePng({ width: W, height: H, colorType: 6, pixels: px });
+  check('（前置）合成 PNG 可被自己解码', Boolean(decodePng(png)));
+
+  const transcript = '【题面复述】水平传送带上的物块 A。\n【示意图范围】0.25,0.25,0.75,0.75';
+  const stream = fakeStream({
+    read_problem: transcript,
+    solve: '解题：……',
+    steps: 'title: 第 1 步\ntex: x\nt0: 0\nt1: 1',
+    answers: 'symbol: x\nvalue: 1\nunit: m\nat_t: 1\nstep: 1',
+    scene_code: goodSceneCode(),
+  });
+  const events = await collectEvents(
+    baseInput({ images: [{ mime: 'image/png', data: png, name: 'problem.png' }], streamImpl: stream, dryRunImpl: fakeDryRun('pass') }),
+  );
+
+  const dd = events.find((e) => e.type === 'diagram_done');
+  check('出了 diagram_done 事件', Boolean(dd), JSON.stringify(dd));
+  check('★ 按框裁出了 20×20（原图 40×40 的中间一半）', dd?.ok === true && dd?.width === 20 && dd?.height === 20, JSON.stringify(dd));
+
+  const sceneCall = stream.calls.find((c) => detectStage(c.messages) === 'scene_code');
+  const sceneUser = sceneCall?.messages?.find((m) => m.role === 'user');
+  check('★ 写动画那一步的请求**带了图**', Array.isArray(sceneUser?.content), typeof sceneUser?.content);
+  check(
+    '写动画那一步的 user 文本里含**读题的几何转写**（之前它只用来触发知识卡）',
+    JSON.stringify(sceneUser?.content ?? '').includes('水平传送带上的物块 A'),
+  );
+  check(
+    '写动画那一步的 user 文本里说明了"附了示意图"',
+    JSON.stringify(sceneUser?.content ?? '').includes('【示意图】'),
+  );
 }
 
 /* ────────────────────────────── 汇总 ────────────────────────────── */

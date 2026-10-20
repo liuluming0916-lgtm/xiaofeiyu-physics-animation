@@ -71,3 +71,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# 开发版跑题产生的开源日志（每次运行自动生成，不入库）
+/开源日志/

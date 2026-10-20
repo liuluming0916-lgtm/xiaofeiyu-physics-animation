@@ -197,7 +197,7 @@ const STEPS = [
     'tests/open-log-selftest.mjs',
   ],
   [
-    '㊽ 本地运动学矢量取证（v1.1.9：bodies 求导 / 边界集含 phases / 碰后取值 / 跳变画点 / 模型 v/a 过滤 / 两条渲染路径同口径）',
+    '㊽ 本地运动学矢量取证（v1.1.9：bodies 求导 / 边界集含 phases / 碰后取值 / 跳变画点 / 模型 v/a 过滤 / 两条渲染路径同口径 / v1.1.16 屏幕方向翻 y）',
     'tests/kinematic-vectors-selftest.mjs',
   ],
   [

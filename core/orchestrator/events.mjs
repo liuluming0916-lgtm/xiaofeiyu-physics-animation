@@ -78,6 +78,12 @@ export const EVENT_TYPES = Object.freeze([
   'knowledgecard_done', // { hash, entries[], emptySlots[], truncatedSlots[], warnings[], charsBySlot, injectedBySlot }
   // 第 5 期追加（读题与判定）：**纯图片题**在开跑时没有标题可显示，转写出来后回填一次
   'run_label', // { entry, source }
+  /**
+   * v1.1.16（拆图）：读题给了【示意图范围】之后，程序有没有真裁出图。
+   * 留痕的理由：裁图失败（JPEG / 框歪）与"模型没给框"在界面上长得一样，
+   * 而两者的修法不同（前者换格式，后者调 Prompt）。
+   */
+  'diagram_done', // { ok, reason?, bbox?, width?, height?, fallbackWhole? }
   'run_done', // { verdict, ms, cancelled, banner }
   'cancelled', // { stage }
 ]);

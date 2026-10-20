@@ -39,6 +39,8 @@ export const useApp = create((set) => ({
     description: '',
     knownConditions: '',
     images: [],
+    referenceText: '',
+    referenceImages: [],
     mode: 'BOTH',
     /** 第 8 期：开发模式（不拦截）—— 记住上次的选择 */
     devMode: readDevMode(),
@@ -59,6 +61,9 @@ export const useApp = create((set) => ({
     setKnownConditions: (s) => set({ knownConditions: s }),
     addImage: (i) => set((st) => ({ images: [...st.images, i] })),
     removeImage: (index) => set((st) => ({ images: st.images.filter((_, i) => i !== index) })),
+    setReferenceText: (s) => set({ referenceText: s }),
+    addReferenceImage: (i) => set((st) => ({ referenceImages: [...st.referenceImages, i] })),
+    removeReferenceImage: (index) => set((st) => ({ referenceImages: st.referenceImages.filter((_, i) => i !== index) })),
     setDevMode: (on) => {
         try {
             localStorage.setItem('od-dev-mode', on ? '1' : '0');

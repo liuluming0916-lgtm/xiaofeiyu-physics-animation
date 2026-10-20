@@ -239,6 +239,16 @@ export type EventSourceKind = 'demo' | 'server'
 export interface RunInput {
   problem: { text: string; description?: string; knownConditions?: string }
   images: Array<{ mime: string; dataUrl: string; name?: string }>
+  /**
+   * v1.1.16：**老师提供的参考答案 / 解析**（可选）。
+   *
+   * 只在"解题"这一步使用：有它时模型不再自己算，而是按解析整理过程与答案。
+   * 没有这个字段 ⇒ 后端走旧提示词，行为与上一版逐字一致。
+   */
+  reference?: {
+    text: string
+    images: Array<{ mime: string; dataUrl: string; name?: string }>
+  }
   mode: ProgramMode
   /**
    * 第 8 期：**开发模式（不拦截）**。
@@ -487,6 +497,15 @@ export function serverEventSource(baseURL: string, input: RunInput): RunHandle {
       body: JSON.stringify({
         problem: input.problem,
         images: input.images.map((i) => ({ mime: i.mime, dataUrl: i.dataUrl })),
+        /* v1.1.16：参考答案（可选，原样透传；后端没收到就当没有） */
+        ...(input.reference
+          ? {
+              reference: {
+                text: input.reference.text,
+                images: input.reference.images.map((i) => ({ mime: i.mime, dataUrl: i.dataUrl })),
+              },
+            }
+          : {}),
         mode: input.mode,
         devMode: input.devMode === true,
       }),

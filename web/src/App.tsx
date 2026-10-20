@@ -36,10 +36,31 @@ export function App() {
   const running = useApp((s) => s.run.running)
   const verdict = useApp((s) => s.run.verdict)
 
-  // 动画就绪后自动切到动画页（用户的下一步意图是确定的，省一次点击）
+  /**
+   * 动画就绪后自动切到动画页（用户的下一步意图是确定的，省一次点击）。
+   *
+   * ⚠ v1.1.16：**必须等这一轮跑完再跳**，不能只看 `programSlots`。
+   *
+   * 自愈会多次推 `dryrun_done`（首轮 + 每轮修复后），而每一次都会写 `programSlots`。
+   * 旧写法只看 `programSlots`，于是第一次 dryrun（往往正是失败的那一版）就把用户送进动画页：
+   *   · iframe 装进的是半成品；
+   *   · 模板的 `applyProgram()` **第一次注入即锁死**（`program-already-inlined`），
+   *     之后自愈修好的版本再也进不来 —— 用户看到的是白屏 + 第一次的报错。
+   * 实测（2026-10-20，M1 传送带题）：需要自愈的题必白屏，一次过的题正常。
+   *
+   * 判据用 `run.running`：`run_done` 与 `failRun` 都会把它置 false。
+   */
   useEffect(() => {
-    if (programSlots) setPage('animation')
-  }, [programSlots])
+    // 只在"用户正停在解题页"时自动跳：正在设置页改东西的人不该被拽走
+    if (programSlots && !running) setPage((prev) => (prev === 'solve' ? 'animation' : prev))
+  }, [programSlots, running])
+
+  /**
+   * v1.1.16：跑动中（或还没有程序）时，导出入口一律禁用。
+   * 理由同自动跳页：那时 `programSlots` 可能是自愈的半成品，
+   * 导出去等于把"没收敛的代码"烧进一个看起来正式的 html。
+   */
+  const canExport = Boolean(programSlots) && !running
 
   return (
     <div className="min-h-screen">
@@ -57,7 +78,9 @@ export function App() {
               解题
               {running && <span className="ml-1 text-blue-600">●</span>}
             </NavButton>
-            <NavButton active={page === 'animation'} onClick={() => setPage('animation')} disabled={!programSlots}>
+            {/* ⚠ v1.1.16：跑的过程中**不许**进动画页 —— 那时 store 里放的可能是自愈的半成品，
+                模板一旦收下就锁死（见上面自动跳页那段注释）。 */}
+            <NavButton active={page === 'animation'} onClick={() => setPage('animation')} disabled={!programSlots || running}>
               动画
             </NavButton>
             {/* v1.1.9alpha：设置页是**唯一**的规则/知识入口（知识卡 / 提示词卡 / 本地规则卡 / AI 帮写）。 */}
@@ -71,16 +94,22 @@ export function App() {
             */}
             <details className="relative">
               <summary
-                className="inline-flex cursor-pointer list-none select-none items-center rounded-md px-3 py-1.5 font-sans text-sm font-normal text-slate-700 hover:bg-slate-100"
-                title="导出网页 / GIF（需先在动画页生成）"
+                className={`inline-flex list-none select-none items-center rounded-md px-3 py-1.5 font-sans text-sm font-normal ${
+                  running || !programSlots
+                    ? 'cursor-not-allowed text-slate-300'
+                    : 'cursor-pointer text-slate-700 hover:bg-slate-100'
+                }`}
+                title={running ? '还在跑，跑完再导出（自愈会改写动画代码）' : '导出网页 / GIF（需先在动画页生成）'}
               >
                 导出
               </summary>
               <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
                 <button
                   type="button"
-                  className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                  disabled={!canExport}
+                  className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
                   onClick={() => {
+                    if (!canExport) return
                     setPage('animation')
                     requestExport('page')
                   }}
@@ -90,8 +119,10 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                  disabled={!canExport}
+                  className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
                   onClick={() => {
+                    if (!canExport) return
                     setPage('animation')
                     requestExport('gif')
                   }}

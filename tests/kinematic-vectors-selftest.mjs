@@ -26,8 +26,9 @@ import {
   assembleProgramSource,
   sandboxBundle,
   KINEMATIC_ACC_H,
+  replayToCanvas,
 } from '../sdk/runtime/animation-runtime.mjs';
-import { renderQuestion } from './harness/canvas-harness.mjs';
+import { makeMockCanvas, renderQuestion } from './harness/canvas-harness.mjs';
 
 let passed = 0;
 const failures = [];
@@ -202,6 +203,61 @@ console.log('\n『E』播放路径：render() 与 sampleFrame() 同口径');
   const arrows = frame.records.filter((r) => r.op === 'arrow');
   check('★ 两条路径都只有本地 v/a（模型那支已过滤）', arrows.filter((r) => r.category === 'velocity').length === 1 && arrows.length === 2, String(arrows.length));
   check('加速度窗常量是 2ms（Hermite 之后收窄）', KINEMATIC_ACC_H === 2e-3, String(KINEMATIC_ACC_H));
+}
+
+console.log('\n『F』屏幕方向：世界 y 向上、屏幕 y 向下（竖直箭头必须翻 y）');
+
+{
+  /**
+   * 用户实测（2026-10-20）：v 向上时箭头朝下，水平箭头正常 —— 典型"只翻位置不翻方向"。
+   * 根因在 `drawArrow()`：`arrowDirection()` 给的是**世界**单位向量，却被直接加到
+   * **屏幕像素**上。这里用 mock canvas 直接量画出来的端点，不靠肉眼。
+   */
+  const canvas = makeMockCanvas(400, 300);
+  const ctx = canvas.getContext('2d');
+  const transform = {
+    scale: 40,
+    width: 400,
+    height: 300,
+    minX: -2,
+    maxX: 2,
+    minY: -2,
+    maxY: 2,
+    worldToScreen: (x, y) => ({ x: 200 + x * 40, y: 150 - y * 40 }),
+  };
+  const pointsOf = (vec) => {
+    canvas.__calls.length = 0;
+    replayToCanvas(
+      ctx,
+      [{ op: 'arrow', from: [0, 0], vec, mag: 1, category: 'velocity' }],
+      transform,
+      { grid: false, vectorMax: { velocity: 1 } },
+    );
+    return canvas.__calls
+      .filter((c) => c.op === 'moveTo' || c.op === 'lineTo')
+      .map((c) => ({ x: c.args[0], y: c.args[1] }));
+  };
+
+  const up = pointsOf([0, 1]);
+  check(
+    '★ 竖直箭头朝上（屏幕 y 变小；修复前会朝下）',
+    up.some((p) => p.y < 150 - 5) && !up.some((p) => p.y > 150 + 5),
+    JSON.stringify(up.slice(0, 4)),
+  );
+
+  const right = pointsOf([1, 0]);
+  check(
+    '水平箭头朝右（屏幕 x 变大）',
+    right.some((p) => p.x > 200 + 5) && !right.some((p) => p.x < 200 - 5),
+    JSON.stringify(right.slice(0, 4)),
+  );
+
+  const down = pointsOf([0, -1]);
+  check(
+    '竖直向下箭头朝下（反向同样正确）',
+    down.some((p) => p.y > 150 + 5) && !down.some((p) => p.y < 150 - 5),
+    JSON.stringify(down.slice(0, 4)),
+  );
 }
 
 console.log(`\n${failures.length ? '✗' : '✓'} 本地运动学矢量取证：通过 ${passed} 条，失败 ${failures.length} 条`);

@@ -411,6 +411,33 @@ export function createRulesService({
       });
     }
 
+    /**
+     * v1.1.16：**参考答案 / 解析**（可选）。
+     *
+     * 与题目图片同一个解码口径（dataURL → Buffer）；没有就是 `null`，
+     * 流水线见到 `null` 时走原来那套提示词 —— 这是"不勾选 = 行为不变"的保证。
+     */
+    const rawReference = body?.reference && typeof body.reference === 'object' ? body.reference : null;
+    const referenceText = typeof rawReference?.text === 'string' ? rawReference.text.trim() : '';
+    const rawRefImages = Array.isArray(rawReference?.images) ? rawReference.images : [];
+    const referenceImages = [];
+    for (let i = 0; i < rawRefImages.length; i += 1) {
+      const im = rawRefImages[i] ?? {};
+      const raw = String(im.dataUrl ?? im.data ?? '');
+      const m = /^data:([^;,]+);base64,(.*)$/s.exec(raw);
+      const mime = im.mime || m?.[1] || 'image/png';
+      const b64 = m ? m[2] : raw;
+      let data;
+      try {
+        data = Buffer.from(b64, 'base64');
+      } catch {
+        data = Buffer.alloc(0);
+      }
+      if (data.length === 0) continue;
+      referenceImages.push({ mime, data, name: im.name ?? `reference-${i + 1}` });
+    }
+    const reference = referenceText || referenceImages.length ? { text: referenceText, images: referenceImages } : null;
+
     const mode = body?.mode === 'SYMBOLIC' ? 'SYMBOLIC' : 'NUMERIC';
     if (!String(problem.text ?? '').trim() && images.length === 0) {
       return sendJson(res, 400, {
@@ -441,7 +468,7 @@ export function createRulesService({
         message: `端点「${endpoint.displayName ?? endpoint.id}」还没有 Key：在「⚙ 连接设置」里填一条并保存`,
       });
     }
-    if (images.length > 0 && !endpoint.supportsVision) {
+    if ((images.length > 0 || referenceImages.length > 0) && !endpoint.supportsVision) {
       return sendJson(res, 400, {
         ok: false,
         code: 'vision.unsupported',
@@ -562,6 +589,8 @@ export function createRulesService({
       const pipeline = runPipeline({
         problem: { text: String(problem.text ?? ''), images },
         images,
+        /* v1.1.16：没填解析就是 null ⇒ 流水线走旧提示词（行为与上一版逐字一致） */
+        ...(reference ? { reference } : {}),
         config,
         signal: ac.signal,
         /* 恒传包过的实现：默认就是真实网关，注入口（测试）也照样被记录 */

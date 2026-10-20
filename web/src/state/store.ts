@@ -70,6 +70,17 @@ export interface AppState {
   description: string
   knownConditions: string
   images: Array<{ mime: string; dataUrl: string; name?: string }>
+  /**
+   * v1.1.16：**老师提供的参考答案 / 解析**（可选）。
+   *
+   * 为什么要有它：模型的错绝大多数出在"解题"（漏约束、漏边界），
+   * 而老师手里本来就有标准解析。给了它，模型的任务就从"自己解题"
+   * 变成"照着解析整理过程 + 画动画" —— 把开放题变成填空题。
+   *
+   * ⚠ 有内容时才切到"参考解析"那套提示词；空着时流程与旧版**逐字一致**。
+   */
+  referenceText: string
+  referenceImages: Array<{ mime: string; dataUrl: string; name?: string }>
   mode: ProgramMode
   /**
    * 第 8 期：**开发模式（不拦截）**的开关（界面偏好，持久化到 localStorage）。
@@ -102,6 +113,10 @@ export interface AppState {
   setKnownConditions: (s: string) => void
   addImage: (i: { mime: string; dataUrl: string; name?: string }) => void
   removeImage: (index: number) => void
+  /** v1.1.16：参考答案（文字 / 图片）；与题目图片分开存，互不覆盖 */
+  setReferenceText: (s: string) => void
+  addReferenceImage: (i: { mime: string; dataUrl: string; name?: string }) => void
+  removeReferenceImage: (index: number) => void
   /** 第 8 期：切换开发模式（不拦截）；写 localStorage，下次进来还是这个状态 */
   setDevMode: (on: boolean) => void
   /** ⚠ 第 8 期：不再有 setMode（数值/符号按条目走，界面上的模式开关已删除） */
@@ -152,6 +167,8 @@ export const useApp = create<AppState>((set) => ({
   description: '',
   knownConditions: '',
   images: [],
+  referenceText: '',
+  referenceImages: [],
   mode: 'BOTH',
   /** 第 8 期：开发模式（不拦截）—— 记住上次的选择 */
   devMode: readDevMode(),
@@ -174,6 +191,9 @@ export const useApp = create<AppState>((set) => ({
   setKnownConditions: (s) => set({ knownConditions: s }),
   addImage: (i) => set((st) => ({ images: [...st.images, i] })),
   removeImage: (index) => set((st) => ({ images: st.images.filter((_, i) => i !== index) })),
+  setReferenceText: (s) => set({ referenceText: s }),
+  addReferenceImage: (i) => set((st) => ({ referenceImages: [...st.referenceImages, i] })),
+  removeReferenceImage: (index) => set((st) => ({ referenceImages: st.referenceImages.filter((_, i) => i !== index) })),
   setDevMode: (on) => {
     try {
       localStorage.setItem('od-dev-mode', on ? '1' : '0')

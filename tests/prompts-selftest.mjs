@@ -445,6 +445,41 @@ console.log('\n『G』数值与符号**不再是一个全局开关**（第 8 期
   );
 }
 
+/* ────────────────────────────── 『H』参考答案模式（v1.1.16） ────────────────────────────── */
+
+console.log('\n『H』参考答案 / 解析：不填时逐字不变，填了改成"按解析整理"（system 与 user 口径一致）');
+{
+  const solve = getPrompt('solve');
+  const problem = '一物块以初速度滑上 30° 斜面，求它回到出发点时的速度。';
+
+  check(
+    '★ 不填解析：用户消息与题面**逐字一致**（不勾选 = 行为不变）',
+    solve.buildUser({ problem }) === problem,
+  );
+  check(
+    '传了空对象也走旧路径（只判断"有没有内容"）',
+    solve.buildUser({ problem, reference: { text: '   ', images: [] } }) === problem,
+  );
+
+  /* system 与 user **各自一套、口径一致**：system 说"按解析整理"，user 只放材料 */
+  const refSystem = solve.systemWithReference;
+  check('解析模式有独立的 system（不是只在 user 里补一句）', typeof refSystem === 'string' && refSystem.length > 100);
+  check('解析模式的 system 明确"不要自己求解"', refSystem.includes('不要自己求解'));
+  check('解析模式的 system 要求数值照抄、不许更正', refSystem.includes('照抄') && refSystem.includes('不许“更正”'));
+  check('解析模式的 system 要求缺量写"解析未提供"', refSystem.includes('解析未提供'));
+  check('解析模式的 system 写明"对不上就输出标记并停"', refSystem.includes('【解析与题目不一致】'));
+  check('解析模式的 system 要求保留事件顺序（后面拆步骤要用）', refSystem.includes('事件顺序'));
+
+  const withRef = solve.buildUser({ problem, reference: { text: '(1) W_F = -10 J；(2) m_C = 3 kg', images: [] } });
+  check('解析模式的 user 包含解析原文', withRef.includes('(1) W_F = -10 J；(2) m_C = 3 kg'));
+  check('解析模式的 user 仍带上原题（对齐问法与符号）', withRef.includes(problem));
+  check('解析模式的 user 不再重复整套规矩（只指向本阶段口径）', withRef.includes('按本阶段的口径整理') && withRef.length < problem.length + 400);
+  check(
+    '★ 两种模式的 system 不同（否则等于没分叉）',
+    solve.system !== refSystem && solve.system.includes('完整解题过程'),
+  );
+}
+
 /* ────────────────────────────── 汇总 ────────────────────────────── */
 
 console.log(`\n${failures.length ? '✗' : '✓'} Prompt 系统取证：通过 ${passed} 条，失败 ${failures.length} 条`);

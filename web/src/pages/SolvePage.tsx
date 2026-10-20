@@ -30,6 +30,8 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
   const st = useApp()
   const { start, cancel } = useRun()
   const fileRef = useRef<HTMLInputElement>(null)
+  /** v1.1.16：解析图片的入口（与题目图片分开） */
+  const refFileRef = useRef<HTMLInputElement>(null)
   /** 第 8 期 A2：连接设置小窗（发布版没有设置页，只能从这里填地址与 Key） */
   const [connOpen, setConnOpen] = useState(false)
 
@@ -115,8 +117,30 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
     [],
   )
 
-  const steps = useMemo(() => parseRowTable(st.run.stageText.steps ?? ''), [st.run.stageText.steps])
+  /**
+   * v1.1.16：解析图片的读取。
+   * 与题目图片**同一套校验**（格式/大小），但存到另一处 —— 两者不能互相覆盖。
+   */
+  const addReferenceFiles = useCallback((files: FileList | null) => {
+    if (!files) return
+    for (const file of Array.from(files)) {
+      if (!ALLOWED_MIME.includes(file.type)) {
+        useApp.getState().failRun(`不支持的图片格式：${file.type || '(未知)'}（仅支持 PNG / JPEG / WebP / BMP）`)
+        continue
+      }
+      if (file.size > IMAGE_MAX_BYTES) {
+        useApp.getState().failRun(`图片 ${(file.size / 1024 / 1024).toFixed(1)} MB 超过 15 MB 上限`)
+        continue
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        useApp.getState().addReferenceImage({ mime: file.type, dataUrl: String(reader.result), name: file.name })
+      }
+      reader.readAsDataURL(file)
+    }
+  }, [])
 
+  const steps = useMemo(() => parseRowTable(st.run.stageText.steps ?? ''), [st.run.stageText.steps])
   /**
    * ⚠ 第 8 期修掉的 bug（用户实测）：**进页面就自动填入一道演示题**。
    *
@@ -247,6 +271,71 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
             onChange={(e) => st.setDescription(e.target.value)}
             placeholder="例：图中有倾角 30° 的斜面，底端接一段水平面，物块从斜面顶端开始下滑"
           />
+
+          {/*
+            ── v1.1.16：参考答案 / 解析（可选）──
+            有内容 ⇒ 解题阶段改成"按解析整理"，模型不再自己重算；
+            空着 ⇒ 与旧版完全一样（这一条很关键：老师可以随时对比两种模式）。
+          */}
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="reference">
+              参考答案 / 解析（可选）
+            </label>
+            <p className="mt-1 text-xs text-slate-500">
+              填了它，模型就<strong>不再自己解题</strong>，只按这份解析整理过程与答案。可以用文字，也可以贴解析图片。
+            </p>
+            <textarea
+              id="reference"
+              rows={4}
+              className="mt-2 w-full rounded-md border border-slate-300 p-2 text-sm"
+              value={st.referenceText}
+              onChange={(e) => st.setReferenceText(e.target.value)}
+              placeholder="例：(1) W_F = −10 J；(2) m_C = 3 kg，μ = 0.5；(3) 绳在 x = −0.5 m 处松弛，最左端 x_min ≈ −1.71 m"
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={!visionAvailable}
+                onClick={() => refFileRef.current?.click()}
+              >
+                选择解析图片
+              </button>
+              <span className="text-xs text-slate-500">
+                {visionAvailable ? '支持 PNG / JPEG / WebP / BMP，单张 ≤ 15 MB；解析图片只用于“解题”这一步' : visionReason}
+              </span>
+              <input
+                ref={refFileRef}
+                type="file"
+                accept={ALLOWED_MIME.join(',')}
+                multiple
+                className="hidden"
+                disabled={!visionAvailable}
+                onChange={(e) => addReferenceFiles(e.target.files)}
+              />
+            </div>
+            {st.referenceImages.length > 0 && (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {st.referenceImages.map((img, i) => (
+                  <li key={`ref-${img.name ?? 'img'}-${i}`} className="relative">
+                    <img
+                      src={img.dataUrl}
+                      alt={img.name ?? `解析图片 ${i + 1}`}
+                      className="h-20 w-20 rounded border object-cover"
+                    />
+                    <button
+                      type="button"
+                      aria-label={`移除解析图片 ${i + 1}`}
+                      className="absolute -right-1 -top-1 rounded-full bg-slate-800 px-1.5 text-xs text-white"
+                      onClick={() => st.removeReferenceImage(i)}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/*
             ⚠ 第 8 期：**「模式」下拉已删除**（用户 2026-10-18 裁决「合并数值与符号模式」）。
@@ -444,7 +533,46 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
           }
         />
 
-        {st.programSlots && (
+        {/* ── v1.1.16：**解析对照卡**（第三条规则）──
+            左边是老师原话，右边是模型抽出来的答案 —— 并排放，一眼能看出有没有被改。
+            只在这次填了解析时出现；没填就什么都不显示（旧路径零变化）。 */}
+        {(st.referenceText.trim() || st.referenceImages.length > 0) && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+            <p className="text-sm font-semibold text-sky-900">
+              本次按你提供的解析生成
+              <span className="ml-2 rounded bg-sky-200 px-1.5 py-0.5 text-[11px] font-normal text-sky-900">
+                来源：参考答案
+              </span>
+            </p>
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-sky-800">你提供的解析</p>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700">
+                  {st.referenceText.trim() || '（只提供了解析图片，没有文字）'}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-sky-800">模型抽取出的答案</p>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700">
+                  {st.run.stageText.answers?.trim() || '（还没有抽取到答案）'}
+                </pre>
+              </div>
+            </div>
+            {st.run.stageText.answers?.includes('解析未提供') && (
+              <p className="mt-2 rounded bg-amber-100 p-2 text-xs text-amber-900">
+                有解析没有覆盖到的量（文中标了“解析未提供”）—— 这些数需要你人工确认，模型没有被允许自己补。
+              </p>
+            )}
+            <p className="mt-2 text-[11px] text-sky-700">
+              左边是你的原文，右边是模型抽取的结果；两边不一致时<strong>以你的解析为准</strong>。
+            </p>
+          </div>
+        )}
+
+        {/* ⚠ v1.1.16：**跑动中不出现这个入口**。
+            自愈每一轮都会写 `programSlots`，中途放行等于让用户把半成品装进播放器
+            （模板第一次注入即锁死，后面修好的版本进不来）。判据与 App 的自动跳页一致：看 `running`。 */}
+        {st.programSlots && !st.run.running && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-4">
             <p className="text-sm text-green-900">动画已就绪。</p>
             <button
