@@ -34,6 +34,9 @@ ai-rules/keys.json
 
 # ── 用户层词条（用户自己的私有内容，不是源码）──
 ai-rules/knowledgecard/
+# 用户词表（新增元件/场景 + 本地开关）与写前备份
+ai-rules/vocab.json
+ai-rules/.backup/
 # 旧目录：v1.1.9alpha 只读兼容，升级时可能仍有旧包
 ai-rules/worldbook/
 

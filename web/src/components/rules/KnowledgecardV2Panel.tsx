@@ -48,9 +48,10 @@ export function KnowledgecardV2Panel() {
   const [vocabFormOpen, setVocabFormOpen] = useState(false)
   const [vocabKind, setVocabKind] = useState<'element' | 'scene'>('element')
   const [vocabForm, setVocabForm] = useState({ id: '', name: '', aliases: '', primitive: 'Draw.box' })
-  const [selectedVocab, setSelectedVocab] = useState<Set<string>>(() => new Set())
   const [vocabBusy, setVocabBusy] = useState(false)
   const [ioBusy, setIoBusy] = useState(false)
+  const [testElements, setTestElements] = useState<Set<string>>(() => new Set())
+  const [testScenes, setTestScenes] = useState<Set<string>>(() => new Set())
 
   const load = async () => {
     setLoading(true)
@@ -187,7 +188,6 @@ export function KnowledgecardV2Panel() {
         }
       }
       await api.saveKnowledgecardV2VocabState([...de], [...ds])
-      setSelectedVocab(new Set())
       await load()
       setNotice(enabled ? `已启用 ${keys.length} 个词条` : `已关闭 ${keys.length} 个词条（不会从词表删除）`)
     } catch (e) {
@@ -322,7 +322,25 @@ export function KnowledgecardV2Panel() {
     return [...(entry.elements ?? []).map((id) => `e:${id}`), ...(entry.scenes ?? []).map((id) => `s:${id}`)].some((k) => disabledKeys.has(k))
   }
 
-  if (loading) return <p className="rounded border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">正在读取 v2 知识卡库…</p>
+  const previewHits = useMemo(() => {
+    const rank: Record<V2CardKind, number> = { anim_rule: 0, element: 1, scene: 2 }
+    const entries = (lib?.entries ?? []).map((e) => (e.id === draft?.id ? draft : e)).filter((e) => e.enabled !== false)
+    const list = entries
+      .map((e) => {
+        let via: string | null = null
+        if (e.constant) via = '常驻'
+        else if (e.kind === 'element' && (e.elements ?? []).some((id) => testElements.has(id))) via = '元件命中'
+        else if (e.kind === 'scene' && (e.scenes ?? []).some((id) => testScenes.has(id))) via = '场景命中'
+        if (!via) return null
+        const chars = (e.content ?? '').length + (e.code_examples ?? []).join('').length
+        return { entry: e, via, chars }
+      })
+      .filter(Boolean) as Array<{ entry: V2Entry; via: string; chars: number }>
+    list.sort((a, b) => rank[a.entry.kind] - rank[b.entry.kind] || (a.entry.order ?? 100) - (b.entry.order ?? 100))
+    return { list, chars: list.reduce((n, x) => n + x.chars, 0) }
+  }, [lib, draft, testElements, testScenes])
+
+  if (loading) return <p className="rounded border border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">正在读取知识卡库…</p>
 
   if (error && !lib) {
     return (
@@ -343,9 +361,9 @@ export function KnowledgecardV2Panel() {
     <div className="space-y-3" data-od-region="knowledgecard-v2">
       <section className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-white px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">知识卡 v2（词表驱动）</h2>
+          <h2 className="text-sm font-semibold text-slate-900">知识卡</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            触发只来自词表：元件卡按 <code>elements</code>，场景卡按 <code>scenes</code>，动画规范卡常驻；不再有 keys。
+            触发只来自词表：元件卡按 <code>elements</code>，场景卡按 <code>scenes</code>，动画规范卡常驻。
           </p>
         </div>
         <div className="text-right text-[11px] text-slate-500">
@@ -358,10 +376,10 @@ export function KnowledgecardV2Panel() {
               新建卡
             </button>
             <button type="button" className="rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 disabled:opacity-40" disabled={ioBusy} onClick={() => void exportBundle()}>
-              导出 v2 包
+              导出知识卡包
             </button>
             <label className={`cursor-pointer rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 ${ioBusy ? 'opacity-40' : ''}`}>
-              导入 v2 包
+              导入知识卡包
               <input
                 type="file"
                 accept=".json,application/json"
@@ -520,7 +538,7 @@ export function KnowledgecardV2Panel() {
         </section>
 
         {/* 中：编辑 */}
-        <section className="lg:col-span-6 rounded border border-slate-200 bg-white p-4">
+        <section className="lg:col-span-9 rounded border border-slate-200 bg-white p-4">
           {draft ? (
             <>
               <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -663,50 +681,106 @@ export function KnowledgecardV2Panel() {
           )}
         </section>
 
-        {/* 右：词表 */}
-        <aside className="lg:col-span-3 rounded border border-slate-200 bg-white p-3">
+        {/* 实时试触发：不调模型，只用当前库 + 当前编辑中的草稿算命中 */}
+        <section className="lg:col-span-12 rounded border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xs font-semibold text-slate-800">实时试触发</h3>
+              <p className="mt-0.5 text-[10px] text-slate-500">
+                不调模型、不改磁盘：勾选模型可能判出的元件/场景，看当前库（含你正在编辑的这张）会命中谁、正文多少字。
+              </p>
+            </div>
+            {draft && (
+              <span className={`rounded px-2 py-0.5 text-[10px] ${previewHits.list.some((x) => x.entry.id === draft.id) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                当前编辑卡：{previewHits.list.some((x) => x.entry.id === draft.id) ? '会命中' : '不会命中'}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium text-slate-600">① 动画元件（可多选）</span>
+                <button type="button" className="text-[10px] text-slate-500 underline" onClick={() => setTestElements(new Set())}>
+                  清空
+                </button>
+              </div>
+              <div className="mt-1 grid max-h-36 grid-cols-2 gap-x-2 overflow-y-auto rounded border border-slate-100 p-1">
+                {(lib?.vocab.elements ?? []).filter((e) => e.enabled !== false).map((e) => (
+                  <label key={e.id} className="flex items-center gap-1 py-0.5 text-[10px] text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={testElements.has(e.id)}
+                      onChange={(ev) =>
+                        setTestElements((prev) => {
+                          const next = new Set(prev)
+                          if (ev.target.checked) next.add(e.id)
+                          else next.delete(e.id)
+                          return next
+                        })
+                      }
+                    />
+                    <code>{e.id}</code>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium text-slate-600">② 场景（最多 1 个）</span>
+                <button type="button" className="text-[10px] text-slate-500 underline" onClick={() => setTestScenes(new Set())}>
+                  清空
+                </button>
+              </div>
+              <div className="mt-1 max-h-36 overflow-y-auto rounded border border-slate-100 p-1">
+                {(lib?.vocab.scenes ?? []).filter((s) => s.enabled !== false).map((s) => (
+                  <label key={s.id} className="flex items-center gap-1 py-0.5 text-[10px] text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={testScenes.has(s.id)}
+                      onChange={(ev) => setTestScenes(ev.target.checked ? new Set([s.id]) : new Set())}
+                    />
+                    <code>{s.id}</code>
+                    <span className="text-slate-400">{s.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-600">
+            <span>
+              命中 <strong>{previewHits.list.length}</strong> 张 · 正文约 <strong>{previewHits.chars}</strong> 字
+            </span>
+            {isTriggerDisabled(draft) && <span className="rounded bg-amber-100 px-1 text-amber-800">当前卡触发已关闭</span>}
+          </div>
+
+          <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto rounded border border-slate-100 p-2 text-[10px]">
+            {previewHits.list.length === 0 && <li className="text-slate-400">（无命中；至少会命中 3 张常驻规范卡）</li>}
+            {previewHits.list.map((x) => (
+              <li key={x.entry.id} className="flex items-center gap-2">
+                <span className="w-16 shrink-0 text-slate-400">{x.via}</span>
+                <span className="truncate text-slate-700">{x.entry.title}</span>
+                <span className="ml-auto shrink-0 text-slate-400">{x.chars} 字</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* 词表与开关（放在编辑卡片下面） */}
+        <aside className="lg:col-span-12 rounded border border-slate-200 bg-white p-3">
           <h3 className="text-xs font-semibold text-slate-800">词表与开关</h3>
           <p className="mt-0.5 text-[10px] text-slate-500">
             关闭 = 只从 Prompt/触发里拿掉，不删词条；按当前章节/教学进度自由开关。
           </p>
 
-          <div className="mt-2 flex flex-wrap gap-1">
-            <button
-              type="button"
-              className="rounded border border-slate-300 px-2 py-0.5 text-[10px]"
-              onClick={() =>
-                setSelectedVocab(
-                  new Set([
-                    ...(lib?.vocab.elements ?? []).map((e) => `e:${e.id}`),
-                    ...(lib?.vocab.scenes ?? []).map((s) => `s:${s.id}`),
-                  ]),
-                )
-              }
-            >
-              全选
-            </button>
-            <button type="button" className="rounded border border-slate-300 px-2 py-0.5 text-[10px]" onClick={() => setSelectedVocab(new Set())}>
-              清空选择
-            </button>
-            <button
-              type="button"
-              className="rounded border border-emerald-300 px-2 py-0.5 text-[10px] text-emerald-700 disabled:opacity-40"
-              disabled={vocabBusy || selectedVocab.size === 0}
-              onClick={() => void applyVocabEnabled([...selectedVocab], true)}
-            >
-              批量启用
-            </button>
-            <button
-              type="button"
-              className="rounded border border-amber-300 px-2 py-0.5 text-[10px] text-amber-800 disabled:opacity-40"
-              disabled={vocabBusy || selectedVocab.size === 0}
-              onClick={() => void applyVocabEnabled([...selectedVocab], false)}
-            >
-              批量关闭
-            </button>
+          <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500">
+            逐个点右侧勾选框即可启用/关闭；不会删除词条。
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div>
             <div className="text-[10px] font-medium text-slate-600">动画元件（{lib?.vocab.elements.length ?? 0}）</div>
             <div className="mt-1 max-h-56 overflow-y-auto rounded border border-slate-100">
               {(lib?.vocab.elements ?? []).map((e) => {
@@ -715,18 +789,6 @@ export function KnowledgecardV2Panel() {
                 return (
                   <div key={e.id} className={`border-b border-slate-50 px-2 py-1 text-[10px] ${enabled ? '' : 'bg-slate-50 opacity-60'}`}>
                     <div className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedVocab.has(key)}
-                        onChange={(ev) =>
-                          setSelectedVocab((prev) => {
-                            const next = new Set(prev)
-                            if (ev.target.checked) next.add(key)
-                            else next.delete(key)
-                            return next
-                          })
-                        }
-                      />
                       <input
                         type="checkbox"
                         title={enabled ? '关闭（不删词条）' : '启用'}
@@ -761,18 +823,6 @@ export function KnowledgecardV2Panel() {
                     <div className="flex items-center gap-1">
                       <input
                         type="checkbox"
-                        checked={selectedVocab.has(key)}
-                        onChange={(ev) =>
-                          setSelectedVocab((prev) => {
-                            const next = new Set(prev)
-                            if (ev.target.checked) next.add(key)
-                            else next.delete(key)
-                            return next
-                          })
-                        }
-                      />
-                      <input
-                        type="checkbox"
                         title={enabled ? '关闭（不删词条）' : '启用'}
                         checked={enabled}
                         disabled={vocabBusy}
@@ -791,6 +841,7 @@ export function KnowledgecardV2Panel() {
                 )
               })}
             </div>
+          </div>
           </div>
 
           <details className="mt-3 rounded border border-slate-200 px-2 py-1.5" open={vocabFormOpen} onToggle={(e) => setVocabFormOpen((e.target as HTMLDetailsElement).open)}>

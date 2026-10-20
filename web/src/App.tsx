@@ -71,10 +71,10 @@ export function App() {
             */}
             <details className="relative">
               <summary
-                className="cursor-pointer list-none rounded-md px-3 py-1.5 text-sm text-slate-700 select-none hover:bg-slate-100"
+                className="inline-flex cursor-pointer list-none select-none items-center rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
                 title="导出网页 / GIF（需先在动画页生成）"
               >
-                导出 ▾
+                导出
               </summary>
               <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
                 <button

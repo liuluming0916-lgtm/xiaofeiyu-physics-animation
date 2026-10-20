@@ -10,7 +10,7 @@ import { CleaningPanel } from '../components/rules/CleaningPanel';
 import { KnowledgecardV2Panel } from '../components/rules/KnowledgecardV2Panel';
 import { PromptsPanel } from '../components/rules/PromptsPanel';
 const SETTINGS_TABS = [
-    { id: 'cardsV2', label: '知识卡 v2', hint: '词表驱动：元件 / 场景 / 动画规范' },
+    { id: 'cardsV2', label: '知识卡', hint: '元件 / 场景 / 动画规范；词表开关' },
     { id: 'prompts', label: '提示词卡', hint: '按阶段改模型指令；下一题生效' },
     { id: 'cleaning', label: '本地规则卡', hint: '模型输出后处理；内置 4 条锁定' },
     { id: 'ai', label: 'AI 帮写', hint: '生成卡片草稿；本轮只做占位' },
