@@ -105,7 +105,9 @@ import { EXPORT_DIR, exportPageToDisk, listExports, saveExportBinary } from '../
  */
 import { runPipeline } from '../core/orchestrator/pipeline.mjs';
 import { makeEvent, toSseFrame } from '../core/orchestrator/events.mjs';
-import { loadLibrary, migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
+import { migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
+import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
+import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -441,13 +443,20 @@ export function createRulesService({
       });
     }
 
-    /* 世界书：内置 + 用户（用户层永远落盘，打包形态下也一样） */
+    /* 知识卡：v2 库（无 keys，按 elements 触发）→ 适配成 v1 引擎形状。
+       ⚠ Phase 3 过渡：UI 仍写 v1 卡；v2 store 会自动迁移有 elements 的用户卡，
+          只有 keys 的用户卡会停用+报告。Phase 4 再把引擎/页面全切 v2。 */
     let knowledgecardEntries = [];
     try {
-      const lib = loadLibrary({ userDir: join(dir, 'knowledgecard') });
-      knowledgecardEntries = [...lib.builtin, ...lib.user];
-    } catch {
-      /* 世界书读不到不该让整道题失败 —— 它只是上下文增强 */
+      const lib = loadV2Library({
+        userDir: join(dir, 'knowledgecard'),
+        userVocabPath: join(dir, 'vocab.json'),
+      });
+      knowledgecardEntries = lib.entries.map(v2ToV1RuntimeEntry);
+      if (lib.problems.length) console.warn(`[knowledgecard v2] ${lib.problems.length} 条问题：${lib.problems.slice(0, 3).join('；')}`);
+      if (lib.migration.length) console.warn(`[knowledgecard v2] 迁移 ${lib.migration.length} 条用户卡`);
+    } catch (e) {
+      console.warn(`[knowledgecard v2] 载入失败，退化为空卡集：${e?.message ?? e}`);
     }
 
     const config = {

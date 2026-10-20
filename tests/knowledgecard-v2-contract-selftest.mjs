@@ -21,6 +21,8 @@ import { migrateEntryV1toV2, validateEntryV2 } from '../core/knowledgecard/v2/en
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
 import { buildJudgementVocabV2, parseJudgementV2 } from '../core/knowledgecard/v2/prompt.mjs';
 import { triggerKnowledgecardV2 } from '../core/knowledgecard/v2/runtime.mjs';
+import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
+import { triggerKnowledgecard } from '../core/knowledgecard/engine.mjs';
 
 const ROOT = join(import.meta.dirname, '..');
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
@@ -270,6 +272,24 @@ console.log('\n『F』v1 用户卡在 v2 库里的迁移');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+console.log('\n『G』Phase 3 过渡：v2 卡接进 v1 引擎');
+{
+  const lib = loadV2Library();
+  const v1Entries = lib.entries.map(v2ToV1RuntimeEntry);
+  const r = triggerKnowledgecard({
+    entries: v1Entries,
+    text: '水平传送带上的物块',
+    concepts: [],
+    tags: [],
+    elements: ['belt', 'block'],
+  });
+  const prov = r.provenance.map((p) => `${p.entry_id}:${p.via}`);
+  check(prov.includes('wb_el_belt:element') && prov.includes('wb_el_block:element'), 'v2 卡经适配器仍按 elements 命中', prov.join(' '));
+  check(!prov.some((p) => p.endsWith(':key')), '适配后没有 key 命中路径', prov.join(' '));
+  check(r.text.scene_code.includes('元件·传送带'), '传送带卡正文进了 v1 引擎拼接文本');
+  check(r.slots.solve.empty === true, 'solve 槽仍为空');
 }
 
 console.log(bad ? `\n✗ 知识卡 v2 契约自检失败 ${bad} 条` : '\n✓ 知识卡 v2 契约自检全部通过');
