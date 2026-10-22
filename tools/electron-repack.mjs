@@ -134,10 +134,31 @@ function smokeTest() {
   const exe = join(targetPkg, `${baseName}.exe`);
   const selftestOut = join(targetPkg, 'od-selftest.txt');
   rmSync(selftestOut, { force: true });
+  const smokeRoot = join(targetPkg, '.selftest');
+  rmSync(smokeRoot, { recursive: true, force: true });
+  mkdirSync(join(smokeRoot, 'temp'), { recursive: true });
   console.log('\n──────── ④ 冒烟（真 exe · --selftest）────────');
-  const r = spawnSync(exe, [], {
+  /**
+   * ⚠ 必须清掉 `ELECTRON_RUN_AS_NODE`。
+   *   DSH / 某些开发环境会把它设为 1；此时 Electron exe 会按 **Node** 运行，
+   *   无参数时直接 exit 0 —— 冒烟会"绿着但根本没启动应用"（v1.1.17 首包踩过）。
+   * ⚠ 路径覆盖到程序目录：受限环境里 `%APPDATA%` /「文档」可能不可写。
+   */
+  const env = {
+    ...process.env,
+    OD_SELFTEST: '1',
+    OD_SELFTEST_OUT: selftestOut,
+    OD_USER_DATA_DIR: join(smokeRoot, 'userdata'),
+    OD_DOCUMENTS_DIR: join(smokeRoot, 'documents'),
+    OD_CRASH_DIR: join(smokeRoot, 'crash'),
+    OD_DISABLE_CRASH_REPORTER: '1',
+    TEMP: join(smokeRoot, 'temp'),
+    TMP: join(smokeRoot, 'temp'),
+  };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const r = spawnSync(exe, ['--no-sandbox', '--disable-gpu'], {
     cwd: targetPkg,
-    env: { ...process.env, OD_SELFTEST: '1', OD_SELFTEST_OUT: selftestOut },
+    env,
     stdio: 'inherit',
     timeout: 180_000,
   });
@@ -146,16 +167,25 @@ function smokeTest() {
     throw new Error(`冒烟失败（exit ${r.status}）—— 先修，别压缩`);
   }
   /* GUI 进程的 stdout 在 Windows 上抓不到，自检结果由主进程落一份到程序目录 */
+  let txt;
   try {
-    const txt = readFileSync(selftestOut, 'utf8');
-    for (const line of txt.trim().split(/\r?\n/)) console.log(`    ${line}`);
+    txt = readFileSync(selftestOut, 'utf8');
   } catch {
-    try {
-      const txt = readFileSync(join(process.env.TEMP || process.env.TMP || '.', 'od-selftest.txt'), 'utf8');
-      for (const line of txt.trim().split(/\r?\n/)) console.log(`    ${line}`);
-    } catch {}
+    throw new Error(
+      `冒烟没有产出自检结果（${selftestOut}）—— 很可能 exe 根本没跑起来（ELECTRON_RUN_AS_NODE / 崩溃），不能算通过`,
+    );
   }
+  for (const line of txt.trim().split(/\r?\n/)) console.log(`    ${line}`);
   rmSync(selftestOut, { force: true });
+
+  /* 自检的布尔项就是判据：别只看退出码（--selftest 设计上不因账本降级而退出非 0） */
+  if (!/worker=true/.test(txt)) throw new Error('冒烟失败：Worker 沙箱不可用（worker=false）');
+  if (!/index=true/.test(txt)) throw new Error('冒烟失败：首页取不到（index=false）');
+  if (!/payload=app\.asar/.test(txt)) throw new Error('冒烟失败：载荷形态不是 app.asar');
+  if (/history=false/.test(txt)) {
+    console.warn('  ⚠ 账本降级（history=false）—— 多为 Electron 33 的 Node-API 9 与 better-sqlite3 13（N-API 10）不兼容；不影响导出');
+  }
+  rmSync(smokeRoot, { recursive: true, force: true });
   console.log('  ✓ 冒烟通过（服务 / 首页 / 账本 / Worker）');
 }
 

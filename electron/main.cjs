@@ -35,6 +35,28 @@ const APP_ROOT = path.join(__dirname, '..');
 const DIST_INDEX = path.join(APP_ROOT, 'web', 'dist', 'index.html');
 
 /**
+ * 自动化 / 冒烟用的路径覆盖（打包脚本的 `--selftest` 会把它们指到程序目录下）。
+ *
+ * 为什么需要：CI / 受限运行环境里 `%APPDATA%` 与「文档」可能不可写；
+ * 让 Electron 能在沙箱里跑完自检，而不是因为写不了 Crashpad 就 0xC0000005。
+ * 生产运行不设这些变量 ⇒ 行为与以前完全一致。
+ */
+for (const [envName, kind] of [
+  ['OD_USER_DATA_DIR', 'userData'],
+  ['OD_DOCUMENTS_DIR', 'documents'],
+  ['OD_CRASH_DIR', 'crashDumps'],
+]) {
+  const dir = process.env[envName];
+  if (!dir) continue;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    app.setPath(kind, dir);
+  } catch {
+    /* 覆盖失败不阻塞启动，后续仍走默认路径 */
+  }
+}
+
+/**
  * ── 第 9 期：**导出物要放到人找得到的地方** ──
  *
  * 原来的导出目录是 `userData/data/exports`（`%APPDATA%\physics-animation-studio\data\exports`）——
@@ -84,12 +106,20 @@ let service = null;
  * 下次至少能拿到"是哪个进程、哪个模块"死的，而不是又一句"日志空白"。
  *
  * ⚠ `uploadToServer: false`：**绝不上传**，dump 只留在本机给排障用。
+ *
+ * ⚠ `OD_DISABLE_CRASH_REPORTER=1`：只给**受限环境下的 headless 冒烟**用。
+ *   crashpad 需要启动一个子进程并开命名管道；DSH 等沙箱会拒绝（0x5 / platform_channel），
+ *   导致 exe 还没跑到业务代码就退出。生产运行不设这个变量。
  */
-try {
-  crashReporter.start({ uploadToServer: false, compress: false });
-  logLine(`crashReporter started · dir=${app.getPath('userData')}\\Crashpad`);
-} catch (err) {
-  logLine(`crashReporter 启动失败（不影响运行）：${err && err.message ? err.message : String(err)}`);
+if (process.env.OD_DISABLE_CRASH_REPORTER === '1') {
+  logLine('crashReporter skipped（OD_DISABLE_CRASH_REPORTER=1，仅冒烟用）');
+} else {
+  try {
+    crashReporter.start({ uploadToServer: false, compress: false });
+    logLine(`crashReporter started · dir=${app.getPath('userData')}\\Crashpad`);
+  } catch (err) {
+    logLine(`crashReporter 启动失败（不影响运行）：${err && err.message ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -462,9 +492,21 @@ if (!gotLock) {
             'utf8',
           );
         } catch {}
+        /**
+         * v1.1.17 修复：Electron 33 是 Node-API 9，better-sqlite3 13 要求 10。
+         * 账本降级（history.driver-missing）是**已知且可接受**的；
+         * 不能因此把整个自检判失败，否则冒烟永远红、发布被卡死。
+         * 其它账本错误（打不开、表结构坏）仍然算失败。
+         */
+        const historyDegraded = /history\.driver-missing/.test(historyNote);
         const ok = Boolean(
-          health && health.ok !== false && indexHtml.includes('<div id="root"') && historyOk && workerOk,
+          health &&
+            health.ok !== false &&
+            indexHtml.includes('<div id="root"') &&
+            (historyOk || historyDegraded) &&
+            workerOk,
         );
+        if (historyDegraded) logLine('selftest: 账本降级（Node-API < 10），不影响导出');
         await service.close();
         service = null;
         app.exit(ok ? 0 : 1);

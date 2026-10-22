@@ -276,6 +276,30 @@ async function main() {
         JSON.stringify((renamed.issues ?? []).map((i) => i.code)),
       );
 
+      /* v1.1.17：v6 把 answers / steps 换成 analysis / breakdown，旧用户配置必须还能打开 */
+      legacyFile.stageModels = { answers: 'ep_local', steps: 'ep_local', solve: null };
+      writeFileSync(join(dir, 'endpoints.json'), `${JSON.stringify(legacyFile, null, 2)}\n`, 'utf8');
+      const v6Renamed = loadEndpointStore({ dir });
+      check(
+        '旧 stageModels.answers / steps 读时迁移为 analysis / breakdown（值保留，不报 unknown-stage）',
+        v6Renamed.ok === true &&
+          v6Renamed.stageModels.analysis === 'ep_local' &&
+          v6Renamed.stageModels.breakdown === 'ep_local' &&
+          !('answers' in v6Renamed.stageModels) &&
+          !('steps' in v6Renamed.stageModels) &&
+          v6Renamed.warnings.filter((w) => w.code === 'endpoints.legacy-stage-migrated').length >= 2,
+        JSON.stringify((v6Renamed.issues ?? []).map((i) => i.code)),
+      );
+
+      /* 保存旧键时也要迁移，不能写回磁盘 */
+      const v6Save = saveEndpoints({ dir, endpoints: [endpoint()], stageModels: { answers: 'ep_local', steps: 'ep_local' } });
+      const savedText = readFileSync(join(dir, 'endpoints.json'), 'utf8');
+      check(
+        '旧 stageModels.answers / steps 保存时被改名为 analysis / breakdown（旧键不写回）',
+        v6Save.ok === true && !savedText.includes('"answers"') && !savedText.includes('"steps"') && savedText.includes('"analysis"') && savedText.includes('"breakdown"'),
+        JSON.stringify((v6Save.issues ?? []).map((i) => i.code)),
+      );
+
       // 合法：全部通过
       const ok = saveEndpoints({ dir, endpoints: [endpoint({ supportsVision: true })], stageModels: { solve: null } });
       check('（对照）合法配置能保存', ok.ok === true, JSON.stringify(ok.issues));

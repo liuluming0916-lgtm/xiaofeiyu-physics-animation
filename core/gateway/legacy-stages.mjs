@@ -1,9 +1,11 @@
 /**
- * 旧 `stageModels` 键的**读时迁移**（v1.1.9alpha）。
+ * 旧 `stageModels` 键的**读时迁移**。
  *
- * 两类：
+ * 三类：
  *   · `distill`：功能删除，**丢弃**；
- *   · `worldbook`：阶段改名为 `knowledgecard`，**改名保留值**。
+ *   · `worldbook`：阶段改名为 `knowledgecard`，**改名保留值**；
+ *   · v6（v1.1.17）链路把 `answers / steps` 换成 `analysis / breakdown`，
+ *     **改名保留值**（旧用户配置里的端点指向继续有效）。
  *
  * 口径：
  *   · 只动这些已知旧键，其它字段原样保留；
@@ -15,6 +17,8 @@
 export const LEGACY_STAGE_MODELS = Object.freeze({
   distill: { action: 'drop', reason: '教辅蒸馏功能已在 v1.1.9alpha 删除，这个阶段不再存在' },
   worldbook: { action: 'rename', to: 'knowledgecard', reason: '世界书已改名为知识卡（knowledgecard）' },
+  answers: { action: 'rename', to: 'analysis', reason: 'v6 链路用 analysis（物理分析）取代 answers（答案抽取）' },
+  steps: { action: 'rename', to: 'breakdown', reason: 'v6 链路用 breakdown（分步讲解）取代 steps（分步解析）' },
 });
 
 /**

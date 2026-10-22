@@ -118,18 +118,40 @@ function main() {
 
   const selftestOut = join(APP_DIR, 'od-selftest.txt');
   rmSync(selftestOut, { force: true });
-  const self = spawnSync(dstExe, [], {
+  const smokeRoot = join(APP_DIR, '.selftest');
+  rmSync(smokeRoot, { recursive: true, force: true });
+  mkdirSync(join(smokeRoot, 'temp'), { recursive: true });
+  /* ⚠ 清 ELECTRON_RUN_AS_NODE：否则 exe 按 Node 跑、直接 exit 0，冒烟是假绿 */
+  const selfEnv = {
+    ...process.env,
+    OD_SELFTEST: '1',
+    OD_SELFTEST_OUT: selftestOut,
+    OD_USER_DATA_DIR: join(smokeRoot, 'userdata'),
+    OD_DOCUMENTS_DIR: join(smokeRoot, 'documents'),
+    OD_CRASH_DIR: join(smokeRoot, 'crash'),
+    OD_DISABLE_CRASH_REPORTER: '1',
+    TEMP: join(smokeRoot, 'temp'),
+    TMP: join(smokeRoot, 'temp'),
+  };
+  delete selfEnv.ELECTRON_RUN_AS_NODE;
+  const self = spawnSync(dstExe, ['--no-sandbox', '--disable-gpu'], {
     cwd: APP_DIR,
-    env: { ...process.env, OD_SELFTEST: '1', OD_SELFTEST_OUT: selftestOut },
+    env: selfEnv,
     stdio: 'inherit',
     timeout: 180_000,
   });
   if (self.status !== 0) throw new Error(`自检失败（exit ${self.status}）`);
+  let selfTxt;
   try {
-    const txt = readFileSync(selftestOut, 'utf8');
-    for (const line of txt.trim().split(/\r?\n/)) console.log(`    ${line}`);
-  } catch {}
+    selfTxt = readFileSync(selftestOut, 'utf8');
+  } catch {
+    throw new Error(`自检没有产出结果（${selftestOut}）—— exe 没真正跑起来`);
+  }
+  for (const line of selfTxt.trim().split(/\r?\n/)) console.log(`    ${line}`);
+  if (!/worker=true/.test(selfTxt)) throw new Error('自检失败：Worker 沙箱不可用（worker=false）');
+  if (!/payload=app\.asar/.test(selfTxt)) throw new Error('自检失败：载荷形态不是 app.asar');
   rmSync(selftestOut, { force: true });
+  rmSync(smokeRoot, { recursive: true, force: true });
   console.log('  ✓ 自检通过（服务 / 首页 / 账本 / Worker）');
 
   /**

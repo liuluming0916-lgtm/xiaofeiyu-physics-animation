@@ -18,11 +18,13 @@
   "stageModels": {
     "read_problem": "default",
     "solve": "default",
+    "breakdown": "default",
+    "analysis": "default",
     "scene_code": "default",
     "dry_run": "default",
     "repair": "default",
-    "worldbook": "default",
-    "distill": "default"
+    "couple": "default",
+    "knowledgecard": "default"
   },
   "keys": {}
 }

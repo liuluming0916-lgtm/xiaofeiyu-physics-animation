@@ -37,14 +37,31 @@ import { collectSecrets, redactValue } from '../security/index.mjs';
  *   `better-sqlite3` 是**原生模块**，装不上时 `import` 会在模块链接阶段直接抛错 ——
  *   那会让"整个应用启动就崩"，连"优雅降级并说明原因"的机会都没有。
  *   用 CJS 的 `require` 包在 try 里，失败就得到一个 null，后面报 `history.driver-missing`。
+ *
+ * ⚠ **Node-API 版本闸门（v1.1.17 首包事故）**
+ *   better-sqlite3 13 的预编译产物是 **Node-API 10**；Electron 33 内嵌 Node 20.18，
+ *   只支持到 **Node-API 9**。`require()` 它不是抛一个可 catch 的 JS 异常，而是
+ *   **原生层直接 0xC0000005 崩溃**（用户实测：启动/自检时进程消失）。
+ *   所以必须在 require **之前**按 `process.versions.napi` 拦掉；
+ *   历史/审计功能降级（`history.driver-missing`），应用其余部分照常启动。
+ *   要恢复账本：换 Electron 35+（Node 22，N-API 10）或换 better-sqlite3 12 的 N-API 9 产物。
  */
 const requireCjs = createRequire(import.meta.url);
+const REQUIRED_NAPI = 10;
 let SqliteCtor = null;
 let driverError = null;
-try {
-  SqliteCtor = requireCjs('better-sqlite3');
-} catch (e) {
-  driverError = String(e?.message ?? e);
+const napiVersion = Number(process.versions?.napi ?? 0);
+if (!(napiVersion >= REQUIRED_NAPI)) {
+  driverError =
+    `当前运行时 Node-API ${napiVersion || '未知'} 低于 better-sqlite3 13 要求的 ${REQUIRED_NAPI}` +
+    `（Electron ${process.versions?.electron ?? '-'} / Node ${process.versions?.node ?? '-'}）；` +
+    '历史与审计降级为不可用，导出不受影响';
+} else {
+  try {
+    SqliteCtor = requireCjs('better-sqlite3');
+  } catch (e) {
+    driverError = String(e?.message ?? e);
+  }
 }
 
 /**
