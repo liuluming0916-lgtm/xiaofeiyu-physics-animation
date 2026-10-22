@@ -1,9 +1,9 @@
 {
   "name": "physics-animation-studio",
-  "version": "1.1.16",
+  "version": "1.1.17",
   "private": true,
   "type": "module",
-  "description": "物理解题动画软件 v1.1.16 · 解题 → 动画 → 导出（知识卡 v2；教师可填参考答案/解析，模型按解析整理；读题可裁出示意图注入动画；画布不写数值，v/a 由运行时求导绘制；发布载荷封装为 app.asar）",
+  "description": "物理解题动画软件 v1.1.17 · 解题 → 动画 → 导出（v6 链路：读题/解题/物理分析后只写 drawFrame；固定 10×6 舞台；每小问 4 秒；知识卡 v2；发布载荷封装为 app.asar）",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=20"
@@ -44,7 +44,7 @@
   "build": {
     "appId": "com.od.physics-animation",
     "productName": "物理解题动画",
-    "copyright": "v1.1.16 · 自研",
+    "copyright": "v1.1.17 · 自研",
     "directories": {
       "output": "release",
       "buildResources": "electron/resources"

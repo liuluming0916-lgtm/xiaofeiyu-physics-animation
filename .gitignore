@@ -21,6 +21,8 @@ release/
 web/dist/
 template/build/
 *.zip
+# 卡片快照是生成物（tools/_build-current-cards.mjs），需要时现生成
+docs/plans/当前卡片快照.md
 
 # ── 运行期数据 ──
 exports/
@@ -46,6 +48,8 @@ ai-rules/worldbook/
 测试用题目/
 _retired-worldbook/
 表情包参考/
+# 表情包源图（3×3 拼图；web/public/fish/ 的 webp 由它裁出，源图不入库）
+表情包.png
 data/_s59-forces/
 
 # ── 本机缓存与工具目录 ──

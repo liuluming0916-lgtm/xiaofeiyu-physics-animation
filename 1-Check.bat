@@ -6,7 +6,7 @@ echo ============================================================
 echo   Physics Animation - Full Check
 echo ============================================================
 echo.
-echo   This runs all 48 checks. It takes about 2-3 minutes.
+echo   This runs all 58 checks. It takes about 2-3 minutes.
 echo   Just wait. When it stops, look for the RESULT box below.
 echo.
 echo   Press any key to start...
