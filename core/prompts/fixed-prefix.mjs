@@ -29,11 +29,11 @@ import {
 import { buildSlotConditional, renderEntryBlock } from '../knowledgecard/engine.mjs';
 import { ROLE_AND_OUTPUT_RULES, STAGE_ROLES } from './templates.mjs';
 
-/** 会写代码、需要 8 槽位骨架与 SDK 清单的阶段（其余阶段只吃"角色 + 输出纪律"） */
+/** 会写代码、需要 SDK 清单的阶段 */
 const CODE_STAGES = new Set(['scene_code', 'repair']);
 
 /** 有自己前缀的阶段（顺序固定 ⇒ 哈希可复现） */
-export const PREFIX_STAGES = Object.freeze(['read_problem', 'read_problem_v2', 'solve', 'steps', 'answers', 'scene_code', 'repair']);
+export const PREFIX_STAGES = Object.freeze(['read_problem', 'read_problem_v2', 'solve', 'breakdown', 'analysis', 'scene_code', 'repair', 'couple']);
 
 /** SDK 签名摘要的落点（由 `sdk/generate-signature-summary.mjs` 生成；门禁 ② 保证它与 SDK 导出面一致） */
 const SIGNATURE_SUMMARY_PATH = join(PROJECT_ROOT, 'sdk', 'signature-summary.md');
@@ -88,7 +88,8 @@ function partsFor(stage) {
   const withCode = CODE_STAGES.has(key);
   return {
     role,
-    skeleton: withCode ? buildTemplateSkeleton() : '',
+    // 新链路 scene_code / repair 都只写 drawFrame，不再需要 8 槽位骨架；只保留 SDK 摘要
+    skeleton: '',
     sdk: withCode ? loadSignatureSummary() : '',
   };
 }
@@ -122,7 +123,7 @@ export function promptHashValue() {
 /**
  * **某一阶段的前缀**（不含任何题目信息）。
  *
- * @param {'read_problem'|'solve'|'steps'|'answers'|'scene_code'|'repair'} [stage] 省略 = 完整前缀（等同 scene_code）
+ * @param {'read_problem'|'read_problem_v2'|'solve'|'breakdown'|'analysis'|'scene_code'|'repair'} [stage] 省略 = 完整前缀（等同 scene_code）
  * @returns {{ stage: string, text: string, parts: { role: string, skeleton: string, sdk: string }, promptHash: string }}
  */
 export function buildStagePrefix(stage = 'scene_code') {
@@ -229,19 +230,7 @@ export function buildTaskSegment(input) {
  * }}
  */
 /**
- * ── 第 8 期：**取消 `mode` 分叉**（用户 2026-10-18 裁决「合并数值与符号模式」）──
- *
- * 历史：第 8 期曾让 `NUMERIC` / `SYMBOLIC` 在任务段说两套话（"每项必须给数值" / "value 必须是 null"）。
- * 现在取消，理由（用户判断，经核对成立）：
- *
- *   · **判据层早就是按条目的** —— C7 只做一件事：`value` 是数字就数值比对，是 `null` 就要求 `latex`。
- *     它从来不看全局 mode。所以"这题是数值还是符号"本来就该**按条**表达，不需要一个全局开关；
- *   · 全局开关的代价是**用户必须先判对题型**：判错了（或题目一问数值一问符号）就一路错到底；
- *   · 而且它只在提示词里说话，判据里没有对应门禁 —— 也就是"一个只在措辞上生效的开关"。
- *
- * 取代它的是一条**逐条**（更严、更准）的规则，写在 `answers` 阶段的 Prompt 里：
- *   `ANSWERS` 每条：`value`（数值）或 `latex`（符号）**至少给一个**，两个都给最好。
- * 这样"数值题不许靠声明符号蒙混"从"全局措辞"变成了"每一条都要交代"。
+ * `mode` 恒为 `'BOTH'`：v6 已没有全局“数值/符号”开关，字段保留只为让报告/历史/导出形状不漂。
  */
 export function assemblePrompt({
   problem,
@@ -278,9 +267,8 @@ export function assemblePrompt({
     promptHash: prefix.promptHash,
     prefixBytes: Buffer.byteLength(prefix.text, 'utf8'),
     /**
-     * 第 8 期起恒为 `'BOTH'`：数值与符号**不再是一个全局开关**，而是按条目表达
-     * （`ANSWERS` 每项 `value` 或 `latex` 至少给一个，C7 逐条判）。
-     * 字段保留只为让报告/历史/导出的既有形状不漂。
+     * v6：恒为 `'BOTH'`（不再有全局数值/符号开关）。
+     * 字段保留只为让报告、历史与导出的既有形状不漂。
      */
     mode: 'BOTH',
     segments: {

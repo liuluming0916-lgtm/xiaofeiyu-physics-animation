@@ -40,34 +40,37 @@ export const PROMPT_REQUIREMENTS = Object.freeze({
   read_problem: {
     errors: [
       {
-        token: '【考点】',
-        why: '这是世界书按考点抽解题卡片的入口。删掉后判定解析拿不到考点，整套检索会静默退化成"按字面碰字"——题目照样跑完，只是卡片抽错',
-      },
-      {
         token: '【动画元件】',
         why: '动画卡片靠这一行分发。删掉后图里画了弹簧/传送带也不会抽出对应规范（第 5.7 期修的就是这个洞）',
       },
     ],
     warnings: [
-      { token: '【题型】', why: '没有细分题型，解题卡片只能按考点粗抽（精度下降，但不会抽错）' },
       { token: '【判定依据】', why: '没有依据，人工复核时看不出这次判定靠不靠谱' },
-      { token: '词表', times: 2, why: '词表是判定的唯一取值来源；正文里几乎不提它，模型很容易开始自造考点名' },
+      { token: '词表', why: '词表是判定的唯一取值来源；正文里几乎不提它，模型很容易开始自造元件名' },
     ],
   },
-  answers: {
+  /**
+   * v2 读题是默认链路（`knowledgecardVersion: 2`）。它不再输出【考点】/【题型】，
+   * 只判【动画元件】/【场景】/【判定依据】。这三段缺任何一段，v2 引擎都会抽不到卡。
+   */
+  read_problem_v2: {
+    errors: [
+      { token: '【动画元件】', why: '元件卡靠这一段分发；缺了就等于所有元件卡都不触发' },
+      { token: '【场景】', why: '场景卡靠这一段分发；缺了场景卡永远不触发（当前场景卡 0 张，但字段必须保留）' },
+    ],
     warnings: [
-      { token: 'symbol', why: '答案抽取的结构靠这几个字段名；改了字段名，下游按 symbol/value 读的地方会读空' },
-      { token: 'unit', why: '没有单位，动画里的读数复现会对不上' },
+      { token: '【判定依据】', why: '没有依据，人工复核时看不出这次判定靠不靠谱' },
+      { token: '词表', times: 2, why: '两份词表（元件 / 场景）是判定的唯一取值来源；正文里几乎不提它，模型很容易自造 id' },
     ],
   },
-  steps: {
+  breakdown: {
     warnings: [
-      { token: 't0', why: '时间锚点 t0 是步骤联动的依据（§13.4），缺了动画时间轴无法对齐' },
-      { token: 't1', why: '时间锚点 t1 同上' },
+      { token: 'title', why: '每步标题是页签读取的字段；缺了页签会退化成“第 N 步”' },
+      { token: 'tex', why: '讲解正文是学生看到的内容；缺了页签只剩标题' },
     ],
   },
   scene_code: {
-    warnings: [{ token: '槽位', why: '槽位标记协议是硬契约；正文里完全不提它，模型很容易开始写解释性文字' }],
+    warnings: [{ token: 'drawFrame', why: '这一阶段只写 drawFrame；正文里完全不提它，模型很容易又去写别的槽位' }],
   },
   solve: {
     warnings: [{ token: '单位', why: '结论必须带单位，否则答案抽取与读数复现都会缺一块' }],
@@ -75,6 +78,16 @@ export const PROMPT_REQUIREMENTS = Object.freeze({
   repair: {
     warnings: [
       { token: '只', why: '自愈的铁律是"只改被点名的槽位"；正文里连"只"都不提，模型很可能重写整段' },
+    ],
+  },
+  analysis: {
+    warnings: [
+      { token: 'MOTIONS', why: '解析器按「元件运动表 (MOTIONS)」这个区块认表；缺了会直接 analysis.invalid' },
+    ],
+  },
+  couple: {
+    warnings: [
+      { token: 'step', why: '耦合结果按 step / t0 / t1 行式表解析；缺了 step 会整表退回均分' },
     ],
   },
 });
@@ -222,17 +235,3 @@ export function diffSummary(oldText, newText) {
   const removed = d.filter((x) => x.type === 'del').length;
   return { added, removed, lines: d, changed: added + removed };
 }
-
-/**
- * 答案结构模板的**嵌入点**。
- *
- * §10.1 把"答案结构模板"列成一份可编辑文本，但它在代码里是**嵌在 `answers` 正文中**的一段
- * （`PROMPTS.answers.system` 由数组 join 而成，其中一项就是它）。因此覆盖它不能靠"多一个文件"
- * 单独生效，只能**在内置 `answers` 正文里把那段换掉**。
- *
- * 这就是为什么编辑器里它单独一组、并明确写"只有在你没有整体覆盖 answers 时才生效"——
- * 两个覆盖同时存在时，整份覆盖赢（否则"我明明整份改了，怎么还冒出一段别人的字"）。
- *
- * ⚠ id 的**唯一定义**在 `templates.mjs`（它同时持有那段正文），这里只转出，不另写一份字面量。
- */
-export { ANSWER_STRUCTURE_PROMPT_ID } from './templates.mjs';

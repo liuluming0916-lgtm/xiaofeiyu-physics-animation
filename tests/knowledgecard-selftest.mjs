@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 世界书取证（第 5 期 · 门禁 ㉒）。
+ * 知识卡取证（第 5 期 · 门禁 ㉒）。
  *
  * 覆盖 README §16.2 的 **W1–W15** 逐条正反例，外加两类"接线"判据：
  *
@@ -67,6 +67,7 @@ import { prepareKnowledgecard } from '../core/knowledgecard/index.mjs';
 import { lintSlot } from '../core/lint/contract-lint.mjs';
 import { assemblePrompt, buildFixedPrefix, buildStagePrefix, getPrompt } from '../core/prompts/index.mjs';
 import { snapshotConfig, runPipeline } from '../core/orchestrator/pipeline.mjs';
+import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { CONTRACT_SPECS } from '../contracts/spec/contract-fields.mjs';
 import { assertContractInvariants } from '../contracts/_compile.mjs';
 import { ENGINE_OUT, ENGINE_SRC, expectedEngineCopy } from '../tools/build-knowledgecard-web.mjs';
@@ -122,7 +123,7 @@ const injectedIds = (r, slot) => r.slots[slot].injected.map((i) => i.id);
 /** 单条词条是否命中（W2 用得最多的一句话） */
 const secondary = (e, text) => triggerKnowledgecard({ entries: [e], text }).provenance.length === 1;
 
-console.log('世界书取证（第 5 期 · 门禁 ㉒）\n');
+console.log('知识卡取证（第 5 期 · 门禁 ㉒）\n');
 
 /* ══════════════════════════ W1 主键 ══════════════════════════ */
 
@@ -954,13 +955,18 @@ console.log('\n『X』接线：每题快照 / knowledgecard_done 事件 / proven
    * 于是这里改成两条**更该守**的断言：解题阶段不带词条，但**带着自己的规范**。
    */
   check('solve 阶段**不再**带世界书词条（规范已改为阶段契约）', !sysOf('solve').includes('【世界书·'), sysOf('solve').slice(0, 80));
-  check('solve 阶段确实带上了自己的公式规范（搬过去的那 6 条）', sysOf('solve').includes('规范·符号、单位与正方向') && sysOf('solve').includes('规范·量纲与极限自检'));
+  check(
+    'solve 阶段确实带上了自己的公式规范（v1.1.17 起是 5 条，量纲那一节已删）',
+    sysOf('solve').includes('规范·符号、单位与正方向')
+      && sysOf('solve').includes('规范·临界与极值')
+      && !sysOf('solve').includes('规范·量纲与极限自检'),
+  );
   check('scene_code 阶段带世界书词条', sysOf('scene_code').includes('【世界书·动画建模：'));
   check(
-    'answers / steps / read_problem 阶段**不**注入词条（§9.1 只有两个槽位）',
-    !sysOf('answers').includes('【世界书·') && !sysOf('steps').includes('【世界书·') && !sysOf('read_problem').includes('【世界书·'),
+    'analysis / breakdown / read_problem 阶段**不**注入词条（§9.1 只有两个槽位）',
+    !sysOf('analysis').includes('【世界书·') && !sysOf('breakdown').includes('【世界书·') && !sysOf('read_problem').includes('【世界书·'),
   );
-  check('每个阶段都有"本阶段指令"标签（阶段识别的契约化，不靠猜）', ['solve', 'answers', 'steps', 'scene_code'].every((s) => sysOf(s).includes('【本阶段指令：')));
+  check('每个阶段都有"本阶段指令"标签（阶段识别的契约化，不靠猜）', ['solve', 'analysis', 'breakdown', 'scene_code'].every((s) => sysOf(s).includes('【本阶段指令：')));
 
   /* 编排层的条件段与引擎算出来的一致（同一份字节，不另拼一遍） */
   const promptSolve = getPrompt('solve');
@@ -1141,7 +1147,14 @@ console.log('\n『W16』第 5.7 期：两级词表完整性 · 两侧命中 · �
      *     指向 ⇒ 它即使被豁免也仍然有元件在教它怎么用（不是缺口）。
      */
     const ANNOTATION_PRIMITIVES_EXEMPT = ['Draw.text', 'Draw.dimension', 'Draw.latex'];
-    const notDeclared = primNames.filter((p) => !declared.has(p) && !ANNOTATION_PRIMITIVES_EXEMPT.includes(p));
+    /** 场景专用原语：不由单个元件指向，由场景卡使用（如天体椭圆轨道）。 */
+    const SCENE_ONLY_PRIMITIVES_EXEMPT = ['Draw.ellipse'];
+    const notDeclared = primNames.filter(
+      (p) =>
+        !declared.has(p) &&
+        !ANNOTATION_PRIMITIVES_EXEMPT.includes(p) &&
+        !SCENE_ONLY_PRIMITIVES_EXEMPT.includes(p),
+    );
     check(
       '动画元件覆盖率 · 每个 Draw 原语都被词表里某个元件指向（词表侧；标注类按 A25 豁免）',
       notDeclared.length === 0,
@@ -1652,7 +1665,7 @@ console.log('\n『W18』code_examples 真的进了上下文（而且绝不吃正
 
 /* ────────────────────────────── 汇总 ────────────────────────────── */
 
-console.log(`\n${failures.length ? '✗' : '✓'} 世界书取证：通过 ${passed} 条，失败 ${failures.length} 条`);
+console.log(`\n${failures.length ? '✗' : '✓'} 知识卡取证：通过 ${passed} 条，失败 ${failures.length} 条`);
 if (failures.length) {
   console.log('\n失败明细：');
   for (const f of failures) console.log(`  ✗ ${f.name}\n      ${f.detail ?? ''}`);
@@ -1678,14 +1691,32 @@ function fakeEndpoint(over = {}) {
   };
 }
 
-/** 假网关：从 `【本阶段指令：…】` 认出阶段，`scene_code` 回一份合法的 8 槽位输出 */
+/** 假网关：从 `【本阶段指令：…】` 认出阶段；analysis 回运动表，scene_code 只回 drawFrame */
 function fakeStream(captured) {
   return async (opts) => {
     const sys = String(opts.messages?.[0]?.content ?? '');
-    const label = ['解题', '答案抽取', '分步解析', '动画代码'].find((l) => sys.includes(`【本阶段指令：${l}】`));
-    const stage = label === '解题' ? 'solve' : label === '答案抽取' ? 'answers' : label === '分步解析' ? 'steps' : label === '动画代码' ? 'scene_code' : 'unknown';
+    const label = ['读题与判定', '读题', '解题', '答案讲解', '物理分析', '动画代码', '自愈修复'].find((l) => sys.includes(`【本阶段指令：${l}】`));
+    const stage =
+      label === '读题与判定' || label === '读题'
+        ? 'read_problem'
+        : label === '解题'
+          ? 'solve'
+          : label === '答案讲解'
+            ? 'breakdown'
+            : label === '物理分析'
+              ? 'analysis'
+              : label === '动画代码'
+                ? 'scene_code'
+                : label === '自愈修复'
+                  ? 'repair'
+                  : 'unknown';
     captured.push({ stage, messages: opts.messages, sys });
-    const full = stage === 'scene_code' ? goodSceneCode() : solveReplyText(stage);
+    const full =
+      stage === 'analysis'
+        ? ANALYSIS_EXAMPLE
+        : stage === 'scene_code' || stage === 'repair'
+          ? 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);'
+          : solveReplyText(stage);
     opts.onDelta?.(full);
     return { text: full, reasoning: '', usage: null, model: 'fake', deltas: [full] };
   };
@@ -1694,21 +1725,6 @@ function fakeStream(captured) {
 /** solve 阶段的固定回包（`scene_code` 的第二遍扫描要用到它，所以必须是确定值） */
 function solveReplyText(stage = 'solve') {
   return `【${stage} 输出】共速时刻 t* = u / (mu g) = 1.0 s；摩擦生热 Q = 2.0 J。`;
-}
-
-/** 一份合法的 8 槽位模型输出（与 tests/regression-15 的形状一致） */
-function goodSceneCode() {
-  const body = {
-    PROBLEM: '题干。',
-    STEPS: 'title: 一步\ntex: x\nt0: 0\nt1: 1',
-    ANSWERS: 'symbol: a\nvalue: 1\nunit: m\ntol: 0.01\nat_t: 1\nstep: 1',
-    VIEW: 'SIM.duration = 1;',
-    setup: 'const g = 10;',
-    stateAt: 'return { x: t };',
-    drawFrame: 'Draw.dot(0, 0);',
-    readouts: 'return [{ label: "x", value: t, unit: "m" }];',
-  };
-  return SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${body[k]}\n/* @end */`).join('\n');
 }
 
 function fakeDryRun(verdict = 'pass') {

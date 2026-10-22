@@ -366,6 +366,12 @@
     min-height: 36px; padding: 0 8px; border: 1px solid var(--border);
     border-radius: var(--radius); background: var(--surface); font-size: 13px; color: var(--fg);
   }
+  .rate input[type='number'] {
+    width: 64px; min-height: 36px; padding: 0 6px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface); font-size: 13px; color: var(--fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .rate .rate-x { font-size: 12px; color: var(--muted); }
 
   .tools {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
@@ -446,12 +452,9 @@
     <div class="text-head" data-od-id="text-head">
       <!-- 选项卡：原题 + 每步一个（由 buildTabs 按 STEPS 生成） -->
       <div class="tabs" data-od-id="text-tabs" role="tablist" aria-label="题目与解析切换" data-follow="on"></div>
-      <!-- "动画联动"总开关（原来叫"跟随"，用户 2026-10-17 要求换成更直白的名字）：
-           勾上 = 两栏联动：点页签会跳到该步关键帧、播放/拖时间轴也会自动翻页签；
-           取消 = 两栏**彻底解耦**：点页签只换文字，动画一动不动；播放也不翻页签。
-           状态同时写在 text-tabs 的 data-follow 上，所以门禁能直接断言。 -->
-      <label class="follow" title="勾上：点页签会跳到该步动画，播放也会自动翻页签；取消：两栏彻底分开、互不影响">
-        <input type="checkbox" data-od-id="follow-toggle" checked /> 动画联动
+      <label class="follow" title="勾选后：点步骤跳动画；播放/拖时间轴自动翻页签">
+        <input type="checkbox" data-od-id="follow-toggle" checked />
+        <span>动画联动</span>
       </label>
     </div>
     <div class="tab-body">
@@ -511,6 +514,18 @@
             <option value="2">2×</option>
             <option value="4">4×</option>
           </select>
+          <input
+            type="number"
+            id="rate-custom"
+            data-od-id="rate-custom"
+            min="0.1"
+            max="20"
+            step="0.1"
+            value="1"
+            aria-label="自定义倍速（0.1–20）"
+            title="自定义倍速：0.1–20（拖动时间轴时按这个倍率推进）"
+          />
+          <span class="rate-x" aria-hidden="true">×</span>
         </div>
       </div>
 
@@ -595,6 +610,7 @@
     timeline: document.querySelector('[data-od-id="timeline"]'),
     timecode: document.querySelector('[data-od-id="timecode"]'),
     rate: document.querySelector('[data-od-id="rate-select"]'),
+    rateCustom: document.querySelector('[data-od-id="rate-custom"]'),
     masks: Array.prototype.slice.call(document.querySelectorAll('[data-mask]')),
     /* 联动图表（动画下方整宽横条）：画布、标题、量选择、读数脚注、关闭按钮 */
     chartPanel: document.querySelector('[data-od-id="chart-panel"]'),
@@ -621,6 +637,37 @@
   var player = null;
   var SIM = null;
   var STEPS = [];
+  /* v6：讲解步骤 ↔ 动画时间（由 couple 阶段产出；没有就为空，页签只换文字） */
+  var STEP_TIMES = [];
+  /* 时长归一化：显示秒 ↔ 物理秒 的分段映射（构建期按小问算好；null = 恒等） */
+  var TIME_MAP = null;
+  var T_DISPLAY = 0;
+
+  /** 物理秒 → 显示秒（时间轴/时间码/步骤跳转用） */
+  function dispOf(t) {
+    if (!TIME_MAP) return t;
+    for (var i = 0; i < TIME_MAP.length; i += 1) {
+      var s = TIME_MAP[i];
+      if (t <= s.p1 || i === TIME_MAP.length - 1) {
+        if (t <= s.p0) return s.d0;
+        return s.d0 + ((t - s.p0) / (s.p1 - s.p0)) * (s.d1 - s.d0);
+      }
+    }
+    return t;
+  }
+
+  /** 显示秒 → 物理秒（真正喂给 stateAt / drawFrame 的那个 t） */
+  function physOf(d) {
+    if (!TIME_MAP) return d;
+    for (var i = 0; i < TIME_MAP.length; i += 1) {
+      var s = TIME_MAP[i];
+      if (d <= s.d1 || i === TIME_MAP.length - 1) {
+        if (d <= s.d0) return s.p0;
+        return s.p0 + ((d - s.d0) / (s.d1 - s.d0)) * (s.p1 - s.p0);
+      }
+    }
+    return d;
+  }
   var answers = [];
   var stepEls = [];
   var lastFrame = null;
@@ -782,11 +829,7 @@
       var title = document.createElement('span');
       title.className = 'step-title';
       title.textContent = step.title;
-      var time = document.createElement('span');
-      time.className = 'step-time';
-      time.textContent = step.t0.toFixed(2) + '–' + step.t1.toFixed(2) + ' s';
       head.appendChild(title);
-      head.appendChild(time);
       button.appendChild(head);
 
       var body = document.createElement('div');
@@ -794,7 +837,8 @@
       body.appendChild(texMixed(step.tex));   // 第 8 期：混排（解释 + 公式），不再整段当公式
       button.appendChild(body);
 
-      button.addEventListener('click', function () { seek(step.t0); });
+      // 2026-10-22：讲解与动画解耦 —— 点页签不跳动画，页签也不再显示时间区间
+      button.addEventListener('click', function () { /* 只换阅读内容，不动动画 */ });
       els.stepsList.appendChild(button);
       return button;
     });
@@ -809,11 +853,23 @@
    * 之前写成 `t0 - ε ≤ t ≤ t1 + ε` 且从前往后找，于是恰好停在边界（t = 该步 t1 = 下一步 t0）时
    * 永远返回**上一步**，导致"下一步"按钮点一下之后再点就没反应（本题集 15 题全中）。
    */
-  function indexOfStep(t) {
-    for (var i = STEPS.length - 1; i >= 0; i -= 1) {
-      if (t >= STEPS[i].t0 - 1e-9) return i;
+  function stepTimeOf(index) {
+    for (var i = 0; i < STEP_TIMES.length; i += 1) {
+      var s = STEP_TIMES[i];
+      if (s && s.step === index + 1 && typeof s.t0 === 'number' && typeof s.t1 === 'number') return s;
     }
-    return 0;
+    return null;
+  }
+
+  function indexOfStep(t) {
+    // v6：时间来自 couple 的 stepTimes，不再来自 STEPS。
+    var best = -1;
+    for (var i = 0; i < STEP_TIMES.length; i += 1) {
+      var s = STEP_TIMES[i];
+      if (!s || typeof s.t0 !== 'number') continue;
+      if (t >= s.t0 - 1e-9) best = s.step - 1;
+    }
+    return best;
   }
 
   /**
@@ -858,7 +914,9 @@
     note: ''      // 无法画图时的说明
   };
 
-  /** 逐点采样 readouts(t)，得到每个物理量的时间序列 */
+  /** 逐点采样 readouts(t)，得到每个物理量的时间序列
+   *  ⚠ 曲线图横轴是**真实物理秒**（2026-10-23 用户裁决）：归一化只改播放节奏，
+   *  图上的 t 仍然是物理时间，和读数一一对应。 */
   function buildChartSeries() {
     var dur = player.duration;
     if (!(dur > 0) || !player.program) return null;
@@ -1117,12 +1175,17 @@
     ctx.lineTo(padL + pw, padT + ph);
     ctx.stroke();
 
-    // 步骤分界 = 事件时刻辅助线（§13.4）
+    // 步骤分界 = couple 给出的步骤起点（没有 stepTimes 就不画）
     ctx.save();
     ctx.setLineDash([3, 3]);
     ctx.strokeStyle = CHART_INK.axis;
-    for (var s = 1; s < STEPS.length; s += 1) {
-      var xs0 = X(STEPS[s].t0);
+    for (var si = 0; si < STEP_TIMES.length; si += 1) {
+      var stx = STEP_TIMES[si];
+      /* STEP_TIMES 是显示秒；图是物理秒 ⇒ 换回物理再画分界线 */
+      if (!stx || typeof stx.t0 !== 'number') continue;
+      var pt0 = physOf(stx.t0);
+      if (pt0 <= 0 || pt0 >= dur) continue;
+      var xs0 = X(pt0);
       ctx.beginPath();
       ctx.moveTo(xs0, padT);
       ctx.lineTo(xs0, padT + ph);
@@ -1149,7 +1212,7 @@
     ctx.fillStyle = CHART_INK.fill;
     ctx.fill();
 
-    // 游标：与画布同一个 t（同步的判据就是这个"同一次重绘"）
+    // 游标：横轴是真实物理秒，所以游标也取物理 t（与读数同一刻）
     var tc = player.state.t;
     var xc = X(tc);
     ctx.strokeStyle = CHART_INK.cursor;
@@ -1202,7 +1265,7 @@
                   点页签只换文字（动画一动不动），播放/拖时间轴也不翻页签；
        · 装载那一刻先不联动（followArmed=false），第一眼停在"原题"，
          第一次动时间之后才交给时间轴。 */
-  var followMode = true;
+  var followMode = false;
   var followArmed = false;
   var activeTab = null;
 
@@ -1227,7 +1290,8 @@
       /* 一勾上就立刻按当前时间去对一次，别等到下一帧才动 */
       if (followMode && STEPS.length) {
         armFollow();
-        activateTab('step-' + indexOfStep(player ? player.state.t : 0));
+        var si = indexOfStep(player ? player.state.t : 0);
+        if (si >= 0) activateTab('step-' + si);
       }
     });
   }
@@ -1253,7 +1317,8 @@
         /* ⚠ 只有「动画联动」勾着时才跳动画。
            解耦状态（取消勾选）下点页签**只换文字**，动画一动不动 ——
            这是用户 2026-10-17 明确指出的："这个开关应该是决定两栏是否彻底解耦的"。 */
-        if (followMode && item.stepIndex >= 0 && STEPS[item.stepIndex]) seek(STEPS[item.stepIndex].t0);
+        var st = item.stepIndex >= 0 ? stepTimeOf(item.stepIndex) : null;
+        if (followMode && st && typeof st.t0 === 'number') seek(st.t0);
       });
       els.tabs.appendChild(btn);
     });
@@ -1362,18 +1427,23 @@
       syncChartPanel();
       var out = player.render();
       lastFrame = out;
-      var stepIndex = indexOfStep(player.state.t);
+      var tt = dispOf(player.state.t);
+      var stepIndex = indexOfStep(tt);
       player.state.stepIndex = stepIndex;
-      els.timeline.value = String(player.state.t);
-      els.timecode.textContent = player.state.t.toFixed(2) + ' / ' + player.duration.toFixed(2) + ' s';
+      els.timeline.value = String(tt);
+      /* 时间轴不显示秒（2026-10-23 用户裁决）：归一化以后显示秒不是物理秒，报出来只会误导。
+         改报"第几步"，真实秒仍然在右侧曲线图的横轴上。 */
+      els.timecode.textContent = STEPS.length
+        ? '第 ' + (Math.max(0, stepIndex) + 1) + ' / ' + STEPS.length + ' 步'
+        : '—';
       /* 跟随模式：播放/拖时间轴推进时自动翻到当前那一步
          （「动画联动」取消 = 两栏解耦，页签不动；装载首帧 followArmed 为假，所以停在"原题"） */
-      if (followMode && followArmed && STEPS.length) {
+      if (followMode && followArmed && STEPS.length && stepIndex >= 0) {
         var wantTab = 'step-' + stepIndex;
         if (activeTab !== wantTab) activateTab(wantTab);
       }
       /* 第 7 期：逐步读数卡片随"数据面板"一起删除了（用户裁决），数字改由图表游标承担。 */
-      paintPanel(out, stepIndex);
+      /* 2026-10-22：讲解与动画解耦，页签不再随时间高亮 */
       drawChart();
       return out;
     } catch (err) {
@@ -1385,8 +1455,11 @@
        */
       var message = String((err && err.message) || err);
       try {
-        els.timeline.value = String(player.state.t);
-        els.timecode.textContent = player.state.t.toFixed(2) + ' / ' + player.duration.toFixed(2) + ' s';
+        var td2 = dispOf(player.state.t);
+        els.timeline.value = String(td2);
+        els.timecode.textContent = STEPS.length
+          ? '第 ' + (Math.max(0, indexOfStep(td2)) + 1) + ' / ' + STEPS.length + ' 步'
+          : '—';
       } catch (_ignored) {
         /* 时间码也写不了就只报错 */
       }
@@ -1400,8 +1473,25 @@
   }
 
   function seek(t) {
-    player.state.t = Math.min(Math.max(t, 0), player.duration);
+    /* t 是**显示秒**（滑块/步骤跳转/微调都走这里） */
+    var d = Math.min(Math.max(Number(t) || 0, 0), T_DISPLAY);
+    player.state.t = physOf(d);
     draw();
+  }
+
+  /** 统一入口：设置倍速（预设下拉与自定义输入共用）。
+   *  ⚠ DOM 桩里 `<select>` 可能没有 `options` —— 这里必须容错，否则宿主 `setRate` 会把它带崩。 */
+  function applyRate(v) {
+    var rate = Number(v);
+    if (!isFinite(rate) || rate <= 0) rate = 1;
+    player.state.rate = rate;
+    var opts = els.rate && els.rate.options;
+    if (opts) {
+      var hit = false;
+      for (var i = 0; i < opts.length; i += 1) if (opts[i].value === String(rate)) hit = true;
+      if (hit) els.rate.value = String(rate);
+    }
+    if (els.rateCustom) els.rateCustom.value = String(rate);
   }
 
   function setPlaying(next) {
@@ -1415,12 +1505,12 @@
     if (player.state.playing) {
       var dt = lastTs ? (ts - lastTs) / 1000 : 0;
       lastTs = ts;
-      var next = player.state.t + dt * player.state.rate;
-      if (next >= player.duration) {
-        next = player.duration;
+      var nd = dispOf(player.state.t) + dt * player.state.rate;
+      if (nd >= T_DISPLAY) {
+        nd = T_DISPLAY;
         setPlaying(false);
       }
-      player.state.t = next;
+      player.state.t = physOf(nd);
       draw();
     } else {
       lastTs = 0;
@@ -1437,7 +1527,7 @@
        * 现在留出约一帧的余量（按当前倍速折算），靠近结尾一律从头播。
        */
       var guard = Math.max(0.03, 0.05 * (player.state.rate || 1));
-      if (player.state.t >= player.duration - guard) player.state.t = 0;
+      if (dispOf(player.state.t) >= T_DISPLAY - guard) player.state.t = 0;
       /* 用户按了播放 ⇒ 允许页签跟随时间（不改「动画联动」勾选） */
       armFollow();
       setPlaying(!player.state.playing);
@@ -1450,16 +1540,21 @@
     });
     els.btnPrev.addEventListener('click', function () {
       armFollow();
-      var i = indexOfStep(player.state.t);
+      var i = indexOfStep(dispOf(player.state.t));
+      if (i < 0) return; // 没有步骤时间：不猜
       // 已在本步起点 ⇒ 退回上一步起点；否则先回到本步起点
-      var target = i > 0 && Math.abs(player.state.t - STEPS[i].t0) < 1e-6 ? i - 1 : i;
-      seek(STEPS[target].t0);
+      var cur = stepTimeOf(i);
+      var target = i > 0 && cur && Math.abs(dispOf(player.state.t) - cur.t0) < 1e-6 ? i - 1 : i;
+      var st = stepTimeOf(target);
+      if (st) seek(st.t0);
     });
     els.btnNext.addEventListener('click', function () {
       armFollow();
-      var i = indexOfStep(player.state.t);
-      // 末步 ⇒ 跳到动画结尾；其余 ⇒ 跳到本步终点（也就是下一步起点）
-      seek(i >= STEPS.length - 1 ? player.duration : STEPS[i + 1].t0);
+      var i = indexOfStep(dispOf(player.state.t));
+      if (i < 0) return; // 没有步骤时间：不猜
+      var next = stepTimeOf(i + 1);
+      // 末步 ⇒ 跳到动画结尾；其余 ⇒ 跳到下一步起点
+      seek(next ? next.t0 : T_DISPLAY);
     });
     els.timeline.addEventListener('input', function () {
       /* 拖动时间轴 ⇒ 用户动的是时间 ⇒ 允许跟随 */
@@ -1468,9 +1563,19 @@
       seek(Number(els.timeline.value));
     });
     els.rate.addEventListener('change', function () {
-      player.state.rate = Number(els.rate.value);
+      applyRate(els.rate.value);
       persist();
     });
+    /* 自定义倍速（2026-10-23 用户裁决）：6 档预设不变，另给一个 0.1–20 的任意值。
+       极端题目（碰撞 0.3 s 归一化后一帧就过去）靠它放慢，长过程靠它快进。 */
+    if (els.rateCustom) {
+      els.rateCustom.addEventListener('change', function () {
+        var v = Number(els.rateCustom.value);
+        if (!isFinite(v) || v <= 0) v = 1;
+        applyRate(Math.min(20, Math.max(0.1, v)));
+        persist();
+      });
+    }
     els.masks.forEach(function (input) {
       input.addEventListener('change', function () {
         player.state.mask[input.getAttribute('data-mask')] = input.checked;
@@ -1489,9 +1594,9 @@
         event.preventDefault();
         els.btnPlay.click();
       } else if (event.code === 'ArrowRight') {
-        seek(player.state.t + 0.02);
+        seek(dispOf(player.state.t) + 0.02);
       } else if (event.code === 'ArrowLeft') {
-        seek(player.state.t - 0.02);
+        seek(dispOf(player.state.t) - 0.02);
       }
     });
   }
@@ -1570,8 +1675,7 @@
     try {
       var pref = JSON.parse(raw);
       if (pref.rate) {
-        player.state.rate = pref.rate;
-        els.rate.value = String(pref.rate);
+        applyRate(pref.rate);
       }
       if (pref.mask) {
         Object.keys(pref.mask).forEach(function (key) { player.state.mask[key] = pref.mask[key]; });
@@ -1626,7 +1730,8 @@
       slots &&
       typeof slots === 'object' &&
       SLOT_KEYS.every(function (k) {
-        return typeof slots[k] === 'string' && slots[k].length > 0;
+        // v6：ANSWERS 已删，允许空串；其余槽位仍必须非空
+        return typeof slots[k] === 'string' && (k === 'ANSWERS' || slots[k].length > 0);
       }) &&
       Object.keys(slots).length === SLOT_KEYS.length;
     if (!okSlots) {
@@ -1651,6 +1756,8 @@
       texSvg: msg.texSvg || null,
       /* C2：Dry-Run 算出的标注避让表（没有就是 null ⇒ 播放器不挪任何字） */
       labelAvoid: msg.labelAvoid || null,
+      /* v6：步骤 ↔ 动画时间（没有就不联动） */
+      stepTimes: Array.isArray(msg.stepTimes) ? msg.stepTimes : null,
     };
     // 公式索引是在脚本顶部从**旧的** PROGRAM_DATA 推导的，注入后必须重算，
     // 否则宿主注入的公式 SVG 不会被用到（会退回 ODTex/原文降级链）。
@@ -1705,12 +1812,14 @@
         case 'seek': if (typeof data.t === 'number') { setPlaying(false); seek(data.t); } break;
         case 'setRate':
           if (typeof data.rate === 'number') {
-            player.state.rate = data.rate;
-            els.rate.value = String(data.rate);
+            applyRate(data.rate);
           }
           break;
         case 'showStep':
-          if (typeof data.index === 'number' && STEPS[data.index]) seek(STEPS[data.index].t0);
+          if (typeof data.index === 'number') {
+            var showSt = stepTimeOf(data.index);
+            if (showSt) seek(showSt.t0);
+          }
           break;
         case 'setVectorMask':
           Object.keys(player.state.mask).forEach(function (key) {
@@ -1784,7 +1893,19 @@
 
     SIM = player.program.SIM;
     STEPS = player.program.STEPS || [];
+    STEP_TIMES = Array.isArray(PROGRAM_DATA.stepTimes) ? PROGRAM_DATA.stepTimes : [];
     answers = player.program.ANSWERS || [];
+
+    /* ── 时长归一化（每小问固定 4 s，2026-10-23 用户裁决）───────────────
+       `player.state.t` 仍是**物理秒**：stateAt / drawFrame / 读数 / 图表全按它算。
+       只有"时间轴、时间码、步骤跳转、播放推进"用**显示秒**。
+       `timeMap` 由构建期按 couple 的 `sub` 分组算好：第 k 小问的物理区间 → [4(k-1), 4k]。
+       没有 timeMap（老产物 / 没有 stepTimes）⇒ 两者恒等，行为与之前完全一致。 */
+    TIME_MAP = Array.isArray(PROGRAM_DATA.timeMap) && PROGRAM_DATA.timeMap.length ? PROGRAM_DATA.timeMap : null;
+    T_DISPLAY =
+      typeof PROGRAM_DATA.displayDuration === 'number' && PROGRAM_DATA.displayDuration > 0
+        ? PROGRAM_DATA.displayDuration
+        : player.duration;
 
     /*
       ⚠ 第 8 期（用户截图为证）：**时长无效时必须当场说清楚**，不能留一个按了没反应的播放键。
@@ -1805,14 +1926,14 @@
       postToHost('error', { code: 'bad-duration', message: whyDuration });
     }
 
-    els.metaDuration.textContent = player.duration.toFixed(2) + ' s';
+    els.metaDuration.textContent = T_DISPLAY.toFixed(2) + ' s';
     els.problemMode.textContent = PROGRAM_DATA.mode === 'SYMBOLIC' ? '符号驱动（旧产物）'
     : PROGRAM_DATA.mode === 'NUMERIC' ? '数值驱动（旧产物）'
     : '数值/符号 · 按条目自动';
     /* 只有时长有效时才写 max/step：max=0 会让滑块的取值范围退化，拖起来像"没反应" */
-    if (player.duration > 0) {
-      els.timeline.max = String(player.duration);
-      els.timeline.step = String(Math.min(0.01, player.duration / 400));
+    if (T_DISPLAY > 0) {
+      els.timeline.max = String(T_DISPLAY);
+      els.timeline.step = String(Math.min(0.01, T_DISPLAY / 400));
     }
 
     var math = mathStatus();
@@ -1868,12 +1989,12 @@
     // 否则点"播放"只是把 playing 置为 true，没有任何东西去推进时间轴。
     window.requestAnimationFrame(loop);
 
-    postToHost('ready', { duration: player.duration, stepCount: STEPS.length });
+    postToHost('ready', { duration: T_DISPLAY, stepCount: STEPS.length });
     if (stateTimer) window.clearInterval(stateTimer);
     var emit = function () {
       postToHost('state', {
-        t: player.state.t,
-        duration: player.duration,
+        t: dispOf(player.state.t),
+        duration: T_DISPLAY,
         playing: player.state.playing,
         rate: player.state.rate,
         stepIndex: player.state.stepIndex,

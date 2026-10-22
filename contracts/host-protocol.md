@@ -1,4 +1,4 @@
-﻿# 宿主 ⇄ 模板页 控制协议（§13.2 定稿 · 第 3 期）
+# 宿主 ⇄ 模板页 控制协议（§13.2 定稿 · 第 3 期）
 
 > **状态：第 3 期定稿**（方案 §13.2 原文为"字段冻结，§22 待细化"；§22 第 11 条要求随第 3 期定稿）。
 > 依据：`docs/history/物理解题动画软件v1.0自研方案.md` §13.1 / §13.2 / §13.3。
@@ -30,7 +30,7 @@
 | 宿主 → 模板 | `showStep` | `{ index }` | §13.2 原文 |
 | 宿主 → 模板 | `setVectorMask` | `{ velocity, acceleration, force, trace, grid }` | §13.2 原文 |
 | 宿主 → 模板 | `setTheme` | `{ theme }` | §13.2 原文 |
-| 宿主 → 模板 | **`program`** | `{ slots, mode, texSvg? }` | ★ **第 3 期新增**（见 §3） |
+| 宿主 → 模板 | **`program`** | `{ slots, mode, texSvg?, labelAvoid?, stepTimes? }` | ★ **第 3 期新增**（见 §3） |
 | 模板 → 宿主 | `ready` | `{ duration, stepCount }` | §13.2 原文 |
 | 模板 → 宿主 | `state` | `{ t, duration, playing, rate, stepIndex, readouts }` | §13.2 原文 |
 | 模板 → 宿主 | `error` | `{ code, message, slot }` | §13.2 原文 |
@@ -87,10 +87,16 @@
   "type": "program",
   "slots": { "PROBLEM": "…", "STEPS": "…", "ANSWERS": "…", "VIEW": "…",
              "setup": "…", "stateAt": "…", "drawFrame": "…", "readouts": "…" },
-  "mode": "NUMERIC",          // 或 "SYMBOLIC"
-  "texSvg": { "renderer": "…", "formulas": { "tex": "<svg…>" } }   // 可选
+  "mode": "BOTH",             // 或旧值 "NUMERIC" / "SYMBOLIC"
+  "texSvg": { "renderer": "…", "formulas": { "tex": "<svg…>" } },  // 可选
+  "stepTimes": [               // 可选：couple 产出的步骤时间
+    { "step": 1, "t0": 0, "t1": 0.6 }
+  ]
 }
 ```
+
+> v6：`ANSWERS` 允许空串（C7 已删）；其余 7 个槽位仍必须非空。
+> `stepTimes` 缺失时页签只换文字，不做动画联动。
 
 **模板侧处理规则（已实现）：**
 
@@ -98,7 +104,7 @@
    并回一条 `error`（`code: 'program-already-inlined'`）说明原因。
    理由：**内联的那份才是"屏幕上看到的 = 导出的"那份**，运行期覆盖会让导出内容与显示内容不一致。
 2. 若为空壳（路径 B）→ 写入 `PROGRAM_DATA`，**重新推导 `texSvg` 索引**，然后 `boot()`。
-3. `slots` 必须**恰好含 §3.2 的 8 个键名**；不合法时回 `error`（`code: 'bad-program'`），不改动现场。
+3. `slots` 必须**恰好含 §3.2 的 8 个键名**；`ANSWERS` 可为空，其余非空；不合法时回 `error`（`code: 'bad-program'`），不改动现场。
 
 ---
 

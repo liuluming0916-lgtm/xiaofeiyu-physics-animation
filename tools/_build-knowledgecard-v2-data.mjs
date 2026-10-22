@@ -6,7 +6,10 @@
  * 还没改成 v2。先用这份工具把现有 33 张内置卡转成 v2 数据，v2 引擎直接读；
  * Phase 5 再把生成器本体改成 v2，这份工具就可以退役。
  *
- * 用法：node tools\build-knowledgecard-v2-data.mjs
+ * 用法：node tools\build-knowledgecard-v2-data.mjs --force
+ *
+ * ⚠ 2026-10-22 起 `data-v2` 已经是**手写源**（按 drawFrame-only 口径重写）。
+ *   本工具只用于"从 v1 重新生成一份对照"，默认拒绝执行，免得把重写结果盖掉。
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -14,6 +17,11 @@ import { join } from 'node:path';
 
 import { PROJECT_ROOT } from './paths.mjs';
 import { migrateEntryV1toV2, validateEntryV2 } from '../core/knowledgecard/v2/entry.mjs';
+
+if (!process.argv.includes('--force')) {
+  console.error('✗ data-v2 现在是手写源，拒绝覆盖。确需从 v1 重新生成一份对照，请加 --force。');
+  process.exit(1);
+}
 
 const SRC = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data');
 const OUT = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data-v2');

@@ -61,11 +61,12 @@ export function useRun() {
       // **不要写死"某一步一定跑"**。
       'read_problem',
       'solve',
-      'answers',
-      'steps',
+      'breakdown',
+      'analysis',
       'scene_code',
       'dry_run',
       'repair',
+      'couple',
     ])
 
     try {

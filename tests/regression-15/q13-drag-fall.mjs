@@ -130,9 +130,27 @@ RETURN('sampleCount', solved.samples.length);`,
 
     stateAt: `var tt = Math.min(Math.max(t, 0), SIM.duration);
 
-// 只查表插值（O(log n)），不做任何积分；'v' 与 'x' 是采样表里的 ODE 状态键
-var v = Phys.interp(context.table, tt, 'v');
-var h = Phys.interp(context.table, tt, 'x');   // 表里的 x 即下落距离，这里改名为 h
+// 只查表插值（O(log n)），不做任何积分；'v' 与 'x' 是采样表里的 ODE 状态键。
+// 本 fixture 自带二分插值，不依赖已删除的 Phys.interp。
+function interpAt(samples, time, key) {
+  if (!samples.length) return NaN;
+  if (time <= samples[0].t) return samples[0].y[key];
+  var last = samples[samples.length - 1];
+  if (time >= last.t) return last.y[key];
+  var lo = 0;
+  var hi = samples.length - 1;
+  while (lo + 1 < hi) {
+    var mid = (lo + hi) >> 1;
+    if (samples[mid].t <= time) lo = mid;
+    else hi = mid;
+  }
+  var a = samples[lo];
+  var b = samples[hi];
+  var u = (time - a.t) / ((b.t - a.t) || 1);
+  return a.y[key] + (b.y[key] - a.y[key]) * u;
+}
+var v = interpAt(context.table, tt, 'v');
+var h = interpAt(context.table, tt, 'x');   // 表里的 x 即下落距离，这里改名为 h
 
 return {
   t: tt,
@@ -153,22 +171,17 @@ var vSc = 0.10;    // 几何缩放：1 m/s ↔ 0.10 m
 Draw.ground(-2.1, 2.5, 0, { color: '#2b3440' });
 Draw.line([xLine, 0], [xLine, context.H + 0.12], { dash: true, color: '#9aa7b4' });
 Draw.line([xLine - 0.25, context.H], [xLine + 0.55, context.H], { dash: true, color: '#9aa7b4' });
-Draw.text(xLine + 0.60, context.H, '初始高度 H', { size: 11, color: '#5d6b7a', align: 'left' });
 
 // —— 小球 ——
 // 全程轨迹（点划虚线）：小球的下落路径。它与已有的竖直基准线重合，故用点线覆盖以示"轨迹"。
 Draw.trace([[xLine, context.H], [xLine, 0]], { color: '#c8d0d8', dash: true, width: 2.2, layer: 0 });
 Draw.circle([xLine, state.y], 0.10, { fill: '#ffffff', stroke: '#2b3440', width: 1.6 });
-Draw.text(xLine, state.y + 0.22, 'm', { size: 12 });
 
 // —— 四个矢量里的两个受力（重力向下、阻力向上）；v 与 a 由 bodies 求导自动生成 ——
 Draw.arrow([xLine - 0.24, state.y], [0, -state.fGrav * fSc], { category: 'force', subtype: 'gravity', label: 'mg', mag: state.fGrav, unit: 'N' });
 Draw.arrow([xLine + 0.24, state.y], [0, state.fDrag * fSc], { category: 'force', subtype: 'other', label: 'kv', mag: state.fDrag, unit: 'N' });
-Draw.text(xLine - 0.34, state.y - 0.30, 'mg', { size: 11, color: '#b3382f', align: 'right' });
-Draw.text(xLine + 0.34, state.y + 0.24, 'kv', { size: 11, color: '#b3382f', align: 'left' });
 
 // —— 下落距离标注（h 是路程类量，只做标注，不进 continuityKeys）——
-Draw.dimension([0.78, context.H], [0.78, state.y], { kind: 'linear', text: 'h = ' + Phys.format(state.h, 'm', 3) });
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。
    原手绘代码留档在「软件自研v1开发历史.md 附录 B（原快照已清理）」，第 7.1 期按新方式重画。 */`,

@@ -87,7 +87,7 @@ async function main() {
     console.log('\n『B』Prompt：改得动，改坏了被拒');
     {
       const cat = await call('GET', '/api/prompts');
-      check('目录接口通，7 项', cat.status === 200 && cat.json.items.length === 7, String(cat.json?.items?.length));
+      check('目录接口通，8 项', cat.status === 200 && cat.json.items.length === 8, String(cat.json?.items?.length));
       check('目录把"哪几段不能删"也一起给了（界面不用硬编码）', Array.isArray(cat.json.requirements.read_problem.errors));
 
       const one = await call('GET', '/api/prompts/solve');
@@ -99,9 +99,9 @@ async function main() {
       const after = await call('GET', '/api/prompts/solve');
       check('再打开：状态变 ok、正文是我的', after.json.status === 'ok' && after.json.overrideText.includes('先说研究对象'));
 
-      // 硬门禁：删掉【考点】
-      const badSave = await call('PUT', '/api/prompts/read_problem', { text: '现在执行【读题与判定】阶段。\n只写转写，不判考点。\n' });
-      check('★ 删掉【考点】⇒ 400 被拒', badSave.status === 400 && hasIssue(badSave.json, 'prompt.missing-required-token'));
+      // 硬门禁：删掉【动画元件】
+      const badSave = await call('PUT', '/api/prompts/read_problem', { text: '现在执行【读题与判定】阶段。\n只写转写，不判元件。\n' });
+      check('★ 删掉【动画元件】⇒ 400 被拒', badSave.status === 400 && hasIssue(badSave.json, 'prompt.missing-required-token'));
       const still = await call('GET', '/api/prompts/read_problem');
       check('★ 被拒之后它仍然是 builtin（没有半保存）', still.json.status === 'builtin');
 
@@ -115,7 +115,7 @@ async function main() {
     {
       const cat = await call('GET', '/api/prompts');
       const ids = (cat.json.items ?? []).map((i) => i.id);
-      check('目录里有 7 个 id', ids.length === 7, ids.join(','));
+      check('目录里有 8 个 id', ids.length === 8, ids.join(','));
 
       const bad = [];
       for (const id of ids) {
@@ -132,7 +132,7 @@ async function main() {
       // 这条专门钉住事故本身：solve 只配了 warnings，但 errors 必须是"空数组"而不是"没有这个键"
       const solve = await call('GET', '/api/prompts/solve');
       check('solve 的 requirements.errors 是空数组（不是 undefined）', Array.isArray(solve.json.requirements.errors) && solve.json.requirements.errors.length === 0);
-      check('（对照）read_problem 的 errors 非空（它真有不能删的段落）', solve.status === 200 && (await call('GET', '/api/prompts/read_problem')).json.requirements.errors.length === 2);
+      check('（对照）read_problem 的 errors 非空（它真有不能删的段落）', solve.status === 200 && (await call('GET', '/api/prompts/read_problem')).json.requirements.errors.length === 1);
     }
 
     /* ── 形状回归（二）：清洗与端点两个接口 ── */
@@ -320,7 +320,7 @@ async function main() {
         const promptsJson = await prompts.json();
         check(
           '★ 未手工 init：/api/prompts 仍可读（不再 rules.no-index）',
-          prompts.status === 200 && Array.isArray(promptsJson.items) && promptsJson.items.length === 7,
+          prompts.status === 200 && Array.isArray(promptsJson.items) && promptsJson.items.length === 8,
           `${prompts.status} ${JSON.stringify(promptsJson).slice(0, 200)}`,
         );
         const cleaning = await fetch(`${base2}/api/cleaning`);
@@ -337,11 +337,11 @@ async function main() {
     {
       const v2 = await call('GET', '/api/knowledgecard/v2');
       check(
-        '★ GET /api/knowledgecard/v2 → 200，33 张内置 + 30 元件 + 3 场景',
+        '★ GET /api/knowledgecard/v2 → 200，31 张内置 + 11 元件 + 18 场景',
         v2.status === 200 &&
-          v2.json.entries?.length === 33 &&
-          v2.json.vocab?.elements?.length === 30 &&
-          v2.json.vocab?.scenes?.length === 3,
+          v2.json.entries?.length === 31 &&
+          v2.json.vocab?.elements?.length === 11 &&
+          v2.json.vocab?.scenes?.length === 18,
         `${v2.status} ${JSON.stringify(v2.json).slice(0, 300)}`,
       );
 
@@ -361,8 +361,8 @@ async function main() {
 
       const again = await call('GET', '/api/knowledgecard/v2');
       check(
-        '重新读取能看到用户卡（33 内置 + 1 用户）',
-        again.json.entries?.length === 34 && again.json.entries.some((e) => e.id === 'test.v2' && e.origin === 'user'),
+        '重新读取能看到用户卡（31 内置 + 1 用户）',
+        again.json.entries?.length === 32 && again.json.entries.some((e) => e.id === 'test.v2' && e.origin === 'user'),
         JSON.stringify(again.json.entries?.map((e) => `${e.id}:${e.origin}`)),
       );
 
@@ -378,17 +378,17 @@ async function main() {
     /* ── 知识卡 v2：本地开关 + 新增词表项（Phase 3C-2） ── */
     console.log('\n『I』知识卡 v2：本地开关 + 新增/删除用户词表项');
     {
-      const off = await call('POST', '/api/knowledgecard/v2/vocab-state', { disabledElements: ['belt'], disabledScenes: [] });
-      check('★ 关闭 belt 开关 → 200', off.status === 200 && off.json.ok === true, `${off.status} ${JSON.stringify(off.json)}`);
+      const off = await call('POST', '/api/knowledgecard/v2/vocab-state', { disabledElements: [], disabledScenes: ['belt'] });
+      check('★ 关闭 belt 场景开关 → 200', off.status === 200 && off.json.ok === true, `${off.status} ${JSON.stringify(off.json)}`);
       const afterOff = await call('GET', '/api/knowledgecard/v2');
       check(
         '关闭后 belt 的 enabled=false（词条还在）',
-        afterOff.json.vocab?.elements?.find((e) => e.id === 'belt')?.enabled === false,
-        JSON.stringify(afterOff.json.vocab?.elements?.find((e) => e.id === 'belt')),
+        afterOff.json.vocab?.scenes?.find((e) => e.id === 'belt')?.enabled === false,
+        JSON.stringify(afterOff.json.vocab?.scenes?.find((e) => e.id === 'belt')),
       );
 
       const on = await call('POST', '/api/knowledgecard/v2/vocab-state', { disabledElements: [], disabledScenes: [] });
-      check('重新启用 → belt.enabled=true', on.status === 200 && (await call('GET', '/api/knowledgecard/v2')).json.vocab.elements.find((e) => e.id === 'belt')?.enabled === true);
+      check('重新启用 → belt.enabled=true', on.status === 200 && (await call('GET', '/api/knowledgecard/v2')).json.vocab.scenes.find((e) => e.id === 'belt')?.enabled === true);
 
       const add = await call('POST', '/api/knowledgecard/v2/vocab-entry', {
         kind: 'element',
@@ -396,12 +396,12 @@ async function main() {
       });
       check('★ 新增用户元件 → 200', add.status === 200 && add.json.ok === true, `${add.status} ${JSON.stringify(add.json)}`);
       const afterAdd = await call('GET', '/api/knowledgecard/v2');
-      check('新增后元件 31 个，且 test_widget 在', afterAdd.json.vocab?.elements?.length === 31 && afterAdd.json.vocab.elements.some((e) => e.id === 'test_widget'));
+      check('新增后元件 12 个，且 test_widget 在', afterAdd.json.vocab?.elements?.length === 12 && afterAdd.json.vocab.elements.some((e) => e.id === 'test_widget'));
 
       const del = await call('DELETE', '/api/knowledgecard/v2/vocab-entry', { kind: 'element', id: 'test_widget' });
       check('★ 删除用户元件 → 200', del.status === 200 && del.json.ok === true, `${del.status} ${JSON.stringify(del.json)}`);
       const afterDel = await call('GET', '/api/knowledgecard/v2');
-      check('删除后回到 30 个', afterDel.json.vocab?.elements?.length === 30);
+      check('删除后回到 11 个', afterDel.json.vocab?.elements?.length === 11);
     }
 
     /* ── 知识卡 v2：导出/导入/删除卡/恢复内置（Phase 3C-3） ── */
@@ -446,12 +446,12 @@ async function main() {
 
       const override = await call('POST', '/api/knowledgecard/v2/entry', {
         entry: {
-          id: 'wb_el_incline',
-          title: '覆盖斜面',
+          id: 'wb_el_block',
+          title: '覆盖物块',
           kind: 'element',
           origin: 'user',
           enabled: true,
-          elements: ['incline'],
+          elements: ['block'],
           content: '覆盖正文',
           code_examples: [],
         },
@@ -464,13 +464,13 @@ async function main() {
     /* ── 知识卡 v2：模拟 read_problem 回复解析（实时试触发） ── */
     console.log('\n『K』知识卡 v2：模拟 read_problem 回复解析');
     {
-      const text = '【动画元件】belt、block\n【场景】conveyor_block\n【判定依据】水平传送带上的物块';
+      const text = '【动画元件】block\n【场景】belt\n【判定依据】水平传送带上的物块';
       const parsed = await call('POST', '/api/knowledgecard/v2/parse', { text });
       check(
-        '★ 解析出 belt/block + conveyor_block，无结构问题',
+        '★ 解析出 block + belt，无结构问题',
         parsed.status === 200 &&
-          parsed.json.elements?.join(',') === 'belt,block' &&
-          parsed.json.scenes?.join(',') === 'conveyor_block' &&
+          parsed.json.elements?.join(',') === 'block' &&
+          parsed.json.scenes?.join(',') === 'belt' &&
           parsed.json.problems?.length === 0,
         `${parsed.status} ${JSON.stringify(parsed.json)}`,
       );

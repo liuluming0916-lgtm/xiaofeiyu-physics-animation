@@ -24,6 +24,7 @@ import { triggerKnowledgecardV2 } from '../core/knowledgecard/v2/runtime.mjs';
 import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
 import { triggerKnowledgecard } from '../core/knowledgecard/engine.mjs';
 import { getPrompt } from '../core/prompts/index.mjs';
+import { lintSlot } from '../core/lint/contract-lint.mjs';
 
 const ROOT = join(import.meta.dirname, '..');
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
@@ -46,9 +47,9 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 console.log('『A』词表 v2 自身');
 {
   const r = validateVocab(v2, { primitiveNames });
-  check(r.ok, '30 元件 + 场景词表通过校验', r.problems.join('；'));
+  check(r.ok, '词表通过校验', r.problems.join('；'));
   check(v2.format === VOCAB_FORMAT && v2.version === VOCAB_VERSION, 'format/version 正确', `${v2.format}/${v2.version}`);
-  check(v2.elements.length === 30, '元件正好 30 个', String(v2.elements.length));
+  check(v2.elements.length === 11, '元件 11 个（含封存 graph_wave）', String(v2.elements.length));
   check(v2.scenes.length >= 1, '至少 1 个种子场景', String(v2.scenes.length));
   check(
     v2.elements.every((e) => primitiveNames.includes(e.primitive)),
@@ -70,7 +71,7 @@ console.log('\n『B』内置 + 用户词表合并');
   };
   const m = mergeVocab(v2, user, { primitiveNames });
   check(m.problems.length === 0, '新增用户元件不报错', m.problems.join('；'));
-  check(m.vocab.elements.length === 31, '合并后元件 31 个', String(m.vocab.elements.length));
+  check(m.vocab.elements.length === 12, '合并后元件 12 个', String(m.vocab.elements.length));
   check(m.vocab.elements.some((e) => e.id === 'maglev_car'), '新元件进了合并词表');
 
   const override = clone(user);
@@ -90,11 +91,11 @@ console.log('\n『B』内置 + 用户词表合并');
 
   const disabled = clone(user);
   disabled.elements = [];
-  disabled.disabled = { elements: ['belt'], scenes: [] };
+  disabled.disabled = { elements: ['ball'], scenes: [] };
   const m5 = mergeVocab(v2, disabled, { primitiveNames });
-  check(m5.vocab.elements.find((e) => e.id === 'belt')?.enabled === false, 'disabled 开关把 belt 置为 enabled=false');
+  check(m5.vocab.elements.find((e) => e.id === 'ball')?.enabled === false, 'disabled 开关把 ball 置为 enabled=false');
   const promptText = buildJudgementVocabV2(m5.vocab);
-  check(!promptText.includes('- belt｜'), '被关闭的元件不进 Prompt 词表');
+  check(!promptText.includes('- ball｜'), '被关闭的元件不进 Prompt 词表');
   check(promptText.includes('- block｜'), '未关闭的元件仍在 Prompt 词表');
 }
 
@@ -113,7 +114,7 @@ console.log('\n『C』条目 v2 校验');
   };
   check(validateEntryV2(base, { vocab: v2 }).length === 0, '合法 element 卡通过', validateEntryV2(base, { vocab: v2 }).join('；'));
 
-  const scene = { ...base, id: 'card.scene', kind: 'scene', elements: undefined, scenes: ['conveyor_block'] };
+  const scene = { ...base, id: 'card.scene', kind: 'scene', elements: undefined, scenes: ['belt'] };
   check(validateEntryV2(scene, { vocab: v2 }).length === 0, '合法 scene 卡通过', validateEntryV2(scene, { vocab: v2 }).join('；'));
 
   const rule = { ...base, id: 'card.rule', kind: 'anim_rule', elements: undefined, constant: true };
@@ -124,7 +125,7 @@ console.log('\n『C』条目 v2 校验');
     'element 卡缺 elements 被拒',
   );
   check(
-    validateEntryV2({ ...base, kind: 'scene', elements: undefined, scenes: ['conveyor_block', 'incline_block'] }, { vocab: v2 }).some((p) =>
+    validateEntryV2({ ...base, kind: 'scene', elements: undefined, scenes: ['belt', 'incline'] }, { vocab: v2 }).some((p) =>
       p.includes('恰好 1 个'),
     ),
     'scene 卡多于 1 个场景被拒',
@@ -142,7 +143,7 @@ console.log('\n『C』条目 v2 校验');
     '旧字段 keys 被拒',
   );
   check(
-    validateEntryV2({ ...base, scenes: ['conveyor_block'] }, { vocab: v2 }).some((p) => p.includes('不应有 scenes')),
+    validateEntryV2({ ...base, scenes: ['belt'] }, { vocab: v2 }).some((p) => p.includes('不应有 scenes')),
     'element 卡带 scenes 被拒',
   );
 }
@@ -164,8 +165,8 @@ console.log('\n『D』v1 → v2 迁移');
       if ('keys' in r.entry) problems.push(`${e.id}: 迁移后仍带 keys`);
     }
   }
-  check(converted === 33 && disabled === 0, '33 张内置卡全部迁移成功', `converted=${converted} disabled=${disabled}`);
-  check(problems.length === 0, '迁移后的 33 张卡都通过 v2 校验', problems.slice(0, 5).join('；'));
+  check(converted === 10 && disabled === 23, '10 张内置卡迁移成功、23 张旧卡停用', `converted=${converted} disabled=${disabled}`);
+  check(problems.length === 0, '迁移成功的卡都通过 v2 校验', problems.slice(0, 5).join('；'));
 
   const keysOnly = {
     id: 'card.keys-only',
@@ -184,7 +185,7 @@ console.log('\n『D』v1 → v2 迁移');
   const r2 = migrateEntryV1toV2(conceptsOnly, { vocab: v2 });
   check(!r2.ok && r2.action === 'disable', '只有 concepts 的卡被停用', JSON.stringify(r2));
 
-  const solveCard = { ...keysOnly, id: 'card.solve', keys: ['斜面'], elements: ['incline'], insertion_slot: ['solve'] };
+  const solveCard = { ...keysOnly, id: 'card.solve', keys: ['小球'], elements: ['ball'], insertion_slot: ['solve'] };
   const r3 = migrateEntryV1toV2(solveCard, { vocab: v2 });
   check(r3.ok && !('insertion_slot' in r3.entry), 'solve 卡迁移后没有 insertion_slot');
   check(r3.warnings.some((w) => w.includes('solve')), 'solve 卡迁移有 warning');
@@ -198,15 +199,64 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
 {
   const lib = loadV2Library();
   check(lib.ok, 'v2 运行时库加载无问题', lib.problems.join('；'));
-  check(lib.entries.length === 33, '内置 33 张 v2 卡', String(lib.entries.length));
-  check(lib.vocab.elements.length === 30 && lib.vocab.scenes.length === 3, '词表 30 元件 + 3 场景');
+  check(lib.entries.length === 31, '内置 31 张 v2 卡', String(lib.entries.length));
+  check(lib.vocab.elements.length === 11 && lib.vocab.scenes.length === 18, '词表 11 元件 + 18 场景');
 
-  const judgeText = '【动画元件】belt、block\n【场景】conveyor_block\n【判定依据】水平传送带和物块';
+  /* ── 1:1 治理：启用的词表项 ↔ 启用的卡片，无孤儿 ── */
+  {
+    const activeElements = lib.vocab.elements.filter((e) => e.enabled !== false);
+    const activeScenes = lib.vocab.scenes.filter((s) => s.enabled !== false);
+    const elementCards = lib.entries.filter((e) => e.kind === 'element' && e.enabled !== false);
+    const sceneCards = lib.entries.filter((e) => e.kind === 'scene' && e.enabled !== false);
+    const missingElement = activeElements.filter((e) => elementCards.filter((c) => c.elements?.includes(e.id)).length !== 1);
+    const missingScene = activeScenes.filter((s) => sceneCards.filter((c) => c.scenes?.includes(s.id)).length !== 1);
+    const orphanElement = elementCards.filter((c) => !activeElements.some((e) => c.elements?.includes(e.id)));
+    const orphanScene = sceneCards.filter((c) => !activeScenes.some((s) => c.scenes?.includes(s.id)));
+    check(
+      '★ 1:1：每个启用元件恰好一张启用卡',
+      missingElement.length === 0 && orphanElement.length === 0,
+      `缺/重 ${missingElement.map((e) => e.id).join(',')}；孤儿 ${orphanElement.map((c) => c.id).join(',')}`,
+    );
+    check(
+      '★ 1:1：每个启用场景恰好一张启用卡',
+      missingScene.length === 0 && orphanScene.length === 0,
+      `缺/重 ${missingScene.map((s) => s.id).join(',')}；孤儿 ${orphanScene.map((c) => c.id).join(',')}`,
+    );
+  }
+
+  /* ── v6 卡片口径：示例是**裸 drawFrame 函数体**，且逐段过 C1 ── */
+  {
+    const exampleProblems = [];
+    const shapeProblems = [];
+    for (const e of lib.entries) {
+      const examples = e.code_examples ?? [];
+      if (e.kind === 'element' && examples.length !== 1) shapeProblems.push(`${e.id}: element 卡应有 1 段示例（实际 ${examples.length}）`);
+      if (e.kind === 'anim_rule' && examples.length !== 0) shapeProblems.push(`${e.id}: 常驻卡不应带示例（实际 ${examples.length}）`);
+      for (const ex of examples) {
+        if (/^\s*(drawFrame|VIEW|setup|stateAt|readouts)\s*:/.test(ex)) shapeProblems.push(`${e.id}: 示例仍带旧槽位标签 ${ex.slice(0, 30)}`);
+        if (/`/.test(ex)) shapeProblems.push(`${e.id}: 示例里还有反引号`);
+        const r = lintSlot({ code: ex, slot: 'drawFrame', entry: e.id });
+        for (const d of r.diagnostics) exampleProblems.push(`${e.id}: ${d.rule}@${d.line} ${d.message}`);
+      }
+      if (e.kind === 'element') {
+        for (const h of ['## 判据', '## 画法', '## 自检']) {
+          if (!e.content.includes(h)) shapeProblems.push(`${e.id}: 缺小节 ${h}`);
+        }
+        if (!e.content.includes('state.<key>')) shapeProblems.push(`${e.id}: 没有 state.<key> 口径`);
+      } else if (!e.content.includes('## 自检')) {
+        shapeProblems.push(`${e.id}: 常驻卡缺 ## 自检`);
+      }
+    }
+    check(shapeProblems.length === 0, '31 张卡的小节/示例形状符合 v6（判据·画法·自检；示例裸代码）', shapeProblems.slice(0, 4).join('；'));
+    check(exampleProblems.length === 0, '所有 v2 code_examples 都按 drawFrame 过 C1', exampleProblems.slice(0, 4).join('；'));
+  }
+
+  const judgeText = '【动画元件】block\n【场景】belt\n【判定依据】水平传送带和物块';
   const judgeVocab = buildJudgementVocabV2(lib.vocab);
   check(judgeVocab.includes('【动画元件词表】') && judgeVocab.includes('【场景词表】'), '词表文本包含元件与场景两段');
   const parsed = parseJudgementV2(judgeText, { vocab: lib.vocab });
-  check(parsed.elements.join(',') === 'belt,block', '解析出 belt/block', parsed.elements.join(','));
-  check(parsed.scenes.join(',') === 'conveyor_block', '解析出 conveyor_block', parsed.scenes.join(','));
+  check(parsed.elements.join(',') === 'block', '解析出 block', parsed.elements.join(','));
+  check(parsed.scenes.join(',') === 'belt', '解析出 belt', parsed.scenes.join(','));
   check(parsed.problems.length === 0, '完整判定无问题', parsed.problems.map((p) => p.code).join(','));
 
   const sceneCard = {
@@ -216,7 +266,7 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
     origin: 'user',
     enabled: true,
     constant: false,
-    scenes: ['conveyor_block'],
+    scenes: ['belt'],
     order: 10,
     priority: 'high',
     content: '# 场景·传送带+物块\n\n先地面，再传送带，再物块。',
@@ -230,7 +280,7 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
     scenes: parsed.scenes,
   });
   const prov = result.provenance.map((p) => `${p.entry_id}:${p.via}`);
-  check(prov.includes('wb_el_block:element') && prov.includes('wb_el_belt:element'), '元件卡按 elements 命中', prov.join(' '));
+  check(prov.includes('wb_el_block:element') && prov.includes('wb_sc_belt:scene'), '元件卡/场景卡分别按 elements/scenes 命中', prov.join(' '));
   check(prov.includes('scene.conveyor-demo:scene'), '场景卡按 scenes 命中', prov.join(' '));
   check(result.text.scene_code.includes('场景·传送带+物块'), '场景卡正文进了拼接文本');
   check(!prov.some((p) => p.endsWith(':key')), '没有 key 触发路径', prov.join(' '));
@@ -249,15 +299,15 @@ console.log('\n『F』v1 用户卡在 v2 库里的迁移');
       version: 1,
       entries: [
         {
-          id: 'user.incline',
-          title: '用户·斜面',
+          id: 'user.ball',
+          title: '用户·小球',
           origin: 'user',
           category: 'scene_modeling',
           enabled: true,
-          keys: ['斜面'],
+          keys: ['小球'],
           insertion_slot: ['scene_code'],
-          content: '用户斜面卡',
-          elements: ['incline'],
+          content: '用户小球卡',
+          elements: ['ball'],
           code_examples: [],
         },
         {
@@ -276,8 +326,8 @@ console.log('\n『F』v1 用户卡在 v2 库里的迁移');
     writeFileSync(join(tmp, 'pack.json'), JSON.stringify(v1Pack, null, 2), 'utf8');
     const lib = loadV2Library({ userDir: tmp, userVocabPath: join(tmp, 'no-vocab.json') });
     check(lib.ok, '带 v1 用户卡的库加载无硬错误', lib.problems.join('；'));
-    check(lib.entries.length === 34, '内置 33 + 迁移成功的 1 张用户卡', String(lib.entries.length));
-    check(lib.user.some((e) => e.id === 'user.incline' && e.elements?.[0] === 'incline'), '有 elements 的 v1 用户卡迁移成功');
+    check(lib.entries.length === 32, '内置 31 + 迁移成功的 1 张用户卡', String(lib.entries.length));
+    check(lib.user.some((e) => e.id === 'user.ball' && e.elements?.[0] === 'ball'), '有 elements 的 v1 用户卡迁移成功');
     check(lib.migration.some((m) => m.id === 'user.keys-only' && m.action === 'disable'), '只有 keys 的用户卡被停用+报告');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -293,12 +343,13 @@ console.log('\n『G』Phase 3 过渡：v2 卡接进 v1 引擎');
     text: '水平传送带上的物块',
     concepts: [],
     tags: [],
-    elements: ['belt', 'block'],
+    elements: ['block'],
+    scenes: ['belt'],
   });
   const prov = r.provenance.map((p) => `${p.entry_id}:${p.via}`);
-  check(prov.includes('wb_el_belt:element') && prov.includes('wb_el_block:element'), 'v2 卡经适配器仍按 elements 命中', prov.join(' '));
+  check(prov.includes('wb_sc_belt:scene') && prov.includes('wb_el_block:element'), 'v2 卡经适配器仍按 elements/scenes 命中', prov.join(' '));
   check(!prov.some((p) => p.endsWith(':key')), '适配后没有 key 命中路径', prov.join(' '));
-  check(r.text.scene_code.includes('元件·传送带'), '传送带卡正文进了 v1 引擎拼接文本');
+  check(r.text.scene_code.includes('场景·传送带'), '传送带卡正文进了 v1 引擎拼接文本');
   check(r.slots.solve.empty === true, 'solve 槽仍为空');
 }
 
@@ -313,7 +364,7 @@ console.log('\n『H』Phase 3 读题 v2 + 场景触发');
     origin: 'user',
     enabled: true,
     constant: false,
-    scenes: ['conveyor_block'],
+    scenes: ['belt'],
     order: 10,
     priority: 'high',
     content: '先地面，再传送带，再物块。',
@@ -325,7 +376,7 @@ console.log('\n『H』Phase 3 读题 v2 + 场景触发');
     concepts: [],
     tags: [],
     elements: [],
-    scenes: ['conveyor_block'],
+    scenes: ['belt'],
   });
   check(r.provenance.some((x) => x.entry_id === 'scene.conveyor-demo' && x.via === 'scene'), 'v1 引擎也能按 scenes 命中（Phase 3 过渡）', JSON.stringify(r.provenance));
 }

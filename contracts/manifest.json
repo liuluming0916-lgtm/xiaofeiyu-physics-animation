@@ -28,8 +28,8 @@
       "root": "CleaningRule",
       "schema": "contracts/cleaning-rule.schema.json",
       "types": "contracts/types/cleaning-rule.d.ts",
-      "schemaSha256": "0aa33290660f67f464d051356c5201bf7959018c28191a7b0cd7cf433513e49c",
-      "typesSha256": "82557ccf0481a746dd46da90564012c6cdfc4449571ff775a6c0e555744a4f34"
+      "schemaSha256": "48fda2a9a82e77d5ea8eca975b2cf4027ef520646fee59fe5260d3dd4580dd33",
+      "typesSha256": "1a52913304fd49f17dca5ac360fc2a95fa259b31e28ddd8557215dd85c288a26"
     },
     {
       "id": "cleaning-rule-set",
@@ -44,8 +44,8 @@
       "root": "EndpointConfig",
       "schema": "contracts/endpoint.schema.json",
       "types": "contracts/types/endpoint.d.ts",
-      "schemaSha256": "7e0500f7c52ee99b519af9f0ec6a1816ee741975d646394a7e79ea6bbb91e11e",
-      "typesSha256": "59b8f5d7bacfc78faddac8f95d74cc29cf206155ef924c516280d0232d0b2b59"
+      "schemaSha256": "0c7a01bde3fd3244fdff1b59bd67f7787fc814a928646aa537b06733685e9478",
+      "typesSha256": "cdce05d477897c38557aa01a50ba975813aeadee11a79e9a9c673f2d763b976e"
     },
     {
       "id": "diagnostic-record",
@@ -67,5 +67,5 @@
   "slotKeys": "contracts/slot-keys.json",
   "knowledgecardSlotNames": "contracts/knowledgecard-slot-names.json",
   "diagnosticEvidence": "contracts/diagnostic-evidence.json",
-  "contractHash": "06b986a81b1253c0f89218983f6fdf2343b759906f9e60222e39842b6727790b"
+  "contractHash": "2f90e4e26f5089e46a9e86ea3d300631e6dcddece90affc1a11898e38072c582"
 }

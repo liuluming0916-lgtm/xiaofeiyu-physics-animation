@@ -196,7 +196,6 @@ var boardRight = state.xB + context.L;
 Draw.polygon([[boardLeft, boardY], [boardRight, boardY], [boardRight, boardY + H], [boardLeft, boardY + H]], {
   fill: '#ffffff', stroke: '#2b3440', layer: 1
 });
-Draw.text(boardLeft + 1.2, boardY + H * 0.5, 'M = 2 kg, L = 12 m', { size: 11, color: '#5d6b7a', align: 'left' });
 
 var blockLeft = state.xB + state.dsRel + 0.08;
 var blockRight = blockLeft + 0.85;
@@ -210,7 +209,6 @@ Draw.polygon(
   [[blockLeft, boardY + H], [blockRight, boardY + H], [blockRight, boardY + H + blockH], [blockLeft, boardY + H + blockH]],
   { fill: '#ffffff', stroke: '#1d2733', layer: 2 }
 );
-Draw.text((blockLeft + blockRight) / 2, boardY + H + blockH + 0.14, 'm = 1 kg', { size: 12, color: '#1d2733' });
 
 if (state.sliding) {
   Draw.arrow([blockRight, boardY + H + blockH * 0.5], [1.4, 0], {
@@ -221,7 +219,6 @@ if (state.sliding) {
     category: 'force', subtype: 'friction', label: 'f₁′', mag: context.mu1 * context.m * context.g
   });
 } else if (state.still) {
-  Draw.text(blockLeft, boardY + H + blockH + 0.42, '已停止：摩擦力与加速度均为 0', { size: 11, color: '#5d6b7a', align: 'left' });
 } else {
   Draw.arrow([blockRight, boardY + H + blockH * 0.5], [-1.0, 0], {
     category: 'force', subtype: 'friction', label: '静摩擦 1 N', mag: 1
@@ -237,12 +234,8 @@ if (!state.still) {
 
 var rulerY = 2.20;
 Draw.line([state.xB, rulerY], [state.xB + state.dsRel, rulerY], { color: '#a4610d', width: 1.4 });
-Draw.dimension([state.xB, rulerY + 0.14], [state.xB + state.dsRel, rulerY + 0.14], {
-  kind: 'linear', text: 'Δs = ' + Phys.format(state.dsRel, 'm', 2)
-});
 Draw.line([state.xB, boardY + H], [state.xB, rulerY], { dash: true, color: '#9aa7b4' });
 Draw.line([state.xB + state.dsRel, boardY + H + blockH], [state.xB + state.dsRel, rulerY], { dash: true, color: '#9aa7b4' });
-Draw.text(boardLeft, rulerY + 0.38, '板右端余量 = ' + Phys.format(context.L - state.dsRel, 'm', 2) + '（> 0 ⇒ 未滑落）', { size: 11, color: '#5d6b7a', align: 'left' });
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。
    原手绘代码留档在「软件自研v1开发历史.md 附录 B（原快照已清理）」，第 7.1 期按新方式重画。 */`,

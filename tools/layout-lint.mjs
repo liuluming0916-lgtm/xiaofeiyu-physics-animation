@@ -266,24 +266,36 @@ function checkStepNav(html) {
   } catch (err) {
     return [`无法解析 PROGRAM_DATA：${err.message}`];
   }
-  const steps = parseStepsSlot(payload.slots.STEPS);
+  const rawSteps = parseStepsSlot(payload.slots.STEPS);
+  const stepTimes = Array.isArray(payload.stepTimes) && payload.stepTimes.length
+    ? payload.stepTimes
+    : rawSteps
+        .map((s, i) => ({ step: i + 1, t0: s.t0, t1: s.t1 }))
+        .filter((s) => Number.isFinite(s.t0) && Number.isFinite(s.t1) && s.t1 > s.t0);
+  const steps = stepTimes.length ? stepTimes : rawSteps;
   const dur = Number((payload.slots.VIEW.match(/duration:\s*([\d.]+)/) || [])[1]);
   if (!Number.isFinite(dur)) return ['无法从 VIEW 里读出 duration'];
+  /**
+   * 2026-10-23 时长归一化：`stepTimes` 现在是**显示秒**，终点是 `displayDuration`（每小问 4 s），
+   * 不再等于 VIEW 里的物理 `duration`。没有 `displayDuration` 的老页面退回物理时长。
+   */
+  const navDur = Number.isFinite(payload.displayDuration) && payload.displayDuration > 0 ? payload.displayDuration : dur;
+  if (!steps.length || !steps.every((s) => Number.isFinite(s.t0))) return []; // 没有步骤时间：不测导航
   // eslint-disable-next-line no-new-func
-  const indexOfStep = new Function('STEPS', `${src}\nreturn indexOfStep;`)(steps);
+  const indexOfStep = new Function('STEP_TIMES', `${src}\nreturn indexOfStep;`)(stepTimes);
 
   const forward = [0];
   let t = 0;
   for (let k = 0; k <= steps.length; k += 1) {
     const i = indexOfStep(t);
-    t = i >= steps.length - 1 ? dur : steps[i + 1].t0;
+    t = i >= steps.length - 1 ? navDur : steps[i + 1].t0;
     forward.push(t);
   }
   const missed = steps.slice(1).filter((s) => !forward.some((x) => Math.abs(x - s.t0) < 1e-9));
   if (missed.length) problems.push(`"下一步"跳不到这些步：${missed.map((s) => s.t0).join('、')}`);
-  if (Math.abs(forward[forward.length - 1] - dur) > 1e-9) problems.push(`"下一步"走不到结尾（停在 ${forward[forward.length - 1]}，duration = ${dur}）`);
+  if (Math.abs(forward[forward.length - 1] - navDur) > 1e-9) problems.push(`"下一步"走不到结尾（停在 ${forward[forward.length - 1]}，duration = ${navDur}）`);
 
-  let back = dur;
+  let back = navDur;
   let backToZero = false;
   for (let k = 0; k <= steps.length; k += 1) {
     const i = indexOfStep(back);

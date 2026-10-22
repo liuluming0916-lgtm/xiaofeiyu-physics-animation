@@ -93,6 +93,8 @@ export const SLOT_PARAMS = Object.freeze({
 export const RUNTIME_INJECTED = Object.freeze([
   'Draw', 'Phys', 'context', 'RETURN', 'SIM', 'STEPS', 'ANSWERS', 'PROBLEM', 'PROGRAM', 'runtime', 'buffer',
   'PROBLEM_TEXT', 'STEPS_DATA', 'ANSWERS_DATA',
+  // 同一装配作用域里的槽位函数：readouts 可以调 stateAt（v6 生成器用它算 vx/vy）
+  'stateAt', 'drawFrame', 'readouts', 'setup',
 ]);
 
 /** `stateAt` 内静态禁用的调用（§7.6 架构不变量） */

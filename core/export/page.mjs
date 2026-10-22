@@ -194,6 +194,8 @@ export async function buildExportPage(input = {}) {
      * 没给表时（旧调用方）行为与第 7 期完全一致。
      */
     labelAvoid: input.labelAvoid && typeof input.labelAvoid === 'object' ? input.labelAvoid : null,
+    /* v6：步骤时间一起烧进导出页，联动不依赖宿主 */
+    stepTimes: Array.isArray(input.stepTimes) ? input.stepTimes : null,
   });
   } catch (err) {
     return { ok: false, code: 'export.build-failed', message: String(err?.message ?? err) };

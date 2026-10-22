@@ -35,7 +35,7 @@ export function buildJudgementVocabV2(vocab) {
     L.push(`- ${e.id}｜${e.name}`);
   }
   L.push('');
-  L.push('【场景词表】（scenes：只能从下列 id 里选；一道题最多 1 个场景；判不出写"无"）');
+  L.push('【场景词表】（scenes：只能从下列 id 里选；可多选；判不出写"无"）');
   for (const s of vocab?.scenes ?? []) {
     if (s.enabled === false) continue;
     L.push(`- ${s.id}｜${s.name}`);
@@ -121,10 +121,14 @@ export function parseJudgementV2(text, { vocab, index = null } = {}) {
     }
     if (!scenes.includes(hit.id)) scenes.push(hit.id);
   }
-  if (scenes.length > 1) {
-    problems.push({ code: 'too-many-scenes', scenes: [...scenes], message: `一道题最多 1 个场景；模型给了 ${scenes.length} 个，已保留第一个` });
-    scenes.splice(1);
-  }
+  /**
+   * v1.1.17：场景**允许命中多个**（用户 2026-10-22 裁决）。
+   *
+   * 旧口径把场景当“一道题最多一个”，命中多个就截断到第一个并报 too-many-scenes。
+   * 现在一个题确实可能同时是“传送带+物块”和“滑轮+绳”；每个场景卡只绑一个场景 id，
+   * 命中多个 = 注入多张场景卡，由触发引擎按并集处理（`runtime.mjs` 用的是 Set）。
+   * 这里只去重，不截断。
+   */
 
   const why = String(raw.why ?? '').trim();
   if (!why) problems.push({ code: 'missing-why', message: '模型没有输出【判定依据】' });

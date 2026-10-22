@@ -126,7 +126,7 @@ async function bootPage(htmlPath) {
 
   /* 运行时用**真实现**（省掉 15 页各跑一份 60 KB 的内联运行时，也避免两套运行时口径不一） */
   const rt = await import(pathToFileURL(join(PROJECT_ROOT, 'sdk', 'runtime', 'animation-runtime.mjs')).href);
-  windowStub.ODRuntime = rt;
+  windowStub.ODRuntime = rt.Runtime;
 
   const context = vm.createContext(sandbox);
   for (const code of inlineScripts(html)) {
@@ -193,6 +193,27 @@ export async function main() {
   console.log('\n『A』曲线图默认就位，纵轴默认取 SIM.axes 的第一个量');
   const page = await bootPage(pagePath);
   check('成品页跑起来没有抛错', page.errors.length === 0, page.errors[0]?.message);
+  /**
+   * 时长归一化（2026-10-23）：时间轴是**显示秒**（每小问 4 s），不是物理秒。
+   * 这个测试仍然用"物理秒"表达意图（v(0.3)=0.6 之类），所以先把物理秒换成显示秒再拖。
+   */
+  const PS = page.html.indexOf('PROGRAM_DATA = ') + 'PROGRAM_DATA = '.length;
+  const PAYLOAD = JSON.parse(page.html.slice(PS, page.html.indexOf(';\n', PS)));
+  const TM = Array.isArray(PAYLOAD.timeMap) ? PAYLOAD.timeMap : null;
+  const T_DISPLAY =
+    typeof PAYLOAD.displayDuration === 'number' && PAYLOAD.displayDuration > 0 ? PAYLOAD.displayDuration : 2;
+  const disp = (t) => {
+    if (!TM) return t;
+    for (let i = 0; i < TM.length; i += 1) {
+      const s = TM[i];
+      if (t <= s.p1 || i === TM.length - 1) {
+        if (t <= s.p0) return s.d0;
+        return s.d0 + ((t - s.p0) / (s.p1 - s.p0)) * (s.d1 - s.d0);
+      }
+    }
+    return t;
+  };
+  const fmt2 = (v) => Number(v).toFixed(2);
   const panel = el(page.doc, 'chart-panel');
   check('图表面板可见（未隐藏）', panel.hidden === false);
   const picks = el(page.doc, 'chart-picks').children.filter((c) => c.nodeType === 1);
@@ -207,28 +228,28 @@ export async function main() {
   console.log('\n『B』游标读数与 readouts(t) 一致（同一 t），并含负对照');
   // q01：v(t) = min(a1·t, u)，a1 = μg = 2、u = 2 ⇒ v(0.3) = 0.6、v(1.6) = 2.0
   let mark = page.chart.calls.length;
-  seekTo(page.doc, 0.3);
+  seekTo(page.doc, disp(0.3));
   const label03 = cursorLabel(page.chart, mark);
   check('★ t = 0.3 时游标读数 = 0.6（v 的独立解析解）', label03 !== null && Math.abs(Number(label03) - 0.6) < 1e-9, label03);
   mark = page.chart.calls.length;
-  seekTo(page.doc, 1.6);
+  seekTo(page.doc, disp(1.6));
   const label16 = cursorLabel(page.chart, mark);
   check('★ t = 1.6 时游标读数 = 2（共速后恒为 u）', label16 !== null && Math.abs(Number(label16) - 2) < 1e-9, label16);
   check('负对照：两个 t 的读数确实不同', label03 !== label16, `${label03} vs ${label16}`);
 
-  /* ── C 游标横坐标 == 同一 t 的映射位置 ── */
-  console.log('\n『C』游标横坐标 = 38 + t/dur × (宽 − 48)，与画布同一个 t');
+  /* ── C 游标横坐标 == 物理 t 的映射位置（曲线图横轴是真实物理秒） ── */
+  console.log('\n『C』游标横坐标 = 38 + t/dur × (宽 − 48)，横轴为真实物理秒');
   const W = 800; // 桩的 clientWidth
   const PW = W - 38 - 10;
-  const DUR = 2.0; // q01 的 duration
+  const DUR = 2.0; // q01 的物理 duration
   mark = page.chart.calls.length;
-  seekTo(page.doc, 0.3);
+  seekTo(page.doc, disp(0.3));
   const x03 = cursorX(page.chart, mark);
-  check('★ t = 0.3 ⇒ 游标 x = 150.8', x03 !== null && Math.abs(x03 - (38 + (0.3 / DUR) * PW)) < 0.01, String(x03));
+  check('★ t = 0.3（物理）⇒ 游标 x = 38 + t/DUR × PW', x03 !== null && Math.abs(x03 - (38 + (0.3 / DUR) * PW)) < 0.01, String(x03));
   mark = page.chart.calls.length;
-  seekTo(page.doc, 1.6);
+  seekTo(page.doc, disp(1.6));
   const x16 = cursorX(page.chart, mark);
-  check('★ t = 1.6 ⇒ 游标 x = 639.6', x16 !== null && Math.abs(x16 - (38 + (1.6 / DUR) * PW)) < 0.01, String(x16));
+  check('★ t = 1.6（物理）⇒ 游标 x = 38 + t/DUR × PW', x16 !== null && Math.abs(x16 - (38 + (1.6 / DUR) * PW)) < 0.01, String(x16));
   check('两点的游标位置确实不同（不是画了个死图）', x03 !== null && x16 !== null && Math.abs(x16 - x03) > 100);
 
   /* ── D 可切纵轴 ── */
@@ -281,7 +302,7 @@ export async function main() {
      用户 2026-10-17：「将原有的'原题'和'分步解析'两栏合并为左侧单一导读栏，
      采用选项卡/步骤切换机制（[原题][第1步]…），支持随时间轴播放自动切换对应步骤，
      也可手动点击步骤跳到对应动画关键帧」。这里逐条钉住。 */
-  console.log('\n『K』导读栏合并与切换（原题 / 第N步 · 动画联动双向 · 解耦彻底断开）');
+  console.log('\n『K』导读栏合并与切换（原题 / 第N步 · 动画联动双向）');
   /* ⚠ 这一段必须用**新开的页面**：上面的断言已经把 t 拖到 1.7 s、把选项锁过好几轮，
      拿同一个实例去断言"初始停在原题"必然假红。这里重新装一次，模拟用户刚打开。 */
   const k = await bootPage(pagePath);
@@ -294,16 +315,16 @@ export async function main() {
   check('第一页是「原题」', tabBtns[0]?.textContent === '原题');
   check('后续页签是「第 N 步」', /1/.test(tabBtns[1]?.textContent ?? '') && /4/.test(tabBtns[4]?.textContent ?? ''));
   check('★ 初始停在原题（步骤面板隐藏）', problemPanel.hidden === false && stepsPanel.hidden === true);
-  const followBox = el(k.doc, 'follow-toggle');
-  check('★ 页面上有「动画联动」开关，默认勾选', !!followBox && followBox.checked === true);
-  check(
-    '★ 开关的名字是「动画联动」',
-    String(followBox.parentNode?.textContent ?? '').includes('动画联动'),
-    followBox.parentNode?.textContent,
-  );
-  check('★ 初始 data-follow = on（勾着但还没动过时间）', tabs.getAttribute('data-follow') === 'on');
 
-  // 联动状态：点"第 2 步" ⇒ 只显示第 2 张卡 + 动画跳到该步起点
+  /* v6：动画联动回归，默认开启 */
+  const followBox = el(k.doc, 'follow-toggle');
+  check('★ 页面上有「动画联动」开关，默认勾选', Boolean(followBox?.checked), String(followBox?.checked));
+  check('★ 开关名字是「动画联动」', String(followBox.parentNode?.textContent ?? '').includes('动画联动'));
+  check('★ 初始 data-follow = on', tabs.getAttribute('data-follow') === 'on');
+  const initialTime = el(k.doc, 'timecode').textContent;
+  check('初始停在第 1 步（时间轴不显示秒）', /^第 1 \//.test(initialTime), initialTime);
+
+  // 点"第 2 步" ⇒ 只显示第 2 张卡 + 动画跳到该步起点 t=0.60
   tabBtns[2].click();
   const cardHidden = [1, 2, 3, 4].map((n) => el(k.doc, `step-${n}`).hidden);
   check('★ 点第 2 步 ⇒ 步骤面板出现、原题面板收起', stepsPanel.hidden === false && problemPanel.hidden === true);
@@ -312,54 +333,31 @@ export async function main() {
     cardHidden[0] === true && cardHidden[1] === false && cardHidden[2] === true && cardHidden[3] === true,
     JSON.stringify(cardHidden),
   );
-  check(
-    '★ 联动时点步骤 = 跳到该步关键帧（t = 0.60）',
-    /^0\.60\s*\//.test(el(k.doc, 'timecode').textContent),
-    el(k.doc, 'timecode').textContent,
-  );
-  check(
-    '选中的页签有 aria-selected、其余为 false',
-    tabBtns[2].getAttribute('aria-selected') === 'true' && tabBtns[0].getAttribute('aria-selected') === 'false',
-  );
-  check('★ 点页签**不**改开关本身（联动与否由那颗勾选说了算）', followBox.checked === true && tabs.getAttribute('data-follow') === 'on');
+  const stepText = (k) => `第 ${k} / ${4} 步`;
+  check(`★ 联动时点步骤 = 跳到该步（时间轴报「${stepText(2)}」，不显示秒）`, el(k.doc, 'timecode').textContent.startsWith(stepText(2)), el(k.doc, 'timecode').textContent);
+  check('选中的页签有 aria-selected、其余为 false', tabBtns[2].getAttribute('aria-selected') === 'true' && tabBtns[0].getAttribute('aria-selected') === 'false');
 
-  /* ★ 取消联动 ⇒ 两栏**彻底解耦**：两个方向都断
-       ① 点页签只换文字，动画一动不动（用户 2026-10-17 明确指出的错） */
+  // 拖时间轴 ⇒ 自动选中当前步
+  seekTo(k.doc, disp(1.7)); // 物理 1.7 s 属于第 4 步
+  check('★ 拖到 1.7 s（物理）⇒ 自动选中第 4 步', tabBtns[4].getAttribute('aria-selected') === 'true');
+  check('时间轴跟着报第 4 步', el(k.doc, 'timecode').textContent.startsWith(stepText(4)), el(k.doc, 'timecode').textContent);
+
+  // 取消联动 ⇒ 点页签只换文字；拖时间轴也不翻页签
   followBox.checked = false;
   followBox.dispatch('change');
   check('★ 取消「动画联动」⇒ data-follow = off', tabs.getAttribute('data-follow') === 'off');
-  tabBtns[3].click(); // 第 3 步（t0 = 1.00）
-  check('解耦后点第 3 步 ⇒ 文字确实换到第 3 步', tabBtns[3].getAttribute('aria-selected') === 'true');
-  check(
-    '★★ 解耦后点第 3 步，动画**不动**（仍是 0.60）',
-    /^0\.60\s*\//.test(el(k.doc, 'timecode').textContent),
-    el(k.doc, 'timecode').textContent,
-  );
-  check('解耦后只显示第 3 步那一张卡', el(k.doc, 'step-3').hidden === false && el(k.doc, 'step-2').hidden === true);
+  tabBtns[1].click();
+  check('解耦后点第 1 步 ⇒ 文字换过去', tabBtns[1].getAttribute('aria-selected') === 'true');
+  check('★★ 解耦后动画不动（仍在第 4 步）', el(k.doc, 'timecode').textContent.startsWith(stepText(4)), el(k.doc, 'timecode').textContent);
+  seekTo(k.doc, disp(0.3));
+  check('解耦后拖时间轴也不翻页签（仍停在第 1 步）', tabBtns[1].getAttribute('aria-selected') === 'true');
 
-  /* ② 拖时间轴也不翻页签 */
-  seekTo(k.doc, 1.7); // 1.7 s 属于第 4 步
-  check('★ 解耦后拖到 1.7 s，页签仍停在第 3 步', tabBtns[3].getAttribute('aria-selected') === 'true');
-  check(
-    '解耦时动画确实动了（t = 1.70，只是页签不动）',
-    /^1\.70\s*\//.test(el(k.doc, 'timecode').textContent),
-    el(k.doc, 'timecode').textContent,
-  );
-
-  /* ★ 重新勾上 ⇒ 立刻按当前时间对一次，并且"点页签跳动画"恢复 */
+  // 重新勾上 ⇒ 立刻按当前时间选中当前步；点步骤恢复跳转
   followBox.checked = true;
   followBox.dispatch('change');
-  check(
-    '★ 恢复联动 ⇒ 立刻翻到当前步（第 4 步）',
-    tabs.getAttribute('data-follow') === 'on' && tabBtns[4].getAttribute('aria-selected') === 'true',
-    `follow=${tabs.getAttribute('data-follow')} 选中=${tabBtns.map((b) => b.getAttribute('aria-selected')).join(',')}`,
-  );
-  tabBtns[1].click(); // 第 1 步（t0 = 0）
-  check(
-    '★ 恢复联动后，点第 1 步又跳回 t = 0.00',
-    /^0\.00\s*\//.test(el(k.doc, 'timecode').textContent),
-    el(k.doc, 'timecode').textContent,
-  );
+  check('★ 恢复联动 ⇒ 立刻选中当前步（物理 t=0.30 属第 1 步）', tabs.getAttribute('data-follow') === 'on' && tabBtns[1].getAttribute('aria-selected') === 'true');
+  tabBtns[2].click();
+  check('★ 恢复联动后，点第 2 步又跳回该步', el(k.doc, 'timecode').textContent.startsWith(stepText(2)), el(k.doc, 'timecode').textContent);
 
   /* ── G 画布尺寸（v1.1.5 用户 2026-10-19：不锁 16:9；高度也吃栏高，不写死） ── */
   console.log('\n『G』画布尺寸（v1.1.5：不锁 16:9，宽度吃满 + 高度吃满右栏）');
@@ -478,10 +476,27 @@ export async function main() {
     await import(pathToFileURL(join(PROJECT_ROOT, 'tests', 'regression-15', 'q01-conveyor-heat.mjs')).href)
   ).default;
   shell.windowStub.dispatch('message', {
-    data: { source: 'od-host', type: 'program', slots: q01.slots, mode: 'NUMERIC', id: q01.id, title: q01.title },
+    data: {
+      source: 'od-host',
+      type: 'program',
+      slots: q01.slots,
+      mode: 'NUMERIC',
+      id: q01.id,
+      title: q01.title,
+      stepTimes: [
+        { step: 1, t0: 0, t1: 0.6 },
+        { step: 2, t0: 0.6, t1: 1.0 },
+        { step: 3, t0: 1.0, t1: 1.5 },
+        { step: 4, t0: 1.5, t1: 2.0 },
+      ],
+    },
   });
   check('注入后没有抛错', shell.errors.length === 0, shell.errors[1]?.message);
   check('★ 注入后图表面板出现', el(shell.doc, 'chart-panel').hidden === false);
+  const shellTabs = el(shell.doc, 'text-tabs').children.filter((c) => c.nodeType === 1);
+  check('★ 注入后页签在', shellTabs.length === 5, String(shellTabs.length));
+  shellTabs[2].click();
+  check('★ 注入路径也带上了 stepTimes（点第 2 步跳到第 2 步）', /^第 2 \//.test(el(shell.doc, 'timecode').textContent), el(shell.doc, 'timecode').textContent);
   const shellPicks = el(shell.doc, 'chart-picks').children.filter((c) => c.nodeType === 1);
   check('★ 注入后可选量 ≥ 4', shellPicks.length >= 4, String(shellPicks.length));
   let shellMark = shell.chart.calls.length;

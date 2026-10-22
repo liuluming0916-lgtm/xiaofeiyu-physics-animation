@@ -221,7 +221,10 @@ export function planRepair({ report, round, slots = {} }) {
  *   而不是"不交付"。
  */
 export function deliveryShape(slots) {
-  const missing = SLOT_KEY_NAMES.filter((k) => typeof slots?.[k] !== 'string' || slots[k].trim() === '');
+  // C7 已删：ANSWERS 允许为空，不算“缺槽位”
+  const missing = SLOT_KEY_NAMES.filter(
+    (k) => k !== 'ANSWERS' && (typeof slots?.[k] !== 'string' || slots[k].trim() === ''),
+  );
   return {
     playable: missing.length === 0,
     mode: missing.length === 0 ? 'delivered-candidate' : 'skeleton',
@@ -302,7 +305,7 @@ export const REPAIR_HINTS = Object.freeze({
     title: '`stateAt` 里调了 `Phys.integrate`（架构不变量 §7.6）',
     fix: [
       "setup: `const samples = Phys.integrate(s0, deriv, 0, T, { dt: 1 / 240 }).samples; RETURN('samples', samples);`",
-      "stateAt: `const x = Phys.interp(context.samples, t); return { x };`   // 查表 = O(log n)，允许在 stateAt 里用",
+      "stateAt: 在函数体内二分查 `context.samples`（O(log n)）；不要每帧重新积分",
     ],
   },
   'unknown-global': {

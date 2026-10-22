@@ -49,9 +49,10 @@
       "enum": [
         "read_problem",
         "solve",
-        "answers",
-        "steps",
+        "breakdown",
+        "analysis",
         "scene_code",
+        "couple",
         "knowledgecard"
       ],
       "title": "§12 stage 枚举（有模型文本产出的阶段）"

@@ -78,11 +78,12 @@ export const SLOT_CONCEPT_GROUP = Object.freeze({
 export const PIPELINE_STAGES = Object.freeze([
   'read_problem',
   'solve',
-  'answers',
-  'steps',
+  'breakdown',
+  'analysis',
   'scene_code',
   'dry_run',
   'repair',
+  'couple',
   'knowledgecard',
 ]);
 
@@ -98,9 +99,10 @@ export const PIPELINE_STAGES = Object.freeze([
 export const CLEANING_STAGES = Object.freeze([
   'read_problem',
   'solve',
-  'answers',
-  'steps',
+  'breakdown',
+  'analysis',
   'scene_code',
+  'couple',
   'knowledgecard',
 ]);
 
@@ -108,7 +110,16 @@ export const CLEANING_STAGES = Object.freeze([
 export const CLEANING_EXCLUDED_STAGES = Object.freeze(['dry_run', 'repair']);
 
 /** §9.1 世界书槽位名 = 目标阶段名（冻结） */
+/**
+ * 知识卡**数据契约**的兼容槽位（v1 旧包仍可能写 solve）。
+ *
+ * ⚠ v6 运行链路只注入 `KNOWLEDGECARD_RUNTIME_SLOTS`（只剩动画槽）；
+ *   这里的 solve 只为旧包读写兼容，**不再进入任何 Prompt**。
+ */
 export const KNOWLEDGECARD_INSERTION_SLOTS = Object.freeze(['solve', 'scene_code']);
+
+/** v6 当前真正注入的槽位：只剩动画槽 */
+export const KNOWLEDGECARD_RUNTIME_SLOTS = Object.freeze(['scene_code']);
 
 /**
  * §9.1 知识卡类型（**只含 knowledgecard 条目**）。
@@ -198,7 +209,7 @@ export const KNOWLEDGECARD_CONCEPTS_FORMAT = KNOWLEDGECARD_CONCEPTS.format;
 /**
  * §9.1 旧名归一化别名（只发生在导入路径；导出与内部一律只写新名）
  *  - `scene_spec` → `scene_code`
- *  - v2 的字符串写法 `"both"` → `["solve","scene_code"]`
+ *  - 旧的 `solve` 槽位保留为**数据兼容**（v6 运行时不注入）
  */
 export const KNOWLEDGECARD_IMPORT_ALIASES = Object.freeze({
   slotName: Object.freeze({ scene_spec: 'scene_code' }),

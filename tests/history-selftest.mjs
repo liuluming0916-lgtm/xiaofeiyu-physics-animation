@@ -80,7 +80,7 @@ function sampleRecord(runId) {
         type: 'run_start',
         at: '2026-10-17T10:00:00.000Z',
         entry: '传送带共速与摩擦生热',
-        stages: ['solve', 'answers', 'steps', 'scene_code', 'dry_run', 'repair'],
+        stages: ['solve', 'answers', 'breakdown', 'scene_code', 'dry_run', 'repair'],
         model: 'model-a',
         mode: 'NUMERIC',
         imageCount: 1,

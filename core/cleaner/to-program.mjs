@@ -55,7 +55,8 @@ export function checkProgramShape(program) {
   for (const key of SLOT_KEY_NAMES) {
     if (!(key in slots)) problems.push(`slots 缺少键 ${key}`);
     else if (typeof slots[key] !== 'string') problems.push(`slots.${key} 必须是字符串`);
-    else if (slots[key].length === 0) problems.push(`slots.${key} 是空字符串（空串视为缺失，§3.2 审计 2）`);
+    // C7 / ANSWERS 已删（2026-10-22）：ANSWERS 允许为空串，其余槽位仍不允许空串
+    else if (slots[key].length === 0 && key !== 'ANSWERS') problems.push(`slots.${key} 是空字符串（空串视为缺失，§3.2 审计 2）`);
   }
   for (const key of keys) {
     if (!SLOT_KEY_NAMES.includes(key)) problems.push(`slots 出现多余的键 ${key}（§3.2 不允许第 9 个键）`);

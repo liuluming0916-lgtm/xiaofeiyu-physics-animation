@@ -222,7 +222,6 @@ Draw.trace([[context.cmx0, context.cmy0],
   [context.cmx0 + context.vcx * SIM.duration, context.cmy0 + context.vcy * SIM.duration]],
   { color: '#6b5aa6' });
 Draw.circle([state.xcm, state.ycm], 0.055, { fill: '#6b5aa6' });
-Draw.text(state.xcm + 0.10, state.ycm + 0.20, '质心 C', { size: 11, color: '#6b5aa6', align: 'left' });
 
 // —— 连线方向（法向）参考线：速度分解的基准 ——
 Draw.line([state.x2 - 1.15 * nx, state.y2 - 1.15 * ny],
@@ -230,28 +229,22 @@ Draw.line([state.x2 - 1.15 * nx, state.y2 - 1.15 * ny],
 
 // —— 碰点标记 ——
 Draw.circle([0, 0], 0.055, { stroke: '#b3382f', width: 2 });
-Draw.text(0, -0.24, '碰点', { size: 12, color: '#b3382f' });
 
 // —— 两球本体 ——
 Draw.circle([state.x, state.y], context.r1, { fill: '#ffffff', stroke: '#2b3440', width: 1.6 });
 Draw.circle([state.x2, state.y2], context.r2, { fill: '#ffffff', stroke: '#2b3440', width: 1.6 });
-Draw.text(state.x, state.y, '1', { size: 13 });
-Draw.text(state.x2, state.y2, '2', { size: 13 });
-Draw.text(state.x, state.y + context.r1 + 0.26, state.hit ? '碰后匀速' : '碰前匀速',
-  { size: 11, color: state.hit ? '#b3382f' : '#20794f' });
 
 // —— 球 1：法向/切向分解（v₁ 本身由 bodies 自动生成）——
 var ax = state.x, ay = state.y - 0.66;
 Draw.line([ax - 0.45 * nx, ay - 0.45 * ny], [ax + 0.95 * nx, ay + 0.95 * ny], { dash: true, color: '#c9a227' });
 Draw.arrow([ax, ay], [state.vn * nx * sc, state.vn * ny * sc], { category: 'aux', label: 'v₁ₙ', mag: Math.abs(state.vn), unit: 'm/s' });
 Draw.arrow([ax, ay], [state.vt * tx * sc, state.vt * ty * sc], { category: 'aux', label: 'v₁ₜ', mag: Math.abs(state.vt), unit: 'm/s' });
-Draw.text(ax, ay - 0.32, '球 1：沿连线方向 + 切向分解', { size: 11, color: '#5d6b7a' });
 
 // —— 球 2：碰前静止，碰后只有法向分量（v₂ 本身由 bodies 自动生成）——
 var bx = state.x2, by = state.y2 + 0.66;
 Draw.line([bx - 0.95 * nx, by - 0.95 * ny], [bx + 0.45 * nx, by + 0.45 * ny], { dash: true, color: '#c9a227' });
 Draw.arrow([bx, by], [state.vn2 * nx * sc, state.vn2 * ny * sc], { category: 'aux', label: 'v₂ₙ', mag: Math.abs(state.vn2), unit: 'm/s' });
-Draw.text(bx, by + 0.32, '球 2：只有法向分量', { size: 11, color: '#5d6b7a' });`,
+`,
 
     readouts: `return [
   { key: 't*', label: '碰点时刻', value: context.tStar, unit: 's', latex: 't^{*}' },

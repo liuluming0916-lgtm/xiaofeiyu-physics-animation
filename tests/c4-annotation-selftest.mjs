@@ -91,15 +91,14 @@ async function main() {
   /* ───── B · C4：标注增减不算位移；真瞬移仍要抓 ───── */
   console.log('\n『B』C4 位移：只看实体');
   {
-    // 每帧都在动的一辆车 + 一条"距离太短就消失"的标注（用户 AEB 的结构）
+    // 每帧都在动的一辆车 + 一条"距离太短就消失"的标注（dimension 仍算标注）
     const stateAtLabel = ['const x = 2 * t;', 'return { x: x, d: Math.max(0, 10 - x) };'].join('\n');
     const drawWithLabel = [
       'Draw.ground(-2, 14, 0);',
       'Draw.box([state.x, 0.3], 1, 0.6);',
       'if (state.d > 0.2) {',
-      '  Draw.dimension([state.x, 1.6], [10, 1.6], { kind: "linear", text: "d" });',
+      '  Draw.dimension([state.x, 1.6], [10, 1.6], { kind: "linear" });',
       '}',
-      'Draw.text(0.2, 2.4, "t = " + Phys.format(t, "s"));',
     ].join('\n');
     const r1 = await dryRun({
       slots: { ...BASE, stateAt: stateAtLabel, drawFrame: drawWithLabel },

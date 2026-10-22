@@ -8,14 +8,12 @@
  *   ③ 速度跳变处加速度**画点**（0）；平滑边界用二阶单侧；
  *   ④ 有 bodies 时**过滤**模型手写的 v/a 箭头；force/aux 原样保留。
  *
- * 另外钉住 `Phys.interp` 的升级：有斜率走 C¹ Hermite，没斜率退回线性。
  *
  * 用法：node tests/kinematic-vectors-selftest.mjs
  */
 
 import {
   integrate,
-  interp,
   instantiate,
   sampleFrame,
   collectKinematicBoundaries,
@@ -61,22 +59,6 @@ function slotsOf({ view, setup = 'const a = 2; RETURN("a", a);', stateAt, drawFr
     drawFrame,
     readouts: 'return [];',
   };
-}
-
-console.log('\n『A』Phys.interp：有斜率走 Hermite，没斜率退回线性');
-
-{
-  const solved = integrate({ x: 0, v: 1 }, (t, s) => ({ x: s.v, v: 2 }), 0, 1, { dt: 1 / 100 });
-  check('integrate 每个采样点都带 dy', solved.samples.every((s) => s.dy && Number.isFinite(s.dy.v)));
-  // x(t) = t + t² ⇒ x(0.505) = 0.505 + 0.255025
-  const x = interp(solved.samples, 0.505, 'x');
-  check('★ Hermite 对二次运动精确（误差 < 1e-9）', near(x, 0.760025, 1e-9), String(x));
-  const v = interp(solved.samples, 0.505, 'v');
-  check('★ 速度插值同样精确（1 + 2t = 2.01）', near(v, 2.01, 1e-9), String(v));
-
-  const linearTable = solved.samples.map((s) => ({ t: s.t, y: { ...s.y } }));
-  const xl = interp(linearTable, 0.505, 'x');
-  check('★ 没有 dy 的老表逐字退回线性插值', Number.isFinite(xl) && xl !== x, `${xl} vs ${x}`);
 }
 
 console.log('\n『B』边界集：{0,duration} ∪ STEPS ∪ phases');
@@ -167,11 +149,28 @@ console.log('\n『D』注入与过滤：bodies 存在时只留本地 v/a + 模�
   check('★ 模型手写的 velocity 被过滤', !arrows.some((r) => r.category === 'velocity' && r.mag === 1));
   check('★ 本地 velocity + acceleration 各一支', arrows.filter((r) => r.category === 'velocity').length === 1 && arrows.filter((r) => r.category === 'acceleration').length === 1);
   check('force 与 aux 原样保留', arrows.some((r) => r.category === 'force') && arrows.some((r) => r.category === 'aux'));
-  check('本地 v/a 带同一个 stackKey（同类错开）', (() => {
+  check('本地 v/a 带同一个 stackKey', (() => {
     const local = arrows.filter((r) => r.category === 'velocity' || r.category === 'acceleration');
     return local.length === 2 && local[0].stackKey && local[0].stackKey === local[1].stackKey;
   })());
-  check('错开表算出了 2 支（±4px）', computeArrowStackOffsets(arrows).size === 2);
+  check('★ 同点 v/a 固定侧错开：速度左上、加速度右下', (() => {
+    const v = arrows.find((r) => r.category === 'velocity');
+    const a = arrows.find((r) => r.category === 'acceleration');
+    const off = computeArrowStackOffsets(arrows);
+    const ov = off.get(v);
+    const oa = off.get(a);
+    return ov && oa && ov.dx < 0 && ov.dy < 0 && oa.dx > 0 && oa.dy > 0 && ov.dx === -oa.dx && ov.dy === -oa.dy;
+  })());
+  check('★ 方向翻转时错开侧不变（不再左右跳）', (() => {
+    const flipped = arrows.map((r) => (r.category === 'velocity' || r.category === 'acceleration' ? { ...r, vec: [0, -(r.vec?.[1] ?? 1)] } : r));
+    const o1 = computeArrowStackOffsets(arrows);
+    const o2 = computeArrowStackOffsets(flipped);
+    const v = arrows.find((r) => r.category === 'velocity');
+    const a = arrows.find((r) => r.category === 'acceleration');
+    const fv = flipped.find((r) => r.category === 'velocity');
+    const fa = flipped.find((r) => r.category === 'acceleration');
+    return o1.get(v).dx === o2.get(fv).dx && o1.get(v).dy === o2.get(fv).dy && o1.get(a).dx === o2.get(fa).dx && o1.get(a).dy === o2.get(fa).dy;
+  })());
 }
 
 {

@@ -125,7 +125,6 @@ import { runPipeline } from '../core/orchestrator/pipeline.mjs';
 import { makeEvent, toSseFrame } from '../core/orchestrator/events.mjs';
 import { migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
-import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
 import { saveV2Entry } from '../core/knowledgecard/v2/editor.mjs';
 import { removeV2Entry } from '../core/knowledgecard/v2/editor.mjs';
 import { addVocabEntry, removeVocabEntry, saveVocabState } from '../core/knowledgecard/v2/vocab-editor.mjs';
@@ -504,7 +503,7 @@ export function createRulesService({
         userDir: join(dir, 'knowledgecard'),
         userVocabPath: join(dir, 'vocab.json'),
       });
-      knowledgecardEntries = lib.entries.map(v2ToV1RuntimeEntry);
+      knowledgecardEntries = lib.entries;
       knowledgecardVocab = lib.vocab;
       if (lib.problems.length) console.warn(`[knowledgecard v2] ${lib.problems.length} 条问题：${lib.problems.slice(0, 3).join('；')}`);
       if (lib.migration.length) console.warn(`[knowledgecard v2] 迁移 ${lib.migration.length} 条用户卡`);
@@ -784,6 +783,8 @@ export function createRulesService({
           knowledgecardHash: body.knowledgecardHash,
           /* C2：避让表随导出烧进页面（可选；旧调用方不传 = 不挪字） */
           labelAvoid: body.labelAvoid ?? null,
+          /* v6：步骤时间随导出烧进页面（可选） */
+          stepTimes: Array.isArray(body.stepTimes) ? body.stepTimes : null,
           /**
            * 第 8 期：**开发模式（不拦截）的痕迹必须进导出文件**。
            * 一旦这个 html 离开本机，就没人知道它没验过 —— 所以写进 Provenance 行。

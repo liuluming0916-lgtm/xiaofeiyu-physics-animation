@@ -32,7 +32,7 @@ import { PIPELINE_STAGES } from '../../contracts/spec/frozen-keys.mjs';
  * 换成 steps → answers 之后，`answers` 的输入里直接带着 STEPS 行式表，
  * 符号、步序、时间锚点在同一次上下文里天然对齐。
  */
-export const PHASE5_STAGES = Object.freeze(['read_problem', 'solve', 'steps', 'answers', 'scene_code', 'dry_run', 'repair']);
+export const PHASE5_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'analysis', 'scene_code', 'dry_run', 'repair', 'couple']);
 
 /**
  * **需要调用模型、且要跑 Prompt 的阶段**（= 执行链去掉本地阶段）。
@@ -42,7 +42,7 @@ export const PHASE5_STAGES = Object.freeze(['read_problem', 'solve', 'steps', 'a
  *
  * ⚠ `snapshotConfig()` 的默认 `promptIds` 取的就是它 —— 改了这里就等于改了默认要跑哪些阶段。
  */
-export const MODEL_STAGES = Object.freeze(PHASE5_STAGES.filter((s) => s !== 'dry_run' && s !== 'repair'));
+export const MODEL_STAGES = Object.freeze(PHASE5_STAGES.filter((s) => s !== 'dry_run' && s !== 'repair' && s !== 'couple'));
 
 /**
  * 第 4 期的执行链（**留档**）：不含第 0 步（那时它叫 read_image，还没引入）。
@@ -84,6 +84,7 @@ export const EVENT_TYPES = Object.freeze([
    * 而两者的修法不同（前者换格式，后者调 Prompt）。
    */
   'diagram_done', // { ok, reason?, bbox?, width?, height?, fallbackWhole? }
+  'coupling_done', // { stepTimes, fallback, warning, attempts }
   'run_done', // { verdict, ms, cancelled, banner }
   'cancelled', // { stage }
 ]);

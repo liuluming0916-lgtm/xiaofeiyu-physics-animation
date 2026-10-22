@@ -98,6 +98,8 @@ export interface AppState {
    * 没有表时播放器行为与第 7 期一致 —— 它是增强项，不是前提。
    */
   programLabelAvoid: Record<string, unknown> | null
+  /** v6：步骤 ↔ 动画时间（couple 阶段产出；没有就 null） */
+  programStepTimes: Array<{ step: number; t0: number; t1: number }> | null
   /** iframe 是否已发出 ready */
   templateReady: boolean
   playing: boolean
@@ -178,6 +180,7 @@ export const useApp = create<AppState>((set) => ({
   programMode: 'BOTH',
   programTitle: '',
   programLabelAvoid: null,
+  programStepTimes: null,
   templateReady: false,
   playing: false,
   t: 0,
@@ -217,6 +220,7 @@ export const useApp = create<AppState>((set) => ({
       },
       // 新一轮开始就清掉上一轮的动画（避免把旧动画当新结果看）
       programSlots: null,
+      programStepTimes: null,
       templateReady: false,
       templateError: null,
     }),
@@ -354,6 +358,10 @@ export const useApp = create<AppState>((set) => ({
           run.verdict = 'skipped'
           run.verdictNote = '已被用户取消'
           break
+        case 'coupling_done':
+          set({ programStepTimes: Array.isArray(e.stepTimes) ? e.stepTimes : null })
+          if (e.fallback) run.verdictNote = `步骤耦合回退：${e.warning ?? '已按比例分配'}`
+          break
         case 'run_done':
           run.running = false
           run.elapsedMs = e.ms
@@ -361,6 +369,7 @@ export const useApp = create<AppState>((set) => ({
           if (Number.isFinite(e.rounds)) run.repairConverged = e.converged ?? run.repairConverged
           if (e.delivery) run.delivery = e.delivery
           if (!run.verdict) run.verdict = (e.verdict as RunState['verdict']) ?? null
+          if (e.stepTimes) set({ programStepTimes: e.stepTimes })
           break
       }
       return { run }

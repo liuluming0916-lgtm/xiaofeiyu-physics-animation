@@ -210,7 +210,7 @@ export function CleaningPanel() {
             onChange={(e) => setDraft({ ...draft, stage: e.target.value })}
             className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
           >
-            {['read_problem', 'solve', 'steps', 'answers', 'scene_code', 'knowledgecard'].map((s) => (
+            {['read_problem', 'solve', 'breakdown', 'answers', 'scene_code', 'knowledgecard'].map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

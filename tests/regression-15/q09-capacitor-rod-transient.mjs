@@ -157,16 +157,12 @@ Draw.line([w, 0], [w, h], { width: 2 });
 
 // —— 电池 U（左边）——
 Draw.box([0, yM], 0.22, 0.46, { fill: '#ffffff' });
-Draw.text(0, yM, 'U', { size: 13 });
-Draw.text(-0.16, h - 0.16, '＋', { size: 12, color: '#b3382f', align: 'right' });
 
 // —— 电阻 R（上边）——
 Draw.box([w * 0.5, h], 0.52, 0.20, { fill: '#ffffff' });
-Draw.text(w * 0.5, h, 'R', { size: 13 });
 
 // —— 电容 C（右边）——
 Draw.box([w, yM], 0.24, 0.42, { fill: '#ffffff' });
-Draw.text(w, yM, 'C', { size: 13 });
 
 // —— 电流方向：由 state.cur 的符号算出，回路四边一起翻转 ——
 var sgn = state.cur > 1e-12 ? 1 : (state.cur < -1e-12 ? -1 : 0);
@@ -184,11 +180,8 @@ Draw.trace([[0, 0], [w, 0], [w, h], [0, h], [0, 0]], { color: '#c8d0d8', dash: t
 
 // —— 电流指示点：沿回路走过的弧长就是充电进度 ——
 Draw.circle([state.x, state.y], 0.075, { fill: '#1f6fb2', stroke: '#ffffff', width: 1.2 });
-Draw.text(state.x + 0.14, state.y + 0.20, '指示点', { size: 11, color: '#1f6fb2', align: 'left' });
 
 // —— 元件上的实时读数 ——
-Draw.text(w * 0.5, h + 0.58, 'u_C = ' + Phys.format(state.uC, 'V', 3), { size: 12 });
-Draw.text(w * 0.5, h + 0.36, 'i = ' + Phys.format(state.cur * 1000, 'mA', 3), { size: 12 });
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。
    原手绘代码留档在「软件自研v1开发历史.md 附录 B（原快照已清理）」，第 7.1 期按新方式重画。 */`,

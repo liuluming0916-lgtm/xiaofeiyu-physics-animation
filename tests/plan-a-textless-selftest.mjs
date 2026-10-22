@@ -75,12 +75,11 @@ async function main() {
 
   {
     const src = read('sdk/runtime/animation-runtime.mjs');
-    check('① `text` / `latex` 分支有守卫', /case 'text':[\s\S]{0,320}if \(HIDE_CANVAS_TEXT\) break;/.test(src));
     check('② 箭头标签有守卫', src.includes('if (rec.label && !HIDE_CANVAS_TEXT)'));
     check('③ 尺寸标注的文字有守卫', src.includes('if (rec.text && !HIDE_CANVAS_TEXT)'));
     check('④ 轴名走的是**另一个**开关（它是例外，不是漏网）', src.includes('if (KEEP_AXIS_LABELS)'));
-    // 5 处 = 箭头标签 1 + 尺寸文字 1 + 轴名 2 + text/latex 1。数字一改就说明有人又加了一处。
-    check('★ fillText 只有这 5 处（加新的一处就会红，逼着重新想清楚）', (src.match(/ctx\.fillText\(/g) ?? []).length === 5);
+    // 4 处 = 箭头标签 1 + 尺寸文字 1 + 轴名 2；text/latex 已硬删除。
+    check('★ fillText 只有这 4 处（加新的一处就会红，逼着重新想清楚）', (src.match(/ctx\.fillText\(/g) ?? []).length === 4);
   }
 
   /* ══ B/C 真题目：画布上一个数字都没有，但轴名还在 ══ */

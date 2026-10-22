@@ -128,15 +128,11 @@ Draw.chart(samples, {
   fill: 'rgba(42,111,143,0.20)',
   stroke: '#2a6f8f'
 });
-Draw.text(sx(0.5 * (context.V1 + context.V2)) + 0.42, sy(context.p1 * 0.62), 'W = p–V 图下的面积', { size: 12, color: '#2a6f8f', align: 'left' });
-Draw.text(sx(0.5 * (context.V1 + context.V2)) + 0.42, sy(context.p1 * 0.62) - 0.13, 'W = ' + Phys.format(state.W, 'J', 3), { size: 12, color: '#1d2733', align: 'left' });
 
 Draw.line([sx(context.V1), oy], [sx(context.V1), sy(context.p1)], { dash: true, color: '#9aa7b4' });
 Draw.line([sx(context.V2), oy], [sx(context.V2), sy(context.p2)], { dash: true, color: '#9aa7b4' });
 Draw.circle([sx(context.V1), sy(context.p1)], 0.035, { fill: '#1d2733', stroke: '#1d2733' });
 Draw.circle([sx(context.V2), sy(context.p2)], 0.035, { fill: '#b3382f', stroke: '#b3382f' });
-Draw.text(sx(context.V1) - 0.30, sy(context.p1) + 0.10, 'V₁', { size: 12, color: '#1d2733', align: 'right' });
-Draw.text(sx(context.V2) + 0.12, sy(context.p2) - 0.10, 'V₂', { size: 12, color: '#b3382f', align: 'left' });
 
 var cursorX = sx(state.V);
 var cursorY = sy(state.p);
@@ -156,13 +152,11 @@ Draw.trace(extL, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.trace(extR, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.line([cursorX, oy], [cursorX, cursorY], { dash: true, color: '#a4610d', width: 1.3 });
 Draw.circle([cursorX, cursorY], 0.055, { fill: '#a4610d', stroke: '#a4610d' });
-Draw.text(cursorX, cursorY + 0.20, '当前状态', { size: 11, color: '#a4610d' });
 
 Draw.arrow([sx(context.V1) - 0.05, oy + 0.12], [state.W * 0.030, 0], {
   category: 'aux', label: 'W(t)', mag: Math.abs(state.W), unit: 'J'
 });
-Draw.text(sx(context.V1) - 0.05, oy + 0.30, '做功累计 W(t) = ' + Phys.format(state.W, 'J', 3), { size: 11, color: '#2a6f8f', align: 'left' });
-Draw.text(ox, oy + ay + 0.30, '等温膨胀：pV 恒定，图线是双曲线', { size: 11, color: '#5d6b7a', align: 'left' });`,
+`,
 
     readouts: String.raw`return [
   { key: 'V', label: '体积', value: state.V * 1000, unit: '10⁻³ m³', latex: 'V' },

@@ -18,8 +18,6 @@
   "stageModels": {
     "read_problem": "default",
     "solve": "default",
-    "answers": "default",
-    "steps": "default",
     "scene_code": "default",
     "dry_run": "default",
     "repair": "default",

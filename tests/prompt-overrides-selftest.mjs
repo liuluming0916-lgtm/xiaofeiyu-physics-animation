@@ -3,9 +3,9 @@
  * Prompt 编辑器取证（第 6 期第 2 项 · §10.1 / §10.3 / §16）。
  *
  * 这一份要证明四件事：
- *   A 目录**不骗人**：能编辑的 7 份正文按"会不会跑"分组；knowledgecard / distill 已删除，不再有 not-wired 组；
- *   B 硬门禁**在保存那一刻就红**：删掉 `read_problem` 的【考点】/【动画元件】会**静默**让世界书
- *     退化成按字面碰字（解析器容错极强，不会报错），所以必须拦在写盘之前；
+ *   A 目录**不骗人**：能编辑的 8 份正文按"会不会跑"分组；knowledgecard / distill 已删除，不再有 not-wired 组；
+ *   B 硬门禁**在保存那一刻就红**：删掉 v2 读题的【动画元件】/【场景】会让 v2 引擎抽不到卡，
+ *     所以必须拦在写盘之前；
  *   C 用户裁决的 C 方案：整份替换 + **内置变了要提醒**、能看差异、能换基线（rebase）；
  *   D **真的接上了**：覆盖正文必须出现在发给模型的 system 消息里，且不影响 `promptHash`。
  *
@@ -19,9 +19,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { isCliEntry } from '../tools/paths.mjs';
-import { SLOT_KEY_NAMES } from '../contracts/spec/frozen-keys.mjs';
+import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { assemblePrompt, getPrompt } from '../core/prompts/index.mjs';
-import { PROMPTS, ANSWER_STRUCTURE_TEMPLATE } from '../core/prompts/templates.mjs';
+import { PROMPTS } from '../core/prompts/templates.mjs';
 import {
   PROMPT_SECTORS,
   builtinPromptText,
@@ -59,19 +59,9 @@ function freshDir() {
 const has = (list, code) => (list ?? []).some((x) => x.code === code);
 const find = (list, code) => (list ?? []).find((x) => x.code === code) ?? null;
 
-/** 一份"合法"的 read_problem 覆盖正文：故意保留硬约束里的两个记号 */
-function readProblemOverride(extra = '') {
-  return [
-    '现在执行【读题与判定】阶段。',
-    '',
-    '【考点】从下面《考点词表》里选，可多选。',
-    '【题型】从《题型标签词表》里选，必须属于你选的考点。',
-    '【动画元件】从《动画元件词表》里选，依据图里实际画出来的东西。',
-    '【判定依据】一句话说清为什么判这几个考点。',
-    '',
-    '要求：逐字取自词表，不许自造；判不出来写"无"。',
-    extra,
-  ].join('\n');
+/** 一份"合法"的 v2 读题覆盖正文：直接取内置正文（它带【动画元件】/【场景】/【判定依据】） */
+function readProblemOverride() {
+  return builtinPromptText('read_problem_v2');
 }
 
 /* ── 编排用的假端点：只为了让 `runPipeline` 跑起来（本组不验模型质量） ── */
@@ -94,11 +84,13 @@ function endpoint() {
 const STAGE_LABELS = [
   ['读题与判定', 'read_problem'],
   ['解题', 'solve'],
-  ['答案抽取', 'answers'],
-  ['分步解析', 'steps'],
+  ['答案讲解', 'breakdown'],
+  ['物理分析', 'analysis'],
   ['动画代码', 'scene_code'],
   ['自愈修复', 'repair'],
 ];
+
+const GOOD_DRAW = 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);';
 
 function fakeStream(replies = {}) {
   const calls = [];
@@ -107,26 +99,12 @@ function fakeStream(replies = {}) {
     const sys = String(opts.messages?.[0]?.content ?? '');
     const hit = STAGE_LABELS.find(([label]) => sys.includes(`【本阶段指令：${label}】`));
     const stage = hit ? hit[1] : 'unknown';
-    const full = replies[stage] ?? `【${stage} 输出】`;
+    const full = replies[stage] ?? (stage === 'analysis' ? ANALYSIS_EXAMPLE : stage === 'scene_code' || stage === 'repair' ? GOOD_DRAW : `【${stage} 输出】`);
     opts.onDelta?.(full);
     return { text: full, reasoning: '', usage: null, model: 'fake', deltas: [full] };
   };
   impl.calls = calls;
   return impl;
-}
-
-function goodSceneCode() {
-  const body = {
-    PROBLEM: '题干。',
-    STEPS: 'title: 一步\ntex: x\nt0: 0\nt1: 1',
-    ANSWERS: 'symbol: a\nvalue: 1\nunit: m\ntol: 0.01\nat_t: 1\nstep: 1',
-    VIEW: 'SIM.duration = 1;',
-    setup: 'const g = 10;',
-    stateAt: 'return { x: t };',
-    drawFrame: 'Draw.dot(0, 0);',
-    readouts: 'return [{ label: "x", value: t, unit: "m" }];',
-  };
-  return SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${body[k]}\n/* @end */`).join('\n');
 }
 
 function fakeDryRun(verdict = 'pass') {
@@ -153,36 +131,33 @@ async function main() {
   try {
     /* ────────────────────────────── 『A』目录不骗人 ────────────────────────────── */
 
-    console.log('『A』目录：7 份正文按"会不会跑"分组');
+    console.log('『A』目录：8 份正文按"会不会跑"分组');
     {
       const dir = freshDir();
       const cat = listPromptCatalog({ dir });
       check('目录可读', cat.ok === true, JSON.stringify(cat.problems));
-      check('共 7 项（§10.1 保留 4 + 扩展 repair + read_problem + 答案结构模板）', cat.items.length === 7, String(cat.items.length));
+      check('共 8 项（读题 v2 / 读题 v1 / 解题 / 分步 / 分析 / 动画 / 耦合 / 修复）', cat.items.length === 8, String(cat.items.length));
 
       const byGroup = (g) => cat.items.filter((i) => i.group === g).map((i) => i.id);
-      check('「每道题都会跑」恰好 5 份', byGroup('always').length === 5, byGroup('always').join(','));
-      check('其中含 read_problem（第 0 步，纯文字题也跑）', byGroup('always').includes('read_problem'));
+      check('「每道题都会跑」恰好 7 份', byGroup('always').length === 7, byGroup('always').join(','));
+      check('其中含 read_problem 与 read_problem_v2（v2 是默认读题，v1 只留给旧配置）', byGroup('always').includes('read_problem') && byGroup('always').includes('read_problem_v2'));
+      check('其中含 couple（交付前必跑的模型阶段）', byGroup('always').includes('couple'));
       check('「只在特定情况下跑」恰好 1 份（repair）', byGroup('conditional').join(',') === 'repair');
       check('没有「还没接上主链路」分组（knowledgecard / distill 已删除）', byGroup('not-wired').length === 0, byGroup('not-wired').join(','));
-      check('「嵌在别的 Prompt 里」恰好 1 份（答案结构模板）', byGroup('embedded').join(',') === 'answer-structure');
+      check('没有「嵌在别的 Prompt 里」分组（答案结构模板已随 ANSWERS 删除）', byGroup('embedded').length === 0, byGroup('embedded').join(','));
 
-      const embedded = cat.items.find((i) => i.id === 'answer-structure');
-      check('★ 答案结构模板说明它在 answers 里、且整份覆盖优先', /没有整体覆盖 answers/.test(embedded.groupHint), embedded.groupHint);
-
-      check('read_problem 被标为高风险', cat.items.find((i) => i.id === 'read_problem').risk === 'high');
+      check('read_problem 与 read_problem_v2 都被标为高风险', cat.items.find((i) => i.id === 'read_problem').risk === 'high' && cat.items.find((i) => i.id === 'read_problem_v2').risk === 'high');
       check('solve 是普通风险', cat.items.find((i) => i.id === 'solve').risk === 'normal');
 
       const solve = cat.items.find((i) => i.id === 'solve');
       check('内置正文与 PROMPTS.solve.system 逐字节一致', solve.builtinText === PROMPTS.solve.system);
       check('内置 sha 与正文哈希一致', solve.builtinSha === sha256Hex(PROMPTS.solve.system));
       check('空工作区里全部是 builtin 状态', cat.items.every((i) => i.override === null));
-      check('答案结构模板的内置 = ANSWER_STRUCTURE_TEMPLATE', cat.items.find((i) => i.id === 'answer-structure').builtinText === ANSWER_STRUCTURE_TEMPLATE);
 
-      // 分组口径与阶段清单**同源**：不是手写的第二份清单
-      check('分组 id 与 MODEL_STAGES 同源（改阶段清单，分组自动跟着变）', PROMPT_SECTORS.always.ids.join(',') === 'read_problem,solve,steps,answers,scene_code');
+      // 分组口径从阶段清单派生，但 v6 额外补了 read_problem_v2 与 couple
+      check('分组里含 read_problem_v2 / couple / repair', ['read_problem_v2', 'couple', 'repair'].every((id) => PROMPT_SECTORS.always.ids.includes(id) || PROMPT_SECTORS.conditional.ids.includes(id)));
       check('editablePromptIds 没有重复', new Set(editablePromptIds()).size === editablePromptIds().length);
-      check('editablePromptIds 共 7 个', editablePromptIds().length === 7, String(editablePromptIds().length));
+      check('editablePromptIds 共 8 个', editablePromptIds().length === 8, String(editablePromptIds().length));
     }
 
     /* ────────────────────────────── 『B』保存与打开 ────────────────────────────── */
@@ -214,27 +189,33 @@ async function main() {
 
     /* ────────────────────────────── 『C』读题的硬门禁 ────────────────────────────── */
 
-    console.log('\n『C』硬门禁：删掉【考点】/【动画元件】会在保存那一刻就红');
+    console.log('\n『C』硬门禁：删掉 v2 读题的【动画元件】/【场景】会在保存那一刻就红');
     {
       const dir = freshDir();
+      const valid = readProblemOverride();
 
-      const noConcept = readProblemOverride().split('【考点】从下面《考点词表》里选，可多选。').join('');
-      const r1 = savePromptOverride({ dir, id: 'read_problem', text: noConcept });
-      check('删掉【考点】⇒ 拒绝保存', r1.ok === false && has(r1.issues, 'prompt.missing-required-token'));
-      check('★ 拒绝时**文件根本没被创建**（不落盘）', !loadRulesWorkspace({ dir }).prompts.read_problem);
+      const noElem = valid.replace('【动画元件】', '');
+      const r1 = savePromptOverride({ dir, id: 'read_problem_v2', text: noElem });
+      check('删掉【动画元件】⇒ 拒绝保存', r1.ok === false && has(r1.issues, 'prompt.missing-required-token'));
+      check('★ 拒绝时**文件根本没被创建**（不落盘）', !loadRulesWorkspace({ dir }).prompts.read_problem_v2);
       const p1 = find(r1.issues, 'prompt.missing-required-token');
-      check('★ 说明里点出后果：会静默退化成语义失效的按字面碰字', /按字面碰字/.test(p1?.hint ?? ''), p1?.hint);
+      check('★ 说明里点出后果：元件卡不触发', /元件卡/.test(p1?.hint ?? ''), p1?.hint);
 
-      const noElem = readProblemOverride().split('【动画元件】从《动画元件词表》里选，依据图里实际画出来的东西。').join('');
-      const r2 = savePromptOverride({ dir, id: 'read_problem', text: noElem });
-      check('删掉【动画元件】⇒ 拒绝保存', r2.ok === false && has(r2.issues, 'prompt.missing-required-token'));
-      check('（对照）同一份正文只要两个字都在就能保存', savePromptOverride({ dir, id: 'read_problem', text: readProblemOverride() }).ok === true);
+      const noScene = valid.replace('【场景】', '');
+      const r2 = savePromptOverride({ dir, id: 'read_problem_v2', text: noScene });
+      check('删掉【场景】⇒ 拒绝保存', r2.ok === false && has(r2.issues, 'prompt.missing-required-token'));
+      check('（对照）v2 正文三个记号都在就能保存', savePromptOverride({ dir, id: 'read_problem_v2', text: valid }).ok === true);
 
-      // 软的那两条：删了允许保存，但必须**回报警告**
-      const noTag = readProblemOverride().split('【题型】从《题型标签词表》里选，必须属于你选的考点。').join('');
-      const r3 = savePromptOverride({ dir, id: 'read_problem', text: noTag });
-      check('删掉【题型】⇒ 允许保存（只有警告）', r3.ok === true);
+      // 软的那条：删了允许保存，但必须**回报警告**
+      const noWhy = valid.replace('【判定依据】', '');
+      const r3 = savePromptOverride({ dir, id: 'read_problem_v2', text: noWhy });
+      check('删掉【判定依据】⇒ 允许保存（只有警告）', r3.ok === true);
       check('★ 但必须回报警告（不许静默）', has(r3.warnings, 'prompt.missing-token'));
+
+      // v1 读题仍保留硬门禁（旧配置下才会跑）
+      const v1 = builtinPromptText('read_problem');
+      const r4 = savePromptOverride({ dir, id: 'read_problem', text: v1.replace('【动画元件】', '') });
+      check('v1 read_problem 删掉【动画元件】⇒ 拒绝保存', r4.ok === false && has(r4.issues, 'prompt.missing-required-token'));
     }
 
     /* ────────────────────────────── 『D』软警告 ────────────────────────────── */
@@ -246,7 +227,7 @@ async function main() {
       check('保存成功', r.ok === true);
       check('没有"单位"二字 ⇒ 带 unit 相关警告', has(r.warnings, 'prompt.missing-token'));
       check('正文过短 ⇒ 带 prompt.too-short 警告', (() => {
-        const r2 = savePromptOverride({ dir, id: 'steps', text: '分步解析。\n' });
+        const r2 = savePromptOverride({ dir, id: 'breakdown', text: '分步解析。\n' });
         return has(r2.warnings, 'prompt.too-short');
       })());
     }
@@ -320,11 +301,11 @@ async function main() {
       check('★ 且基线指向当前内置 ⇒ 状态仍是 ok', listPromptCatalog({ dir }).items.find((i) => i.id === 'solve').override.status === PROMPT_STATUS.OK);
 
       // 真·不知道血统：一个从未登记过的文件
-      w(join(dir, 'prompts', 'steps.md'), '分步解析：三步，t0/t1 无缝衔接。\n');
-      adoptRulesFiles({ dir, rels: ['prompts/steps.md'], force: true });
+      w(join(dir, 'prompts', 'breakdown.md'), '分步解析：三步，t0/t1 无缝衔接。\n');
+      adoptRulesFiles({ dir, rels: ['prompts/breakdown.md'], force: true });
       check(
         '★ 从未登记过的文件被登记 ⇒ unknown-base（不知道基于哪版，不假装知道）',
-        listPromptCatalog({ dir }).items.find((i) => i.id === 'steps').override.status === PROMPT_STATUS.UNKNOWN_BASE,
+        listPromptCatalog({ dir }).items.find((i) => i.id === 'breakdown').override.status === PROMPT_STATUS.UNKNOWN_BASE,
       );
     }
 
@@ -343,7 +324,7 @@ async function main() {
       check('每題快照里带着规则 revision', snap.rules.revision === 1, String(snap.rules.revision));
       check('每題快照里的覆盖正文是冻结的（跑着不会被改）', Object.isFrozen(snap.rules.promptTexts));
 
-      const stream = fakeStream({ scene_code: goodSceneCode() });
+      const stream = fakeStream({ scene_code: GOOD_DRAW });
       await collectEvents({
         problem: { text: '一物块从斜面滑下，求底端速度。' },
         config: { endpoint: endpoint(), apiKey: 'sk-test', rulesSnapshot: runtimeRules },
@@ -357,7 +338,7 @@ async function main() {
       check('★ 没有覆盖的阶段仍用内置正文（read_problem）', sysTexts.some((s) => s.includes('现在执行【读题与判定】阶段')));
 
       // 不传规则快照 ⇒ 与第 6 期之前完全一致
-      const stream2 = fakeStream({ scene_code: goodSceneCode() });
+      const stream2 = fakeStream({ scene_code: GOOD_DRAW });
       await collectEvents({
         problem: { text: '一物块从斜面滑下，求底端速度。' },
         config: { endpoint: endpoint(), apiKey: 'sk-test' },
@@ -371,31 +352,6 @@ async function main() {
       const b = assemblePrompt({ problem: { text: '同一道题' }, instructions: OVERRIDE, instructionLabel: '解题' });
       check('★ 覆盖正文不改变 promptHash（前缀缓存不受影响）', a.promptHash === b.promptHash);
       check('（对照）但条件段确实变了', a.segments.conditional !== b.segments.conditional);
-    }
-
-    /* ────────────────────────────── 『H』答案结构模板 ────────────────────────────── */
-
-    console.log('\n『H』答案结构模板：（没有自己的阶段）只能嵌进 answers');
-    {
-      const dir = freshDir();
-      const STRUCT = 'ANSWERS 字段：symbol / value / unit / tol / at_t / step / latex（我的口径）。\n每问结论必须给单位。';
-      const r = savePromptOverride({ dir, id: 'answer-structure', text: STRUCT });
-      check('保存成功', r.ok === true, JSON.stringify(r.issues));
-      check('此时不产生 warn（answers 没被整体覆盖）', !has(r.warnings, 'prompt.answer-structure-shadowed'));
-
-      const rules = loadRulesWorkspace({ dir }).snapshot;
-      const answers = getPrompt('answers', rules);
-      check('★ 覆盖的模板进了 answers 正文', answers.system.includes(STRUCT));
-      check('★ 原内置模板被替换掉（不是"两段并存"）', !answers.system.includes(ANSWER_STRUCTURE_TEMPLATE));
-      check('answers 正文其余部分仍来自内置', answers.system.includes('现在执行【答案抽取】阶段。'));
-
-      // 整份覆盖 answers ⇒ 结构模板被遮蔽
-      savePromptOverride({ dir, id: 'answers', text: '现在执行【答案抽取】阶段。\n按我的格式给我 symbol / value / unit。\n' });
-      const rules2 = loadRulesWorkspace({ dir }).snapshot;
-      const answers2 = getPrompt('answers', rules2);
-      check('★ 整份覆盖 answers 后，结构模板不再进入（整份覆盖优先）', !answers2.system.includes(STRUCT));
-      const r2 = savePromptOverride({ dir, id: 'answer-structure', text: `${STRUCT}\n（再存一次）` });
-      check('★ 此时再存结构模板 ⇒ 必须警告"不会生效"', has(r2.warnings, 'prompt.answer-structure-shadowed'));
     }
 
     /* ────────────────────────────── 『I』已删除的 Prompt 不允许再保存 ────────────────────────────── */

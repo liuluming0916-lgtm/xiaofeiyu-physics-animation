@@ -128,7 +128,6 @@ Draw.fieldDots({ x: -0.3, y: y0 - 0.10, w: 3.2, h: 0.95 }, { symbol: 'cross', nx
 Draw.line([-0.25, y0 + 0.02], [3.0, y0 + 0.02], { color: '#2b3440', width: 1.6 });
 Draw.line([-0.25, y0 + 0.34], [3.0, y0 + 0.34], { color: '#2b3440', width: 1.6 });
 Draw.box([-0.25, y0 + 0.18], 0.12, 0.32, { fill: '#ffffff', stroke: '#2b3440' });
-Draw.text(-0.42, y0 + 0.18, 'R', { size: 12, color: '#1d2733', align: 'right' });
 
 var rodX = -0.10 + state.x * 0.62;
 /* 全程轨迹（浅灰虚线）：金属棒沿导轨的移动路径。只读探针 context.at(t) 采样全时段，
@@ -137,7 +136,6 @@ var tracePts = [];
 for (var tq = 0; tq <= 24; tq = tq + 1) { tracePts.push([-0.10 + context.at(SIM.duration * tq / 24).x * 0.62, y0 + 0.18]); }
 Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.box([rodX, y0 + 0.18], 0.10, 0.32, { fill: '#ffffff', stroke: '#1d2733' });
-Draw.text(rodX, y0 + 0.60, 'm, r', { size: 11, color: '#1d2733' });
 // §18 期 3 的验收条件「纯符号题能播且标注全为符号」落在下面两行的 latex 上：
 // （⚠ 本注释位于 String.raw 模板字面量内部，因此**不能出现反引号**，否则会提前闭合模板。）
 // latex 是画布可直接绘制的符号文本（canvas 的 fillText 不认 \frac 这类命令），
@@ -146,22 +144,6 @@ Draw.text(rodX, y0 + 0.60, 'm, r', { size: 11, color: '#1d2733' });
 // 本题 v 与 F 都随 t 衰减，用它们各自的实时值当量级，同一条尺子上就能看出"谁衰减得更快"。
 // v(t) 由 bodies 求导自动生成（无文字标注，图例按颜色识别）；下面是安培力。
 Draw.arrow([rodX, y0 + 0.18], [-state.F, 0], { category: 'force', subtype: 'ampere', label: 'F = BIL', latex: 'F = BIL', mag: Math.abs(state.F) });
-Draw.text(rodX + 0.10, y0 + 0.96, '磁场 B 垂直纸面向里（×）', { size: 11, color: '#3a4a5a', align: 'left' });
-
-var px = 1.95, py = 0.28;
-Draw.polygon([[px, py], [px + 1.55, py], [px + 1.55, py + 1.05], [px, py + 1.05]], {
-  fill: 'rgba(43,52,64,0.045)', stroke: '#e4e7ea', layer: -1
-});
-Draw.text(px + 0.10, py + 0.95, '无量纲基准实例（驱动运动与绘图）', { size: 11, color: '#5d6b7a', align: 'left' });
-var rows = [
-  'v₀ = ' + context.v0 + ' m/s　B = ' + context.B + ' T',
-  'L = ' + context.L + ' m　R = ' + context.R + ' Ω　r = ' + context.r + ' Ω',
-  'm = ' + context.m + ' kg　τ = ' + Phys.format(context.tau, 's', 3),
-  'E₀ = ' + Phys.format(context.E0, 'V', 3) + '　I₀ = ' + Phys.format(context.I0, 'A', 3)
-];
-for (var i = 0; i < rows.length; i = i + 1) {
-  Draw.text(px + 0.10, py + 0.74 - 0.22 * i, rows[i], { size: 11, color: '#1d2733', align: 'left' });
-}
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。
    原手绘代码留档在「软件自研v1开发历史.md 附录 B（原快照已清理）」，第 7.1 期按新方式重画。 */`,

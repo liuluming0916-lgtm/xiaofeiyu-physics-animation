@@ -18,7 +18,7 @@ import {
   splitEntryContent,
 } from '../engine.mjs';
 
-const KIND_RANK = Object.freeze({ anim_rule: 0, element: 1, scene: 2 });
+const KIND_RANK = Object.freeze({ anim_rule: 0, scene: 1, element: 2 });
 
 function rank(entry) {
   return KIND_RANK[entry?.kind] ?? 1;
@@ -144,24 +144,61 @@ export function triggerKnowledgecardV2(input = {}) {
   };
 
   return {
-    text: { solve: '', scene_code: text },
-    slots: {
-      solve: {
-        slot: 'solve',
-        candidates: 0,
-        injected: [],
-        chars: 0,
-        examplesChars: 0,
-        empty: true,
-        truncated: false,
-        dropped: [],
-      },
-      scene_code: slot,
-    },
-    emptySlots: ['solve', ...(injected.length === 0 ? ['scene_code'] : [])],
+    text: { scene_code: text },
+    slots: { scene_code: slot },
+    emptySlots: injected.length === 0 ? ['scene_code'] : [],
     truncatedSlots: dropped.length ? [{ slot: 'scene_code', dropped: dropped.length }] : [],
     provenance,
     warnings,
     stats: { considered: entries.length, hit: records.size, injected: injected.length, dropped: dropped.length },
   };
 }
+
+/**
+ * 把 v2 触发结果整理成 `knowledgecard_done` 预期的证据形状。
+ *
+ * 前端 `KnowledgecardProvenance` 仍是 v1 的字段集（from / depth / key / origin /
+ * declaredSlots / charsBySlot / unmounted …）。v2 卡没有这些概念，但事件形状不能漂：
+ * 在这里补空值，比让界面各处判 `undefined` 安全。
+ *
+ * @param {object|null} result `triggerKnowledgecardV2()` 的返回值
+ * @param {object[]} entries 本次快照里的 v2 卡
+ */
+export function knowledgecardV2Evidence(result, entries = []) {
+  const slot = result?.slots?.scene_code ?? { chars: 0, injected: [], dropped: [] };
+  const byId = new Map((Array.isArray(entries) ? entries : []).map((e) => [e.id, e]));
+  const charsById = new Map((slot.injected ?? []).map((x) => [x.id, x.chars]));
+  const droppedIds = (slot.dropped ?? []).map((d) => d.id);
+
+  return {
+    emptySlots: [...(result?.emptySlots ?? ['scene_code'])],
+    truncatedSlots: (result?.truncatedSlots ?? []).map((t) => ({
+      slot: t.slot,
+      dropped: t.dropped,
+      droppedIds,
+    })),
+    provenance: (result?.provenance ?? []).map((p) => {
+      const entry = byId.get(p.entry_id);
+      return {
+        entry_id: p.entry_id,
+        title: p.title,
+        via: p.via,
+        from: null,
+        depth: 0,
+        key: null,
+        origin: entry?.origin ?? 'builtin',
+        category: 'scene_modeling',
+        declaredSlots: ['scene_code'],
+        injectedSlots: [...(p.injectedSlots ?? ['scene_code'])],
+        charsBySlot: { scene_code: charsById.get(p.entry_id) ?? 0 },
+        unmounted: false,
+        truncated: p.truncated === true,
+      };
+    }),
+    warnings: [...(result?.warnings ?? [])],
+    charsBySlot: { scene_code: slot.chars ?? 0 },
+    injectedBySlot: { scene_code: (slot.injected ?? []).length },
+    matched: (result?.provenance ?? []).length,
+  };
+}
+

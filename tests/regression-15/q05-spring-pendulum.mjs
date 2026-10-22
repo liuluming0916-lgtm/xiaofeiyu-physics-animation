@@ -168,16 +168,11 @@ Draw.polygon(
 var blockCenter = wallX + natLen + 0.22 + state.x;
 Draw.spring([wallX, y0], [blockCenter - 0.16, y0], { coils: 14, amplitude: 0.075, color: '#2b3440' });
 Draw.box([blockCenter, y0], 0.32, 0.30, { angleDeg: 0 });
-Draw.text(blockCenter, y0 + 0.34, 'm', { size: 12, color: '#1d2733' });
 Draw.arrow([blockCenter, y0 - 0.24], [-context.k * state.x, 0], {
   category: 'force', subtype: 'elastic', label: 'F = −kx', mag: Math.abs(context.k * state.x)
 });
 /* 弹簧振子的 a = −ω₁²x 由 bodies 求导自动画出（不必手写）。 */
 Draw.line([wallX + natLen + 0.22, y0 - 0.46], [wallX + natLen + 0.22, y0 + 0.46], { dash: true, color: '#9aa7b4' });
-Draw.text(wallX + natLen + 0.22, y0 - 0.60, '平衡位置', { size: 11, color: '#5d6b7a' });
-Draw.dimension([wallX + natLen + 0.22, y0 + 0.52], [blockCenter, y0 + 0.52], {
-  kind: 'linear', text: 'x = ' + Phys.format(state.x, 'm', 3)
-});
 
 var pivotX = 2.85;
 var pivotY = 1.62;
@@ -193,7 +188,6 @@ Draw.line([pivotX, pivotY], [bobX, bobY], { color: '#1d2733', width: 1.5 });
 Draw.circle([bobX, bobY], 0.085, { fill: '#ffffff', stroke: '#1d2733', width: 1.5 });
 Draw.line([pivotX, pivotY], [pivotX, pivotY - L - 0.22], { dash: true, color: '#9aa7b4' });
 Draw.arc([pivotX, pivotY], 0.42, -90, -90 + th * 180 / Math.PI, { color: '#a4610d', width: 1.2, samples: 40 });
-Draw.text(pivotX + 0.30, pivotY - 0.46, 'θ = ' + Phys.format(th, 'rad', 3), { size: 11, color: '#a4610d', align: 'left' });
 
 /* 单摆圆弧轨迹（虚线）——用只读探针采全时段的摆球位置，而不是画一段装饰弧 */
 var swingTrace = [];

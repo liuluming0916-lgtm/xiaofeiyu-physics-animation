@@ -24,6 +24,7 @@ import { join } from 'node:path';
 
 import { isCliEntry } from '../tools/paths.mjs';
 import { createRulesService } from '../tools/rules-service.mjs';
+import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { saveEndpoints, saveKeys } from '../core/gateway/index.mjs';
 import {
   OPEN_LOG_DIRNAME,
@@ -73,8 +74,8 @@ function sampleRun() {
   log.event({ type: 'run_start', model: 'model-a', entry: '斜面下滑' });
   log.event({ type: 'stage_delta', stage: 'read_problem', text: '【物体与姿态】斜面 30°。' });
   log.event({ type: 'stage_delta', stage: 'solve', text: '由动能定理：mgh = ½mv²\n' });
-  log.event({ type: 'stage_delta', stage: 'steps', text: 'title: 第一步\ntex: v=\\sqrt{2gh}\n' });
-  log.event({ type: 'stage_delta', stage: 'answers', text: 'symbol: v\nvalue: 5\nunit: m/s\n' });
+  log.event({ type: 'stage_delta', stage: 'breakdown', text: 'title: 第一步\ntex: v=\\sqrt{2gh}\n' });
+  log.event({ type: 'stage_delta', stage: 'analysis', text: 'element: block_A\nsegment: 1\nt0: 0\nt1: 1\nx: t\ny: 0' });
   log.call({
     stage: 'solve',
     messages: [
@@ -99,7 +100,7 @@ function sampleRun() {
       },
       { id: 'C4', status: 'fail', blocking: false, detail: '相邻帧画面差过大（仅告警）' },
     ],
-    program: { slots: { PROBLEM: '题干。', STEPS: 'title: 一步', ANSWERS: 'symbol: v', VIEW: 'SIM.duration = 1;', stateAt: 'return { x: t };', drawFrame: 'Draw.dot(0,0);' } },
+    program: { slots: { PROBLEM: '题干。', STEPS: 'title: 一步', ANSWERS: '', VIEW: 'SIM.duration = 1;', stateAt: 'return { x: t };', drawFrame: 'Draw.dot(0,0);' } },
   });
   log.event({ type: 'run_done', verdict: 'fail', ms: 5500, banner: '门禁未通过：C5' });
 
@@ -121,7 +122,7 @@ async function main() {
     check('对话记了模型返回全文', String(record.dialogue[0].output ?? '').includes('动能定理'));
     check('★ 图片只留占位、不留 base64（否则日志会几十 MB）', JSON.stringify(record.dialogue[0].messages).includes('图片已省略'));
     check('★ 动画代码在（8 槽位里的几个）', record.animation.available && String(record.animation.slots.drawFrame ?? '').includes('Draw.dot'));
-    check('★ 解题过程在（solve 与 steps 都有正文）', String(record.solution.solve ?? '').includes('动能定理') && String(record.solution.steps ?? '').includes('第一步'));
+    check('★ 解题过程在（solve 与 steps 都有正文）', String(record.solution.solve ?? '').includes('动能定理') && String(record.solution.breakdown ?? '').includes('第一步'));
     check('结论是 fail（不是"报错"也不是 null）', record.run.verdict === 'fail');
     check('记录里带版本号（寄出去能知道是哪一版）', record.appVersion === '1.1.7');
   }
@@ -203,13 +204,15 @@ async function main() {
     saveEndpoints({ dir: root, endpoints: [endpoint], stageModels: { solve: 'ep1' } });
     saveKeys({ dir: root, keys: { ep1: KEY } });
 
-    /** 假网关：按阶段回固定文本；scene_code 给合法的 8 槽位（否则切分阶段就停了） */
+    /** 假网关：analysis 给可解析的运动表，scene_code 只给 drawFrame */
     const fakeStream = async (args) => {
       const stage = args.stage ?? 'solve';
       const text =
-        stage === 'scene_code'
-          ? SLOTS().map((k) => `/* @slot:${k} */\nBODY_${k}\n/* @end */`).join('\n')
-          : `【${stage} 的正文】由动能定理可得答案。`;
+        stage === 'analysis'
+          ? ANALYSIS_EXAMPLE
+          : stage === 'scene_code'
+            ? 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);'
+            : `【${stage} 的正文】由动能定理可得答案。`;
       args.onDelta?.(text);
       return { text, reasoning: '', usage: null, model: 'fake' };
     };
@@ -271,9 +274,9 @@ async function main() {
       const rec = JSON.parse(readFileSync(join(openLogDir, files1[0]), 'utf8'));
       check('★ 记录里有门禁结论（被 C5 拦住）', rec.gates.verdict === 'fail' && rec.gates.blockedBy.some((b) => b.id === 'C5'));
       check('★ 记录里有多轮校验（失败才会进自愈）', Array.isArray(rec.gates.rounds) && rec.gates.rounds.length >= 2, String(rec.gates.rounds?.length));
-      check('★ 对话覆盖了主链路的每个模型阶段', ['read_problem', 'solve', 'steps', 'answers', 'scene_code'].every((s) => rec.dialogue.some((d) => d.stage === s)), rec.dialogue.map((d) => d.stage).join(','));
+      check('★ 对话覆盖了主链路的每个模型阶段', ['read_problem', 'solve', 'breakdown', 'analysis', 'scene_code'].every((s) => rec.dialogue.some((d) => d.stage === s)), rec.dialogue.map((d) => d.stage).join(','));
       check('★ 对话里带着发给模型的系统提示词（不是只有回答）', String(rec.dialogue[0].messages?.[0]?.content ?? '').length > 500);
-      check('★ 动画代码在（8 槽位）', rec.animation.available && String(rec.animation.slots.drawFrame ?? '').includes('BODY_drawFrame'));
+      check('★ 动画代码在（drawFrame 由 AI 写）', rec.animation.available && String(rec.animation.slots.drawFrame ?? '').includes('Draw.box'));
       check('★ 解题过程在（solve 有正文）', String(rec.solution.solve ?? '').includes('动能定理'));
       check('★ 题目原文在', String(rec.run.problem.text ?? '').includes('斜面顶端'));
 
@@ -304,11 +307,6 @@ async function main() {
       /* 临时目录清不掉不影响结论 */
     }
   }
-}
-
-/** 与 `contracts/spec/frozen-keys.mjs` 的 8 槽位同名（这里只用来造假产物） */
-function SLOTS() {
-  return ['PROBLEM', 'STEPS', 'ANSWERS', 'VIEW', 'setup', 'stateAt', 'drawFrame', 'readouts'];
 }
 
 if (isCliEntry(import.meta.url)) main();

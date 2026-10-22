@@ -69,7 +69,7 @@ export const CHECK_NAMES = Object.freeze({
 });
 
 /** 解题过程要展示的阶段（其余阶段是代码/校验，不属于"过程文字"） */
-const SOLUTION_STAGES = Object.freeze(['read_problem', 'solve', 'steps', 'answers']);
+const SOLUTION_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'answers']);
 
 /** 单条文本上限：防一份日志被某个失控输出撑到几十 MB（截断会明确标注） */
 const MAX_TEXT = 400_000;

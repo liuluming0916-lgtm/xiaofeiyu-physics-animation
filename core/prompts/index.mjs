@@ -2,9 +2,8 @@
  * Prompt 系统（§10）。
  *
  * `fixed-prefix.mjs` —— §10.2 的三段注入：[固定前缀] + [条件段] + [任务段]。
- * `templates.mjs`   —— §10.1 的 6 个阶段 Prompt 正文与答案结构模板
- *                      （另有扩展 Prompt：第 4 期的 `repair`、第 5 期的 `read_problem`，
- *                        两者都**不属于 §10.1 的清单**）。
+ * `templates.mjs`   —— 主链路的 4 份 Prompt（analysis / scene_code / solve / breakdown）
+ *                      + 扩展 Prompt（repair / read_problem）。
  */
 
 export {
@@ -24,14 +23,31 @@ export {
   PROMPTS,
   EXTENSION_PROMPTS,
   ROLE_AND_OUTPUT_RULES,
-  ANSWER_STRUCTURE_TEMPLATE,
-  ANSWER_STRUCTURE_PROMPT_ID,
   getPrompt,
   listPrompts,
   listExtensionPrompts,
   /** 第 5.7 期：把判定词表（单源真相 = contracts/knowledgecard-concepts.json）渲染成注入 Prompt 的文本 */
   buildJudgementVocab,
 } from './templates.mjs';
+
+/**
+ * `analysis`（物理分析）—— 新链路第 4 段，取代旧 `answers`。
+ * 现在已进 `PROMPTS`（key=analysis），这里保留独立入口给自检/测试。
+ */
+export {
+  ANALYSIS_PROMPT,
+  ANALYSIS_ROLE,
+  ANALYSIS_INSTRUCTION,
+  buildAnalysisUser,
+} from './analysis.mjs';
+
+/** 步骤耦合：只输出 step/t0/t1 */
+export {
+  COUPLE_PROMPT,
+  COUPLE_ROLE,
+  COUPLE_INSTRUCTION,
+  buildCoupleUser,
+} from './couple.mjs';
 
 /**
  * 第 6 期第 2 项：覆盖层与编辑器。

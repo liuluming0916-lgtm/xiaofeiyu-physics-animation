@@ -286,7 +286,7 @@ async function main() {
     console.log('\n『E』删除端点：分阶段模型置空 + Key 一并清掉');
     {
       const dir = freshDir();
-      saveEndpoints({ dir, endpoints: [endpoint(), endpoint({ id: 'ep_two', displayName: '二', baseURL: 'https://api.example.com/v1' })], stageModels: { solve: 'ep_local', steps: 'ep_two' } });
+      saveEndpoints({ dir, endpoints: [endpoint(), endpoint({ id: 'ep_two', displayName: '二', baseURL: 'https://api.example.com/v1' })], stageModels: { solve: 'ep_local', breakdown: 'ep_two' } });
       setKey({ dir, id: 'ep_local', key: KEY_A });
       setKey({ dir, id: 'ep_two', key: KEY_B });
 

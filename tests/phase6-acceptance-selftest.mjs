@@ -26,6 +26,7 @@ import { join } from 'node:path';
 import { isCliEntry } from '../tools/paths.mjs';
 import { SLOT_KEY_NAMES } from '../contracts/spec/frozen-keys.mjs';
 import { collectEvents } from '../core/orchestrator/pipeline.mjs';
+import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { buildProgramFromText } from '../core/cleaner/index.mjs';
 import { getPrompt } from '../core/prompts/index.mjs';
 import { listPromptCatalog, savePromptOverride } from '../core/prompts/editor.mjs';
@@ -84,8 +85,8 @@ function endpoint(over = {}) {
 const STAGE_LABELS = [
   ['读题与判定', 'read_problem'],
   ['解题', 'solve'],
-  ['答案抽取', 'answers'],
-  ['分步解析', 'steps'],
+  ['答案讲解', 'breakdown'],
+  ['物理分析', 'analysis'],
   ['动画代码', 'scene_code'],
 ];
 
@@ -96,7 +97,7 @@ function fakeStream(replies = {}) {
     const sys = String(opts.messages?.[0]?.content ?? '');
     const hit = STAGE_LABELS.find(([label]) => sys.includes(`【本阶段指令：${label}】`));
     const stage = hit ? hit[1] : 'unknown';
-    const full = replies[stage] ?? `【${stage} 输出】`;
+    const full = replies[stage] ?? (stage === 'analysis' ? ANALYSIS_EXAMPLE : `【${stage} 输出】`);
     opts.onDelta?.(full);
     return { text: full, reasoning: '', usage: null, model: 'fake', deltas: [full] };
   };
@@ -169,14 +170,14 @@ async function main() {
       check('★ 第一版的那道题仍停在第一版', getPrompt('solve', runtime.snapshotOf('第一版之后的新题')).system === v1);
       check('★ 最早那道题仍停在内置', getPrompt('solve', runtime.snapshotOf('正在跑的题')).system !== v1);
 
-      // ── 类 2：答案结构模板（嵌在 answers 里） ──
-      console.log('\n  ── 类 2/4：答案结构模板 ──');
-      const struct = '【我的 ANSWERS 口径】字段：symbol / value / unit / tol / at_t / step；每问必须给单位。';
-      check('保存结构模板覆盖成功', savePromptOverride({ dir, id: 'answer-structure', text: struct }).ok === true);
+      // ── 类 2：analysis 运动表口径 ──
+      console.log('\n  ── 类 2/4：analysis 运动表口径 ──');
+      const struct = '【我的运动表口径】每个元件必须给 segment / t0 / t1 / x0 / y0 / vx0 / vy0 / ax / ay / x / y。';
+      check('保存 analysis 覆盖成功', savePromptOverride({ dir, id: 'analysis', text: struct }).ok === true);
       runtime.reload();
-      const ans = getPrompt('answers', runtime.snapshotForNewProblem('结构模板之后的新题'));
-      check('★ 新的 answers 正文用上了我的结构模板', ans.system.includes(struct));
-      check('★ 它替换掉了内置那段（不是两段并存）', !ans.system.includes('ANSWERS 的每一项是一条记录'));
+      const an = getPrompt('analysis', runtime.snapshotForNewProblem('运动表口径之后的新题'));
+      check('★ 新的 analysis 正文用上了我的口径', an.system.includes(struct));
+      check('★ 它替换掉了内置正文（不是两段并存）', !an.system.includes('=== 元件运动表 (MOTIONS) ==='));
 
       // ── 类 3：清洗规则 ──
       console.log('\n  ── 类 3/4：清洗规则 ──');
@@ -291,10 +292,10 @@ async function main() {
 
       // 改坏 4：Prompt 文件被外部改坏（空文件）
       const dir2 = freshDir();
-      savePromptOverride({ dir: dir2, id: 'steps', text: '分步解析：3–6 步，t0/t1 无缝衔接。\n' });
-      writeFileSync(join(dir2, 'prompts', 'steps.md'), '   \n', 'utf8');
+      savePromptOverride({ dir: dir2, id: 'breakdown', text: '分步解析：3–6 步，t0/t1 无缝衔接。\n' });
+      writeFileSync(join(dir2, 'prompts', 'breakdown.md'), '   \n', 'utf8');
       const broken4 = loadRulesWorkspace({ dir: dir2 });
-      check('★ 空 Prompt ⇒ 载入被拒并点名', broken4.ok === false && (broken4.problems ?? []).some((p) => p.path === 'prompts/steps.md'));
+      check('★ 空 Prompt ⇒ 载入被拒并点名', broken4.ok === false && (broken4.problems ?? []).some((p) => p.path === 'prompts/breakdown.md'));
 
       // 改坏 5：端点文件（不在规则工作区里，由端点存储自己判）
       const dir3 = freshDir();
@@ -330,7 +331,7 @@ async function main() {
       const ep = loadEndpointStore({ dir });
       check('三样东西都能同时载入', rules && ep.ok === true);
 
-      const stream = fakeStream({ scene_code: goodSceneCode().replace('SIM.duration = 1;', 'SIM.duration = Math.pow(2, 2);') });
+      const stream = fakeStream({ scene_code: 'Draw.box([Math.pow(2, 2), 0], 1, 1);' });
       const events = await collectEvents({
         problem: { text: '一物块从斜面滑下，求底端速度。' },
         config: {
@@ -348,8 +349,8 @@ async function main() {
       check('★ 阶段标签仍在（覆盖没把阶段标识冲掉）', stream.calls.some((c) => String(c.messages?.[0]?.content ?? '').includes('【本阶段指令：解题】')));
       // ⚠ 槽位在 `dryrun_done` 事件的 `program` 里；`run_done` 只带 delivery 形状（不重复塞代码）
       const dryrunDone = events.find((e) => e.type === 'dryrun_done');
-      check('★ 跑完的槽位里 pow 已被清洗', dryrunDone?.program?.slots?.VIEW?.includes('(2)*(2)') === true, dryrunDone?.program?.slots?.VIEW);
-      check('★ 清洗只改了该改的那一处（其余代码原样）', dryrunDone?.program?.slots?.setup?.includes('const g = 10;') === true);
+      check('★ 跑完的槽位里 pow 已被清洗', dryrunDone?.program?.slots?.drawFrame?.includes('(2)*(2)') === true, dryrunDone?.program?.slots?.drawFrame);
+      check('★ 清洗只改了该改的那一处（其余代码原样）', dryrunDone?.program?.slots?.setup?.includes('const T_PHYS = 3;') === true);
     }
 
     /* ══════════════ ⑤ 交付口径：四类改动的目录都在、且都标了"会不会跑" ══════════════ */
@@ -358,7 +359,7 @@ async function main() {
     {
       const dir = freshDir();
       const cat = listPromptCatalog({ dir });
-      check('Prompt 目录：7 项、每组都有说明', cat.items.length === 7 && cat.items.every((i) => i.group && i.groupTitle));
+      check('Prompt 目录：8 项、每组都有说明', cat.items.length === 8 && cat.items.every((i) => i.group && i.groupTitle));
       check('Prompt 目录：knowledgecard / distill 已删除（没有 not-wired 分组）', cat.items.filter((i) => i.group === 'not-wired').length === 0);
 
       const cl = loadCleaningTable({ dir });

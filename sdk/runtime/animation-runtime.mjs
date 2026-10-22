@@ -118,8 +118,6 @@ export const OP_KINDS = Object.freeze([
   'lens',
   'axisBox',
   'chart',
-  'text',
-  'latex',
   'raw',
 ]);
 
@@ -144,11 +142,10 @@ const ENVELOPE_OPS = Object.freeze([
   'fieldDots',
   'dimension',
   'arc',
+  'ellipse',
   'curve',
   'ray',
   'lens',
-  'text',
-  'latex',
 ]);
 
 /**
@@ -354,6 +351,7 @@ function readPoint(v, where) {
 export function collectKinematicBoundaries(program, duration = resolveDuration(program)) {
   const list = [0, duration];
   const push = (v) => {
+    if (v === undefined || v === null || v === '') return;
     const n = Number(v);
     if (Number.isFinite(n) && n >= -1e-9 && n <= duration + 1e-9) list.push(Math.min(Math.max(n, 0), duration));
   };
@@ -482,6 +480,45 @@ export function derivatives(program, body, t, info, opts = {}) {
   }
 
   return { x, y, vx, vy, ax, ay, speed: Math.hypot(vx, vy) };
+}
+
+/**
+ * 刚体朝向角（度）：按速度方向；零速时向前/向后找最近的非零速度。
+ * 只读 `SIM.bodies`，不改程序；找不到方向返回 null（交给场景卡给静态角）。
+ */
+export function bodyAngleDeg(program, body, t, info = kinematicsInfo(program)) {
+  const EPS = 1e-6;
+  const { duration } = info;
+  const at = (tt) => {
+    if (!(tt >= 0 && tt <= duration)) return null;
+    const d = derivatives(program, body, tt, info);
+    if (!(d.speed > EPS)) return null;
+    return (Math.atan2(d.vy, d.vx) * 180) / Math.PI;
+  };
+  const here = at(t);
+  if (here !== null) return here;
+
+  /* 零速：先看“即将开始”，再看“刚刚结束”。 */
+  const step = Math.max(0.01, duration / 200);
+  for (let n = 1; n <= 200; n += 1) {
+    const forward = at(t + n * step);
+    if (forward !== null) return forward;
+    const backward = at(t - n * step);
+    if (backward !== null) return backward;
+  }
+  return null;
+}
+
+/** 把 `state.<key>.angleDeg` 注入当前帧；卡片只读这个字段。 */
+export function injectBodyAngles(program, t, state) {
+  const info = kinematicsInfo(program);
+  for (const body of info.bodies) {
+    const slot = state?.[body.id];
+    if (!slot || typeof slot !== 'object') continue;
+    const angle = bodyAngleDeg(program, body, t, info);
+    if (angle !== null) slot.angleDeg = angle;
+  }
+  return state;
 }
 
 /** 单侧差分取哪一侧：`t` 在边界上取右侧（碰后）；端点取画面内侧。 */
@@ -680,6 +717,10 @@ export class CommandBuffer {
           add(r.x1, r.y1);
           add(r.x2, r.y2);
           break;
+        case 'ellipse':
+          add(r.cx - r.rx, r.cy - r.ry);
+          add(r.cx + r.rx, r.cy + r.ry);
+          break;
         case 'arrow': {
           /**
            * 第 8 期：包络里的箭头长度必须与**画出来的**一致，所以走同一个换算函数
@@ -712,11 +753,6 @@ export class CommandBuffer {
         case 'fieldDots':
           add(r.x, r.y);
           add(r.x + r.w, r.y + r.h);
-          break;
-        case 'text':
-        case 'latex':
-          add(r.x, r.y);
-          if (isFiniteNumber(r.leaderTo?.[0])) add(r.leaderTo[0], r.leaderTo[1]);
           break;
         default:
           break;
@@ -784,134 +820,8 @@ function rk45Step(t, y, h, deriv) {
   );
 }
 
-/**
- * 采样表插值（§4.3）。O(log n)，可在 stateAt 内安全使用。
- *
- * ── v1.1.9：有斜率就走 C¹ 三次 Hermite，没有就退回线性 ──
- *
- * 为什么必须升级：本地求导要从 `stateAt` 的位置算加速度。线性插值出的位置是**分段直线**，
- * 二阶导数在段内恒为 0、在结点处炸出尖峰 —— 加速度箭头会变成"大部分时候 0、偶尔闪一个巨大箭头"。
- * Hermite 用两端点的 `{ y, dy }` 做三次插值，位置和速度都连续，二阶差分才稳定。
- *
- * 为什么不是"三次样条"：样条要解三对角方程组、还依赖整张表；Hermite 只要相邻两点 + 两个斜率，
- * 是 O(log n) 的局部的、可在 `stateAt` 里安全调用的版本。斜率由 `integrate` 顺手存下，模型无感。
- *
- * 为什么会过冲：普通 Hermite 在数据突变处会 overshoot。这里加了 **Fritsch–Carlson 限幅**
- * （PCHIP 的做法）：导数方向与割线相反就清零，斜率比过大就按半径 3 收缩。
- * 对平滑数据几乎不改值，对"表里有台阶"的数据能防住假尖峰。
- *
- * 兼容：`dy` 缺失、或该 key 没有数值导数 ⇒ 逐字退回原来的线性插值。
- */
-export function interp(samples, t, key) {
-  if (!samples.length) return NaN;
-  if (t <= samples[0].t) return pick(samples[0], key);
-  const last = samples[samples.length - 1];
-  if (t >= last.t) return pick(last, key);
-
-  let lo = 0;
-  let hi = samples.length - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (samples[mid].t <= t) lo = mid;
-    else hi = mid;
-  }
-  const a = samples[lo];
-  const b = samples[hi];
-  const span = b.t - a.t;
-  if (span <= 0) return pick(b, key);
-  const u = (t - a.t) / span;
-  const va = pick(a, key);
-  const vb = pick(b, key);
-  if (key === undefined) return va + (vb - va) * u; // 整份 y 的对象形态：保持线性
-  const ma = slopeOf(a, key);
-  const mb = slopeOf(b, key);
-  if (Number.isFinite(va) && Number.isFinite(vb) && Number.isFinite(ma) && Number.isFinite(mb)) {
-    return hermiteValue(va, vb, ma, mb, span, u);
-  }
-  return va + (vb - va) * u;
-}
-
-/** 从采样点的 `dy` 里取某个分量的斜率；没有就返回 NaN（触发线性回退）。 */
-function slopeOf(sample, key) {
-  const d = sample?.dy;
-  if (!d) return NaN;
-  const v = Array.isArray(d) ? d[key] : d[key];
-  return typeof v === 'number' && Number.isFinite(v) ? v : NaN;
-}
-
-/** 三次 Hermite（带 Fritsch–Carlson 限幅，保证不过冲）。 */
-function hermiteValue(y0, y1, m0, m1, span, s) {
-  const d = (y1 - y0) / span;
-  let a = m0;
-  let b = m1;
-  if (d === 0) {
-    a = 0;
-    b = 0;
-  } else {
-    let ra = a / d;
-    let rb = b / d;
-    if (ra < 0) {
-      a = 0;
-      ra = 0;
-    }
-    if (rb < 0) {
-      b = 0;
-      rb = 0;
-    }
-    const q = ra * ra + rb * rb;
-    if (q > 9) {
-      const tau = 3 / Math.sqrt(q);
-      a = tau * ra * d;
-      b = tau * rb * d;
-    }
-  }
-  const s2 = s * s;
-  const s3 = s2 * s;
-  const h00 = 2 * s3 - 3 * s2 + 1;
-  const h10 = s3 - 2 * s2 + s;
-  const h01 = -2 * s3 + 3 * s2;
-  const h11 = s3 - s2;
-  return h00 * y0 + h10 * span * a + h01 * y1 + h11 * span * b;
-}
-
-function pick(sample, key) {
-  if (key === undefined) return sample.y;
-  return Array.isArray(sample.y) ? sample.y[key] : sample.y[key];
-}
-
-/** 单调区间求根（二分）。O(log(1/eps))，可在 stateAt 内使用。 */
-export function roots(fn, a, b, opts = {}) {
-  const eps = opts.eps ?? 1e-9;
-  const maxIter = opts.maxIter ?? 80;
-  let fa = fn(a);
-  let fb = fn(b);
-  const out = [];
-  if (Math.abs(fa) < eps) out.push(a);
-  if (fa * fb > 0) return out;
-  let lo = a;
-  let hi = b;
-  for (let i = 0; i < maxIter && hi - lo > eps; i += 1) {
-    const mid = (lo + hi) / 2;
-    const fm = fn(mid);
-    if (Math.abs(fm) < eps) {
-      lo = mid;
-      hi = mid;
-      break;
-    }
-    if (fa * fm <= 0) {
-      hi = mid;
-      fb = fm;
-    } else {
-      lo = mid;
-      fa = fm;
-    }
-  }
-  out.push((lo + hi) / 2);
-  return out;
-}
-
-/** 有效数字格式化（§4.3），固定 3 位有效数字，避免读出栏跳位 */
-export function format(value, unit = '', sigFig = 3) {
+/** 画布外读数/图表脚注的统一数字格式化（不是 Phys API）。 */
+export function formatNumber(value, unit = '', sigFig = 3) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
   const av = Math.abs(value);
   let text;
@@ -1256,6 +1166,25 @@ export class Draw {
     });
   }
 
+  /** 椭圆：天体轨道、示意椭圆轨迹（rx/ry 为世界坐标半轴） */
+  ellipse(center, rx, ry, opts = {}) {
+    const c = toPoint(center, 'Draw.ellipse(center)');
+    assertFiniteNumber(rx, 'Draw.ellipse(rx)');
+    assertFiniteNumber(ry, 'Draw.ellipse(ry)');
+    if (!(rx > 0) || !(ry > 0)) throw new RangeError('Draw.ellipse(rx/ry) 必须是正数');
+    return this._push({
+      op: 'ellipse',
+      cx: c.x,
+      cy: c.y,
+      rx,
+      ry,
+      dash: parseDash(opts.dash, 'Draw.ellipse(opts)'),
+      width: opts.width ?? 1.4,
+      color: opts.color ?? this.theme.guide,
+      layer: opts.layer ?? 0,
+    });
+  }
+
   /** 轨迹虚线（§4.2） */
   trace(points, opts = {}) {
     return this.curve(points, { dash: opts.dash ?? [6, 4], color: opts.color ?? this.theme.guide, ...opts });
@@ -1375,46 +1304,6 @@ export class Draw {
       cursor: opts.cursor ?? null,
       color: opts.color ?? this.theme.accent,
       layer: opts.layer ?? 1,
-    });
-  }
-
-  /** 带上下标的标注（§4.2）；`latex` 槽位优先渲染符号（§3.4） */
-  text(x, y, text, opts = {}) {
-    assertFiniteNumber(x, 'Draw.text(x)');
-    assertFiniteNumber(y, 'Draw.text(y)');
-    if (typeof text !== 'string' || !text.length) throw new TypeError('Draw.text(text) 必须是非空字符串');
-    return this._push({
-      op: 'text',
-      x,
-      y,
-      text,
-      align: opts.align ?? 'center',
-      baseline: opts.baseline ?? 'middle',
-      size: opts.size ?? 14,
-      color: opts.color ?? this.theme.text,
-      sub: opts.sub ?? null,
-      sup: opts.sup ?? null,
-      leaderTo: opts.leaderTo ? toPoint(opts.leaderTo, 'Draw.text(leaderTo)') : null,
-      layer: opts.layer ?? 3,
-    });
-  }
-
-  /** 公式标注（§3.4：有 latex 时优先渲染符号） */
-  latex(x, y, tex, opts = {}) {
-    assertFiniteNumber(x, 'Draw.latex(x)');
-    assertFiniteNumber(y, 'Draw.latex(y)');
-    if (typeof tex !== 'string' || !tex.length) throw new TypeError('Draw.latex(tex) 必须是非空字符串');
-    return this._push({
-      op: 'latex',
-      x,
-      y,
-      tex,
-      align: opts.align ?? 'center',
-      baseline: opts.baseline ?? 'middle',
-      size: opts.size ?? 15,
-      color: opts.color ?? this.theme.text,
-      leaderTo: opts.leaderTo ? toPoint(opts.leaderTo, 'Draw.latex(leaderTo)') : null,
-      layer: opts.layer ?? 3,
     });
   }
 
@@ -1562,7 +1451,10 @@ export const SLOT_FROZEN_KEYS = Object.freeze([
  *   readouts         函数体 → `return [{ label, value, unit, latex? }]`
  */
 export function buildProgramSource(slots, opts = {}) {
-  const missing = SLOT_FROZEN_KEYS.filter((k) => typeof slots?.[k] !== 'string' || !slots[k].trim().length);
+  // C7 已删（2026-10-22）：ANSWERS 允许为空；其余槽位仍不允许空串
+  const missing = SLOT_FROZEN_KEYS.filter(
+    (k) => typeof slots?.[k] !== 'string' || (k !== 'ANSWERS' && !slots[k].trim().length),
+  );
   if (missing.length) {
     const err = new Error(`槽位缺失或为空：${missing.join(', ')}（§3.2 审计 2：空串视为该槽位缺失，不得静默通过）`);
     // 只有一个槽位缺时，归属就是它（诊断里"第 0 行 setup"那类误导就是这么来的）
@@ -1766,6 +1658,8 @@ export function parseStepsSlot(text) {
 
 export function parseAnswersSlot(text) {
   const trimmed = text.trim();
+  // C7 已删（2026-10-22）：ANSWERS 可以为空；程序仍保留这个槽位以兼容旧产物
+  if (!trimmed) return [];
   if (trimmed.startsWith('[')) return parseJsonArray(trimmed, 'ANSWERS');
   const blocks = splitBlocks(trimmed);
   return blocks.map((block, i) => {
@@ -1791,15 +1685,20 @@ export function parseAnswersSlot(text) {
 }
 
 function normalizeStep(raw) {
+  const hasT0 = raw.t0 !== undefined && raw.t0 !== null && raw.t0 !== '';
+  const hasT1 = raw.t1 !== undefined && raw.t1 !== null && raw.t1 !== '';
   const out = {
     title: raw.title ?? '',
     tex: raw.tex ?? '',
-    t0: Number(raw.t0),
-    t1: Number(raw.t1),
+    // v6：STEPS 只负责讲解文字；t0/t1 保留为可选字段，只为兼容旧产物。
+    t0: hasT0 ? Number(raw.t0) : null,
+    t1: hasT1 ? Number(raw.t1) : null,
   };
   if (!out.title) throw new Error('STEPS 有一步缺少 title');
   if (!out.tex) throw new Error(`STEPS 的「${out.title}」缺少 tex`);
-  if (Number.isNaN(out.t0) || Number.isNaN(out.t1)) throw new Error(`STEPS 的「${out.title}」t0/t1 不是数值`);
+  if ((hasT0 || hasT1) && (!Number.isFinite(out.t0) || !Number.isFinite(out.t1))) {
+    throw new Error(`STEPS 的「${out.title}」t0/t1 不是数值`);
+  }
   if (raw.note) out.note = raw.note;
   return out;
 }
@@ -1968,7 +1867,12 @@ function parseKeyValues(block, slot, index, lineNos = null) {
  * STEPS / ANSWERS 解析为结构化数组。
  */
 export function normalizeDataSlot(text, key) {
-  if (typeof text !== 'string' || !text.trim()) throw new Error(`槽位 ${key} 为空（§3.2 审计 2）`);
+  // C7 已删（2026-10-22）：ANSWERS 允许为空
+  if (typeof text !== 'string') throw new Error(`槽位 ${key} 为空（§3.2 审计 2）`);
+  if (!text.trim()) {
+    if (key === 'ANSWERS') return [];
+    throw new Error(`槽位 ${key} 为空（§3.2 审计 2）`);
+  }
   if (key === 'PROBLEM') {
     const trimmed = text.trim();
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
@@ -2183,20 +2087,29 @@ export const ARROW_STACK_PX = 8;
  * 为什么必须分 `category`：速度（绿）与力（红）本来就靠颜色区分，把它们错开反而让读者以为
  * 它们挂在两个点；同一颜色的两支力箭头（例如支持力与摩擦力）叠在一点才是真看不清。
  *
- * 错开方向：**垂直于自身方向**（左手侧为正），组内居中对称 ——
+ * ── 同点同类箭头：垂直于自身方向错开 ──
  * 两支时各偏 ±4 px，三支时 -8/0/+8。
+ *
+ * ── 同点 v/a：**固定侧**错开 ──
+ * 速度固定在左上、加速度固定在右下，偏移是**屏幕像素**，不随箭头方向翻转。
+ * 这样 B 上下运动时，绿色/蓝色箭头不会左右换边。
  *
  * @param {Array<object>} records 一帧的命令记录
  * @returns {Map<object, {dx:number, dy:number}>} 只含需要偏移的记录
  */
 export function computeArrowStackOffsets(records) {
   const groups = new Map();
+  const pointCategories = new Map();
   for (const rec of records) {
     if (rec?.op !== 'arrow') continue;
     const x = Number(rec.from?.[0]);
     const y = Number(rec.from?.[1]);
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    const key = `${rec.stackKey ?? rec.category ?? 'aux'}|${x.toFixed(6)}|${y.toFixed(6)}`;
+    const pointKey = `${rec.stackKey ?? ''}|${x.toFixed(6)}|${y.toFixed(6)}`;
+    if (!pointCategories.has(pointKey)) pointCategories.set(pointKey, new Set());
+    pointCategories.get(pointKey).add(rec.category ?? 'aux');
+    /** 同类箭头才互相错开；不同类走下面的固定侧规则。 */
+    const key = `${pointKey}|${rec.category ?? 'aux'}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(rec);
   }
@@ -2210,6 +2123,28 @@ export function computeArrowStackOffsets(records) {
       // 垂直于方向的方向向量（顺时针转 90°）
       out.set(rec, { dx: -uy * t * ARROW_STACK_PX, dy: ux * t * ARROW_STACK_PX });
     });
+  }
+
+  /**
+   * v/a 固定侧：
+   * · 速度 → 左上（dx < 0, dy < 0）
+   * · 加速度 → 右下（dx > 0, dy > 0）
+   * 这里故意不用 `arrowDirection()`，方向翻转时偏移不变。
+   */
+  const half = ARROW_STACK_PX / 2;
+  for (const rec of records) {
+    if (rec?.op !== 'arrow') continue;
+    const cat = rec.category;
+    if (cat !== 'velocity' && cat !== 'acceleration') continue;
+    const x = Number(rec.from?.[0]);
+    const y = Number(rec.from?.[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const pointKey = `${rec.stackKey ?? ''}|${x.toFixed(6)}|${y.toFixed(6)}`;
+    const cats = pointCategories.get(pointKey);
+    if (!cats || !cats.has('velocity') || !cats.has('acceleration')) continue;
+    const sign = cat === 'velocity' ? -1 : 1;
+    const prev = out.get(rec) ?? { dx: 0, dy: 0 };
+    out.set(rec, { dx: prev.dx + sign * half, dy: prev.dy + sign * half });
   }
   return out;
 }
@@ -2329,7 +2264,7 @@ function drawArrow(ctx, T, rec, vectorMax = null, offset = null) {
         ? rec.latex
         : rec.mag === null || rec.mag === undefined
           ? rec.label
-          : `${rec.label} = ${format(rec.mag, rec.unit || '', 3)}`;
+          : `${rec.label} = ${rec.mag}`;
     // 白描边保证在网格线/图形上也读得清
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(255,255,255,0.92)';
@@ -2586,6 +2521,15 @@ export function replayToCanvas(ctx, records, transform, opts = {}) {
         ctx.stroke();
         break;
       }
+      case 'ellipse': {
+        const c = T(rec.cx, rec.cy);
+        ctx.strokeStyle = rec.color;
+        ctx.lineWidth = rec.width;
+        ctx.beginPath();
+        ctx.ellipse(c.x, c.y, rec.rx * unit, rec.ry * unit, 0, 0, TAU);
+        ctx.stroke();
+        break;
+      }
       case 'curve': {
         const pts = rec.points.map(([x, y]) => T(x, y));
         if (rec.fill) {
@@ -2695,38 +2639,6 @@ export function replayToCanvas(ctx, records, transform, opts = {}) {
         }
         break;
       }
-      case 'text':
-      case 'latex': {
-        /* 方案 A：画布上不再画字（连引线也不画 —— 字都没了，引线指给谁看）。
-           见 `HIDE_CANVAS_TEXT` 的说明。 */
-        if (HIDE_CANVAS_TEXT) break;
-        const p = T(rec.x, rec.y);
-        if (rec.leaderTo) {
-          const l = T(rec.leaderTo.x, rec.leaderTo.y);
-          ctx.strokeStyle = theme.guide;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(l.x, l.y);
-          ctx.stroke();
-        }
-        const label = rec.op === 'text' ? rec.text : rec.tex;
-        const rendered = opts.renderLatex ? opts.renderLatex(rec) : null;
-        if (rendered) {
-          const w = rendered.width ?? 40;
-          const h = rendered.height ?? 20;
-          const dx = rec.align === 'left' ? 0 : rec.align === 'right' ? -w : -w / 2;
-          const dy = rec.baseline === 'top' ? 0 : rec.baseline === 'bottom' ? -h : -h / 2;
-          ctx.drawImage(rendered, p.x + dx, p.y + dy, w, h);
-        } else {
-          ctx.fillStyle = rec.color;
-          ctx.font = `${rec.size}px ${LABEL_FONT_FAMILY}`;
-          ctx.textAlign = rec.align === 'center' ? 'center' : rec.align;
-          ctx.textBaseline = rec.baseline;
-          ctx.fillText(label, p.x, p.y);
-        }
-        break;
-      }
       case 'raw': {
         if (rec.fn) rec.fn(ctx, transform);
         break;
@@ -2751,7 +2663,7 @@ export function runProgram(program, opts = {}) {
   const dt = opts.dt ?? 1 / 240;
   const buffer = new CommandBuffer();
   const draw = new Draw(buffer, { theme: opts.theme });
-  const runtime = { CommandBuffer, Draw, PhysRef: { integrate, interp, roots, format } };
+  const runtime = { CommandBuffer, Draw, PhysRef: { integrate } };
   program.setup(buffer, draw, runtime);
 
   const duration = resolveDuration(program);
@@ -2761,6 +2673,7 @@ export function runProgram(program, opts = {}) {
   for (let t = 0; t <= duration + 1e-9; t += dt) {
     const time = Math.min(t, duration);
     const state = program.stateAt(time, buffer, draw, runtime);
+    injectBodyAngles(program, time, state);
     buffer.reset();
     program.drawFrame(time, state, buffer, draw, runtime);
     const frameRecords = buffer.records.slice();
@@ -2818,10 +2731,8 @@ export function sandboxBundle() {
     Draw,
     PhysRef,
     AutoView,
-    interp,
-    roots,
     integrate,
-    format,
+    format: formatNumber,
     replayToCanvas,
     resolveDuration,
     normalizeReadouts,
@@ -2886,6 +2797,7 @@ export function sampleFrame(program, t, opts = {}) {
   const buffer = program.buffer;
   buffer.reset();
   const state = program.stateAt(t);
+  injectBodyAngles(program, t, state);
   program.drawFrame(t, state);
   /* v1.1.9：本地运动学矢量（v/a）在这里注入 —— 干跑、取景、播放共用同一处。 */
   emitKinematicArrows(program, t);
@@ -2946,7 +2858,7 @@ export function fullEnvelope(program, opts = {}) {
  * ⚠ 兜底：若"只算实体"后包络为空或退化（例如整题只画了一个标注），
  *   退回旧口径 —— 宁可小一点，也不能没有画幅。
  */
-const FRAME_EXCLUDE_OPS = Object.freeze(['arrow', 'text', 'latex', 'dimension']);
+const FRAME_EXCLUDE_OPS = Object.freeze(['arrow', 'dimension']);
 
 /** 参考面：`hatch` 填充的多边形（地面 / 斜线阴影），取景时不算内容（照画，只是不参与定框） */
 function isReferenceSurface(record) {
@@ -3135,7 +3047,24 @@ export function createPlayer(program, opts) {
     : opts.envelope
       ? { envelope: opts.envelope, vectorScale: opts.vectorScale ?? null }
       : computeFramingPlan(program, { samples: opts.envelopeSamples });
-  const fullEnvelope = framing.envelope;
+  /**
+   * ── 舞台（2026-10-23 A 方案）──
+   *
+   * `SIM.stage` 存在时，相机**不再 fit 物理包络**，而是固定拍这张 10×6 的布局纸：
+   * 位置已经在生成期折算成布局坐标（`state.*.cx/cy`），尺寸是布局单位。
+   * 这样 0.4 m 的物块在 1 m 题和 1.2×10⁶ m 题里占的像素完全一样。
+   * 老程序没有 `stage` ⇒ 仍然走包络取景，行为不变。
+   */
+  const stageFrame = program?.SIM?.stage;
+  const fullEnvelope =
+    stageFrame && Number.isFinite(stageFrame.u1) && Number.isFinite(stageFrame.v1)
+      ? {
+          minX: stageFrame.u0 ?? 0,
+          minY: stageFrame.v0 ?? 0,
+          maxX: stageFrame.u1,
+          maxY: stageFrame.v1,
+        }
+      : framing.envelope;
   const vectorScale = framing.vectorScale ?? null;
   const vectorMaxByCat = framing.maxMag ?? null;
 
@@ -3159,7 +3088,8 @@ export function createPlayer(program, opts) {
   /** 画布尺寸变化时重算一次相机；播放期间不再调用 */
   function setViewport(next) {
     viewport = { width: Math.max(1, next.width), height: Math.max(1, next.height), dpr: next.dpr ?? opts.dpr ?? 1 };
-    transform = AutoView.fit(fullEnvelope, { width: viewport.width, height: viewport.height });
+    /* 有舞台时纸张自己已经留了 6% 边距，这里不再叠一层 14% 的取景内缩（否则画面白小一圈）。 */
+    transform = AutoView.fit(fullEnvelope, { width: viewport.width, height: viewport.height }, stageFrame ? { padding: 0.02 } : {});
     return transform;
   }
 
@@ -3179,6 +3109,7 @@ export function createPlayer(program, opts) {
     // 相机由 computeFullEnvelope 预先锁死，这里**不再**逐帧 AutoView.fit。
     buffer.reset();
     const st = program.stateAt(state.t);
+    injectBodyAngles(program, state.t, st);
     program.drawFrame(state.t, st);
     /* v1.1.9：与 `sampleFrame` 共用同一个注入函数（防两条路径分叉）。 */
     emitKinematicArrows(program, state.t);
@@ -3254,7 +3185,7 @@ export function createPlayer(program, opts) {
 /* ────────────────────────────── 导出面 ────────────────────────────── */
 
 /** 装入沙箱/浏览器时通过 `runtime.PhysRef` 暴露给槽位代码（§4.3） */
-export const PhysRef = Object.freeze({ integrate, interp, roots, format });
+export const PhysRef = Object.freeze({ integrate });
 export const Runtime = {
   TAU,
   DEG,
@@ -3265,9 +3196,7 @@ export const Runtime = {
   Draw,
   AutoView,
   integrate,
-  interp,
-  roots,
-  format,
+  format: formatNumber,
   PhysRef,
   splitSlots,
   buildProgramSource,
@@ -3309,6 +3238,8 @@ export const Runtime = {
   derivatives,
   kinematicsInfo,
   emitKinematicArrows,
+  bodyAngleDeg,
+  injectBodyAngles,
   fullEnvelope,
   runnerBundle,
   instantiate,

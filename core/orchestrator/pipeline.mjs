@@ -35,10 +35,13 @@ import {
 } from '../gateway/index.mjs';
 import { getPrompt, assemblePrompt, buildJudgementVocab } from '../prompts/index.mjs';
 import { triggerKnowledgecard, mergeKnowledgecardStages, knowledgecardHashOf } from '../knowledgecard/index.mjs';
+import { triggerKnowledgecardV2, knowledgecardV2Evidence } from '../knowledgecard/v2/runtime.mjs';
 import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledgecard/concepts.mjs';
 import { buildJudgementVocabV2, parseJudgementV2 } from '../knowledgecard/v2/prompt.mjs';
 import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
-import { parseAnswersSlot } from '../../sdk/runtime/animation-runtime.mjs';
+import { parseAnswersSlot, parseStepsSlot } from '../../sdk/runtime/animation-runtime.mjs';
+import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap } from '../analysis/index.mjs';
+import { parseStepTimes, fallbackStepTimes } from '../couple/index.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
 import { dryRun } from '../dryrun/dry-run.mjs';
 import {
@@ -51,6 +54,7 @@ import {
   planC7Alias,
   REPAIR_MAX_ROUNDS,
   CODE_SLOTS,
+  classifyRepair,
   orderSlots,
   repairModeOf,
 } from '../repair/index.mjs';
@@ -228,7 +232,7 @@ export async function* runPipeline(input) {
   }
   const cancelled = () => ac.signal.aborted;
 
-  const entry = (problem?.text ?? '').slice(0, 40).replace(/\s+/g, ' ') || '(未命名题目)';
+  const entry = (problem?.text ?? '').slice(0, 40).replace(/\s+/g, ' ') || '未命名题目';
   /** @type {Record<string,string>} 阶段产物（后续阶段要引用前面的结果） */
   const outputs = {};
 
@@ -238,7 +242,8 @@ export async function* runPipeline(input) {
    * 其余阶段（answers / steps / dry_run / repair）**不注入词条** ——
    * 它们在 §9.2 的分槽组装里没有任何候选集。
    */
-  const STAGE_SLOT = { solve: 'solve', scene_code: 'scene_code' };
+  /* 知识卡：v6 只注入动画槽（scene_code）；solve 槽已从运行链路删除 */
+  const STAGE_SLOT = { scene_code: 'scene_code' };
   /** @type {Record<string, object>} 阶段 → 该阶段的触发结果（逐阶段触发，理由见 knowledgecard/index.mjs） */
   const knowledgecardResults = {};
   const knowledgecardSegments = {};
@@ -277,39 +282,55 @@ export async function* runPipeline(input) {
 
   const knowledgecardForStage = (stage) => {
     const slot = STAGE_SLOT[stage];
-    if (!slot || snapshot.knowledgecard.entries.length === 0) return { slot: slot ?? 'solve', text: '', result: null };
+    if (!slot || snapshot.knowledgecard.entries.length === 0) return { slot: slot ?? 'scene_code', text: '', result: null };
     if (knowledgecardResults[stage]) return { slot, text: knowledgecardSegments[stage] ?? '', result: knowledgecardResults[stage] };
-    /**
-     * §9.2 的输入：题面文本 T（+ 上一步解题文本，用于第二遍扫描）**+ 模型的判定 J**（第 5.7 期）。
-     *
-     * ⚠ 第 5 期把"可扫描文本"补全了 —— 之前只扫 `problem.text`，于是：
-     *   · 用户手打的**配图补充描述**与**已知条件**（§11.3 的人工兜底入口）**根本不参与匹配**，
-     *     等于"填了也白填"；
-     *   · 图片题的图只以文字形式存在于 `read_problem` 的转写里，不扫它就等于没接上第 0 步。
-     *   现在两个槽位都扫「题面 + 描述 + 已知条件 + 读题转写（+ 解题文本）」。
-     *
-     * ⚠ 第 5.7 期起，判定（考点/题型/元件）作为**两侧分发**的输入一起传进引擎：
-     *   命中 = `concepts 相交 且（tags 相交 或 tags 为空）` **OR** `elements 命中（经考点收窄）`
-     *          **OR** 旧的 `keys` 字面命中（灰度）。`via` 会写清走了哪条路。
-     */
-    const corpus = [
-      problem.text,
-      problem.description,
-      problem.knownConditions,
-      outputs.read_problem,
-      slot === 'scene_code' ? outputs.solve : null,
-    ].filter((s) => typeof s === 'string' && s.trim());
-    const scanText = corpus.join('\n');
-    const result = triggerKnowledgecard({
-      entries: snapshot.knowledgecard.entries,
-      text: scanText,
-      // 两侧分发的输入（缺省为空数组 ⇒ 退化为纯字面触发）
-      concepts: judgement.concepts,
-      tags: judgement.tags,
-      elements: judgement.elements,
-      scenes: judgement.scenes,
-      ...(snapshot.knowledgecard.budget ? { budget: snapshot.knowledgecard.budget } : {}),
-    });
+
+    let result;
+    if (snapshot.knowledgecard.version === 2) {
+      /**
+       * ── v6：生产链路走 **v2 引擎**（用户 2026-10-22 裁决 B）──
+       *
+       * v2 卡没有 `keys / concepts / tags / insertion_slot`；触发只认：
+       *   · `constant: true`；
+       *   · `kind: 'element'` 且 `elements` 与读题判定相交；
+       *   · `kind: 'scene'` 且 `scenes` 与读题判定相交。
+       *
+       * 不再扫题面字面量。这是刻意的：v2 卡的分发条件是"模型判出的元件/场景"，
+       * 不是"题面里碰巧出现了某个词"。少扫一次文本，也不会把卡片抽错。
+       */
+      result = triggerKnowledgecardV2({
+        entries: snapshot.knowledgecard.entries,
+        elements: judgement.elements,
+        scenes: judgement.scenes,
+        ...(snapshot.knowledgecard.budget ? { budget: snapshot.knowledgecard.budget } : {}),
+      });
+    } else {
+      /**
+       * ── 旧 v1 引擎（仅 `knowledgecardVersion !== 2` 的旧配置/旧测试）──
+       *
+       * §9.2 的输入：题面文本 T（+ 上一步解题文本，用于第二遍扫描）**+ 模型的判定 J**。
+       * 现在两个槽位都扫「题面 + 描述 + 已知条件 + 读题转写（+ 解题文本）」。
+       */
+      const corpus = [
+        problem.text,
+        problem.description,
+        problem.knownConditions,
+        outputs.read_problem,
+        slot === 'scene_code' ? outputs.solve : null,
+      ].filter((s) => typeof s === 'string' && s.trim());
+      const scanText = corpus.join('\n');
+      result = triggerKnowledgecard({
+        entries: snapshot.knowledgecard.entries,
+        text: scanText,
+        // 两侧分发的输入（缺省为空数组 ⇒ 退化为纯字面触发）
+        concepts: judgement.concepts,
+        tags: judgement.tags,
+        elements: judgement.elements,
+        scenes: judgement.scenes,
+        ...(snapshot.knowledgecard.budget ? { budget: snapshot.knowledgecard.budget } : {}),
+      });
+    }
+
     knowledgecardResults[stage] = result;
     knowledgecardSegments[stage] = result.text[slot] ?? '';
     return { slot, text: knowledgecardSegments[stage], result };
@@ -327,7 +348,9 @@ export async function* runPipeline(input) {
   });
 
   try {
-    /* ── 逐阶段：solve → steps → answers → scene_code（第 9 期调序，见 `PHASE5_STAGES`）── */
+    /* ── 逐阶段：read_problem → solve → breakdown → analysis → scene_code（drawFrame）── */
+    /** @type {ReturnType<typeof parseAnalysisTable>|null} */
+    let analysisParsed = null;
     const stageInputs = {
       // 第 0 步：题面文字 + 用户手打的描述/已知条件 + **判定词表**（图片由 `withImages` 附在消息里）
       read_problem: {
@@ -340,28 +363,209 @@ export async function* runPipeline(input) {
             : judgementVocab,
       },
       solve: { problem: problem.text, ...(reference ? { reference } : {}) },
-      steps: { problem: problem.text, solution: () => outputs.solve },
+      breakdown: { problem: problem.text, solution: () => outputs.solve },
       /**
-       * ⚠ 第 9 期：`answers` **必须拿到 STEPS**。
-       *
-       * 旧顺序下它是"先填 at_t / step、再让 STEPS 去凑"，等价于让模型满足一个它看不见的约束
-       * （C5/C7 因此稳定打回）。现在 STEPS 先出，答案的时间锚点与步号是**照着时间轴填**的。
+       * 新链路第 4 段：analysis 只吃题面、读题几何、solve（**不吃 breakdown**）。
+       * 题图由 `withImages` 附在消息里（用户 2026-10-22 允许）。
        */
-      answers: { problem: problem.text, solution: () => outputs.solve, steps: () => outputs.steps },
-      scene_code: {
+      analysis: {
         problem: problem.text,
         solution: () => outputs.solve,
-        steps: () => outputs.steps,
-        answers: () => outputs.answers,
-        timeAxis: () => deriveTimeAxis(outputs.steps),
-        /* v1.1.16：把读题的几何转写交给写动画这一步（之前它只用来触发知识卡） */
         readProblem: () => outputs.read_problem,
-        hasDiagram: () => Boolean(diagram),
+      },
+      /**
+       * 新链路第 5 段：AI 只写 drawFrame。
+       * 物理由 analysis 生成，drawFrame 只负责“怎么画”。
+       */
+      scene_code: {
+        problem: problem.text,
+        analysisText: () => (analysisParsed ? formatAnalysis(analysisParsed) : ''),
+        readProblem: () => outputs.read_problem,
+        stateMap: () => (analysisParsed ? stateKeyMap(analysisParsed) : []),
       },
     };
+    async function executeStage(stage, index, enqueue) {
+      if (cancelled()) return { ok: false, cancelled: true };
+      const promptId =
+        stage === 'read_problem' && snapshot.knowledgecard.version === 2 ? 'read_problem_v2' : stage;
+      const prompt = getPrompt(promptId, snapshot.rules);
+      const rawInput = stageInputs[stage] ?? {};
+      const resolved = {};
+      for (const [k, v] of Object.entries(rawInput)) resolved[k] = typeof v === 'function' ? v() : v;
 
+      const withImages =
+        stage === 'solve'
+          ? [...images, ...((reference?.images ?? []))]
+          : stage === 'read_problem'
+            ? images
+            : stage === 'analysis'
+              ? images
+              : stage === 'scene_code'
+                ? diagram
+                  ? [diagram]
+                  : []
+                : [];
+
+      const stageInstructions =
+        stage === 'solve' && reference && prompt.origin !== 'user' && typeof prompt.systemWithReference === 'string'
+          ? prompt.systemWithReference
+          : prompt.system;
+
+      if (stage === 'read_problem' && images.length > 0 && snapshot.endpoint?.supportsVision !== true) {
+        enqueue(
+          emit('stage_error', {
+            stage,
+            error: {
+              kind: 'vision-unsupported',
+              message: '当前模型不支持图片输入，无法执行读题与判定（§11.3：不做假多模态降级）',
+              hint: '请更换支持视觉的模型，或改为文字输入／手打【配图补充描述】后重试',
+            },
+          }),
+        );
+        return { ok: false, fatal: true };
+      }
+
+      enqueue(emit('stage_start', { stage, index, total: snapshot.promptIds.length }));
+      const stageStarted = Date.now();
+      let text = '';
+      const chunks = [];
+      try {
+        const wb = knowledgecardForStage(stage);
+        const assembled = assemblePrompt({
+          problem: {
+            text: prompt.buildUser(resolved),
+            ...(resolved.problem && resolved.problem !== problem.text
+              ? { knownConditions: `原题：${resolved.problem}` }
+              : {}),
+          },
+          instructions: stageInstructions,
+          instructionLabel: prompt.label,
+          stageSlot: wb.slot,
+          knowledgecardSegment: wb.text,
+          /**
+           * v6：前缀按 **promptId** 取，不是按阶段名。
+           * `read_problem` 在 v2 配置下用的是 `read_problem_v2` —— 若这里传 `stage`，
+           * 模型会收到 v1 角色（"转写成结构化文字"），与 v2 指令（"不要复述题文"）打架。
+           * 其余阶段 promptId === stage，行为不变。
+           */
+          stage: promptId,
+        });
+        const userMessage = withImages.length
+          ? buildUserMessage({ text: assembled.messages[1].content, images: withImages })
+          : assembled.messages[1];
+        const messages = [assembled.messages[0], userMessage];
+        if (!promptHashReported) {
+          promptHashReported = true;
+          promptHashSeen = assembled.promptHash;
+          enqueue(emit('stage_delta', { stage, text: '', note: 'promptHash', promptHash: assembled.promptHash }));
+        }
+        const result = await streamImpl({
+          endpoint: snapshot.endpoint,
+          apiKey: snapshot.apiKey,
+          stage,
+          messages,
+          signal: ac.signal,
+          vision: withImages.length > 0,
+          onDelta: (d) => {
+            if (typeof d === 'string' && d.length) chunks.push(d);
+          },
+        });
+        text = result.text ?? (chunks.length ? chunks.join('') : '');
+      } catch (err) {
+        const modelErr =
+          err instanceof ModelError
+            ? err
+            : (() => {
+                const kind = classifyFetchError(err, { timedOut: false });
+                return new ModelError({
+                  kind,
+                  message: describeModelError(kind, kind === 'cancelled' ? '' : String(err?.message ?? err)),
+                  raw: redactText(String(err?.message ?? ''), []),
+                });
+              })();
+        if (modelErr.kind === 'cancelled') return { ok: false, cancelled: true };
+        enqueue(emit('stage_error', { stage, error: modelErr.toJSON() }));
+        return { ok: false, error: modelErr };
+      }
+
+      outputs[stage] = text;
+      for (const c of chunks) enqueue(emit('stage_delta', { stage, text: c }));
+      if (chunks.length === 0 && text) enqueue(emit('stage_delta', { stage, text }));
+      enqueue(emit('stage_done', { stage, chars: text.length, ms: Date.now() - stageStarted, chunks: chunks.length }));
+      return { ok: true, text };
+    }
+
+    /** 并发跑 breakdown + analysis，边到边 yield。 */
+    async function* runConcurrent(specs, results) {
+      const queue = [];
+      const waiters = [];
+      let pending = specs.length;
+      const wake = () => {
+        while (waiters.length) waiters.shift()();
+      };
+      const push = (ev) => {
+        queue.push(ev);
+        wake();
+      };
+      const tasks = specs.map((spec, k) =>
+        executeStage(spec.stage, spec.index, push)
+          .then((r) => {
+            results[k] = r;
+            pending -= 1;
+            wake();
+          })
+          .catch((err) => {
+            results[k] = { ok: false, error: err };
+            pending -= 1;
+            wake();
+          }),
+      );
+      while (pending > 0 || queue.length) {
+        if (queue.length) {
+          yield queue.shift();
+          continue;
+        }
+        await new Promise((resolve) => waiters.push(resolve));
+      }
+      await Promise.all(tasks);
+    }
+
+    let parallelDone = false;
     for (let i = 0; i < snapshot.promptIds.length; i += 1) {
       const stage = snapshot.promptIds[i];
+
+      if (stage === 'breakdown' && !parallelDone) {
+        const results = [];
+        for await (const ev of runConcurrent(
+          [
+            { stage: 'breakdown', index: snapshot.promptIds.indexOf('breakdown') },
+            { stage: 'analysis', index: snapshot.promptIds.indexOf('analysis') },
+          ],
+          results,
+        )) {
+          yield ev;
+        }
+        parallelDone = true;
+        if (!results[0]?.ok || !results[1]?.ok) {
+          yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'breakdown/analysis' });
+          return;
+        }
+        analysisParsed = parseAnalysisTable(outputs.analysis ?? '');
+        if (!analysisParsed.ok) {
+          yield emit('stage_error', {
+            stage: 'analysis',
+            error: {
+              kind: 'analysis.invalid',
+              message: `物理分析表解析失败：${analysisParsed.problems.map((p) => p.message).join('；')}`,
+              hint: '按【元件运动表 (MOTIONS)】格式重写：element/segment/t0/t1/x0/y0/vx0/vy0/ax/ay/x/y。',
+            },
+          });
+          yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis', analysisProblems: analysisParsed.problems });
+          return;
+        }
+        continue;
+      }
+      if (stage === 'analysis' && parallelDone) continue;
 
       if (cancelled()) {
         yield emit('cancelled', { stage });
@@ -369,7 +573,10 @@ export async function* runPipeline(input) {
         return;
       }
 
-      const promptId = stage === 'read_problem' && snapshot.knowledgecard.version === 2 ? 'read_problem_v2' : stage;
+      const promptId =
+        stage === 'read_problem' && snapshot.knowledgecard.version === 2
+          ? 'read_problem_v2'
+          : stage;
       const prompt = getPrompt(promptId, snapshot.rules);
       const rawInput = stageInputs[stage] ?? {};
       // 把"惰性取值"解开：这样阶段之间不必关心依赖顺序，缺依赖会在这里明确报错
@@ -384,9 +591,11 @@ export async function* runPipeline(input) {
         ? [...images, ...((reference?.images ?? []))]
         : stage === 'read_problem'
           ? images
-          : stage === 'scene_code'
-            ? (diagram ? [diagram] : [])
-            : [];
+          : stage === 'analysis'
+            ? images
+            : stage === 'scene_code'
+              ? (diagram ? [diagram] : [])
+              : [];
 
       /**
        * v1.1.16：带参考解析时，`solve` 换成**另一套 system**（"按解析整理"），
@@ -394,7 +603,7 @@ export async function* runPipeline(input) {
        * 模型会两边讨好。没有解析时仍用原来的 system，逐字不变。
        */
       const stageInstructions =
-        stage === 'solve' && reference && typeof prompt.systemWithReference === 'string'
+        stage === 'solve' && reference && prompt.origin !== 'user' && typeof prompt.systemWithReference === 'string'
           ? prompt.systemWithReference
           : prompt.system;
 
@@ -456,7 +665,8 @@ export async function* runPipeline(input) {
           stageSlot: wb.slot,
           knowledgecardSegment: wb.text,
           // 第 9 期：前缀按阶段取 —— 只有写代码的阶段才带模板骨架与 SDK 摘要
-          stage,
+          // v6：用 `promptId` 而不是 `stage`，让 v2 读题拿到自己的角色前缀
+          stage: promptId,
         });
 
         // ⚠ **必须在这里把图片编码进 user 消息**。
@@ -532,6 +742,26 @@ export async function* runPipeline(input) {
       });
 
       /**
+       * ── 新链路：analysis 的产出必须能解析，否则后面生成不了 stateAt ──
+       * 解析失败就如实停下，不拿半张表去生成动画。
+       */
+      if (stage === 'analysis') {
+        analysisParsed = parseAnalysisTable(text);
+        if (!analysisParsed.ok) {
+          yield emit('stage_error', {
+            stage,
+            error: {
+              kind: 'analysis.invalid',
+              message: `物理分析表解析失败：${analysisParsed.problems.map((p) => p.message).join('；')}`,
+              hint: '按【元件运动表 (MOTIONS)】格式重写：element/segment/t0/t1/x0/y0/vx0/vy0/ax/ay/x/y。',
+            },
+          });
+          yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage, analysisProblems: analysisParsed.problems });
+          return;
+        }
+      }
+
+      /**
        * ── v1.1.16：**参考答案与题目对不上就立刻停** ──
        *
        * 提示词要求模型在这种情况下只输出 `【解析与题目不一致】` 并说明原因；
@@ -558,9 +788,9 @@ export async function* runPipeline(input) {
        * 放在这里（`read_problem` 的 `stage_done` 之后）而不是别处，是因为这是**唯一**
        * 一个"文字从无到有"的时点。
        */
-      if (stage === 'read_problem' && !String(problem.text ?? '').trim()) {
-        const label = deriveEntryLabel(text);
-        if (label && label !== entry) yield emit('run_label', { entry: label, source: 'read_problem' });
+      if (stage === 'read_problem') {
+        const title = parseProblemTitle(text);
+        if (title && title !== entry) yield emit('run_label', { entry: title, source: 'read_problem' });
       }
 
       /**
@@ -664,11 +894,22 @@ export async function* runPipeline(input) {
      *   带上标题、命中方式、实际注入槽位、字符数与截断标记就够 §15 的面板用。
      */
     if (snapshot.knowledgecard.source === 'provided') {
-      const mergedWb = mergeKnowledgecardStages({
-        solveRes: knowledgecardResults.solve ?? null,
-        sceneRes: knowledgecardResults.scene_code ?? null,
-        entries: snapshot.knowledgecard.entries,
-      });
+      const sceneRes = knowledgecardResults.scene_code ?? null;
+      /**
+       * v2 引擎的事件形状由 `knowledgecardV2Evidence()` 补齐（前端仍按 v1 的
+       * `KnowledgecardProvenance` 读：from/depth/key/origin/declaredSlots/charsBySlot…）。
+       * v1 分支保留原合并函数，旧配置/旧测试不受影响。
+       */
+      const mergedWb = snapshot.knowledgecard.version === 2
+        ? {
+            ...knowledgecardV2Evidence(sceneRes, snapshot.knowledgecard.entries),
+            hash: knowledgecardHashOf(snapshot.knowledgecard.entries),
+            entries: snapshot.knowledgecard.entries.length,
+          }
+        : mergeKnowledgecardStages({
+            sceneRes,
+            entries: snapshot.knowledgecard.entries,
+          });
       yield emit('knowledgecard_done', {
         hash: mergedWb.hash,
         libraryCount: mergedWb.entries,
@@ -710,7 +951,15 @@ export async function* runPipeline(input) {
     let lineMap = null;
     let buildDiagnostics = [];
     try {
-      const built = buildProgramFromText(outputs.scene_code ?? '', {
+      if (!analysisParsed?.ok) throw new Error('analysis 没有可用的运动表，无法生成动画程序');
+      const generated = generateProgramSlots({
+        analysis: analysisParsed,
+        problem: problem.text,
+        breakdownText: outputs.breakdown,
+        drawFrame: outputs.scene_code,
+      });
+      const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
+      const built = buildProgramFromText(programText, {
         regexRules: snapshot.regexRules,
         provenance: {
           model: snapshot.endpoint?.defaultModel ?? 'unknown',
@@ -759,12 +1008,19 @@ export async function* runPipeline(input) {
      *   它们很大且已经通过 report 里的 checks/diagnostics 暴露了要点。
      *   第 4 期起这个闭包被"首次 Dry-Run"与"每一轮修复之后"共用。
      */
-    const runDryRun = (slots, { advisory = null } = {}) =>
-      dryRunImpl({
+    const runDryRun = (slots, { advisory = null } = {}) => {
+      const analysisBoundaries = analysisParsed?.elements
+        ? [...new Set(analysisParsed.elements.flatMap((el) => el.segments.flatMap((s) => [s.t0, s.t1])))]
+            .filter((v) => Number.isFinite(v) && v >= 0)
+            .sort((a, b) => a - b)
+        : [];
+      return dryRunImpl({
         slots,
         entry,
         meta: {
           mode: snapshot.mode,
+          ...(analysisParsed?.tPhys != null ? { tPhys: analysisParsed.tPhys } : {}),
+          ...(analysisBoundaries.length ? { boundaries: analysisBoundaries } : {}),
           /**
            * ── 第 8 期：开发模式（不拦截）──
            * 用户勾了"开发模式"后，校验器**照常逐条判**，但结论不拦路：
@@ -777,6 +1033,7 @@ export async function* runPipeline(input) {
         },
         ...(ac.signal ? { signal: ac.signal } : {}),
       });
+    };
 
     let { report } = await runDryRun(program.slots);
 
@@ -801,6 +1058,214 @@ export async function* runPipeline(input) {
     let repairEmittedDone = false;
 
     if (report.cancelled) cancelledDuringRepair = true;
+    const repairStageIndex = PHASE5_STAGES.indexOf('repair');
+    const repairTotal = PHASE5_STAGES.length;
+
+    /**
+     * ── 新链路 v6 自愈：只重画 drawFrame ──
+     * 物理槽位（stateAt/VIEW/readouts/STEPS）由 analysis 生成，AI 不许碰；
+     * 失败时只把“上一轮为什么没过 + 上一轮 drawFrame”发回，产出新的 drawFrame，再重新生成程序。
+     */
+    let physicalRounds = 0;
+    const physicalMax = disableRepair || snapshot.advisory === true ? 0 : 2;
+    for (let p = 0; p < physicalMax && report.verdict !== 'pass'; p += 1) {
+      const cls = classifyRepair(report);
+      if (cls.mode !== 'physical') break;
+      physicalRounds += 1;
+      const roundNo = physicalRounds;
+      const physicalSlots = ['read_problem', 'solve', 'breakdown', 'analysis', 'scene_code'];
+      yield emit('stage_start', {
+        stage: 'repair',
+        index: repairStageIndex,
+        total: repairTotal,
+        round: roundNo,
+        maxRounds: physicalMax,
+        slots: physicalSlots,
+        mode: 'physical',
+      });
+      const startedRound = Date.now();
+      const previousReport = report;
+      const silent = [];
+      const enq = (ev) => silent.push(ev);
+      const stageIndex = (s) => snapshot.promptIds.indexOf(s);
+
+      const rp = await executeStage('read_problem', stageIndex('read_problem'), enq);
+      if (!rp.ok) {
+        yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'read_problem' });
+        return;
+      }
+      const sv = await executeStage('solve', stageIndex('solve'), enq);
+      if (!sv.ok) {
+        yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'solve' });
+        return;
+      }
+      if (reference && String(sv.text ?? '').includes('【解析与题目不一致】')) {
+        yield emit('stage_error', {
+          stage: 'repair',
+          error: { kind: 'reference.mismatch', message: '参考答案与题目不一致，物理修复无法继续' },
+        });
+        repairStoppedReason = '参考解析与题目不一致';
+        break;
+      }
+      const group = [];
+      for await (const _ of runConcurrent(
+        [
+          { stage: 'breakdown', index: stageIndex('breakdown') },
+          { stage: 'analysis', index: stageIndex('analysis') },
+        ],
+        group,
+      )) {
+        /* 静默 */
+      }
+      if (!group[0]?.ok || !group[1]?.ok) {
+        yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'breakdown/analysis' });
+        return;
+      }
+      analysisParsed = parseAnalysisTable(outputs.analysis ?? '');
+      if (!analysisParsed.ok) {
+        yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis' });
+        return;
+      }
+      const sc = await executeStage('scene_code', stageIndex('scene_code'), enq);
+      if (!sc.ok) {
+        yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'scene_code' });
+        return;
+      }
+
+      const generated = generateProgramSlots({
+        analysis: analysisParsed,
+        problem: problem.text,
+        breakdownText: outputs.breakdown,
+        drawFrame: outputs.scene_code,
+      });
+      const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
+      const built = buildProgramFromText(programText, {
+        regexRules: snapshot.regexRules,
+        provenance: program.provenance,
+      });
+      program = built.program;
+      lineMap = built.lineMap;
+      buildDiagnostics = built.diagnostics;
+      report = (await runDryRun(program.slots)).report;
+
+      const record = {
+        round: roundNo,
+        mode: 'physical',
+        requested: physicalSlots,
+        updated: physicalSlots,
+        kept: [],
+        unchanged: [],
+        triggeringChecks: cls.physical,
+        diagnostics: collectRoundDiagnostics(previousReport),
+        verdict: report.verdict,
+        ms: Date.now() - startedRound,
+      };
+      repairRounds.push(record);
+      yield emit('stage_done', {
+        stage: 'repair',
+        round: roundNo,
+        chars: 0,
+        ms: record.ms,
+        chunks: 0,
+        merged: true,
+        mode: 'physical',
+        updated: physicalSlots,
+      });
+      yield emit('repair_round', record);
+      yield emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics, round: roundNo });
+      if (report.verdict === 'pass') break;
+    }
+    let drawAllowed = report.verdict !== 'pass' && classifyRepair(report).mode !== 'physical';
+
+    const drawRepairMax = disableRepair || snapshot.advisory === true ? 0 : snapshot.maxRepairRounds;
+    for (let drawRound = 0; drawAllowed && drawRound < drawRepairMax; drawRound += 1) {
+      if (report.verdict === 'pass' || cancelled()) break;
+      const roundNo = physicalRounds + drawRound + 1;
+      const failures = (report.checks ?? [])
+        .filter((c) => c.blocking && c.status === 'fail')
+        .map((c) => `${c.id}：${c.detail ?? c.message ?? ''}`);
+      const triggeringChecks = (report.checks ?? []).filter((c) => c.blocking && c.status === 'fail').map((c) => c.id);
+      yield emit('stage_start', {
+        stage: 'repair',
+        index: repairStageIndex,
+        total: repairTotal,
+        round: roundNo,
+        maxRounds: drawRepairMax,
+        slots: ['drawFrame'],
+        mode: 'draw',
+      });
+      const stageStarted = Date.now();
+      const repairPrompt = getPrompt('repair', snapshot.rules);
+      const assembled = assemblePrompt({
+        problem: {
+          text: repairPrompt.buildUser({
+            problem: problem.text,
+            analysisText: formatAnalysis(analysisParsed),
+            readProblem: outputs.read_problem,
+            stateMap: stateKeyMap(analysisParsed),
+            failures,
+            previousDrawFrame: program.slots.drawFrame,
+          }),
+        },
+        instructions: repairPrompt.system,
+        instructionLabel: repairPrompt.label,
+        stageSlot: 'scene_code',
+        knowledgecardSegment: knowledgecardForStage('scene_code').text,
+        stage: 'repair',
+      });
+      if (diagram) {
+        assembled.messages[1] = buildUserMessage({ text: assembled.messages[1].content, images: [diagram] });
+      }
+      const result = await streamImpl({
+        endpoint: snapshot.endpoint,
+        apiKey: snapshot.apiKey,
+        stage: 'scene_code',
+        round: roundNo,
+        messages: assembled.messages,
+        signal: ac.signal,
+        vision: Boolean(diagram),
+        onDelta: () => {},
+      });
+      const newDraw = result.text ?? '';
+      const generated = generateProgramSlots({
+        analysis: analysisParsed,
+        problem: problem.text,
+        breakdownText: outputs.breakdown,
+        drawFrame: newDraw,
+      });
+      const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
+      const built = buildProgramFromText(programText, {
+        regexRules: snapshot.regexRules,
+        provenance: program.provenance,
+      });
+      program = built.program;
+      lineMap = built.lineMap;
+      buildDiagnostics = built.diagnostics;
+      outputs.scene_code = newDraw;
+      const next = await runDryRun(program.slots);
+      report = next.report;
+      const record = {
+        round: roundNo,
+        mode: 'draw',
+        requested: ['drawFrame'],
+        updated: ['drawFrame'],
+        kept: SLOT_KEY_NAMES.filter((k) => k !== 'drawFrame'),
+        unchanged: [],
+        triggeringChecks,
+        diagnostics: [],
+        verdict: report.verdict,
+        ms: Date.now() - stageStarted,
+      };
+      repairRounds.push(record);
+      yield emit('stage_done', { stage: 'repair', round: roundNo, chars: newDraw.length, ms: record.ms, chunks: 0, merged: false });
+      yield emit('repair_round', record);
+      yield emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics, round: roundNo });
+      if (report.verdict === 'pass') {
+        repairStoppedReason = null;
+        break;
+      }
+      if (drawRound + 1 >= drawRepairMax) repairStoppedReason = `达到自愈上限 ${drawRepairMax} 轮`;
+    }
 
     /* ── 自愈循环（M30 · §8 / §14.5） ──
      *
@@ -815,9 +1280,11 @@ export async function* runPipeline(input) {
      * 自愈本身要再调模型、还会改写槽位 —— 在"我怀疑判据本身"的前提下，它没有意义。
      * `gatesBypassed` 已经记下哪几条没过，事后想修可以手动再跑。
      */
-    const maxRounds = disableRepair || snapshot.advisory === true ? 0 : snapshot.maxRepairRounds;
-    const repairStageIndex = PHASE5_STAGES.indexOf('repair');
-    const repairTotal = PHASE5_STAGES.length;
+    /**
+     * ⚠ 新链路 v6：自愈已改为“只重画 drawFrame”（见上面的 drawRepairMax 循环）。
+     *   下面这段旧循环保留为 0 轮，不再执行。
+     */
+    const maxRounds = 0;
 
     /**
      * ── 确定性快修（v1.1.5 · 用户 2026-10-19 拍板）──
@@ -1158,6 +1625,85 @@ export async function* runPipeline(input) {
       yield emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics });
     }
 
+    /* ── couple：步骤 ↔ 动画时间 ── */
+    let stepTimes = null;
+    let coupling = null;
+    if (shape.playable && analysisParsed?.ok) {
+      if (cancelled()) {
+        yield emit('cancelled', { stage: 'couple' });
+        yield emit('run_done', { verdict: 'cancelled', ms: Date.now() - started, cancelled: true });
+        return;
+      }
+      const coupleIndex = PHASE5_STAGES.indexOf('couple');
+      yield emit('stage_start', { stage: 'couple', index: coupleIndex, total: PHASE5_STAGES.length });
+      const coupleStarted = Date.now();
+      const couplePrompt = getPrompt('couple', snapshot.rules);
+      const steps = parseStepsSlot(program.slots.STEPS);
+      const tPhys = analysisParsed.tPhys;
+      let feedback = [];
+      let lastText = '';
+      let parsedOk = false;
+      let attempts = 0;
+      let warning = null;
+      let fallback = false;
+      for (let attempt = 0; attempt < 2 && !parsedOk; attempt += 1) {
+        attempts += 1;
+        const assembled = assemblePrompt({
+          problem: { text: couplePrompt.buildUser({ problem: problem.text, analysisText: formatAnalysis(analysisParsed), steps, tPhys, feedback }) },
+          instructions: couplePrompt.system,
+          instructionLabel: couplePrompt.label,
+          stage: 'couple',
+        });
+        try {
+          const result = await streamImpl({
+            endpoint: snapshot.endpoint,
+            apiKey: snapshot.apiKey,
+            stage: 'couple',
+            messages: assembled.messages,
+            signal: ac.signal,
+            vision: false,
+            onDelta: () => {},
+          });
+          lastText = result.text ?? '';
+        } catch (err) {
+          if (err instanceof ModelError && err.kind === 'cancelled') {
+            yield emit('cancelled', { stage: 'couple' });
+            yield emit('run_done', { verdict: 'cancelled', ms: Date.now() - started, cancelled: true });
+            return;
+          }
+          feedback = [String(err?.message ?? err)];
+          warning = String(err?.message ?? err);
+          continue;
+        }
+        const parsed = parseStepTimes(lastText, { stepCount: steps.length, tPhys });
+        if (parsed.ok) {
+          stepTimes = parsed.stepTimes;
+          parsedOk = true;
+          break;
+        }
+        feedback = parsed.problems;
+        warning = parsed.problems.join('；');
+      }
+      if (!parsedOk) {
+        stepTimes = fallbackStepTimes(steps.length, tPhys);
+        fallback = true;
+        warning = warning ? `${warning}；已按步骤均分回退` : '步骤时间解析失败；已按步骤均分回退';
+      }
+      if (Array.isArray(stepTimes)) program.stepTimes = stepTimes;
+      if (lastText) yield emit('stage_delta', { stage: 'couple', text: lastText });
+      yield emit('stage_done', { stage: 'couple', chars: lastText.length, ms: Date.now() - coupleStarted, attempts, fallback, warning });
+      coupling = { stepTimes, fallback, warning, attempts };
+      yield emit('coupling_done', { stepTimes, fallback, warning, attempts });
+    } else {
+      yield emit('stage_done', {
+        stage: 'couple',
+        skipped: true,
+        chars: 0,
+        ms: 0,
+        reason: shape.playable ? '缺少可用的 analysis，跳过步骤耦合' : '没有可播放程序，跳过步骤耦合',
+      });
+    }
+
     yield emit('run_done', {
       verdict: report.cancelled ? 'cancelled' : report.verdict,
       ms: Date.now() - started,
@@ -1166,6 +1712,8 @@ export async function* runPipeline(input) {
       converged,
       banner,
       delivery: shape,
+      stepTimes: stepTimes ?? null,
+      coupling: coupling ?? null,
       /**
        * 第 8 期：**开发模式（不拦截）**的可见痕迹。
        * `advisory: true` 说明这条产物没经过硬判据；`gatesBypassed` 列出被放行的检查号。
@@ -1313,6 +1861,21 @@ export async function collectEvents(input) {
   const events = [];
   for await (const e of runPipeline(input)) events.push(e);
   return events;
+}
+
+/**
+ * 从读题输出里取【题目】字段（v6 第 6 步）。
+ *
+ * 口径：
+ *   · 模型写多长就收多长，**不截断**；
+ *   · 没写 / 空 / 只写“无” ⇒ `未命名题目`；
+ *   · 这个标题只给动画页与导出文件名用，不进入后续 Prompt。
+ */
+export function parseProblemTitle(text) {
+  const m = String(text ?? '').match(/^【题目(?:标题)?】[ \t]*(.*)$/m);
+  const raw = m?.[1]?.trim() ?? '';
+  if (!raw || raw === '无' || raw === '（无）' || raw === '(无)') return '未命名题目';
+  return raw;
 }
 
 /**

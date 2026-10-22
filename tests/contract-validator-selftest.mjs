@@ -87,8 +87,8 @@ function validConfig(overrides = {}) {
     ],
     stageModels: {
       solve: 'ep_main',
-      answers: 'ep_main',
-      steps: 'ep_main',
+      analysis: 'ep_main',
+      breakdown: 'ep_main',
       scene_code: 'ep_main',
       dry_run: null,
       repair: null,

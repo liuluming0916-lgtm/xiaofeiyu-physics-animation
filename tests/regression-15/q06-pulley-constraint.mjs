@@ -253,9 +253,7 @@ Draw.trace(traceA, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 Draw.trace(traceB, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 Draw.box(blockC, 0.34, 0.24, { angleDeg: context.theta, fill: '#ffffff', stroke: '#1d2733' });
-Draw.text(blockC[0] + nxu * 0.30, blockC[1] + nyu * 0.30, 'm₁', { size: 12, color: '#1d2733' });
 Draw.box([state.x2, state.y2], context.blockH, context.blockH, { angleDeg: 0, fill: '#ffffff', stroke: '#2a6f8f' });
-Draw.text(state.x2 + 0.26, state.y2, 'm₂', { size: 12, color: '#2a6f8f', align: 'left' });
 
 /* v/a 由 bodies 自动生成：m₁ 沿斜面、m₂ 竖直向下（方向由真实运动算出，不再手写正负号）。 */
 
@@ -276,14 +274,10 @@ for (var wi = 0; wi <= 12; wi = wi + 1) {
 }
 Draw.curve(wedge, { color: '#a4610d', width: 1.2 });
 Draw.line([apexX - 0.60, apexY], [apexX + 0.28, apexY], { dash: true, color: '#9aa7b4', width: 1.0 });
-Draw.text(apexX - 0.62, apexY + 0.14, 'θ = 30°', { size: 11, color: '#a4610d', align: 'right' });
 
 /* 说明文字放在左上空白区（斜坡上方），不压住任何图元 */
 var infoX = context.footX - 0.10;
-Draw.text(infoX, 1.98, '绳长 L₁ + L₂ = ' + Phys.format(state.ropeSum, 'm', 3) + '（漂移 ' + Phys.format(state.ropeDrift, 'm', 1) + '）', { size: 11, color: '#5d6b7a', align: 'left' });
-Draw.text(infoX, 1.70, '沿面位移 = 悬挂位移 = ' + Phys.format(state.s, 'm', 3), { size: 11, color: '#5d6b7a', align: 'left' });
-Draw.text(infoX, 1.42, 'm₂g − T = ' + Phys.format(state.eq2, 'N', 3) + '　T − m₁g·sinθ = ' + Phys.format(state.eq1, 'N', 3), { size: 11, color: '#5d6b7a', align: 'left' });
-Draw.text(infoX, 1.14, '自检：两式张力差 ' + Phys.format(context.eqErr1 + context.eqErr2, 'N', 1) + '（应为 0）', { size: 11, color: '#5d6b7a', align: 'left' });`,
+`,
 
     readouts: String.raw`return [
   { key: 'a', label: '加速度', value: state.a, unit: 'm/s^2', latex: 'a' },

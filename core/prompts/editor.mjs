@@ -8,20 +8,16 @@
  *
  * ── 为什么编辑器要把 Prompt **分组**（用户裁决：不能平铺）
  *
- * 程序里能编辑的有 7 份正文（§10.1 保留的 4 份 + 扩展 repair / read_problem + 答案结构模板）。
- * 其中 `read_problem` 与 `repair` 不是每道题都跑；答案结构模板嵌在 answers 里。
+ * 程序里能编辑的有 8 份正文：读题 v2 / 读题 v1 / 解题 / 分步 / 物理分析 /
+ * 动画代码 / 步骤耦合 / 自愈修复。`read_problem` 只在旧配置下跑，`repair`
+ * 只在 drawFrame 没过校验时跑，所以按「每道题都会跑 / 特定情况跑」分组。
  * 若平铺成一排，用户会以为"改了没效果 = 坏了"，或者更糟——
  * 以为自己在用一份自定义的规则，其实那份规则从未被调用。
  * 这个项目已经栽过一次"看着在管、实际不管"（第 5.7 期的 3 条空检查），所以这里必须显式分组。
  */
 
-import { MODEL_STAGES, PHASE5_STAGES } from '../orchestrator/events.mjs';
-import {
-  ANSWER_STRUCTURE_PROMPT_ID,
-  ANSWER_STRUCTURE_TEMPLATE,
-  EXTENSION_PROMPTS,
-  PROMPTS,
-} from './templates.mjs';
+import { MODEL_STAGES } from '../orchestrator/events.mjs';
+import { EXTENSION_PROMPTS, PROMPTS } from './templates.mjs';
 import {
   PROMPT_REQUIREMENTS,
   PROMPT_STATUS,
@@ -39,50 +35,46 @@ import {
 } from '../rules/index.mjs';
 
 /** 编辑器里的分组口径（**从阶段清单派生**，不另抄一份） */
+const ALWAYS_PROMPT_IDS = (() => {
+  const ids = [...MODEL_STAGES];
+  // 默认配置跑的是 read_problem_v2；v1 仍保留给旧配置，所以两份都要能编辑。
+  const at = ids.indexOf('read_problem');
+  ids.splice(at >= 0 ? at + 1 : 0, 0, 'read_problem_v2');
+  // couple 是交付前必跑的模型阶段，不属于「只在特定情况下跑」。
+  ids.push('couple');
+  return Object.freeze(ids);
+})();
+
 export const PROMPT_SECTORS = Object.freeze({
-  always: { title: '每道题都会跑', hint: '改这里立刻影响产出', ids: Object.freeze([...MODEL_STAGES]) },
+  always: { title: '每道题都会跑', hint: '改这里立刻影响产出', ids: ALWAYS_PROMPT_IDS },
   conditional: {
     title: '只在特定情况下跑',
-    hint: '目前只有 repair：代码没通过校验时才会用到',
-    ids: Object.freeze(PHASE5_STAGES.filter((s) => !MODEL_STAGES.includes(s) && s !== 'dry_run')),
-  },
-  embedded: {
-    title: '嵌在别的 Prompt 里',
-    hint: '答案结构模板没有自己的阶段，它是 answers 正文里的一段；只有在你**没有整体覆盖 answers** 时生效',
-    ids: Object.freeze([ANSWER_STRUCTURE_PROMPT_ID]),
+    hint: '目前只有 repair：drawFrame 没通过校验时才会用到',
+    ids: Object.freeze(['repair']),
   },
 });
 
 /** 改它就要特别小心（会**静默**坏掉下游，而不是报错） */
-const HIGH_RISK_IDS = new Set(['read_problem']);
+const HIGH_RISK_IDS = new Set(['read_problem', 'read_problem_v2']);
 
 const err = (code, path, message, hint) => ({ code, path, message, ...(hint ? { hint } : {}) });
 
-/** 内置正文（8 份里的一一对应） */
+/** 内置正文 */
 export function builtinPromptText(id) {
-  if (id === ANSWER_STRUCTURE_PROMPT_ID) return ANSWER_STRUCTURE_TEMPLATE;
   const p = PROMPTS[id] ?? EXTENSION_PROMPTS[id];
-  if (!p) return null;
-  return p.system;
+  return p ? p.system : null;
 }
 
 /** 某份 Prompt 的元信息（label / 风险 / 归属组） */
 function metaOf(id) {
   const sector = Object.entries(PROMPT_SECTORS).find(([, v]) => v.ids.includes(id))?.[0] ?? null;
-  if (id === ANSWER_STRUCTURE_PROMPT_ID) {
-    return { id, label: '答案结构模板', duty: '`ANSWERS` 与解题结论的对齐口径（§3.3 冻结）', sector };
-  }
   const p = PROMPTS[id] ?? EXTENSION_PROMPTS[id];
   return { id, label: p?.label ?? id, duty: p?.duty ?? '', sector };
 }
 
-/** 全部可编辑 Prompt 的 id（5 个阶段 + repair + 答案结构模板 = 7） */
+/** 全部可编辑 Prompt 的 id（5 个阶段 + repair = 6） */
 export function editablePromptIds() {
-  return [
-    ...[...PROMPT_SECTORS.always.ids],
-    ...[...PROMPT_SECTORS.conditional.ids],
-    ANSWER_STRUCTURE_PROMPT_ID,
-  ];
+  return [...PROMPT_SECTORS.always.ids, ...PROMPT_SECTORS.conditional.ids];
 }
 
 /**
@@ -230,17 +222,6 @@ export function savePromptOverride({ dir, id, text, expectedHash, force = false 
   }
 
   const warnings = [...check.warnings];
-  if (id === ANSWER_STRUCTURE_PROMPT_ID) {
-    const loaded = loadRulesWorkspace(dir ? { dir } : undefined);
-    if (loaded.ok && loaded.prompts?.answers) {
-      warnings.push({
-        code: 'prompt.answer-structure-shadowed',
-        path: rel,
-        message: '你已经整体覆盖了 answers，所以这份答案结构模板**不会生效**',
-        hint: '整份覆盖优先：answers 的正文里如果没带上结构模板，模型就看不到它。想让它生效请先恢复 answers 默认',
-      });
-    }
-  }
 
   const builtinSha = sha256Hex(builtinText);
   const basedOn = {

@@ -145,14 +145,11 @@ antinodes.push(context.L * 0.75);
 for (var a = 0; a < antinodes.length; a = a + 1) {
   var axx = sx(antinodes[a]);
   Draw.line([axx, oy - 0.36], [axx, oy + 0.40], { dash: true, color: '#a4610d', width: 1.1 });
-  Draw.text(axx, oy + 0.46, '波腹', { size: 11, color: '#a4610d' });
 }
-Draw.dimension([sx(nodes[0]), oy + 0.56], [sx(nodes[1]), oy + 0.56], { kind: 'linear', text: 'λ/2 = ' + Phys.format(context.nodeGap, 'm', 2) });
 for (var n = 0; n < nodes.length; n = n + 1) {
   var nx = sx(nodes[n]);
   Draw.circle([nx, oy], 0.045, { fill: '#1d2733', stroke: '#1d2733' });
 }
-Draw.text(sx(nodes[1]), oy - 0.30, '波节（固定不动）', { size: 11, color: '#1d2733' });
 
 /* 包络线（虚线）：A·|sin(kx)| 的上下界，表示每个位置能达到的最大位移。
    之前这里把 trace 与 curve 画在**同一组坐标**上，虚线被粗实线完全压住、等于没画；
@@ -175,16 +172,14 @@ for (var i = 0; i <= N; i = i + 1) {
   pts.push([sx(x), sy(y)]);
 }
 Draw.curve(pts, { color: '#1f6fb2', width: 2.2 });
-Draw.text(ox + scaleX * context.L * 0.62, sy(context.A) + 0.22, '虚线 = 波腹包络 ±A|sin kx|', { size: 11, color: '#5d6b7a', align: 'left' });
 
 var mid = sx(context.L / 2);
 Draw.circle([mid, sy(state.ymid)], 0.06, { fill: '#b3382f', stroke: '#b3382f' });
-Draw.text(mid + 0.12, sy(state.ymid) + 0.18, '中点 y = ' + Phys.format(state.ymid, 'm', 3), { size: 11, color: '#b3382f', align: 'left' });
 Draw.arrow([mid, oy - 0.02], [0, state.ymid * 6], { category: 'aux', label: 'y', mag: Math.abs(state.ymid), unit: 'm' });
 
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。
    原手绘代码留档在「软件自研v1开发历史.md 附录 B（原快照已清理）」，第 7.1 期按新方式重画。 */
-Draw.text(ox - 0.1, oy + 0.62, 'λ = ' + Phys.format(context.lambda, 'm', 3) + '，波节间距 = λ/2 = ' + Phys.format(context.nodeGap, 'm', 3) + '，波速 v = ' + Phys.format(context.v, 'm/s', 3), { size: 11, color: '#5d6b7a', align: 'left' });`,
+`,
 
     readouts: String.raw`return [
   { key: 'f1', label: '基频', value: context.f1, unit: 'Hz', latex: 'f_1' },

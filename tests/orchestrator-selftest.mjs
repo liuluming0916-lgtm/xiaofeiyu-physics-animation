@@ -15,9 +15,10 @@
 import { runPipeline, collectEvents, deriveTimeAxis, deriveEntryLabel, snapshotConfig } from '../core/orchestrator/pipeline.mjs';
 import { encodePng, decodePng } from '../core/images/png-crop.mjs';
 import { dryRun } from '../core/dryrun/dry-run.mjs';
+import { parseAnalysisTable } from '../core/analysis/parse.mjs';
+import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { normalizeDataSlot } from '../sdk/runtime/animation-runtime.mjs';
 import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
-import { SLOT_KEY_NAMES } from '../contracts/spec/frozen-keys.mjs';
 import { ModelError, buildUserMessage } from '../core/gateway/index.mjs';
 import { startFakeEndpoint } from './fake-endpoint/server.mjs';
 
@@ -61,7 +62,7 @@ function fakeStream(replies) {
   const impl = async (opts) => {
     calls.push(opts);
     const stage = detectStage(opts.messages);
-    const r = replies[stage];
+    const r = replies[stage] ?? DEFAULT_REPLIES[stage];
     if (typeof r === 'function') return r(opts);
     const full = r ?? `【${stage} 输出】`;
 
@@ -88,32 +89,31 @@ function fakeStream(replies) {
  */
 function detectStage(messages) {
   const sys = String(messages?.[0]?.content ?? '');
-  const labels = ['读题与判定', '解题', '答案抽取', '分步解析', '动画代码'];
+  const labels = ['读题与判定', '读题', '解题', '答案讲解', '物理分析', '动画代码', '自愈修复', '步骤耦合'];
   const label = labels.find((l) => sys.includes(`【本阶段指令：${l}】`)) ?? labels.find((l) => sys.includes(`【世界书·解题：${l}】`));
-  if (label === '读题与判定') return 'read_problem';
+  if (label === '读题与判定' || label === '读题') return 'read_problem';
   if (label === '解题') return 'solve';
-  if (label === '答案抽取') return 'answers';
-  if (label === '分步解析') return 'steps';
+  if (label === '答案讲解') return 'breakdown';
+  if (label === '物理分析') return 'analysis';
   if (label === '动画代码') return 'scene_code';
+  if (label === '自愈修复') return 'repair';
+  if (label === '步骤耦合') return 'couple';
   return 'unknown';
 }
 
 let cancelledOnce = false;
 
-/** 一份合法的 8 槽位模型输出 */
-function goodSceneCode() {
-  const body = {
-    PROBLEM: '题干。',
-    STEPS: 'title: 一步\ntex: x\nt0: 0\nt1: 1',
-    ANSWERS: 'symbol: a\nvalue: 1\nunit: m\ntol: 0.01\nat_t: 1\nstep: 1',
-    VIEW: 'SIM.duration = 1;',
-    setup: 'const g = 10;',
-    stateAt: 'return { x: t };',
-    drawFrame: 'Draw.dot(0, 0);',
-    readouts: 'return [{ label: "x", value: t, unit: "m" }];',
-  };
-  return SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${body[k]}\n/* @end */`).join('\n');
-}
+/**
+ * v6：AI 只写 drawFrame；物理/数据槽位由 analysis 生成。
+ * 这个默认值让所有不关心画面的用例都能跑完整条链。
+ */
+const GOOD_DRAW_FRAME = 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);';
+const DEFAULT_REPLIES = {
+  analysis: ANALYSIS_EXAMPLE,
+  scene_code: GOOD_DRAW_FRAME,
+  repair: GOOD_DRAW_FRAME,
+  couple: 'step: 1\nt0: 0\nt1: 1',
+};
 
 /** 假 Dry-Run：可控判定，避免每个用例都跑真沙箱。**返回形状必须与真 dryRun 一致**（`{report,run,lint}`） */
 function fakeDryRun(verdict = 'pass') {
@@ -157,7 +157,7 @@ console.log('『A』事件序列与阶段链');
 {
   // ⚠ scene_code 阶段必须给出**合法的 8 槽位输出**，否则 Dry-Run 会（正确地）判 fail，
   //   本组想验的是"链路结构"，所以这里给合法输出。
-  const stream = fakeStream({ scene_code: goodSceneCode() });
+  const stream = fakeStream({ scene_code: GOOD_DRAW_FRAME });
   const dry = fakeDryRun('pass');
   const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dry }));
 
@@ -171,10 +171,11 @@ console.log('『A』事件序列与阶段链');
     console.log('DEBUG done :', events.filter((e) => e.type === 'stage_done').map((e) => `${e.stage}${e.skipped ? '(skipped)' : ''}`).join(','));
     console.log('DEBUG types:', [...new Set(types)].join(','));
   }  check(
-    '阶段链顺序正确（read_problem→solve→answers→steps→scene_code→dry_run）',
-    started.join(',') === [...MODEL_STAGES, 'dry_run'].join(','),
+    '阶段链顺序正确（read_problem→solve→breakdown→analysis→scene_code→dry_run→couple）',
+    started.join(',') === [...MODEL_STAGES, 'dry_run', 'couple'].join(','),
     started.join(','),
   );
+  check('新链路不再有 answers 阶段', !started.includes('answers'), started.join(','));
   /**
    * ⚠ `dry_run` **不发** `stage_done` —— 它是本地沙箱，完成由 `dryrun_done` 单独报
    *   （那个事件带 verdict / checks / diagnostics，信息量比 stage_done 大）。
@@ -227,12 +228,12 @@ console.log('『A』事件序列与阶段链');
   check('promptHash 是 64 位十六进制', /^[0-9a-f]{64}$/.test(hashEvents[0]?.promptHash ?? ''));
 
   // 模型调用次数 = 5 个模型阶段（dry_run 不是模型调用；**第 5.7 期起纯文字题也跑 read_problem**）
-  check('模型被调用 5 次（纯文字题也跑第 0 步 read_problem；dry_run 不是模型调用）', stream.calls.length === 5, `实际 ${stream.calls.length}`);
+  check('模型被调用 6 次（5 个主阶段 + couple；dry_run 不是模型调用）', stream.calls.length === 6, `实际 ${stream.calls.length}`);
 }
 
 console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— 总是跑 / 判定注入世界书 / 视觉门控');
 {
-  /** 一条"只在图片题里才该命中"的词条（自带夹具，不依赖世界书的真实内容） */
+  /** 一条“只在图片题里才该命中”的词条（自带夹具，不依赖知识卡真实内容） */
   const wbEntries = [
     {
       id: 'wb_test_conveyor',
@@ -244,7 +245,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
       recursive: false,
       keys: ['传送带'],
       secondary_keys: { logic: 'AND_ANY', list: ['物块'] },
-      insertion_slot: ['solve'],
+      insertion_slot: ['scene_code'],
       order: 100,
       priority: 'normal',
       content: '传送带规范正文',
@@ -261,14 +262,14 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
   /* ① 纯文字题：**不再跳过**（这是第 5.7 期的口径变更），而且模型真的判了东西 */
   {
     const stream = fakeStream({
-      scene_code: goodSceneCode(),
+      scene_code: GOOD_DRAW_FRAME,
       read_problem: '【题面复述】物块在水平面上匀加速。\n【考点】uniform_acceleration\n【题型】速度公式与位移公式\n【动画元件】block\n【判定依据】题干给了加速度与时间求位移。',
     });
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: fakeDryRun('pass') }));
     const rpDone = events.find((e) => e.type === 'stage_done' && e.stage === 'read_problem');
     check('纯文字题：read_problem **真的跑了**（有 stage_start 与正文）', events.some((e) => e.type === 'stage_start' && e.stage === 'read_problem') && !rpDone?.skipped);
     check('纯文字题：read_problem 的正文非空（转写 + 判定都产出了）', (rpDone?.chars ?? 0) > 0, String(rpDone?.chars));
-    check('纯文字题：模型调用 5 次（第 0 步不再被跳过）', stream.calls.length === 5, String(stream.calls.length));
+    check('纯文字题：模型调用 6 次（第 0 步不再被跳过 + couple）', stream.calls.length === 6, String(stream.calls.length));
 
     const jd = events.find((e) => e.type === 'judgement_done');
     check('★ 判定留痕：发出 judgement_done 事件（计划 §5 S4 第 4 项）', Boolean(jd));
@@ -282,7 +283,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
   /* ①′ 反例：判定为空 / 表外词 ⇒ 照样留痕，且不抛异常 */
   {
     const stream = fakeStream({
-      scene_code: goodSceneCode(),
+      scene_code: GOOD_DRAW_FRAME,
       read_problem: '【考点】量子纠缠\n【题型】不存在的题型\n【动画元件】航天飞机\n【判定依据】瞎判',
     });
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: fakeDryRun('pass') }));
@@ -299,33 +300,33 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
 
   /* ①″ 负对照：判定为空时，触发**退化为纯字面 keys**（灰度期口径），不报错 */
   {
-    const stream = fakeStream({ scene_code: goodSceneCode(), read_problem: '【判定依据】什么都没判出来' });
+    const stream = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: '【判定依据】什么都没判出来' });
     const events = await collectEvents(withWb({ streamImpl: stream, dryRunImpl: fakeDryRun('pass') }));
     const jd = events.find((e) => e.type === 'judgement_done');
     check('负对照：一个字段都没判 ⇒ empty=true 且 problems 里有 missing-section', jd?.empty === true && (jd?.problems ?? []).some((p) => p.code === 'missing-section'));
     check('负对照：仍然跑完全程（退化不等于失败）', events.at(-1)?.verdict === 'pass');
   }
 
-  /* ② 图片题：真的跑，而且**转写文字进入世界书的扫描文本**（第 0 步的意义就在这里） */
+  /* ② 图片题：真的跑，而且**转写文字进入知识卡的扫描文本** */
   {
-    // 反例：转写里**没有**"传送带" ⇒ 该词条不该命中
-    const streamNo = fakeStream({ scene_code: goodSceneCode(), read_problem: '【物体与姿态】水平面；【物体】物块。' });
+    // 反例：转写里没有“传送带” ⇒ 该词条不该命中
+    const streamNo = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: '【物体与姿态】水平面；【物体】物块。' });
     const evNo = await collectEvents(withWb({ images: [img], streamImpl: streamNo, dryRunImpl: fakeDryRun('pass') }));
     const wbNo = evNo.find((e) => e.type === 'knowledgecard_done');
-    check('反例：转写里没有"传送带"⇒ 该词条不命中', !(wbNo?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'));
+    check('反例：转写里没有“传送带”⇒ 该词条不命中', !(wbNo?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'));
 
-    // 正例：转写里有"传送带"与"物块" ⇒ 命中（题面本身没有"传送带"三个字）
+    // 正例：转写里有“传送带”与“物块” ⇒ 命中（题面本身没有“传送带”三个字）
     const transcript = '【题面复述】水平传送带以速率 u 运行。【物体与姿态】水平传送带；物块轻放其上。';
-    const streamYes = fakeStream({ scene_code: goodSceneCode(), read_problem: transcript });
+    const streamYes = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: transcript });
     const evYes = await collectEvents(withWb({ images: [img], streamImpl: streamYes, dryRunImpl: fakeDryRun('pass') }));
     const wbYes = evYes.find((e) => e.type === 'knowledgecard_done');
     check(
-      '正例：**图片题的图只以转写文字的形式存在**，转写里出现"传送带"⇒ 该词条命中',
+      '正例：**图片题的图只以转写文字的形式存在**，转写里出现“传送带”⇒ 该词条命中',
       (wbYes?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'),
       JSON.stringify((wbYes?.entries ?? []).map((p) => p.entry_id)),
     );
     check('读题与判定真的跑了（有 stage_start 与正文）', evYes.some((e) => e.type === 'stage_start' && e.stage === 'read_problem'));
-    check('图片题里模型被调用 5 次（读题判定 + 解题 + 抽答案 + 分步 + 动画）', streamYes.calls.length === 5, String(streamYes.calls.length));
+    check('图片题里模型被调用 6 次（读题判定 + 解题 + 分步 + 分析 + 动画 + couple）', streamYes.calls.length === 6, String(streamYes.calls.length));
     const rpCall = streamYes.calls.find((c) => detectStage(c.messages) === 'read_problem');
     check('读题阶段的请求里**确实带了图片**', Boolean(rpCall) && Array.isArray(rpCall.messages.find((m) => m.role === 'user')?.content));
     check('读题阶段要求"沿用原词"（否则后面的检索会找不到规范）', String(rpCall?.messages?.[0]?.content ?? '').includes('沿用题面与图片里的原词'));
@@ -432,9 +433,13 @@ console.log('\n『C』取消语义（§21.1 第 3 条）');
     const events = [];
     for await (const e of runPipeline(baseInput({ streamImpl: stream, dryRunImpl: dry, signal: ac.signal }))) {
       events.push(e);
-      if (e.type === 'stage_done' && e.stage === 'steps') ac.abort(); // 第 3 阶段（第 9 期调序后 steps 在第 3）结束后取消
+      if (e.type === 'stage_done' && e.stage === 'breakdown') ac.abort(); // v6：analysis 已并行启动，取消发生在 breakdown 完成后
     }
-    check('取消后不再调用模型（中止在 steps = 第 3 次之后，于是 < 4 次）', stream.calls.length < 4, `实际 ${stream.calls.length}`);
+    check(
+      '取消后不再调用后续模型（analysis 已启动，但 scene_code 没跑）',
+      !stream.calls.some((c) => c.stage === 'scene_code') && stream.calls.length <= 4,
+      `实际 ${stream.calls.length}`,
+    );
     check('取消后不执行 Dry-Run', dry.calls.length === 0, `实际 ${dry.calls.length}`);
     check('给出 cancelled 事件', events.some((e) => e.type === 'cancelled'));
     check('run_done 判定为 cancelled', events.at(-1).verdict === 'cancelled');
@@ -489,17 +494,18 @@ console.log('\n『D』不静默交付（§21.2 第 8 条）');
     check('run_done 判定为 error（不是 pass）', events.at(-1).verdict === 'error');
   }
 
-  // D-2：切分失败 → dryrun_done 直接判 fail（不拿半成品去跑 Dry-Run）
+  // D-2：analysis 表解析失败 → 当场报 analysis.invalid，不拿半张表去生成程序
   {
-    const stream = fakeStream({ scene_code: '这不是槽位代码，只是普通文字。' });
+    const stream = fakeStream({ analysis: '=== 元件运动表 (MOTIONS) ===\nelement: block_A\nsegment: 1\nt0: 0\nt1: 1' });
     const dry = fakeDryRun('pass');
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dry }));
-    const dd = events.find((e) => e.type === 'dryrun_done');
-    check('切分失败时给出 dryrun_done', Boolean(dd));
-    check('判定为 fail', dd?.verdict === 'fail');
-    check('C1 被判失败并带诊断', dd?.checks?.[0]?.id === 'C1' && dd.checks[0].diagnostics.length > 0);
-    check('切分失败时不调用 Dry-Run', dry.calls.length === 0);
-    check('run_done 判定为 fail', events.at(-1).verdict === 'fail');
+    const err = events.find((e) => e.type === 'stage_error' && e.stage === 'analysis');
+    check('analysis 解析失败时给出 stage_error', Boolean(err));
+    check('错误类型是 analysis.invalid', err?.error?.kind === 'analysis.invalid', String(err?.error?.kind));
+    check('给出可操作的重写提示', String(err?.error?.hint ?? '').includes('MOTIONS'));
+    check('解析失败时不调用 Dry-Run', dry.calls.length === 0);
+    check('run_done 判定为 error', events.at(-1).verdict === 'error');
+    check('没有生成 dryrun_done（不拿半成品去跑）', !events.some((e) => e.type === 'dryrun_done'));
   }
 
   // D-3：Dry-Run 判定 fail → 如实透传
@@ -508,7 +514,7 @@ console.log('\n『D』不静默交付（§21.2 第 8 条）');
   //   而第 4 期起 fail 会自动进自愈循环，透传路径会被再跑一遍 Dry-Run 覆盖掉。
   //   自愈本身的行为由 `tests/repair-selftest.mjs` 逐条取证（B1–B6），不在这里重复。
   {
-    const stream = fakeStream({ scene_code: goodSceneCode() });
+    const stream = fakeStream({ scene_code: GOOD_DRAW_FRAME });
     const dry = fakeDryRun('fail');
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dry, disableRepair: true }));
     const dd = events.find((e) => e.type === 'dryrun_done');
@@ -522,34 +528,29 @@ console.log('\n『D』不静默交付（§21.2 第 8 条）');
 
   // D-4：判定为 pass 时也不假装"没人告警"
   {
-    const stream = fakeStream({ scene_code: goodSceneCode() });
+    const stream = fakeStream({ scene_code: GOOD_DRAW_FRAME });
     const dry = fakeDryRun('pass-with-warnings');
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: dry, disableRepair: true }));
     check('pass-with-warnings 被如实透传', events.at(-1).verdict === 'pass-with-warnings');
   }
 }
 
-/* ────────────────────────────── 『E』端到端（真题 q01） ────────────────────────────── */
+/* ────────────────────────────── 『E』端到端（analysis 生成 → drawFrame → 真 Dry-Run） ────────────────────────────── */
 
-console.log('\n『E』端到端：用**真题 q01** 的槽位当模型输出，跑完整链路');
+console.log('\n『E』端到端：analysis 当模型输出，生成 8 槽位后跑真 Dry-Run');
 {
-  const q01 = (await import('./regression-15/q01-conveyor-heat.mjs')).default;
-  const sceneCodeText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${q01.slots[k]}\n/* @end */`).join('\n');
-
   const stream = fakeStream({
     solve: '物块先加速后匀速……',
-    answers: q01.slots.ANSWERS,
-    steps: q01.slots.STEPS,
-    scene_code: sceneCodeText,
+    breakdown: 'title: 第 1 步\ntex: 受滑动摩擦力\n\ntitle: 第 2 步\ntex: 共速后匀速',
   });
 
-  // 这一条**用真的 dryRun**（不注入假实现），让第 2 期的校验内核真的跑一次
+  // 这一条**用真的 dryRun**（不注入假实现），让校验内核真的跑一次
   const events = await collectEvents(baseInput({ streamImpl: stream }));
 
   const dd = events.find((e) => e.type === 'dryrun_done');
   const last = events.at(-1);
   check('端到端跑完（有 dryrun_done）', Boolean(dd));
-  check('判定为 pass（真题 q01 是通过 C1–C9 的）', dd?.verdict === 'pass', `实际 ${dd?.verdict}；checks=${JSON.stringify(dd?.checks?.filter((c) => c.status !== 'pass'))}`);
+  check('判定为 pass（analysis 示例 + 合法 drawFrame）', dd?.verdict === 'pass', `实际 ${dd?.verdict}；checks=${JSON.stringify(dd?.checks?.filter((c) => c.status !== 'pass'))}`);
   check('Dry-Run 真的执行了（termination=completed）', dd?.termination === 'completed', String(dd?.termination));
   check('Dry-Run 产出了帧数', (dd?.frameCount ?? 0) > 0, String(dd?.frameCount));
   check('run_done 判定 pass', last.verdict === 'pass');
@@ -557,10 +558,24 @@ console.log('\n『E』端到端：用**真题 q01** 的槽位当模型输出，�
   check('载荷带 mode（第 8 期起恒为 BOTH：数值/符号按条目走）', dd.program.mode === 'BOTH', String(dd.program.mode));
   check('给出了行偏移表（诊断用）', typeof dd?.lineMap?.stateAt === 'number', JSON.stringify(dd?.lineMap));
 
+  /* ── v6 的核心：物理/数据槽位由 analysis 生成，AI 只写 drawFrame ── */
+  check('ANSWERS 为空（C7 已删）', dd.program.slots.ANSWERS.trim() === '', JSON.stringify(dd.program.slots.ANSWERS));
+  check('VIEW 的 duration 取自 analysis 的 T_phys=3', dd.program.slots.VIEW.includes('duration: 3'), dd.program.slots.VIEW);
+  check('stateAt 由 analysis 生成（含分段变量 tt0）', dd.program.slots.stateAt.includes('tt0') && dd.program.slots.stateAt.includes('e0'), dd.program.slots.stateAt);
+  check('setup 只生成 T_PHYS 常量', dd.program.slots.setup.includes('T_PHYS = 3'), dd.program.slots.setup);
+  check('drawFrame 逐字来自 AI', dd.program.slots.drawFrame.trim() === GOOD_DRAW_FRAME, dd.program.slots.drawFrame);
+  check('STEPS 来自 breakdown（标题保留）', dd.program.slots.STEPS.includes('title: 第 1 步'), dd.program.slots.STEPS);
+
   // 端到端还要确认"模型收到的题面是真的题目"
   const solveCall = stream.calls.find((c) => detectStage(c.messages) === 'solve');
   const userMsg = solveCall.messages.find((m) => m.role === 'user');
   check('任务段包含题面', String(userMsg.content).includes('传送带') || String(userMsg.content).includes('物块'));
+
+  // scene_code 只拿到 analysis 的物理表与状态键映射，不再拿 8 槽位模板
+  const sceneCall = stream.calls.find((c) => detectStage(c.messages) === 'scene_code');
+  const sceneUser = String(sceneCall?.messages?.find((m) => m.role === 'user')?.content ?? '');
+  check('scene_code 的输入含 analysis 运动表', sceneUser.includes('元件运动表') && sceneUser.includes('block_A'), sceneUser.slice(0, 120));
+  check('scene_code 的输入含状态键映射（block_A → e0）', sceneUser.includes('e0'), sceneUser.slice(0, 200));
 }
 
 console.log('\n『E-2』deriveTimeAxis 从 STEPS 里推导总时长');
@@ -573,7 +588,7 @@ console.log('\n『E-2』deriveTimeAxis 从 STEPS 里推导总时长');
   check('没有 STEPS 时给兜底说明（不抛错）', empty.includes('0.5–6 秒'));
 }
 
-console.log('\n『E-3』图片只进 read_problem 与 solve 两个阶段，且不改 promptHash');
+console.log('\n『E-3』图片只进 read_problem / solve / analysis，且不改 promptHash');
 {
   const stream = fakeStream({});
   const img = { mime: 'image/png', data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]) };
@@ -583,12 +598,12 @@ console.log('\n『E-3』图片只进 read_problem 与 solve 两个阶段，且�
     const u = c.messages.find((m) => m.role === 'user');
     return Array.isArray(u.content) && u.content.some((p) => p.type === 'image_url');
   });
-  // ⚠ v1.1.16：带图的阶段从 2 个变成 3 个 —— `scene_code` 也要图了（拆出来的示意图，
-  //   裁不了时退回整幅原题图）。理由：写动画时看不到图，是"滑轮摆歪/绳不平行"的直接原因。
-  check('带图的阶段是 read_problem / solve / scene_code', withImage.length === 3, `实际 ${withImage.length} 个阶段带图`);
+  // v6：analysis 也吃题图（用户允许）；scene_code 吃拆出来的示意图，
+  // 没有【示意图范围】时按 v1.1.16 退回整幅原题图，所以这里也是 4 个阶段。
+  check('带图的阶段是 read_problem / solve / analysis / scene_code', withImage.length === 4, `实际 ${withImage.length} 个阶段带图`);
   check(
-    '带图的阶段恰好是 read_problem、solve、scene_code',
-    withImage.map((c) => detectStage(c.messages)).sort().join(',') === 'read_problem,scene_code,solve',
+    '带图的阶段恰好是 read_problem、solve、analysis、scene_code',
+    withImage.map((c) => detectStage(c.messages)).sort().join(',') === 'analysis,read_problem,scene_code,solve',
     withImage.map((c) => detectStage(c.messages)).join(','),
   );
   check('带图时用了 vision（endpoint 的视觉开关生效）', withImage.every((c) => c.vision === true));
@@ -611,24 +626,24 @@ console.log('\n『A-4』第 5.7 期延续：纯图片题的运行标题回填（
 
   /* 再验真实链路：纯图片题回填，纯文字题不回填（负对照） */
   const img = { mime: 'image/png', data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]) };
-  const transcript = '【题面复述】\n水平传送带以恒定速率 u 运行，物块轻放其上。\n【物体与姿态】水平传送带；物块。';
+  const transcript = '【题目】传送带共速\n【题面复述】\n水平传送带以恒定速率 u 运行，物块轻放其上。\n【物体与姿态】水平传送带；物块。';
 
-  const streamImg = fakeStream({ scene_code: goodSceneCode(), read_problem: transcript });
+  const streamImg = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: transcript });
   const evImg = await collectEvents(
     baseInput({ problem: { text: '' }, images: [img], streamImpl: streamImg, dryRunImpl: fakeDryRun('pass') }),
   );
   const start = evImg.find((e) => e.type === 'run_start');
   const relabel = evImg.find((e) => e.type === 'run_label');
-  check('纯图片题：开跑时标题是"(未命名题目)"（题面为空）', start.entry === '(未命名题目)', String(start.entry));
+  check('纯图片题：开跑时标题是“未命名题目”（题面为空）', start.entry === '未命名题目', String(start.entry));
   check('纯图片题：读题与判定跑完后发 run_label 回填标题', Boolean(relabel));
-  check('回填的标题取自转写的第一句内容（不是小标题）', relabel?.entry === '水平传送带以恒定速率 u 运行，物块轻放其上。', String(relabel?.entry));
+  check('回填的标题取自模型【题目】字段', relabel?.entry === '传送带共速', String(relabel?.entry));
   check('run_label 标出来源，便于排查', relabel?.source === 'read_problem');
   check('run_label 在 read_problem 之后（不是开跑前乱改标题）', evImg.indexOf(relabel) > evImg.findIndex((e) => e.type === 'stage_done' && e.stage === 'read_problem'));
 
-  const streamTxt = fakeStream({ scene_code: goodSceneCode() });
+  const streamTxt = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: '【题目】斜面下滑\n【题面复述】一物块从斜面顶端滑下' });
   const evTxt = await collectEvents(baseInput({ streamImpl: streamTxt, dryRunImpl: fakeDryRun('pass') }));
-  check('负对照：纯文字题**不**发 run_label（用户打了题面就用他的话）', !evTxt.some((e) => e.type === 'run_label'));
-  check('负对照：纯文字题的标题就是题面开头', String(evTxt.find((e) => e.type === 'run_start')?.entry).startsWith('一物块从斜面顶端滑下'));
+  check('纯文字题也采用模型标题', evTxt.find((e) => e.type === 'run_label')?.entry === '斜面下滑');
+  check('纯文字题标题来自题面（模型标题到达前）', String(evTxt.find((e) => e.type === 'run_start')?.entry).startsWith('一物块从斜面顶端滑下'));
 }
 
 /* ────────────────────────────── 『Z』参考答案与题目对不上（v1.1.16） ────────────────────────────── */
@@ -649,7 +664,7 @@ console.log('\n『Z』参考答案：与题目对不上时**停在解题之后**
   check('run_done 是 error，并标记 referenceMismatch', done?.verdict === 'error' && done?.referenceMismatch === true, JSON.stringify(done));
   check('只跑了 read_problem + solve（没有继续后面的阶段）', stages.join(',') === 'read_problem,solve', stages.join(','));
   check('stage_error 的 kind 是 reference.mismatch', err?.error?.kind === 'reference.mismatch', JSON.stringify(err));
-  check('停止时不产生 stage_done(answers/steps/scene_code)', !events.some((e) => e.type === 'stage_done' && ['answers', 'steps', 'scene_code'].includes(e.stage)));
+  check('停止时不产生 stage_done(analysis/scene_code)', !events.some((e) => e.type === 'stage_done' && ['analysis', 'scene_code'].includes(e.stage)));
 }
 
 /* ────────────────────────────── 『Y』v1.1.16 拆图：读题给框 → 裁出示意图 → 写动画时附上 ────────────────────────────── */
@@ -676,9 +691,8 @@ console.log('\n『Y』拆图：读题给【示意图范围】→ 程序真裁 �
   const stream = fakeStream({
     read_problem: transcript,
     solve: '解题：……',
-    steps: 'title: 第 1 步\ntex: x\nt0: 0\nt1: 1',
-    answers: 'symbol: x\nvalue: 1\nunit: m\nat_t: 1\nstep: 1',
-    scene_code: goodSceneCode(),
+    breakdown: 'title: 第 1 步\ntex: x',
+    scene_code: GOOD_DRAW_FRAME,
   });
   const events = await collectEvents(
     baseInput({ images: [{ mime: 'image/png', data: png, name: 'problem.png' }], streamImpl: stream, dryRunImpl: fakeDryRun('pass') }),
@@ -690,14 +704,10 @@ console.log('\n『Y』拆图：读题给【示意图范围】→ 程序真裁 �
 
   const sceneCall = stream.calls.find((c) => detectStage(c.messages) === 'scene_code');
   const sceneUser = sceneCall?.messages?.find((m) => m.role === 'user');
-  check('★ 写动画那一步的请求**带了图**', Array.isArray(sceneUser?.content), typeof sceneUser?.content);
+  check('★ 写动画那一步的请求**带了图**', Array.isArray(sceneUser?.content) && sceneUser.content.some((p) => p.type === 'image_url'), typeof sceneUser?.content);
   check(
     '写动画那一步的 user 文本里含**读题的几何转写**（之前它只用来触发知识卡）',
     JSON.stringify(sceneUser?.content ?? '').includes('水平传送带上的物块 A'),
-  );
-  check(
-    '写动画那一步的 user 文本里说明了"附了示意图"',
-    JSON.stringify(sceneUser?.content ?? '').includes('【示意图】'),
   );
 }
 

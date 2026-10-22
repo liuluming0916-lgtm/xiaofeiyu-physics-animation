@@ -140,7 +140,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
     }
   }, [])
 
-  const steps = useMemo(() => parseRowTable(st.run.stageText.steps ?? ''), [st.run.stageText.steps])
+  const steps = useMemo(() => parseRowTable(st.run.stageText.breakdown ?? ''), [st.run.stageText.breakdown])
   /**
    * ⚠ 第 8 期修掉的 bug（用户实测）：**进页面就自动填入一道演示题**。
    *
@@ -462,7 +462,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
             解题过程（点开查看）
           </summary>
           <div className="space-y-4 border-t border-slate-100 p-5 pt-4">
-        {(st.run.stageText.solve || st.run.stageText.steps || st.run.stageText.answers) && (
+        {(st.run.stageText.solve || st.run.stageText.breakdown || st.run.stageText.analysis) && (
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-base font-medium text-slate-900">解题过程</h2>
             {st.run.promptHash && (
@@ -552,13 +552,13 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
                 </pre>
               </div>
               <div>
-                <p className="text-xs font-medium text-sky-800">模型抽取出的答案</p>
+                <p className="text-xs font-medium text-sky-800">分步讲解</p>
                 <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700">
-                  {st.run.stageText.answers?.trim() || '（还没有抽取到答案）'}
+                  {st.run.stageText.breakdown?.trim() || '（还没有讲解）'}
                 </pre>
               </div>
             </div>
-            {st.run.stageText.answers?.includes('解析未提供') && (
+            {st.run.stageText.breakdown?.includes('解析未提供') && (
               <p className="mt-2 rounded bg-amber-100 p-2 text-xs text-amber-900">
                 有解析没有覆盖到的量（文中标了“解析未提供”）—— 这些数需要你人工确认，模型没有被允许自己补。
               </p>
@@ -602,7 +602,7 @@ const WB_VIA_LABEL: Record<string, string> = {
   recursive: '递归唤醒',
 }
 
-const WB_SLOT_LABEL: Record<string, string> = { solve: '解题', scene_code: '动画建模' }
+const WB_SLOT_LABEL: Record<string, string> = { scene_code: '动画' }
 
 /**
  * 知识卡依据面板（§15 解题页 / §9.2 第 6 步）。
@@ -627,8 +627,7 @@ function KnowledgecardPanel({ run }: { run: ReturnType<typeof useApp.getState>['
       <div className="flex items-baseline justify-between">
         <h2 className="text-base font-medium text-slate-900">知识卡依据</h2>
         <span className="text-xs text-slate-500">
-          库 {wb.libraryCount} 条 · 命中 {wb.matched} 条 · 解题槽 {wb.injectedBySlot.solve ?? 0} 条 / 动画槽{' '}
-          {wb.injectedBySlot.scene_code ?? 0} 条
+          库 {wb.libraryCount} 条 · 命中 {wb.matched} 条 · 动画槽 {wb.injectedBySlot.scene_code ?? 0} 条
         </span>
       </div>
 
@@ -648,7 +647,7 @@ function KnowledgecardPanel({ run }: { run: ReturnType<typeof useApp.getState>['
                   {p.from ? ` ← ${p.from}` : ''}
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  注入：{p.injectedSlots.map((s) => WB_SLOT_LABEL[s] ?? s).join(' / ') || '（未挂槽位）'}
+                  注入：{p.injectedSlots.filter((s) => s === 'scene_code').map((s) => WB_SLOT_LABEL[s] ?? s).join(' / ') || '（未挂槽位）'}
                   {p.unmounted ? ' · 未挂槽位' : ''}
                   {p.truncated ? ' · 被预算截断' : ''}
                 </span>
@@ -656,6 +655,7 @@ function KnowledgecardPanel({ run }: { run: ReturnType<typeof useApp.getState>['
               </div>
               <p className="mt-0.5 text-[11px] text-slate-500">
                 {Object.entries(p.charsBySlot)
+                  .filter(([slot]) => slot === 'scene_code')
                   .map(([slot, n]) => `${WB_SLOT_LABEL[slot] ?? slot} ${n} 字符`)
                   .join(' · ') || '未注入任何槽位'}
               </p>
@@ -794,22 +794,24 @@ function RepairPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'] }
 const STAGE_SAY: Record<string, string> = {
   read_problem: '小肥鱼正在看题…',
   solve: '小肥鱼正在解题…',
-  steps: '小肥鱼正在把答案切块…',
-  answers: '小肥鱼正在料理答案…',
+  breakdown: '小肥鱼正在把答案切块…',
+  analysis: '小肥鱼正在分析运动…',
   scene_code: '小肥鱼正在努力画画…',
   dry_run: '小肥鱼正在检查…',
   repair: '小肥鱼正在完善…',
+  couple: '小肥鱼正在对齐讲解与动画…',
 }
 
 /** 阶段 → 表情包文件（图来自「表情包参考」，已拷进 web/public/fish/） */
 const STAGE_FISH: Record<string, string> = {
   read_problem: 'stage1',
   solve: 'stage2',
-  steps: 'stage3',
-  answers: 'stage4',
+  breakdown: 'stage3',
+  analysis: 'stage4',
   scene_code: 'stage5',
   dry_run: 'stage6',
   repair: 'stage7',
+  couple: 'stage7',
 }
 
 /**

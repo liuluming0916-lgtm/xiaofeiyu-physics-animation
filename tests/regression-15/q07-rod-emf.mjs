@@ -157,7 +157,6 @@ var xEnd = 5.4;
 
 // —— 磁场区：垂直纸面向里（叉号阵列）——
 Draw.fieldDots({ x: -0.5, y: yB - 0.3, w: 6.0, h: L + 0.6 }, { symbol: 'cross', nx: 14, ny: 4 });
-Draw.text(3.9, yT + 0.52, '磁场 B 垂直纸面向里', { size: 12, color: '#3a4a5a' });
 
 // —— 导轨 ——
 Draw.line([-0.5, yB], [xEnd, yB], { width: 2.6, color: '#2b3440' });
@@ -165,7 +164,6 @@ Draw.line([-0.5, yT], [xEnd, yT], { width: 2.6, color: '#2b3440' });
 
 // —— 左端定值电阻 R ——
 Draw.box([-0.5, yM], 0.20, 0.56, { fill: '#ffffff' });
-Draw.text(-0.5, yM, 'R', { size: 13 });
 
 // —— 全程轨迹（浅灰虚线）：导体棒沿导轨的移动路径，画在两导轨之间，不与导轨重合 ——
 // 只读探针 context.at(t) 采样全时段；at() 只能在 drawFrame 里用（stateAt 里用 C1 会拦）
@@ -175,7 +173,6 @@ Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 // —— 金属棒（长 L，横跨两导轨，自身电阻 r）——
 Draw.box([state.x, yM], 0.07, L, { fill: '#dfe6ec' });
-Draw.text(state.x, yM, 'r', { size: 12 });
 
 // —— 安培力矢量（v 由 bodies 自动生成）——
 // 箭头只吃几何矢量（物理量 × 几何缩放，scale=1），物理量记在 mag/unit
@@ -195,9 +192,6 @@ if (sgn !== 0) {
 }
 
 // —— 实时读数（都由 state 得到）——
-Draw.text(0.05, yT + 0.95, 'v = ' + Phys.format(state.v, 'm/s', 3), { size: 12, align: 'left' });
-Draw.text(0.05, yT + 0.74, 'E = ' + Phys.format(state.emf, 'V', 3) + '   I = ' + Phys.format(state.cur, 'A', 3) + '   F = ' + Phys.format(state.f, 'N', 3),
-  { size: 12, align: 'left' });
 
 // —— v–t 曲线：指数衰减，面积即位移 ——
 var ox = 0.15, oy = -2.05, ax = 2.6, ay = 1.25;

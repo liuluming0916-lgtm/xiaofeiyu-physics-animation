@@ -138,7 +138,6 @@ for (var tq = 0; tq <= 32; tq = tq + 1) { tracePts.push([context.at(SIM.duration
 Draw.trace(tracePts, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 Draw.box([state.x, y0 + r + 0.24], 0.34, 0.34, { angleDeg: 0 });
-Draw.text(state.x, y0 + r + 0.68, 'm', { size: 13, color: '#1d2733' });
 
 if (state.f > 1e-9) {
   Draw.arrow([state.x, y0 + r + 0.02], [state.f, 0], {
@@ -150,12 +149,8 @@ if (state.f > 1e-9) {
 Draw.arrow([runLen * 0.72, y0 + r * 3.0], [context.u, 0], {
   category: 'aux', label: 'u', mag: context.u
 });
-Draw.text(runLen * 0.72, y0 + r * 3.0 + 0.17, '传送带速度 u', { size: 12, color: '#5d6b7a' });
 
 if (state.ds > 1e-6) {
-  Draw.dimension([state.x, y0 + r * 4.0], [state.beltX, y0 + r * 4.0], {
-    kind: 'linear', text: 'Δs = ' + Phys.format(state.ds, 'm', 3)
-  });
   Draw.line([state.x, y0 + r + 0.42], [state.x, y0 + r * 4.0], { dash: true, color: '#9aa7b4' });
   Draw.line([state.beltX, y0 + r + 0.42], [state.beltX, y0 + r * 4.0], { dash: true, color: '#9aa7b4' });
 }

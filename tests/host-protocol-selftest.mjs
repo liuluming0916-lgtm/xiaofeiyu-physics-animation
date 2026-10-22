@@ -213,7 +213,7 @@ console.log('\n『B-2』第 8 期：偏好"每次打开都干净"（用户裁决
   check('restore() 装完把 t 归零（读到旧 t 也故意忽略）', /player\.state\.t = 0;/.test(templateSrc));
   check('启动时清理旧格式键（只清自己的前缀）', /purgeLegacyPrefs\(\);/.test(templateSrc));
   check('曲线图默认开：只有 SIM.chart === false 才关', /hint === false\) return false;[\s\S]{0,160}return true;/.test(templateSrc));
-  check('点播放"差一帧也算到结尾"⇒ 从头重播', /player\.state\.t >= player\.duration - guard\) player\.state\.t = 0;/.test(templateSrc));
+  check('点播放"差一帧也算到结尾"⇒ 从头重播', /dispOf\(player\.state\.t\) >= T_DISPLAY - guard\) player\.state\.t = 0;/.test(templateSrc));
 
   // 行为面：给一份"上次启动"的偏好，本次启动（换编号）不该吃到它
   const legacyKey = 'od-animation-prefs:' + 'stub';
@@ -328,6 +328,13 @@ console.log('\n『B-2』注入的健壮性');
   const extra = { ...q01.slots, EXTRA: 'x' };
   windowStub.dispatch('message', { data: { source: 'od-host', type: 'program', slots: extra, mode: 'NUMERIC' } });
   check('多出第 9 个键 ⇒ bad-program（§3.2）', messages.some((m) => m.type === 'error' && m.code === 'bad-program'));
+
+  // v6：ANSWERS 已删，空串必须被接受
+  messages.length = 0;
+  const noAnswers = { ...q01.slots, ANSWERS: '' };
+  windowStub.dispatch('message', { data: { source: 'od-host', type: 'program', slots: noAnswers, mode: 'NUMERIC', stepTimes: [{ step: 1, t0: 0, t1: 1 }] } });
+  check('★ 空 ANSWERS ⇒ 接受并 ready', messages.some((m) => m.type === 'ready'), JSON.stringify(messages.map((m) => m.type + (m.code ? ':' + m.code : ''))));
+  check('★ 空 ANSWERS 不报 bad-program', !messages.some((m) => m.type === 'error' && m.code === 'bad-program'));
 }
 
 console.log('\n『B-3』成品页拒绝运行时覆盖（§13.1 导出保真）');

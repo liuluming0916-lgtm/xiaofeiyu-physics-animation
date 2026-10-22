@@ -5,7 +5,7 @@
 /**
  * §2.3 主链路阶段枚举（stageModels 的键）
  */
-export type PipelineStage = "read_problem" | "solve" | "answers" | "steps" | "scene_code" | "dry_run" | "repair" | "knowledgecard";
+export type PipelineStage = "read_problem" | "solve" | "breakdown" | "analysis" | "scene_code" | "dry_run" | "repair" | "couple" | "knowledgecard";
 
 /**
  * 端点

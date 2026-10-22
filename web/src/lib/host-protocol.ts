@@ -87,6 +87,8 @@ export interface ProgramPayload {
    * 缺了它模板照常播放（字不挪），所以不影响冻结协议。
    */
   labelAvoid?: Record<string, unknown> | null
+  /** v6：讲解步骤 ↔ 动画时间（没有就不发；模板据此做联动） */
+  stepTimes?: Array<{ step: number; t0: number; t1: number }> | null
 }
 
 /* ────────────────────────────── 消息常量 ────────────────────────────── */

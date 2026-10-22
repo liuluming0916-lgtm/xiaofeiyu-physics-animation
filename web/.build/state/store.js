@@ -49,6 +49,7 @@ export const useApp = create((set) => ({
     programMode: 'BOTH',
     programTitle: '',
     programLabelAvoid: null,
+    programStepTimes: null,
     templateReady: false,
     playing: false,
     t: 0,
@@ -86,6 +87,7 @@ export const useApp = create((set) => ({
         },
         // 新一轮开始就清掉上一轮的动画（避免把旧动画当新结果看）
         programSlots: null,
+        programStepTimes: null,
         templateReady: false,
         templateError: null,
     }),
@@ -223,6 +225,11 @@ export const useApp = create((set) => ({
                 run.verdict = 'skipped';
                 run.verdictNote = '已被用户取消';
                 break;
+            case 'coupling_done':
+                set({ programStepTimes: Array.isArray(e.stepTimes) ? e.stepTimes : null });
+                if (e.fallback)
+                    run.verdictNote = `步骤耦合回退：${e.warning ?? '已按比例分配'}`;
+                break;
             case 'run_done':
                 run.running = false;
                 run.elapsedMs = e.ms;
@@ -234,6 +241,8 @@ export const useApp = create((set) => ({
                     run.delivery = e.delivery;
                 if (!run.verdict)
                     run.verdict = e.verdict ?? null;
+                if (e.stepTimes)
+                    set({ programStepTimes: e.stepTimes });
                 break;
         }
         return { run };

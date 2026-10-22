@@ -175,6 +175,8 @@ export function AnimationPage() {
             title: st.programTitle,
             /* C2：标注避让表（Dry-Run 算的）。模板收到后会交给播放器按表挪字 + 画引线 */
             labelAvoid: st.programLabelAvoid,
+            /* v6：步骤 ↔ 动画时间（couple 产出；没有就不发） */
+            stepTimes: st.programStepTimes,
             /* 第 8 期：本次启动编号（偏好键隔离用） */
             launchId,
         };
@@ -225,6 +227,7 @@ export function AnimationPage() {
             texSvg: TEX_SVG,
             id: st.programTitle,
             title: st.programTitle,
+            stepTimes: st.programStepTimes,
             /* 第 8 期：本次启动编号（两条注入路径都要带，否则先到的那条会写错键） */
             launchId,
         });
@@ -310,6 +313,8 @@ export function AnimationPage() {
                     knowledgecardHash: handwritten ? 'handwritten' : undefined,
                     /* C2：把避让表一起烧进导出的网页（没表就是 null ⇒ 与第 7 期一样） */
                     labelAvoid: st0.programLabelAvoid ?? null,
+                    /* v6：步骤时间一起烧进导出页，联动不依赖宿主 */
+                    stepTimes: st0.programStepTimes ?? null,
                     /**
                      * 第 8 期：开发模式（不拦截）的痕迹一并烧进导出页的 Provenance。
                      * 这个 html 一旦离开本机，就没人知道它没验过 —— 必须写在文件里。

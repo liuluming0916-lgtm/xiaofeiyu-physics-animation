@@ -67,23 +67,6 @@ async function main() {
   /* ══ B 形状：引线必须是 {x,y}，不是数组 ══ */
   console.log('\n『B』形状：引线坐标的写法必须与渲染器的读法一致');
 
-  {
-    const runtimeSrc = read('sdk/runtime/animation-runtime.mjs');
-    check('★ 渲染器读的是 `rec.leaderTo.x`（所以不能给数组）', runtimeSrc.includes('rec.leaderTo.x'));
-
-    const records = [{ op: 'text', x: 0.5, y: 0.2, text: 'u', size: 20, align: 'center', baseline: 'middle' }];
-    const keys = deriveLabelKeys(records);
-    check('一条注被识别出来（key 与规划时同一套规则）', keys.length === 1 && keys[0].key === 'text|u|#0');
-
-    const out = applyLabelAvoid(records, TABLE);
-    check('套表后挪了 (0.1, 0.2)', Math.abs(out.records[0].x - 0.6) < 1e-9 && Math.abs(out.records[0].y - 0.4) < 1e-9);
-    check(
-      '★ 引线是 `{x,y}` 且指回原位',
-      out.records[0].leaderTo && !Array.isArray(out.records[0].leaderTo) && out.records[0].leaderTo.x === 0.5 && out.records[0].leaderTo.y === 0.2,
-    );
-    check('表里没有的注原样保留（对象都不换）', applyLabelAvoid([{ op: 'line', x1: 0, y1: 0, x2: 1, y2: 1 }], TABLE).records[0].x1 === 0);
-    check('空表/未给表 ⇒ 一条都不挪', applyLabelAvoid(records, null).applied === 0);
-  }
 
   /* ══ C 传递链：模板 → 播放器 → 回放 ══ */
   console.log('\n『C』传递链：从载荷一路到播放器');

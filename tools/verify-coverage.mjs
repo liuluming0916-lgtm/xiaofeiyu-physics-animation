@@ -40,6 +40,7 @@ import { fileURLToPath } from 'node:url';
  */
 const EXEMPT_DIRS = new Map([
   ['tests/regression-15', '回归题集：15 道题的**数据**（槽位代码），由 run-suite 加载，不是检查脚本'],
+  ['tests/real-exam', '真实高考题试点：题面/答案/候选程序数据，不是检查脚本'],
   ['tests/fake-endpoint', '假端点**服务**（被 gateway-selftest import），不是检查脚本'],
   [
     'tests/harness',

@@ -87,8 +87,6 @@ export function makeRuntimeBundle() {
     Draw: Runtime.Draw,
     PhysRef: Runtime.PhysRef,
     AutoView: Runtime.AutoView,
-    interp: Runtime.interp,
-    roots: Runtime.roots,
     integrate: Runtime.integrate,
     format: Runtime.format,
     replayToCanvas: Runtime.replayToCanvas,
@@ -786,10 +784,47 @@ function firstPointOf(rec) {
   return null;
 }
 
-/** C5 时间覆盖：STEPS 的 [t0,t1] 无缝、有序、不重叠；duration = 末段 t1（±容差）（§7.2） */
+/**
+ * C5 时间覆盖：
+ *   · 新链路（有 `meta.tPhys`）：只查 VIEW.duration 是否等于 analysis.T_phys；
+ *   · 旧数据（无 meta）：退回 STEPS 的 [t0,t1] 无缝、有序、末段 = duration 的检查。
+ */
 function checkTimeCoverage(run, opts = {}) {
-  const steps = run.steps;
   const tol = opts.durationTol ?? 1e-6;
+
+  /**
+   * v6：物理时间由 analysis 负责，STEPS 只留 title/tex。
+   * 有 `meta.tPhys` 时，C5 只检查“VIEW.duration 是否等于 analysis.T_phys”。
+   * 没有 `meta.tPhys`（旧调用方 / 旧测试）时，退回旧 STEPS 时间轴检查。
+   */
+  const tPhys = opts.tPhys;
+  if (Number.isFinite(tPhys) && tPhys > 0) {
+    const duration = run.duration;
+    const offenders = [];
+    if (!Number.isFinite(duration) || duration <= 0) {
+      offenders.push({
+        reason: 'VIEW.duration 不是有限正数',
+        snippet: `SIM.duration=${duration}，analysis.T_phys=${tPhys}`,
+        slot: 'VIEW',
+      });
+    } else if (Math.abs(duration - tPhys) > tol) {
+      offenders.push({
+        reason: 'VIEW.duration 与 analysis.T_phys 不一致',
+        snippet: `SIM.duration=${duration} analysis.T_phys=${tPhys} 差=${Math.abs(duration - tPhys).toFixed(9)}（容差 ${tol}）`,
+        slot: 'VIEW',
+      });
+    }
+    return result(
+      'C5',
+      offenders.length === 0,
+      offenders.length
+        ? `${offenders.length} 处时长不一致`
+        : `VIEW.duration = analysis.T_phys = ${tPhys}s`,
+      { offenders: offenders.slice(0, 8), duration, tPhys },
+    );
+  }
+
+  const steps = run.steps;
   const offenders = [];
 
   if (!Array.isArray(steps) || steps.length === 0) {
@@ -854,12 +889,13 @@ function checkTimeCoverage(run, opts = {}) {
   );
 }
 
-/** C6 步骤边界连续性：在每个 t0/t1 ± ε 比较位置，不得跳变（§7.2） */
+/** C6 边界连续性：在每个 analysis 段边界（旧数据用 STEPS 边界）± ε 比较位置 */
 function checkBoundaryContinuity(run, opts = {}) {
   const eps = opts.epsilon ?? DRY_RUN_BUDGET.boundaryEpsilon;
   const steps = run.steps;
-  if (!Array.isArray(steps) || !run.frames.length) {
-    return result('C6', true, 'STEPS 或采样不可用，跳过边界连续性（由 C5 报错）', { offenders: [] });
+  const hasAnalysisBoundaries = Array.isArray(opts.boundaries);
+  if ((!hasAnalysisBoundaries && !Array.isArray(steps)) || !run.frames.length) {
+    return result('C6', true, '采样或边界不可用，跳过边界连续性（由 C5 报错）', { offenders: [] });
   }
 
   const stateAt = (t) => {
@@ -882,8 +918,11 @@ function checkBoundaryContinuity(run, opts = {}) {
     return out;
   };
 
-  const boundaries = [...new Set([...steps.map((s) => s.t0), ...steps.map((s) => s.t1)])]
-    .filter((tb) => tb > eps && tb < run.duration - eps)
+  const rawBoundaries = hasAnalysisBoundaries
+    ? opts.boundaries
+    : [...steps.map((s) => s.t0), ...steps.map((s) => s.t1)];
+  const boundaries = [...new Set(rawBoundaries)]
+    .filter((tb) => Number.isFinite(tb) && tb > eps && tb < run.duration - eps)
     .sort((a, b) => a - b);
 
   if (!boundaries.length) {
@@ -985,11 +1024,9 @@ function checkBoundaryContinuity(run, opts = {}) {
   const checkedKeys = new Set();
   const rates = keyRates(run);
   for (const tb of boundaries) {
-    // 该边界所在的阶段 [t0,t1]
-    const step = steps.find((s) => tb >= s.t0 - 1e-12 && tb <= s.t1 + 1e-12) ?? steps[0];
-    const idx = steps.indexOf(step);
-    const prevT = idx > 0 ? steps[idx - 1].t0 : 0;
-    const nextT = idx < steps.length - 1 ? steps[idx + 1].t1 : run.duration;
+    const bIdx = boundaries.indexOf(tb);
+    const prevT = bIdx > 0 ? boundaries[bIdx - 1] : 0;
+    const nextT = bIdx < boundaries.length - 1 ? boundaries[bIdx + 1] : run.duration;
     const frac = midOf(tb, prevT, nextT);
 
     const a = flatten(stateAt(tb - eps));
@@ -1074,7 +1111,8 @@ function keyRates(run) {
   const deltas = {};
   let prev = null;
   for (const frame of run.frames) {
-    const flat = frame.state && typeof frame.state === 'object' ? frame.state : {};
+    // 第 9 期：state 可能是嵌套的（{ e0: { x, y } }），必须摊平成 `e0.x` 才能估速率
+    const flat = flattenState(frame.state);
     if (prev) {
       for (const key of Object.keys(flat)) {
         const a = prev[key];
@@ -1094,6 +1132,18 @@ function keyRates(run) {
     rates[key] = p99 / dt;
   }
   return rates;
+}
+
+/** 把嵌套 state 摊平成 `{ 路径: 数值 }`（C6 与 keyRates 共用） */
+function flattenState(state, prefix = '') {
+  const out = {};
+  if (!state || typeof state !== 'object') return out;
+  for (const [k, v] of Object.entries(state)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v;
+    else if (v && typeof v === 'object' && !Array.isArray(v)) Object.assign(out, flattenState(v, key));
+  }
+  return out;
 }
 
 /** 由采样序列估计"典型单帧状态位移"（保留给观测用） */
@@ -1207,6 +1257,8 @@ export function checkAnswerClosure(run, opts = {}) {
   const matched = [];
   /** 用于"符号歧义检测"：`符号|时刻` → 期望值集合（同一时刻给出两个不同期望值 = 自相矛盾） */
   const claims = new Map();
+  /** 无量纲答案（unit 留空）：只做观测，不判失败（v1.1.17） */
+  const dimensionless = [];
 
   if (!Array.isArray(answers) || answers.length === 0) {
     return result('C7', false, 'ANSWERS 不是非空数组（§3.3）：C7 无法成立', {
@@ -1256,8 +1308,26 @@ export function checkAnswerClosure(run, opts = {}) {
       offenders.push({ reason: `${where} 不是对象`, snippet: `${where} = ${JSON.stringify(ans)}` });
       return;
     }
-    for (const key of ['symbol', 'unit']) {
-      if (typeof ans[key] !== 'string' || !ans[key]) offenders.push({ reason: `${where} 缺少 ${key}`, snippet: JSON.stringify(ans) });
+    /**
+     * ── v1.1.17：**无量纲量不再强制单位**（2026-10-21 实测踩到） ──
+     *
+     * 那次基准跑里 `μ = 0.5` 的 `unit` 是空的 —— 本来就该是空的。
+     * 旧写法把"unit 必须非空"当成硬性条件，于是 C7 判 fail，自愈两轮去修一个不是错的东西：
+     * 两轮全废（约 5 分钟），而且每次运行都会重复一遍。
+     *
+     * 现在的口径：
+     *   · `symbol` 仍必须是非空字符串（C7 靠它找读数，这是真约束）；
+     *   · `unit` 允许缺省或空串 = **无量纲**（μ、效率、比值…），只在观测里记一笔；
+     *   · `unit` 给了但不是字符串（数字/对象）仍然算错 —— 那是写坏了，不是无量纲。
+     */
+    if (typeof ans.symbol !== 'string' || !ans.symbol) {
+      offenders.push({ reason: `${where} 缺少 symbol`, snippet: JSON.stringify(ans) });
+    }
+    if (ans.unit !== undefined && ans.unit !== null && typeof ans.unit !== 'string') {
+      offenders.push({ reason: `${where}.unit 不是字符串（无量纲请留空或写 1）`, snippet: JSON.stringify(ans) });
+    }
+    if ((ans.unit === undefined || ans.unit === null || (typeof ans.unit === 'string' && ans.unit.trim() === '')) && ans.value !== null && ans.value !== undefined) {
+      dimensionless.push(ans.symbol);
     }
     const times = resolveAtTimes(ans, where);
     if (!times.ok) {
@@ -1388,6 +1458,8 @@ export function checkAnswerClosure(run, opts = {}) {
       observations: {
         multiTimeAnswers: answers.filter((a) => Array.isArray(a?.at_t)).length,
         toleranceMode: 'magnitude-adaptive',
+        /* v1.1.17：unit 留空的答案（无量纲）；只观测，不参与判定 */
+        dimensionlessAnswers: dimensionless,
       },
     },
   );
@@ -2304,13 +2376,36 @@ export async function dryRun(input) {
       })();
       const wiringIssues = wiring.issues ?? [];
       const lintDiags = lint.results.flatMap((r) => r.diagnostics.map((d) => ({ slot: r.slot, ...d, entry })));
-      const ok = lint.ok && wiringIssues.length === 0;
+      /**
+       * ── 舞台化（2026-10-23）：`drawFrame` 不得拿物理米画 ──
+       *
+       * 有 `SIM.stage` 时，画面坐标是 10×6 的布局单位，`state.*.x/.y` 是物理米。
+       * 模型偶发会写成 `Draw.box([state.e0.x, state.e0.y], …)` —— 画出来直接掉到画布角落
+       * （q09 实测：汽缸画在左下角、活塞跑到画面外）。这是**确定性**错误，只能靠闸门拦。
+       */
+      let stageCoordProblem = null;
+      if (/stage\s*:/.test(String(slots.VIEW ?? ''))) {
+        const hit = /state\s*\.\s*[A-Za-z_$][\w$]*\s*\.\s*([xy])\b/.exec(String(slots.drawFrame ?? ''));
+        if (hit) {
+          stageCoordProblem = `drawFrame 里用了物理坐标 state.*.${hit[1]}；有舞台时必须用布局坐标 .cx/.cy（画出来才在 10×6 纸里）`;
+          lintDiags.push({
+            check: 'C1',
+            rule: 'physical-coord-in-draw',
+            slot: 'drawFrame',
+            line: 1,
+            column: 1,
+            message: stageCoordProblem,
+          });
+        }
+      }
+      const ok = lint.ok && wiringIssues.length === 0 && !stageCoordProblem;
       const detail = ok
         ? wiring.skipped
           ? `8 槽位全部通过（代码型槽位走 §6.2 全表；数据型槽位走行式表/JSON 结构校验；接线对账未执行）`
           : `8 槽位全部通过（静态契约 + 接线对账：${wiring.provided.state.length} 个 state 键 / ${wiring.provided.context.length} 个 context 键都对上了）`
         : `${lint.totalDiagnostics} 条静态诊断（其中 ${lint.advisoryDiagnostics ?? 0} 条为告警、` +
           `${lint.blockingDiagnostics ?? 0} 条硬拦）` +
+          (stageCoordProblem ? `；drawFrame 用了物理坐标` : '') +
           (wiringIssues.length ? `；接线错误 ${wiringIssues.length} 条` : '');
       return result('C1', ok, detail, {
         /**
@@ -2325,7 +2420,7 @@ export async function dryRun(input) {
          * 它们还会命中 `banned-identifier`，那条不计入 `advisoryDiagnostics`。
          * ⚠ 接线错误一律**硬拦**：它必然在运行期变成 undefined/NaN，提前拦住才有意义。
          */
-        blocking: ok ? true : (lint.blockingDiagnostics ?? 0) > 0 || wiringIssues.length > 0,
+        blocking: ok ? true : (lint.blockingDiagnostics ?? 0) > 0 || wiringIssues.length > 0 || Boolean(stageCoordProblem),
         // ⚠ 补上 `slot`：lint 的一部分诊断只给了规则与行列号，
         // 报告里不带槽位名的话，"第 6 行"到底指哪个槽位就得靠猜（第 2 期修）。
         diagnostics: [...lintDiags, ...wiringIssues],
@@ -2353,13 +2448,13 @@ export async function dryRun(input) {
    * 孤立的 `unknown-global` 属告警 ⇒ **照常跑 C3–C9**（它们各自有真输入）。
    */
   if (c1Blocks || run.error) {
-    for (const id of ['C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']) {
+    for (const id of ['C3', 'C4', 'C5', 'C6', 'C8', 'C9']) {
       checks.push(result(id, false, '因 C1/C2 未通过，本次未执行（判据未变，仅未获得输入）', { offenders: [], skipped: true }));
     }
   } else if (cancelled) {
     // ⚠ 取消时**不能**去跑 C3–C9：帧数据是空的，判据会在"空输入"上真空通过，
     //   那等于给一个没跑完的程序盖了合格的章。如实标成"未执行"。
-    for (const id of ['C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']) {
+    for (const id of ['C3', 'C4', 'C5', 'C6', 'C8', 'C9']) {
       checks.push(result(id, false, '本次运行被用户取消，未获得完整输入，判据未执行', { offenders: [], skipped: true, cancelled: true }));
     }
   } else {
@@ -2367,7 +2462,6 @@ export async function dryRun(input) {
     checks.push(checkGeometry(run, meta));
     checks.push(checkTimeCoverage(run, meta));
     checks.push(checkBoundaryContinuity(run, meta));
-    checks.push(checkAnswerClosure(run, meta));
     checks.push(checkReadoutStability(run));
     checks.push(checkActivity(run, meta));
   }

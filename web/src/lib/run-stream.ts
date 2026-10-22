@@ -139,6 +139,15 @@ export type RunEvent =
     }
   /** 纯图片题在开跑时没有标题，读题与判定跑完后回填一次 */
   | { seq: number; type: 'run_label'; at: string; entry: string; source?: string }
+  | {
+      seq: number
+      type: 'coupling_done'
+      at: string
+      stepTimes: Array<{ step: number; t0: number; t1: number }>
+      fallback?: boolean
+      warning?: string | null
+      attempts?: number
+    }
   | { seq: number; type: 'cancelled'; at: string; stage: string }
   | {
       seq: number
@@ -151,6 +160,8 @@ export type RunEvent =
       converged?: boolean
       banner?: RepairBanner | null
       delivery?: { playable: boolean; mode: string; missing: string[] }
+      stepTimes?: Array<{ step: number; t0: number; t1: number }> | null
+      coupling?: { stepTimes: Array<{ step: number; t0: number; t1: number }>; fallback: boolean; warning: string | null; attempts: number } | null
     }
 
 /** 世界书依据（第 5 期 · §9.2 第 6 步 / §15 的"世界书依据"面板） */
@@ -294,16 +305,17 @@ export function precisionLabel(p: string | null | undefined): string {
  *   所以**所有题都跑它**。`repair` 仍只在 Dry-Run 未通过时真正执行。
  *   ⇒ **链条按完整形态排布，不要在别处写死"某一步一定跑"（`skipped` 机制保留，通用）。**
  */
-export const STAGE_CHAIN = ['read_problem', 'solve', 'steps', 'answers', 'scene_code', 'dry_run', 'repair'] as const
+export const STAGE_CHAIN = ['read_problem', 'solve', 'breakdown', 'analysis', 'scene_code', 'dry_run', 'repair', 'couple'] as const
 
 export const STAGE_LABEL: Record<string, string> = {
-  read_problem: '读题与判定',
+  read_problem: '读题',
   solve: '解题',
-  answers: '答案抽取',
-  steps: '分步解析',
+  breakdown: '答案讲解',
+  analysis: '物理分析',
   scene_code: '动画代码',
   dry_run: '校验',
   repair: '自愈修复',
+  couple: '步骤耦合',
 }
 
 /* ────────────────────────────── 演示源 ────────────────────────────── */
@@ -460,6 +472,17 @@ export function demoEventSource(): RunHandle {
         note:
           '演示源不执行校验：校验内核（C1–C9 + Worker 沙箱）是 Node 侧代码，浏览器里无法运行。' +
           '要得到真实判定，请走服务端事件流（第 9 步接入）。',
+      }
+      // 演示源不调模型，couple 如实标 skipped（界面不能一直 pending）
+      yield {
+        seq: ++seq,
+        type: 'stage_done',
+        at: at(),
+        stage: 'couple',
+        skipped: true,
+        chars: 0,
+        ms: 0,
+        reason: '演示源不调用模型，跳过步骤耦合',
       }
     }
 

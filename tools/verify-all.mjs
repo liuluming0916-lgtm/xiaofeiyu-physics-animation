@@ -28,7 +28,7 @@
  *   ㉑ 自愈与 C7 强化 第 4 期：M30 自愈循环（B1 收敛 / B2 上限 3 轮 / B3 槽位级重生成 /
  *                    B4 告警横幅交付 / B6 事件可见 / 修复途中取消）+ C7 强化四条
  *                    + **15 题 C7 判定与第 3 期逐题一致**（§14.4 的硬约束）
- *   ㉒ 世界书         第 5 期：§9.2 触发六步（主键/次级/常驻/递归/三重预算/分槽组装/溯源）
+ *   ㉒ 知识卡         第 5 期：§9.2 触发六步（主键/次级/常驻/递归/三重预算/分槽组装/溯源）
  *                    + §9.3 origin 治理 + §9.5 导入导出 + 覆盖率（§19.3）
  *                    + **预览器与实际请求逐字节一致**（W10）+ 接线（每题快照 / knowledgecard_done / provenance）
  *   ㉓ 规则工作区     第 6 期：§16 的 `ai-rules/` 工作区底座 —— 每文件 SHA256、整批生效或整批失败、
@@ -89,15 +89,26 @@ const STEPS = [
   ['⑮ 契约跨字段校验取证（第 3 期 §11.2/§12）', 'tests/contract-validator-selftest.mjs'],
   ['⑯ 模型网关取证（第 3 期：流式/错误分类/图片多模态）', 'tests/gateway-selftest.mjs'],
   ['⑰ 标记切分清洗取证（第 3 期 §3.5/§12 + 行号保真）', 'tests/cleaner-selftest.mjs'],
+  ['⑰-1 v6 analysis 表解析与表达式白名单', 'tests/analysis-selftest.mjs'],
+  ['⑰-2 v6 analysis 生成程序槽位', 'tests/analysis-generate-selftest.mjs'],
+  ['⑰-3 v6 analysis 接进主链路', 'tests/analysis-pipeline-selftest.mjs'],
+  ['⑰-3b v6 视觉几何与中心点', 'tests/analysis-geometry-selftest.mjs'],
+  ['⑰-3c 刚体朝向 angleDeg', 'tests/body-angle-selftest.mjs'],
+  ['⑰-4 v6 drawFrame-only 自愈', 'tests/analysis-repair-selftest.mjs'],
+  ['⑰-5 v6 步骤耦合解析', 'tests/couple-selftest.mjs'],
+  ['⑰-6 v6 修复分类（画图 vs 物理）', 'tests/repair-classify-selftest.mjs'],
+  ['⑰-7 v6 物理错误修复（重跑链路）', 'tests/analysis-physical-repair-selftest.mjs'],
+  ['⑰-8 v6 读题标题', 'tests/read-problem-title-selftest.mjs'],
+  ['⑰-9 视觉尺寸一致性（舞台 10×6；量级不同也不同大小）', 'tests/visual-size-selftest.mjs'],
   ['⑱ Prompt 系统取证（第 3 期 §10 + promptHash 语义）', 'tests/prompts-selftest.mjs'],
   ['⑲ 编排取证（第 3 期 §2.3：事件流/配置快照/取消无残留）', 'tests/orchestrator-selftest.mjs'],
   ['⑳ 宿主协议取证（第 3 期 §13.2 定稿 + program 注入）', 'tests/host-protocol-selftest.mjs'],
   [
-    '㉑ 自愈循环与 C7 强化取证（第 4 期 §8/§14.2 B1–B6 · §14.4 C7 强化 + 15 题基线比对）',
+    '㉑ v6 自愈循环取证（§8/§14.2 B1–B6：只重画 drawFrame · 上限 · 未收敛横幅）',
     'tests/repair-selftest.mjs',
   ],
   [
-    '㉒ 世界书取证（第 5 期 §9.2 六步 / §9.3 治理 / §9.5 导入导出 · W1–W15 + 逐字节一致）',
+    '㉒ 知识卡取证（第 5 期 §9.2 六步 / §9.3 治理 / §9.5 导入导出 · W1–W15 + 逐字节一致）',
     'tests/knowledgecard-selftest.mjs',
   ],
   [
@@ -139,10 +150,6 @@ const STEPS = [
   [
     '㉝ 安全脱敏与观测取证（第 8 期 M21/M22：Key 与绝对路径脱敏 / 运行记录指标 / 失败复现包 / HTTP 真打）',
     'tests/observability-selftest.mjs',
-  ],
-  [
-    '㉞ 标注避让取证（第 8 期 M15 补强：文字给主体让位 —— 几何口径 / 跨帧同一偏移 / 不更糟 / 降级可见）',
-    'tests/label-avoid-selftest.mjs',
   ],
   [
     '㉟ 历史与审计取证（第 8 期 M23：表结构与写入接口位 / Key 按字节不入库 / 审计留痕 / 驱动缺失要吵 / 界面无入口）',

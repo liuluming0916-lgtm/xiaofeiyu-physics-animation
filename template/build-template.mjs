@@ -21,6 +21,8 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SLOT_KEY_NAMES, TEMPLATE_VERSION, SDK_VERSION } from '../contracts/spec/frozen-keys.mjs';
+import { parseStepsSlot } from '../sdk/runtime/animation-runtime.mjs';
+import { buildDisplayTiming } from '../core/timing/display-time.mjs';
 
 export const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TEMPLATE_PATH = join(PROJECT_ROOT, 'template', 'animation-template.html');
@@ -116,6 +118,8 @@ function loadTexSvg(questionId) {
 export function buildQuestionHtml(program, templateText, runtimeText, texText, provenance, opts = {}) {
   const texSvg = opts.texSvg ?? loadTexSvg(program.id);
   const labelAvoidText = opts.labelAvoidText ?? '';
+  /* 时长归一化：每小问 4 s。stepTimes 里的 `sub` 决定分组；没有 sub 就当一整题一问。 */
+  const timing = buildDisplayTiming(opts.stepTimes ?? program.stepTimes ?? null);
   const payload = {
     id: program.id,
     index: program.index,
@@ -127,6 +131,11 @@ export function buildQuestionHtml(program, templateText, runtimeText, texText, p
     texSvg: { renderer: texSvg.renderer, formulas: texSvg.formulas },
     /* C2：标注避让表（由调用方按需算好传进来；不传就是 null ⇒ 字不挪） */
     labelAvoid: opts.labelAvoid ?? null,
+    /* v6：步骤时间（couple 产出；已换算到**显示秒**；没有就不联动） */
+    stepTimes: timing.stepTimes,
+    /* 时长归一化：显示秒 ↔ 物理秒的分段映射；null ⇒ 恒等（老产物行为不变） */
+    timeMap: timing.timeMap,
+    displayDuration: timing.displayDuration,
   };
 
   let html = templateText;
@@ -316,13 +325,18 @@ export async function main() {
       continue; // 尚未手写的题目跳过（构建链允许增量）
     }
     const texSvg = loadTexSvg(program.id);
+    // 演示题仍带 STEPS 时间；这里生成 stepTimes，仅用于回归页的联动演示。
+    const demoSteps = parseStepsSlot(program.slots.STEPS ?? '');
+    const stepTimes = demoSteps
+      .map((s, i) => ({ step: i + 1, t0: s.t0, t1: s.t1 }))
+      .filter((s) => Number.isFinite(s.t0) && Number.isFinite(s.t1) && s.t1 > s.t0);
     const html = buildQuestionHtml(
       program,
       templateText,
       runtimeText,
       texText,
       provenanceLine(program, contractHash, texSvg),
-      { texSvg, labelAvoidText },
+      { texSvg, labelAvoidText, stepTimes: stepTimes.length ? stepTimes : null },
     );
     writeFileSync(join(BUILD_DIR, `${program.id}.html`), html, 'utf8');
     const report = reportIndex.get(program.id);

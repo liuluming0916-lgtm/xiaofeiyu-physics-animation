@@ -189,8 +189,9 @@ export function splitSlots(text, opts = {}) {
         message: `缺少槽位 ${key} 的标记`,
         hint: `每个槽位都要写成 /* @slot:${key} */ … /* @end */（§3.5）`,
       });
-    } else if (raw.trim() === '') {
+    } else if (raw.trim() === '' && key !== 'ANSWERS') {
       // §3.2 审计 2：空字符串视为该槽位缺失，按对应检查报错，**不得静默通过**
+      // ⚠ 例外：C7 已删（2026-10-22），ANSWERS 允许为空；程序形状仍保留这个键。
       diagnostics.push({
         code: 'slot.empty',
         slot: key,

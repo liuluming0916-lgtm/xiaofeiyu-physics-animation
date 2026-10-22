@@ -136,8 +136,6 @@ var sx = function (s) { return -1.10 + 0.055 * s; };
 
 Draw.line([-1.62, yA - 0.18], [6.20, yA - 0.18], { color: '#9aa7b4', width: 1.0, dash: true });
 Draw.line([-1.62, yB - 0.18], [6.20, yB - 0.18], { color: '#9aa7b4', width: 1.0, dash: true });
-Draw.text(-1.55, yA + 0.30, '甲车道', { size: 11, color: '#5d6b7a', align: 'left' });
-Draw.text(-1.55, yB + 0.30, '乙车道', { size: 11, color: '#5d6b7a', align: 'left' });
 
 /* 全程轨迹（浅灰虚线）：两车各自走过的路径。用只读探针 context.at(t) 采样全时段，
    注意 at() 只允许在 drawFrame 里用 —— 放进 stateAt 会变成"每帧重算全时段"，C1 会拦。 */
@@ -154,30 +152,22 @@ Draw.trace(traceB, { color: '#c8d0d8', dash: true, width: 1.2, layer: 0 });
 
 var marker = sx(0);
 Draw.line([marker, yA - 0.36], [marker, yA + 0.36], { color: '#1d2733', width: 1.4 });
-Draw.text(marker, yA + 0.54, '标志牌（t = 0 甲在此）', { size: 11, color: '#1d2733' });
 
 var carA = sx(state.sA);
 var carB = sx(state.xB);
 Draw.box([carA, yA], 0.34, 0.22, { angleDeg: 0, fill: '#ffffff', stroke: '#1d2733' });
-Draw.text(carA, yA - 0.30, '甲', { size: 11, color: '#1d2733' });
 Draw.box([carB, yB], 0.34, 0.22, { angleDeg: 0, fill: '#ffffff', stroke: '#2a6f8f' });
-Draw.text(carB, yB - 0.30, '乙', { size: 11, color: '#2a6f8f' });
 
 /* v/a 由 bodies 自动生成（画面坐标下的速度/加速度，方向与真实一致）。 */
 
 /* 相遇事件：t ≥ t₁ 后在相遇点留下标记 */
 if (state.caught) {
   Draw.circle([sx(state.sA), yB], 0.075, { fill: '#b3382f', stroke: '#b3382f' });
-  Draw.text(sx(state.sA), yB - 0.36, 't₁ 相遇', { size: 12, color: '#b3382f' });
 }
 
 /* 间距标注：相遇前 Δs > 0；相遇后变号（乙已在前） */
 var mx = sx(state.sA);
 var nx = sx(state.xB);
-Draw.dimension([mx, 1.50], [nx, 1.50], { kind: 'linear', text: 'Δs = ' + Phys.format(state.gap, 'm', 2) });
-Draw.text(-1.55, 1.24, state.caught
-  ? 't > t₁：乙已超过甲且仍在加速，间距反向增大（不会二次相遇）'
-  : '相遇前：Δs 先变大（t′ = 5 s 时最大 29 m）后变小', { size: 11, color: '#5d6b7a', align: 'left' });
 
 /* s–t 图：两条图线的交点就是相遇时刻 */
 /* 曲线图已移交模板页的图表面板（§13.4：横轴 t、游标与画布同一个 t、可切量/可隐藏）。

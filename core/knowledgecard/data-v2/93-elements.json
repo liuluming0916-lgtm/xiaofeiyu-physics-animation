@@ -7,11 +7,11 @@
       "title": "元件·物块 / 滑块",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·物块 / 滑块（力学器材）\n\n## 判据\n题面或配图里出现「物块」「滑块」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6 };\n- drawFrame 里写：Draw.box([state.x, 0.15], 0.4, 0.3);\n\n## 这条元件最常错的地方\n宽高写成像素；块心算到板外（穿模）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·物块 / 滑块\n\n## 判据\n题面或配图里出现「物块」「滑块」这类东西时画这一件。\n\n## 状态字段\n- `state.<key>.angleDeg` 由运行时按速度方向注入；没有速度时由场景卡给静态角。\n- `state.<key>.x / .y` 是物理接触点；画形状用 `state.<key>.cx / .cy`（视觉中心）。\n- `state.<key>.w / .h` 是视觉尺寸；不要写死宽高。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h, { angleDeg: state.e0.angleDeg });`\n\n## 这条元件最常错的地方\n用 `x/y` 当块心（块会沉进支撑面）；写死 `+0.1` 或 `0.4×0.3`。\n\n## 自检\n- [ ] 用 `cx/cy/w/h`，没有写死半高或宽高。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
       "order": 900,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.box([state.x, 0.15], 0.4, 0.3);\n`"
+        "Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h, { angleDeg: state.e0.angleDeg });"
       ],
       "kind": "element",
       "constant": false,
@@ -24,11 +24,11 @@
       "title": "元件·长木板 / 小车",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·长木板 / 小车（力学器材）\n\n## 判据\n题面或配图里出现「长木板」「小车」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { xBoard: 1.0 };\n- drawFrame 里写：Draw.box([state.xBoard, 0.05], 3.0, 0.1);\n\n## 这条元件最常错的地方\n板长取\"看起来合适\"的数，而不是题面给的 L\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·长木板 / 小车\n\n## 判据\n题面或配图里出现「长木板」「平板」「车板」「小车」这类东西时画这一件；小车不画轮子，用矩形示意即可。\n\n## 状态字段\n- `state.<key>.angleDeg` 由运行时按速度方向注入；没有速度时由场景卡给静态角。\n- `state.<key>.x / .y` 是物理接触点；画形状用 `state.<key>.cx / .cy`。\n- `state.<key>.w / .h` 是视觉尺寸；板长与板厚都从这里读。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h, { angleDeg: state.e0.angleDeg });`\n\n## 这条元件最常错的地方\n写死 `y=0.05` 或板长；板是长条；小车也只用矩形示意，不画轮子。\n\n## 自检\n- [ ] 用 `cx/cy/w/h`，没有写死板厚或板长。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
       "order": 901,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.box([state.xBoard, 0.05], 3.0, 0.1);\n`"
+        "Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h, { angleDeg: state.e0.angleDeg });"
       ],
       "kind": "element",
       "constant": false,
@@ -37,49 +37,15 @@
       ]
     },
     {
-      "id": "wb_el_incline",
-      "title": "元件·斜面 / 斜坡",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·斜面 / 斜坡（力学器材）\n\n## 判据\n题面或配图里出现「斜面」「斜坡」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 });\n\n## 这条元件最常错的地方\n`angleDeg` 正负决定坡脚在右下还是左下；顶点是**最高**那端\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 902,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "incline"
-      ]
-    },
-    {
-      "id": "wb_el_ground",
-      "title": "元件·地面 / 墙面（斜线阴影）",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·地面 / 墙面（斜线阴影）（力学器材）\n\n## 判据\n题面或配图里出现「地面」「墙面」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.ground(-1.5, 2.5);\n\n## 这条元件最常错的地方\n`Draw.incline` 自带阴影底面，再叠一层 ground 会出现双阴影\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 903,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.ground(-1.5, 2.5);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "ground"
-      ]
-    },
-    {
       "id": "wb_el_ball",
-      "title": "元件·小球 / 质点",
+      "title": "元件·小球 / 质点 / 卫星",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·小球 / 质点（力学器材）\n\n## 判据\n题面或配图里出现「小球」「质点」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.8 };\n- drawFrame 里写：Draw.circle([state.x, state.y], 0.08);\n\n## 这条元件最常错的地方\n用 `Draw.ball`（SDK 里没有这个名字 ⇒ C1 直接判未声明的名字）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·小球 / 质点 / 卫星\n\n## 判据\n题面或配图里出现「小球」「质点」「卫星」这类东西时画这一件；质点和卫星按题目语义可以画成小球，也可以画成小物块。\n\n## 状态字段\n- `state.<key>.x / .y` 是物理接触点；画形状用 `state.<key>.cx / .cy`。\n- 小球用 `state.<key>.r`；质点画成点时用 `state.<key>.pointR`；质点画成物块时用 `state.<key>.w / .h`。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- 小球/质点（圆形）：`Draw.circle([state.e0.cx, state.e0.cy], state.e0.r);`\n- 质点按题意当物块（方形）：`Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);`\n\n## 这条元件最常错的地方\n质点一律画成大圆；或反过来把小球画成方块。按题目语义选 `circle` 或 `box`，不要自造 SDK 里没有的函数名。\n\n## 自检\n- [ ] 用 `cx/cy`；小球/卫星用 `r`，方块用 `w/h`。\n- [ ] 卫星只画本体，椭圆轨道归 `celestial_orbit` 场景。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
       "order": 904,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.circle([state.x, state.y], 0.08);\n`"
+        "Draw.circle([state.e0.cx, state.e0.cy], state.e0.r);"
       ],
       "kind": "element",
       "constant": false,
@@ -88,32 +54,15 @@
       ]
     },
     {
-      "id": "wb_el_arc_track",
-      "title": "元件·圆弧轨道 / 拱桥",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·圆弧轨道 / 拱桥（力学器材）\n\n## 判据\n题面或配图里出现「圆弧轨道」「拱桥」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.arc([0, 0], 0.8, -90, 90);\n\n## 这条元件最常错的地方\n`Draw.arc` 的角度是**角度制、逆时针为正**，别塞弧度\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 905,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.arc([0, 0], 0.8, -90, 90);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "arc_track"
-      ]
-    },
-    {
       "id": "wb_el_spring",
       "title": "元件·弹簧",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·弹簧（力学器材）\n\n## 判据\n题面或配图里出现「弹簧」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { yTop: 1.6 };\n- drawFrame 里写：Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 });\n\n## 这条元件最常错的地方\n两端锚点必须同一个来源；只更新一端，弹簧会\"斜穿\"物体\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·弹簧（连接件）\n\n## 判据\n题面或配图里出现「弹簧」这类东西时画这一件；它通常只是连接件。\n\n## 状态字段\n- 两端各取一个端点：A 可以是 `state.<key>.cx / .cy`，也可以是固定世界坐标；B 同理。\n- 两端都要更新；只接一端会让弹簧“斜穿”物体。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.spring([0, 1.8], [state.e0.cx, state.e0.cy], { coils: 12 });`\n\n## 这条元件最常错的地方\n两端各写一套来源；只更新活动端；把弹簧当成有质量的振子。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 没有给弹簧硬造独立 state。\n- [ ] 坐标是米，画布上不写字。",
       "order": 906,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.spring([0, 2.0], [0, state.yTop], { coils: 12 });\n`"
+        "Draw.spring([0, 1.8], [state.e0.cx, state.e0.cy], { coils: 12 });"
       ],
       "kind": "element",
       "constant": false,
@@ -122,32 +71,15 @@
       ]
     },
     {
-      "id": "wb_el_pulley",
-      "title": "元件·滑轮",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·滑轮（力学器材）\n\n## 判据\n题面或配图里出现「滑轮」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.pulley([0, 2.4], 0.2);\n\n## 这条元件最常错的地方\n过滑轮的绳要画成**两段**，切点离圆心距离 = r\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 907,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.pulley([0, 2.4], 0.2);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "pulley"
-      ]
-    },
-    {
       "id": "wb_el_rope",
       "title": "元件·绳 / 细线",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·绳 / 细线（力学器材）\n\n## 判据\n题面或配图里出现「绳」「细线」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { yA: 1.2 };\n- drawFrame 里写：Draw.line([-0.2, 2.4], [-0.2, state.yA]);\n\n## 这条元件最常错的地方\n绳松弛时仍画成直线（物理状态被画没了）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·绳 / 细线（连接件）\n\n## 判据\n题面或配图里出现「绳」「细线」这类东西时画这一件；它通常只是连接件。\n\n## 状态字段\n- 两端各取一个端点：A / B 都可以是 `state.<key>.cx / .cy` 或固定世界坐标。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.line([0, 1.8], [state.e0.cx, state.e0.cy]);`\n\n## 这条元件最常错的地方\n只接一端；绳松弛时仍硬拉成直线（没有松弛量就画直绳，并承认这是示意）。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 没有硬造独立 state。\n- [ ] 坐标是米，画布上不写字。",
       "order": 908,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.line([-0.2, 2.4], [-0.2, state.yA]);\n`"
+        "Draw.line([0, 1.8], [state.e0.cx, state.e0.cy]);"
       ],
       "kind": "element",
       "constant": false,
@@ -156,185 +88,15 @@
       ]
     },
     {
-      "id": "wb_el_rod",
-      "title": "元件·导体棒 / 轻杆",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·导体棒 / 轻杆（力学器材）\n\n## 判据\n题面或配图里出现「导体棒」「轻杆」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { xr: 0.8 };\n- drawFrame 里写：Draw.line([state.xr, 0], [state.xr, 0.5], { width: 3 });\n\n## 这条元件最常错的地方\n杆的弹力方向当成\"沿杆\"（轻杆可以推，方向要解出来）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 909,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.line([state.xr, 0], [state.xr, 0.5], { width: 3 });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "rod"
-      ]
-    },
-    {
-      "id": "wb_el_stand",
-      "title": "元件·铁架台 / 支架",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·铁架台 / 支架（力学器材）\n\n## 判据\n题面或配图里出现「铁架台」「支架」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.line([-1.2, 0], [-1.2, 2.2], { width: 2 });\nDraw.ground(-1.6, 2.4);\n\n## 这条元件最常错的地方\n支架每帧重算坐标（静态几何应当在 `setup()` 里算一次）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 910,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.line([-1.2, 0], [-1.2, 2.2], { width: 2 });\nDraw.ground(-1.6, 2.4);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "stand"
-      ]
-    },
-    {
-      "id": "wb_el_belt",
-      "title": "元件·传送带 / 履带",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·传送带 / 履带（力学器材）\n\n## 判据\n题面或配图里出现「传送带」「履带」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.belt([0, 0.2], [4, 0.2], { ticks: 16 });\n\n## 这条元件最常错的地方\n刻度数 < 8，看不出带在动；刻度相位不用 `v·t` 取模\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 911,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.belt([0, 0.2], [4, 0.2], { ticks: 16 });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "belt"
-      ]
-    },
-    {
-      "id": "wb_el_circuit",
-      "title": "元件·电路 / 导线 / 电表",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·电路 / 导线 / 电表（场与电）\n\n## 判据\n题面或配图里出现「电路」「导线」「电表」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { I: 0.5 };\n- drawFrame 里写：Draw.line([0, 0], [2, 0]);\nDraw.line([2, 0], [2, 1]);\nDraw.line([2, 1], [0, 1]);\nDraw.line([0, 1], [0, 0]);\nDraw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: Math.abs(state.I), label: 'I', unit: 'A' });\n\n## 这条元件最常错的地方\n接线柱坐标每帧重算；箭头方向画成电压方向（应为**电流**方向）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 912,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.line([0, 0], [2, 0]);\nDraw.line([2, 0], [2, 1]);\nDraw.line([2, 1], [0, 1]);\nDraw.line([0, 1], [0, 0]);\nDraw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: Math.abs(state.I), label: 'I', unit: 'A' });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "circuit"
-      ]
-    },
-    {
-      "id": "wb_el_plates",
-      "title": "元件·平行板 / 极板",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·平行板 / 极板（场与电）\n\n## 判据\n题面或配图里出现「平行板」「极板」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.line([-1, 1.6], [3, 1.6], { width: 3 });\nDraw.line([-1, 0.4], [3, 0.4], { width: 3 });\n\n## 这条元件最常错的地方\n板间有场、板外没场：板外那段必须换回直线运动\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 913,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.line([-1, 1.6], [3, 1.6], { width: 3 });\nDraw.line([-1, 0.4], [3, 0.4], { width: 3 });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "plates"
-      ]
-    },
-    {
-      "id": "wb_el_field_region",
-      "title": "元件·匀强场区（× / · 阵列）",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·匀强场区（× / · 阵列）（场与电）\n\n## 判据\n题面或配图里出现「匀强场区」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 });\n\n## 这条元件最常错的地方\n`rect` 必须是 `{x,y,w,h}`（写成两个点会直接抛错）；阵列溢出场区\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 914,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "field_region"
-      ]
-    },
-    {
-      "id": "wb_el_ray",
-      "title": "元件·光线",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·光线（场与电）\n\n## 判据\n题面或配图里出现「光线」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.ray([-1, 0.8], [0, 0.8]);\n\n## 这条元件最常错的地方\n全反射时仍画一条\"淡淡的折射光\"（超过临界角就没有折射段）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 915,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.ray([-1, 0.8], [0, 0.8]);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "ray"
-      ]
-    },
-    {
-      "id": "wb_el_lens",
-      "title": "元件·透镜",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·透镜（场与电）\n\n## 判据\n题面或配图里出现「透镜」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 });\n\n## 这条元件最常错的地方\n`height` 与 `focal` 是必填（都是几何量），缺一个直接抛错\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 916,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "lens"
-      ]
-    },
-    {
-      "id": "wb_el_light_spot",
-      "title": "元件·光斑 / 照射区域",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·光斑 / 照射区域（场与电）\n\n## 判据\n题面或配图里出现「光斑」「照射区域」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' });\n\n## 这条元件最常错的地方\n`polygon` 的 `fill` 是**颜色字符串**（`chart` 的 `fill` 才是开关 `true`）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 917,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "light_spot"
-      ]
-    },
-    {
-      "id": "wb_el_vector",
-      "title": "元件·矢量箭头（受力 / 辅助）",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·矢量箭头（受力 / 辅助）（矢量与标注）\n\n## 判据\n题面或配图里出现「矢量箭头」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.6, f: 3 };\n- drawFrame 里写：Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' });\n\n## 这条元件最常错的地方\n还想自己画 v/a（已改由 `SIM.bodies` 自动生成，C1 会直接打回）；缺 `mag`；起点不锚在实体中心、还手写偏移\n\n## 速度 / 加速度箭头\n**v/a 不再由模型画**。在 `VIEW` 里声明刚体位置：`SIM.bodies = [{ id, at: (state) => [x, y] }]`，运行时会自动画 v（绿）与 a（蓝），并保证箭头与画面里的运动一致。\n· 物体在动就必须声明 `bodies`；静止的题不用。\n· 相变点不在 `STEPS` 边界上时（碰撞、圆弧切平抛），用 `SIM.phases = [{t0,t1}]` 补上。\n· `Draw.arrow` 只留给 `force`（红）与 `aux`（紫：传送带速度、电流、速度分量）。\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 918,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.arrow([state.x, state.y], [1, 0], { category: 'force', mag: state.f, label: 'F', unit: 'N' });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "vector"
-      ]
-    },
-    {
       "id": "wb_el_trace_path",
       "title": "元件·轨迹",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·轨迹（矢量与标注）\n\n## 判据\n题面或配图里出现「轨迹」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { x: 0.6, y: 0.4 };\n- drawFrame 里写：Draw.trace([[0, 0], [state.x, state.y]]);\n\n## 这条元件最常错的地方\n另写一条解析曲线当轨迹（与实体位置不一致）；画\"还没发生\"的时段\n\n## 虚线约定\n`Draw.trace` 默认就是虚线；要显式画一条虚线用 `Draw.line(a, b, { dash: true })`；实线不写或 `dash: false`。只有自定义间距才写 `[n, m]`。\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·轨迹（跟随件）\n\n## 判据\n题面或配图里出现「轨迹」这类东西时画这一件；它不独立触发，必须跟随一个运动元件。\n\n## 状态字段\n- 目标元件的 `state.<key>.cx / .cy` 是采样点；没有目标就不画。\n- 用 `context.at(tt)` 采样历史，只画到当前 `t` 为止；不要画“还没发生”的时段。\n\n## 画法\n- `Draw.trace([[0, 0], [state.e0.cx, state.e0.cy]]);`\n\n## 这条元件最常错的地方\n另写一条解析曲线当轨迹；没有目标还硬画；把未来时段也画出来。\n\n## 自检\n- [ ] 轨迹跟随一个真实运动元件。\n- [ ] 只画到当前 `t`，没有未来时段。\n- [ ] 坐标是米，画布上不写字。",
       "order": 919,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.trace([[0, 0], [state.x, state.y]]);\n`"
+        "Draw.trace([[0, 0], [state.e0.cx, state.e0.cy]]);"
       ],
       "kind": "element",
       "constant": false,
@@ -343,83 +105,15 @@
       ]
     },
     {
-      "id": "wb_el_paper_tape",
-      "title": "元件·纸带 / 点迹",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·纸带 / 点迹（矢量与标注）\n\n## 判据\n题面或配图里出现「纸带」「点迹」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { d1: 0.2 };\n- drawFrame 里写：Draw.box([0.5, -0.6], 2.0, 0.12);\nDraw.circle([state.d1, -0.6], 0.01);\n\n## 这条元件最常错的地方\n点间隔不等（相邻时刻差必须是打点周期 T）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 920,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.box([0.5, -0.6], 2.0, 0.12);\nDraw.circle([state.d1, -0.6], 0.01);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "paper_tape"
-      ]
-    },
-    {
-      "id": "wb_el_ghosts",
-      "title": "元件·频闪残影",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·频闪残影（矢量与标注）\n\n## 判据\n题面或配图里出现「频闪残影」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.ghosts([[0, 0.2], [0.5, 0.2], [1.0, 0.2]]);\n\n## 这条元件最常错的地方\n残影时刻不等距；把残影和纸带点迹混用\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 921,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.ghosts([[0, 0.2], [0.5, 0.2], [1.0, 0.2]]);\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "ghosts"
-      ]
-    },
-    {
-      "id": "wb_el_measuring_tool",
-      "title": "元件·尺寸/角度标注（刻度尺）",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·尺寸/角度标注（刻度尺）（矢量与标注）\n\n## 判据\n题面或配图里出现「尺寸」「角度标注」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.dimension([0, 0.4], [1, 0.4], { kind: 'linear', text: 'L = 1.0 m' });\n\n## 这条元件最常错的地方\n`kind` 只能是 `linear` | `angle`；把读数写成答案文本而不是由几何算出\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 922,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.dimension([0, 0.4], [1, 0.4], { kind: 'linear', text: 'L = 1.0 m' });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "measuring_tool"
-      ]
-    },
-    {
-      "id": "wb_el_axis_box",
-      "title": "元件·坐标轴框（v–t / p–V）",
-      "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·坐标轴框（v–t / p–V）（图示）\n\n## 判据\n题面或配图里出现「坐标轴框」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' });\n\n## 这条元件最常错的地方\n只写字母不写单位；量程盖不住数据（点跑出框外）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 923,
-      "priority": "high",
-      "code_examples": [
-        "drawFrame: `\n  Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' });\n`"
-      ],
-      "kind": "element",
-      "constant": false,
-      "elements": [
-        "axis_box"
-      ]
-    },
-    {
       "id": "wb_el_graph_wave",
       "title": "元件·波形 / 连续曲线",
       "origin": "builtin",
-      "enabled": true,
-      "content": "# 元件·波形 / 连续曲线（图示）\n\n## 判据\n题面或配图里出现「波形」「连续曲线」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.curve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]]);\n\n## 这条元件最常错的地方\n采样点太少（折线感）；波形平移用重画新线而不是整条平移\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "enabled": false,
+      "content": "# 元件·波形 / 连续曲线\n\n## 判据\n题面或配图里出现「波形」「连续曲线」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.cxrve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]]);`\n\n## 这条元件最常错的地方\n采样点太少（折线感）；波形平移用重画新线而不是整条平移\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
       "order": 924,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.curve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]]);\n`"
+        "Draw.cxrve([[0, 0], [0.5, 0.3], [1, 0], [1.5, -0.3]]);"
       ],
       "kind": "element",
       "constant": false,
@@ -428,88 +122,377 @@
       ]
     },
     {
-      "id": "wb_el_chart",
-      "title": "元件·图线 + 面积着色",
+      "id": "wb_sc_ground",
+      "title": "场景·地面 / 墙面（斜线阴影）",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·图线 + 面积着色（图示）\n\n## 判据\n题面或配图里出现「图线 + 面积着色」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.chart([[0, 0], [1, 2], [2, 4]], { fill: true, baseline: 0 });\n\n## 这条元件最常错的地方\n面积全时段都填；符号题（readouts 无数值）就干脆不画图（应当用 setup 的示意值画，并在图注写\"示意\"）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 925,
+      "content": "# 场景·地面 / 墙面（斜线阴影）\n\n## 判据\n题面或配图里出现「地面」「墙面」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.ground(-1.5, 2.5);`\n\n## 这条元件最常错的地方\n`Draw.incline` 自带阴影底面，再叠一层 ground 会出现双阴影\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 903,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.chart([[0, 0], [1, 2], [2, 4]], { fill: true, baseline: 0 });\n`"
+        "Draw.ground(-1.5, 2.5);"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "ground"
+      ]
+    },
+    {
+      "id": "wb_sc_incline",
+      "title": "场景·斜面 / 斜坡",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·斜面 / 斜坡\n\n## 判据\n题面或配图里出现「斜面」「斜坡」「斜面体」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；顶点、倾角、沿面长度由场景卡或题面给定。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.cx / .cy`；静止时不要读 state。\n- 物块的中心沿斜面法向抬半高，由视觉几何表算；卡片不写 `+0.1`。\n\n## 画法\n- `Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 });`\n\n## 这条元件最常错的地方\n顶点不是最高点；`angleDeg` 正负反了；斜面没有穿过物块在 `t=0` 的接触点。\n\n## 自检\n- [ ] 顶点是最高点，坡脚方向与 `angleDeg` 正负一致。\n- [ ] 斜面穿过物块在 `t=0` 的接触点。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 902,
+      "priority": "high",
+      "code_examples": [
+        "Draw.incline([0, 0.6], { angleDeg: 30, length: 1.2 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "incline"
+      ]
+    },
+    {
+      "id": "wb_sc_belt",
+      "title": "场景·传送带 / 履带",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·传送带 / 履带\n\n## 判据\n题面或配图里出现「传送带」「履带」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；带面顶的 `y` 由场景卡给定。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.cx / .cy`；静止时不要读 state。\n- 放在带上的物体，其物理接触点必须与带面顶同一个 `y`。\n- 需要让带看起来在动时，用 `tickPhase` 随时间平移；不要改带面位置。\n\n## 画法\n- `Draw.belt([0, 0.2], [4, 0.2], { ticks: 16, tickPhase: t * 1.5 });`\n\n## 这条元件最常错的地方\n带面 `y` 与物块接触点不一致；`tickPhase` 不随时间变，带看起来不动。\n\n## 自检\n- [ ] 带面顶与物块接触点同高。\n- [ ] 没有读 `state`；坐标是米，画布上不写字。\n- [ ] 需要动画时只改 `tickPhase`，不改带面位置。",
+      "order": 911,
+      "priority": "high",
+      "code_examples": [
+        "Draw.belt([0, 0.2], [4, 0.2], { ticks: 16, tickPhase: t * 1.5 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "belt"
+      ]
+    },
+    {
+      "id": "wb_sc_arc_track",
+      "title": "场景·圆弧轨道 / 拱桥",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·圆弧轨道 / 拱桥\n\n## 判据\n题面或配图里出现「圆弧轨道」「拱桥」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.arc([0, 0], 0.8, -90, 90);`\n\n## 这条元件最常错的地方\n`Draw.arc` 的角度是**角度制、逆时针为正**，别塞弧度\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 905,
+      "priority": "high",
+      "code_examples": [
+        "Draw.arc([0, 0], 0.8, -90, 90);"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "arc_track"
+      ]
+    },
+    {
+      "id": "wb_sc_pulley",
+      "title": "场景·滑轮",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·滑轮\n\n## 判据\n题面或配图里出现「滑轮」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.pulley([0, 2.4], 0.2);`\n\n## 这条元件最常错的地方\n过滑轮的绳要画成**两段**，切点离圆心距离 = r\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 907,
+      "priority": "high",
+      "code_examples": [
+        "Draw.pulley([0, 2.4], 0.2);"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "pulley"
+      ]
+    },
+    {
+      "id": "wb_sc_plates",
+      "title": "场景·平行板 / 极板",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·平行板 / 极板\n\n## 判据\n题面或配图里出现「平行板」「极板」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.line([-1, 1.6], [3, 1.6], { width: 3 });`\n- `Draw.line([-1, 0.4], [3, 0.4], { width: 3 });`\n\n## 这条元件最常错的地方\n板间有场、板外没场：板外那段必须换回直线运动\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 913,
+      "priority": "high",
+      "code_examples": [
+        "Draw.line([-1, 1.6], [3, 1.6], { width: 3 });\nDraw.line([-1, 0.4], [3, 0.4], { width: 3 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "plates"
+      ]
+    },
+    {
+      "id": "wb_sc_ray",
+      "title": "场景·光线",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·光线\n\n## 判据\n题面或配图里出现「光线」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.ray([-1, 0.8], [0, 0.8]);`\n\n## 这条元件最常错的地方\n全反射时仍画一条\"淡淡的折射光\"（超过临界角就没有折射段）\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 915,
+      "priority": "high",
+      "code_examples": [
+        "Draw.ray([-1, 0.8], [0, 0.8]);"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "ray"
+      ]
+    },
+    {
+      "id": "wb_sc_lens",
+      "title": "场景·透镜",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·透镜\n\n## 判据\n题面或配图里出现「透镜」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 });`\n\n## 这条元件最常错的地方\n`height` 与 `focal` 是必填（都是几何量），缺一个直接抛错\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 916,
+      "priority": "high",
+      "code_examples": [
+        "Draw.lens([1, 0.8], { height: 1.2, focal: 0.5 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "lens"
+      ]
+    },
+    {
+      "id": "wb_sc_light_spot",
+      "title": "场景·光斑 / 照射区域",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·光斑 / 照射区域\n\n## 判据\n题面或配图里出现「光斑」「照射区域」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' });`\n\n## 这条元件最常错的地方\n`polygon` 的 `fill` 是**颜色字符串**（`chart` 的 `fill` 才是开关 `true`）\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 917,
+      "priority": "high",
+      "code_examples": [
+        "Draw.polygon([[1.4, 0.2], [1.6, 0.26], [1.6, 0.14]], { fill: 'rgba(90,150,255,0.25)' });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "light_spot"
+      ]
+    },
+    {
+      "id": "wb_sc_axis_box",
+      "title": "场景·坐标轴框（v–t / p–V）",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·坐标轴框（v–t / p–V）\n\n## 判据\n题面或配图里出现「坐标轴框」这类东西时画这一件。\n\n## 状态字段\n- 本元件通常静止，不需要 `state`；按读题几何用固定世界坐标画。\n- 若读题判定它也会动，才按 user 消息的映射读 `state.<key>.x / .y`。\n\n## 画法\n- `Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' });`\n\n## 这条元件最常错的地方\n只写字母不写单位；量程盖不住数据（点跑出框外）\n\n## 自检\n- [ ] 静止几何用固定世界坐标，不跟 `state` 漂移。\n- [ ] 坐标是米，没有像素；画布上不写字。\n- [ ] 需要读 state 时才用 `state.<key>.x / .y`，没有 `stateAt / VIEW / setup / readouts / context`。",
+      "order": 923,
+      "priority": "high",
+      "code_examples": [
+        "Draw.axisBox([-0.2, -0.2], 2.4, 4.4, { xLabel: 't', xUnit: 's', yLabel: 'v', yUnit: 'm/s' });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "axis_box"
+      ]
+    },
+    {
+      "id": "wb_sc_rail",
+      "title": "场景·导轨 / 平行导轨",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·导轨 / 平行导轨\n\n## 判据\n题面或配图里出现「导轨」「平行导轨」「金属导轨」这类东西时画这一件。\n\n## 布局\n- 两条平行线，间距 = 题面给的导轨间距；导体棒两端必须落在两条导轨上。\n- 导轨是静态基准，不读 `state`；导轨上的导体棒由 `conductor_rod` 元件卡负责。\n\n## 画法\n- `Draw.line([0, 0], [4, 0], { width: 3 });`\n- `Draw.line([0, 0.4], [4, 0.4], { width: 3 });`\n\n## 这条场景最常错的地方\n导轨间距与导体棒长度不匹配；把导轨画成会动的物体；导轨没接进电路。\n\n## 自检\n- [ ] 两条导轨平行，间距与导体棒长度一致。\n- [ ] 导轨是静态基准，没有读 `state`。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 1000,
+      "priority": "high",
+      "code_examples": [
+        "Draw.line([0, 0], [4, 0], { width: 3 });\nDraw.line([0, 0.4], [4, 0.4], { width: 3 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "rail"
+      ]
+    },
+    {
+      "id": "wb_el_conductor_rod",
+      "title": "元件·导体棒 / 金属棒",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 元件·导体棒 / 金属棒\n\n## 判据\n题面或配图里出现「导体棒」「金属棒」这类东西时画这一件；导轨由 `rail` 场景卡负责。\n\n## 状态字段\n- 用 `state.<key>.cx / .cy` 定棒的中心；棒长与方向由导轨/场景给。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.line([state.e0.cx - 0.5, state.e0.cy], [state.e0.cx + 0.5, state.e0.cy], { width: 3 });`\n\n## 这条元件最常错的地方\n把导轨也画进导体棒；棒长与导轨间距不一致；棒的两端没落在导轨上。\n\n## 自检\n- [ ] 只画棒，导轨交给 `rail` 场景。\n- [ ] 棒长与导轨间距一致，两端落在导轨上。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 909,
+      "priority": "high",
+      "code_examples": [
+        "Draw.line([state.e0.cx - 0.5, state.e0.cy], [state.e0.cx + 0.5, state.e0.cy], { width: 3 });"
       ],
       "kind": "element",
       "constant": false,
       "elements": [
-        "chart"
+        "conductor_rod"
       ]
     },
     {
-      "id": "wb_el_orbit",
-      "title": "元件·卫星 / 天体轨道",
+      "id": "wb_el_light_rod",
+      "title": "元件·轻杆 / 细杆（连接件）",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·卫星 / 天体轨道（图示）\n\n## 判据\n题面或配图里出现「卫星」「天体轨道」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { px: 1.2, py: 0 };\n- drawFrame 里写：Draw.arc([0, 0], 1.2, 0, 360);\nDraw.circle([state.px, state.py], 0.05);\n\n## 这条元件最常错的地方\n椭圆轨道用匀角速度（应满足\"相同时间扫过相同面积\"）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 元件·轻杆 / 细杆（连接件）\n\n## 判据\n题面或配图里出现「轻杆」「细杆」「直杆」这类东西时画这一件；它通常只是连接件，不拥有独立 `state`。\n\n## 状态字段\n- 两端各取一个端点：可以是 `state.<key>.cx / .cy`，也可以是固定世界坐标。\n- 两端都要更新；不要只挪一端。没有独立 state 时不要硬造。\n\n## 画法\n- `Draw.line([0, 1.0], [state.e0.cx, state.e0.cy], { width: 3 });`\n\n## 这条元件最常错的地方\n只接一端；把轻杆当成有质量的转动杆；杆的弹力方向当成“沿杆”。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 轻杆没有被当成独立运动体。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 909,
+      "priority": "high",
+      "code_examples": [
+        "Draw.line([0, 1.0], [state.e0.cx, state.e0.cy], { width: 3 });"
+      ],
+      "kind": "element",
+      "constant": false,
+      "elements": [
+        "light_rod"
+      ]
+    },
+    {
+      "id": "wb_sc_electric_field",
+      "title": "场景·匀强电场",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·匀强电场\n\n## 判据\n题面或配图里出现「匀强电场」「电场」「偏转电场」这类东西时画这一件。\n\n## 布局\n- 场区范围由场景给；电场方向用箭头表示，箭头方向就是正电荷受力方向。\n- 平行板之间的电场归 `plates` 场景，本卡只画场本身。\n\n## 画法\n- `Draw.arrow([0.4, 0.6], [0, 0.6], { category: 'aux', mag: 1 });`\n- `Draw.arrow([1.2, 0.6], [0, 0.6], { category: 'aux', mag: 1 });`\n\n## 这条场景最常错的地方\n把电场方向画成负电荷受力方向；场区越界；电场线穿过极板。\n\n## 自检\n- [ ] 箭头方向是正电荷受力方向。\n- [ ] 场区在极板之间，没有越界。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 914,
+      "priority": "high",
+      "code_examples": [
+        "Draw.arrow([0.4, 0.6], [0, 0.6], { category: 'aux', mag: 1 });\nDraw.arrow([1.2, 0.6], [0, 0.6], { category: 'aux', mag: 1 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "electric_field"
+      ]
+    },
+    {
+      "id": "wb_sc_magnetic_field",
+      "title": "场景·匀强磁场",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·匀强磁场\n\n## 判据\n题面或配图里出现「匀强磁场」「磁场」「磁感线」这类东西时画这一件。\n\n## 布局\n- 场区范围由场景给；垂直纸面向里用叉号，向外用点号。\n- 边界磁场只在场区内铺阵列，不要铺满整屏。\n\n## 画法\n- `Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 });`\n\n## 这条场景最常错的地方\n叉/点方向反了；阵列溢出场区；把磁场边界画成实体墙。\n\n## 自检\n- [ ] 叉号表示向里、点号表示向外。\n- [ ] 阵列只在场区内。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 915,
+      "priority": "high",
+      "code_examples": [
+        "Draw.fieldDots({ x: 0, y: 0, w: 2, h: 1.5 }, { symbol: 'cross', nx: 10, ny: 8 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "magnetic_field"
+      ]
+    },
+    {
+      "id": "wb_sc_celestial_orbit",
+      "title": "场景·天体轨道",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·天体轨道\n\n## 判据\n题面或配图里出现「卫星轨道」「椭圆轨道」「变轨」「双星」这类东西时画这一件。\n\n## 布局\n- 中心天体在焦点；椭圆用 `Draw.ellipse` 画，半轴由场景给。\n- 卫星本体由 `ball` 元件卡画，本卡只画轨道。\n\n## 画法\n- `Draw.ellipse([0, 0], 1.2, 0.8);`\n\n## 这条场景最常错的地方\n把椭圆画成圆；中心天体画在椭圆中心而不是焦点；轨道与卫星位置对不上。\n\n## 自检\n- [ ] 椭圆半轴正确，中心天体在焦点。\n- [ ] 卫星位置落在轨道上。\n- [ ] 坐标是米，画布上不写字。",
       "order": 926,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.arc([0, 0], 1.2, 0, 360);\nDraw.circle([state.px, state.py], 0.05);\n`"
+        "Draw.ellipse([0, 0], 1.2, 0.8);"
       ],
-      "kind": "element",
+      "kind": "scene",
       "constant": false,
-      "elements": [
-        "orbit"
+      "scenes": [
+        "celestial_orbit"
       ]
     },
     {
-      "id": "wb_el_cylinder_piston",
-      "title": "元件·气缸 / 活塞",
+      "id": "wb_sc_cylinder",
+      "title": "场景·气缸 / 汽缸",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·气缸 / 活塞（图示）\n\n## 判据\n题面或配图里出现「气缸」「活塞」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { xp: 0.5 };\n- drawFrame 里写：Draw.box([0, 0.4], 0.24, 0.8);\nDraw.box([0, state.xp], 0.2, 0.04);\n\n## 这条元件最常错的地方\n气体长度与活塞位置两处各算一次（必须同一个变量驱动）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 场景·气缸 / 汽缸\n\n## 判据\n题面或配图里出现「气缸」「汽缸」「封闭气体容器」这类东西时画这一件。\n\n## 布局\n- 气缸是静态容器；活塞由 `piston` 元件卡画。\n- 气体长度由活塞位置与缸底共同决定，不要各画一套。\n\n## 画法\n- `Draw.box([0, 0.4], 0.24, 0.8);`\n\n## 这条场景最常错的地方\n气缸跟着活塞动；缸底与活塞位置不联动。\n\n## 自检\n- [ ] 气缸是静态基准，不读 `state`。\n- [ ] 活塞与缸底共用同一套坐标。\n- [ ] 坐标是米，画布上不写字。",
       "order": 927,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.box([0, 0.4], 0.24, 0.8);\nDraw.box([0, state.xp], 0.2, 0.04);\n`"
+        "Draw.box([0, 0.4], 0.24, 0.8);"
       ],
-      "kind": "element",
+      "kind": "scene",
       "constant": false,
-      "elements": [
-        "cylinder_piston"
+      "scenes": [
+        "cylinder"
       ]
     },
     {
-      "id": "wb_el_gas_tube",
-      "title": "元件·玻璃管 / 水银柱",
+      "id": "wb_sc_gas_tube",
+      "title": "场景·玻璃管 / U形管",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·玻璃管 / 水银柱（图示）\n\n## 判据\n题面或配图里出现「玻璃管」「水银柱」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return { yh: 0.3 };\n- drawFrame 里写：Draw.line([0, 0], [0, 1.2]);\nDraw.line([0.1, 0], [0.1, 1.2]);\nDraw.box([0.05, state.yh], 0.1, 0.2);\n\n## 这条元件最常错的地方\n管口开/闭没区分；水银柱长度与气体长度不联动\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
+      "content": "# 场景·玻璃管 / U形管\n\n## 判据\n题面或配图里出现「玻璃管」「U形管」「细管」这类东西时画这一件。\n\n## 布局\n- 玻璃管是静态容器；水银柱由 `mercury` 元件卡画。\n- 管口开/闭由场景给；管壁不要跟着液面动。\n\n## 画法\n- `Draw.line([0, 0], [0, 1.2]);`\n- `Draw.line([0.1, 0], [0.1, 1.2]);`\n\n## 这条场景最常错的地方\n管口开/闭没区分；管壁跟着液面动。\n\n## 自检\n- [ ] 管口开/闭与题面一致。\n- [ ] 管壁是静态基准，不读 `state`。\n- [ ] 坐标是米，画布上不写字。",
       "order": 928,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.line([0, 0], [0, 1.2]);\nDraw.line([0.1, 0], [0.1, 1.2]);\nDraw.box([0.05, state.yh], 0.1, 0.2);\n`"
+        "Draw.line([0, 0], [0, 1.2]);\nDraw.line([0.1, 0], [0.1, 1.2]);"
       ],
-      "kind": "element",
+      "kind": "scene",
       "constant": false,
-      "elements": [
+      "scenes": [
         "gas_tube"
       ]
     },
     {
-      "id": "wb_el_raw_composite",
-      "title": "元件·复合图形（碰撞/爆炸/火柴人）",
+      "id": "wb_el_piston",
+      "title": "元件·活塞",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·复合图形（碰撞/爆炸/火柴人）（图示）\n\n## 判据\n题面或配图里出现「复合图形」这类东西时画这一件。\n\n## 状态与画法\n- stateAt 里写：return {};\n- drawFrame 里写：Draw.polygon([[-0.1, 0], [0.1, 0], [0.1, 0.2], [-0.1, 0.2]]);\n\n## 这条元件最常错的地方\n把物理分支塞进 `Draw.raw` 的回调里（逃生门只画形状，Dry-Run 也验不到它）\n\n## 两条铁律（所有元件都适用）\n- state.* 的键名必须就是 stateAt(t) 返回的键名（名字不一致读到 undefined，最终 NaN 被 C3 拦下）。\n- 跨槽位读常量用 context.X；读别的时刻用 context.at(tt)，且只能在 drawFrame / readouts 里用。\n\n## 生成后自检（必须逐条在代码中体现）\n- [ ] stateAt 返回的键名与 drawFrame 里读的完全一致。\n- [ ] 坐标是米，没有像素量与像素比例。\n- [ ] 静态几何在 setup() 里算一次，不逐帧重算。",
-      "order": 929,
+      "content": "# 元件·活塞\n\n## 判据\n题面或配图里出现「活塞」「注射器活塞」这类东西时画这一件；气缸由 `cylinder` 场景画。\n\n## 状态字段\n- 用 `state.<key>.cx / .cy` 定活塞中心；`w / h` 是视觉尺寸。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);`\n\n## 这条元件最常错的地方\n活塞与气缸各画一套坐标；活塞厚度写死。\n\n## 自检\n- [ ] 用 `cx/cy/w/h`，与气缸共用同一套坐标。\n- [ ] 坐标是米，画布上不写字。\n- [ ] 气缸由场景卡负责，活塞不重复画缸壁。",
+      "order": 927,
       "priority": "high",
       "code_examples": [
-        "drawFrame: `\n  Draw.polygon([[-0.1, 0], [0.1, 0], [0.1, 0.2], [-0.1, 0.2]]);\n`"
+        "Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);"
       ],
       "kind": "element",
       "constant": false,
       "elements": [
-        "raw_composite"
+        "piston"
+      ]
+    },
+    {
+      "id": "wb_el_mercury",
+      "title": "元件·水银柱（液面 A / 液面 B）",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 元件·水银柱（液面 A / 液面 B）\n\n## 判据\n题面或配图里出现「水银柱」「汞柱」这类东西时画这一件；玻璃管由 `gas_tube` 场景画。\n\n## 状态字段\n- `state.<key>.yA` 与 `state.<key>.yB` 是两个液面的高度，由 `analysis` 分别算出。\n- 只画两个液面之间的填充；管壁与裁剪由 `gas_tube` 场景负责。\n\n## 画法\n- `Draw.polygon([[0, state.e0.yA], [0.1, state.e0.yA], [0.1, state.e0.yB], [0, state.e0.yB]], { fill: 'rgba(120,120,120,0.35)' });`\n- `Draw.line([0, state.e0.yA], [0.1, state.e0.yA], { width: 2 });`\n- `Draw.line([0, state.e0.yB], [0.1, state.e0.yB], { width: 2 });`\n\n## 这条元件最常错的地方\n只画一个液面；把整根柱画成固定长度；液面越出管口。\n\n## 自检\n- [ ] `yA` / `yB` 两个液面都由 analysis 给出。\n- [ ] 只填充两液面之间，管壁归场景卡。\n- [ ] 坐标是米，画布上不写字。",
+      "order": 928,
+      "priority": "high",
+      "code_examples": [
+        "Draw.polygon([[0, state.e0.yA], [0.1, state.e0.yA], [0.1, state.e0.yB], [0, state.e0.yB]], { fill: 'rgba(120,120,120,0.35)' });"
+      ],
+      "kind": "element",
+      "constant": false,
+      "elements": [
+        "mercury"
+      ]
+    },
+    {
+      "id": "wb_sc_wire",
+      "title": "场景·导线 / 电路布局",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·导线 / 电路布局\n\n## 判据\n题面或配图里出现「电路」「导线」「电源」「开关」「电阻」「滑动变阻器」这类东西时画这一件；电表由 `meter` 场景画。\n\n## 布局\n- 电路是静态布景：导线、电源、开关、电阻、变阻器都画在这里。\n- 接线柱位置由场景给；电流方向用 `aux` 箭头，不用文字。\n- 电表只画在 `meter` 场景，本卡不画表盘。\n\n## 画法\n- `Draw.line([0, 0], [2, 0]);`\n- `Draw.line([2, 0], [2, 1]);`\n- `Draw.line([2, 1], [0, 1]);`\n- `Draw.line([0, 1], [0, 0]);`\n- `Draw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: 1 });`\n\n## 这条场景最常错的地方\n接线柱坐标每帧重算；电流方向画成电压方向；把电表表盘也画进导线场景。\n\n## 自检\n- [ ] 电路是静态基准，不读 `state`。\n- [ ] 电流方向用 `aux` 箭头，画布上不写字。\n- [ ] 电表由 `meter` 场景负责，本卡不重复画。",
+      "order": 912,
+      "priority": "high",
+      "code_examples": [
+        "Draw.line([0, 0], [2, 0]);\nDraw.line([2, 0], [2, 1]);\nDraw.line([2, 1], [0, 1]);\nDraw.line([0, 1], [0, 0]);\nDraw.arrow([1.0, 0], [1, 0], { category: 'aux', mag: 1 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "wire"
+      ]
+    },
+    {
+      "id": "wb_sc_meter",
+      "title": "场景·电表",
+      "origin": "builtin",
+      "enabled": true,
+      "content": "# 场景·电表\n\n## 判据\n题面或配图里出现「电流表」「电压表」「多用电表」这类东西时画这一件。\n\n## 布局\n- 电表是静态布景：圆表盘 + 指针；读数由 `readouts` 在画布外显示，画布上不写字。\n- 表的位置由场景给，接线由 `wire` 场景负责。\n\n## 画法\n- `Draw.circle([1.5, 0.8], 0.12);`\n- `Draw.line([1.5, 0.8], [1.56, 0.86], { width: 2 });`\n\n## 这条场景最常错的地方\n表盘上写数字/单位；把电表画成导线的一部分；接线柱没接进电路。\n\n## 自检\n- [ ] 表盘不写字，读数在画布外。\n- [ ] 电表位置固定，不读 `state`。\n- [ ] 接线由 `wire` 场景负责。",
+      "order": 913,
+      "priority": "high",
+      "code_examples": [
+        "Draw.circle([1.5, 0.8], 0.12);\nDraw.line([1.5, 0.8], [1.56, 0.86], { width: 2 });"
+      ],
+      "kind": "scene",
+      "constant": false,
+      "scenes": [
+        "meter"
       ]
     }
   ]

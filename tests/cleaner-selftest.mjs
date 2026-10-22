@@ -100,6 +100,21 @@ console.log('\n『A-2』程序形状（§3.6）');
   check('layout 记录了 appliedRules', Array.isArray(layout.appliedRules));
 }
 
+console.log('\n『A-3』v6：只有 ANSWERS 允许为空（C7 已删）');
+{
+  const text = makeModelOutput({ slots: { ANSWERS: '' } });
+  const r = splitSlots(text);
+  check('空 ANSWERS 不再报 slot.empty', r.ok, formatSplitDiagnostics(r.diagnostics));
+
+  const { program } = buildProgramFromText(text);
+  check('空 ANSWERS 仍装配成 8 槽位', Object.keys(program.slots).length === 8);
+  check('ANSWERS 内容为空（只含空白）', program.slots.ANSWERS.trim() === '', JSON.stringify(program.slots.ANSWERS));
+  check('shape 自检通过（空 ANSWERS 合法）', checkProgramShape(program).ok);
+
+  const otherEmpty = makeModelOutput({ slots: { readouts: '' } });
+  expectRejected('其它槽位为空仍然拒绝', splitSlots(otherEmpty), 'slot.empty');
+}
+
 /* ────────────────────────────── 『B』反例：四种硬失败 ────────────────────────────── */
 
 console.log('\n『B』反例：缺标记 / 重复 / 未知 / 未闭合 —— **必须区分开**');

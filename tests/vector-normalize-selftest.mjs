@@ -305,20 +305,18 @@ async function main() {
     const p = fakeProgram((t, push) => {
       push({ op: 'polygon', points: [[-0.5, 0], [0.5, 0], [0.5, 0.3], [-0.5, 0.3]] });
       push({ op: 'polygon', points: [[-40, 0], [40, 0]], hatch: 'below', closed: false }); // 地面（参考面）
-      push({ op: 'text', x: -39, y: 2, text: '远处的标注' });
-      push({ op: 'latex', x: -39, y: 1, tex: 'k=\\mu mg' });
       push({ op: 'dimension', x1: -38, y1: 0.5, x2: -37, y2: 0.5, kind: 'linear' });
     });
     const plan = computeFramingPlan(p, { samples: 4 });
     check(
-      '★ 取景包络只算实体：地面（hatch）与 text/latex/dimension 都不参与',
+      '★ 取景包络只算实体：地面（hatch）与 dimension 都不参与',
       near(plan.envelope.minX, -0.5, 1e-9) && near(plan.envelope.maxX, 0.5, 1e-9) && near(plan.envelope.maxY, 0.3, 1e-9),
       JSON.stringify(plan.envelope),
     );
     check(
       '★ 但这些命令仍在缓冲里（只是不参与取景，画还是要画）',
       p.drawFrame(0, () => {}) === undefined &&
-        p.buffer.records.some((r) => r.op === 'text') &&
+        p.buffer.records.some((r) => r.op === 'dimension') &&
         p.buffer.records.some((r) => r.op === 'polygon' && r.hatch),
     );
 
@@ -341,12 +339,6 @@ async function main() {
     );
     check('网格步长提示仍然给出（渲染层要用）', tf.gridX > 0 && tf.gridY > 0);
 
-    // 兜底：整题只有标注时，不能没有画幅
-    const onlyText = fakeProgram((t, push) => {
-      push({ op: 'text', x: 3, y: 2, text: '仅标注' });
-    });
-    const plan2 = computeFramingPlan(onlyText, { samples: 4 });
-    check('兜底：只有标注时退回旧口径（画幅不空）', plan2.envelope !== null && Number.isFinite(plan2.envelope.maxX), JSON.stringify(plan2.envelope));
   }
 
   console.log(`\n${failures.length ? '✗' : '✓'} 矢量按类归一取证：通过 ${passed} 条，失败 ${failures.length} 条`);

@@ -318,10 +318,8 @@ var arcPts = [];
 for (var i = 0; i <= 56; i = i + 1) { var pp = context.psiIn + (context.psiOut - context.psiIn) * i / 56; arcPts.push([context.cx + context.R * Math.sin(pp), context.cy + context.R * Math.cos(pp)]); }
 Draw.curve(arcPts, { color: '#2b3440', width: 1.8 });
 Draw.circle([context.cx, context.cy], 0.045, { fill: '#5d6b7a', stroke: '#5d6b7a' });
-Draw.text(context.cx + 0.10, context.cy - 0.05, 'C', { size: 11, color: '#5d6b7a', align: 'left' });
 Draw.line([context.cx, context.cy], [context.cx + context.R * Math.sin(context.psiIn), context.cy + context.R * Math.cos(context.psiIn)], { dash: true, color: '#9aa7b4', width: 1.0 });
 /* 半径虚线（C → 弧上入口点）+ 标注：放在圆心右上方，避免压到斜面与轨迹 */
-Draw.text(context.cx + 0.12, context.cy + 0.56, 'R = 0.60 m', { size: 11, color: '#5d6b7a', align: 'left' });
 
 /* 全程轨迹（虚线）：用只读探针 context.at(t) 采样，不是模型声明的轨迹。
    注意 at() 只允许在 drawFrame 里用——stateAt 里用会变成"每帧重算全时段"，C1 会拦。 */
@@ -353,7 +351,6 @@ if (state.phase < 3 && state.fNormal > 0) {
 }
 
 Draw.line([bx, 0], [bx, context.ayA], { dash: true, color: '#c8d0d8', width: 1.0 });
-Draw.text(bx - 0.72, context.ayA * 0.5, 'L = 3.0 m', { size: 11, color: '#5d6b7a' });
 /* θ 角标：在 B 点用世界坐标折线画 120°→180° 的扇形（不用 Draw.arc，避免角度约定歧义） */
 var wedge = [];
 for (var wi = 0; wi <= 12; wi = wi + 1) {
@@ -361,21 +358,16 @@ for (var wi = 0; wi <= 12; wi = wi + 1) {
   wedge.push([bx + 0.34 * Math.cos(wphi), context.yB + 0.34 * Math.sin(wphi)]);
 }
 Draw.curve(wedge, { color: '#a4610d', width: 1.2 });
-Draw.text(bx - 0.62, context.yB + 0.16, 'θ = 60°', { size: 11, color: '#a4610d', align: 'right' });
 
 if (state.phase === 3) {
   Draw.line([context.xExit, 0.03], [state.x, 0.03], { color: '#a4610d', width: 1.4 });
-  Draw.dimension([context.xExit, 0.20], [state.x, 0.20], { kind: 'linear', text: 'Δx = ' + Phys.format(state.sProj, 'm', 3) });
 }
 Draw.line([context.xExit, 0], [context.xExit, context.yExit], { dash: true, color: '#9aa7b4', width: 1.0 });
-Draw.dimension([context.xExit - 0.06, 0], [context.xExit - 0.06, context.yExit], { kind: 'linear', text: 'h = ' + Phys.format(context.h, 'm', 3) });
 
 var labels = ['斜面段', '圆弧段', '平抛段'];
 /* 说明文字放在右下方空区（弹道下方、地面上方），避免与左侧斜面/圆弧和右侧射程标注重叠 */
 var tx0 = 3.30;
-Draw.text(tx0, 1.62, '当前阶段：' + labels[state.phase - 1], { size: 12, color: '#1d2733', align: 'left' });
-Draw.text(tx0, 1.34, 'v 入口 = ' + Phys.format(state.v1, 'm/s', 4) + '　v 出口 = ' + Phys.format(state.vFloor, 'm/s', 4), { size: 11, color: '#5d6b7a', align: 'left' });
-Draw.text(tx0, 1.06, '自检：相切 ' + Phys.format(context.tangentErr, '', 1) + '　半径 ' + Phys.format(context.radiusErr, '', 1) + '　出口切向 ' + Phys.format(context.exitTangentErr, '', 1) + '　能量 ' + Phys.format(context.energyErr, '', 1), { size: 11, color: '#5d6b7a', align: 'left' });`,
+`,
 
     readouts: String.raw`return [
   { key: 'v', label: '速率', value: state.v, unit: 'm/s', latex: 'v' },
