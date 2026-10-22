@@ -317,7 +317,8 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
     throw new Error('analysis 缺少有效的 T_phys，无法生成动画程序');
   }
   return {
-    PROBLEM: String(problem ?? ''),
+    /* 纯图片题的题面是空串；PROBLEM 不能空，否则清洗器按 slot.empty 硬拒（v1.1.19 修） */
+    PROBLEM: String(problem ?? '').trim() || '（题目见图片）',
     STEPS: buildStepsText(breakdownText, analysis, tPhys),
     // C7 / ANSWERS 已删；留空串，程序形状允许（见 checkProgramShape）
     ANSWERS: '',

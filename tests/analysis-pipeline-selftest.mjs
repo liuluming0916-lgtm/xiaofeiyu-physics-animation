@@ -173,6 +173,86 @@ if (programEvent) {
   check('dryrun_done 带 program', false, '没有 program');
 }
 
+/* ── v1.1.19：纯图片题（题面空）不能再因为 PROBLEM 空槽硬拒 ── */
+{
+  const imageStream = async (opts) => {
+    const text =
+      opts.stage === 'read_problem'
+        ? '标题\n斜面弹簧连接物块\n\n【物体】斜面、物块 M、物块 N、轻质弹簧、水平面'
+        : REPLIES[opts.stage] ?? '（占位）';
+    opts.onDelta?.(text);
+    return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
+  };
+  const imageEvents = await collectEvents({
+    problem: { text: '' },
+    config: {
+      endpoint: {
+        id: 'stub',
+        displayName: 'stub',
+        baseURL: 'http://127.0.0.1:1/v1',
+        defaultModel: 'stub-model',
+        visionModel: 'stub-vision',
+        supportsVision: true,
+        supportsJsonMode: true,
+        enableThinking: false,
+        timeoutMs: 1000,
+      },
+      apiKey: 'sk-test',
+      regexRules: [],
+      knowledgecardEntries: [],
+      knowledgecardVersion: 2,
+      knowledgecardVocab: vocab,
+    },
+    streamImpl: imageStream,
+  });
+  const imageDry = imageEvents.find((e) => e.type === 'dryrun_done');
+  check('★ 纯图片题（无题面）能进 Dry-Run 并通过', imageDry?.verdict === 'pass', JSON.stringify(imageDry?.detail ?? imageDry?.checks));
+  check(
+    '★ 纯图片题的 PROBLEM 用读题标题兜底（不是空槽）',
+    String(imageDry?.program?.slots?.PROBLEM ?? '').trim() === '斜面弹簧连接物块',
+    JSON.stringify(imageDry?.program?.slots?.PROBLEM),
+  );
+}
+
+/* ── v1.1.19：程序组装失败必须发 stage_error + run_done，不能停在“校验中” ── */
+{
+  const brokenStream = async (opts) => {
+    const text = opts.stage === 'scene_code' ? '' : REPLIES[opts.stage] ?? '（占位）';
+    opts.onDelta?.(text);
+    return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
+  };
+  const brokenEvents = await collectEvents({
+    problem: { text: '水平传送带题。' },
+    config: {
+      endpoint: {
+        id: 'stub',
+        displayName: 'stub',
+        baseURL: 'http://127.0.0.1:1/v1',
+        defaultModel: 'stub-model',
+        visionModel: 'stub-vision',
+        supportsVision: true,
+        supportsJsonMode: true,
+        enableThinking: false,
+        timeoutMs: 1000,
+      },
+      apiKey: 'sk-test',
+      regexRules: [],
+      knowledgecardEntries: [],
+      knowledgecardVersion: 2,
+      knowledgecardVocab: vocab,
+    },
+    streamImpl: brokenStream,
+  });
+  const brokenErr = brokenEvents.find((e) => e.type === 'stage_error');
+  const brokenDone = brokenEvents.find((e) => e.type === 'run_done');
+  check(
+    '★ 组装失败发 stage_error（dry_run 不再停在 running）',
+    brokenErr?.stage === 'dry_run' && brokenErr?.error?.kind === 'build',
+    JSON.stringify(brokenErr),
+  );
+  check('★ 组装失败发 run_done(fail)，前端能停', brokenDone?.verdict === 'fail', JSON.stringify(brokenDone));
+}
+
 /* ── 并发失败语义：breakdown 挂了，analysis 仍应跑完；整题报错，不画动画 ── */
 {
   const failStream = async (opts) => {

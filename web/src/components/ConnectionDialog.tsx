@@ -228,7 +228,7 @@ export function ConnectionDialog({
 
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
-          这个模型支持看图（教辅蒸馏要用）
+          这个模型支持看图
         </label>
 
         <label className="mt-3 block text-sm font-medium text-slate-700" htmlFor="conn-timeout">

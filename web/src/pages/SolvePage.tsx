@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConnectionDialog } from '../components/ConnectionDialog'
 import { OpenLogNotice } from '../components/OpenLogNotice'
 import { DEMO_QUESTION_LIST } from '../lib/demo-questions'
-import { STAGE_CHAIN, STAGE_LABEL, precisionLabel, type RepairBanner } from '../lib/run-stream'
+import { STAGE_CHAIN, precisionLabel, type RepairBanner } from '../lib/run-stream'
 import { api } from '../lib/rules-api'
 import { Markdown, MathBlock, parseRowTable } from '../lib/markdown'
 import { useRun } from '../hooks/useRun'
@@ -422,13 +422,15 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
         </div>
       </section>
 
-      {/* ───────── 右：进度 + 解题过程 + 校验报告 ───────── */}
+      {/* ───────── 右：小肥鱼 + 过程 + 校验报告 ───────── */}
       <section className="space-y-4">
-        <StageProgress
-          stages={st.run.stages.length ? st.run.stages : [...STAGE_CHAIN]}
-          status={st.run.stageStatus}
-          ms={st.run.stageMs}
-          skipReason={st.run.stageSkipReason}
+        <FishStage
+          stage={(st.run.stages.length ? st.run.stages : [...STAGE_CHAIN]).find(
+            (s) => (st.run.stageStatus[s] ?? 'pending') === 'running',
+          )}
+          running={st.run.running}
+          hasError={Boolean(st.run.error)}
+          finished={Boolean(st.programSlots) && !st.run.running}
         />
 
         {st.run.error && (
@@ -524,14 +526,6 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
         {st.run.repairRounds.length > 0 && <RepairPanel run={st.run} />}
           </div>
         </details>
-
-        <FishStage
-          stage={
-            (st.run.stages.length ? st.run.stages : [...STAGE_CHAIN]).find(
-              (s) => (st.run.stageStatus[s] ?? 'pending') === 'running',
-            )
-          }
-        />
 
         {/* ── v1.1.16：**解析对照卡**（第三条规则）──
             左边是老师原话，右边是模型抽出来的答案 —— 并排放，一眼能看出有没有被改。
@@ -815,71 +809,55 @@ const STAGE_FISH: Record<string, string> = {
 }
 
 /**
- * 表情包区：**没在跑的时候显示 idle**，跑到哪个阶段换哪张。
- * ⚠ 刻意**不进导出的单文件网页**——导出页要自包含，一张 40KB 的图内联成 base64 就是 55KB。
+ * 表情包主视觉：**只有小肥鱼 + 大标题**（v1.1.18 用户裁决）。
+ *
+ * 为什么删掉阶段进度条：8 个阶段的小方块把注意力全抢走了，老师真正想看的是
+ * "小肥鱼现在在干什么"。所以这一版把阶段条整个拿掉，只留：
+ *   · 按阶段切换的小肥鱼动作图；
+ *   · 一行大号渐变标题（`aria-live`，阶段一变就读出来）。
+ * 过程/判据/自愈仍在下方的折叠面板里，需要证据时再展开。
  */
-function FishStage({ stage }: { stage: string | undefined }) {
-  const name = stage ? STAGE_FISH[stage] : undefined
-  return (
-    <div className="flex min-h-[260px] flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <img
-        src={`/fish/${name ?? 'idle'}.webp`}
-        alt=""
-        draggable={false}
-        className="max-h-[420px] w-full object-contain"
-      />
-    </div>
-  )
-}
-
-function StageProgress({
-  stages,
-  status,
-  ms,
-  skipReason,
+function FishStage({
+  stage,
+  running,
+  hasError,
+  finished,
 }: {
-  stages: string[]
-  status: Record<string, string>
-  ms: Record<string, number>
-  /** 第 5 期：被跳过的原因（纯文字题跳过读图转写时必须说出来，不能默默少一步） */
-  skipReason: Record<string, string>
+  stage: string | undefined
+  running: boolean
+  hasError: boolean
+  finished: boolean
 }) {
-  const runningStage = stages.find((s) => (status[s] ?? 'pending') === 'running')
-  const say = runningStage ? STAGE_SAY[runningStage] : null
+  const name = hasError ? 'stage7' : stage ? STAGE_FISH[stage] : undefined
+  const say = hasError
+    ? '小肥鱼卡住了…'
+    : running
+      ? (stage ? STAGE_SAY[stage] : '小肥鱼正在准备…')
+      : finished
+        ? '小肥鱼画好啦！'
+        : '小肥鱼在等你出题…'
 
   return (
-    <ol className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-sm">
-      {stages.map((s, i) => {
-        const st = status[s] ?? 'pending'
-        const cls =
-          st === 'done'
-            ? 'bg-green-100 text-green-800 border-green-300'
-            : st === 'running'
-              ? 'bg-blue-100 text-blue-800 border-blue-300'
-              : st === 'error'
-                ? 'bg-red-100 text-red-800 border-red-300'
-                : st === 'skipped'
-                  ? 'bg-slate-100 text-slate-500 border-dashed border-slate-400'
-                  : 'bg-slate-50 text-slate-500 border-slate-200'
-        return (
-          <li key={s} className="flex items-center gap-2">
-            <span
-              className={`rounded border px-2 py-1 ${cls}`}
-              title={st === 'skipped' ? (skipReason[s] ?? '本次不适用，已跳过') : undefined}
-            >
-              {i + 1}. {STAGE_LABEL[s] ?? s}
-              {st === 'running' && ' …'}
-              {st === 'skipped' && '（已跳过）'}
-              {st === 'done' && ms[s] !== undefined && ` ${ms[s]}ms`}
-            </span>
-            {i < stages.length - 1 && <span className="text-slate-300">→</span>}
-          </li>
-        )
-      })}
-      {say && (
-        <li className="w-full pt-1 text-sm font-medium text-blue-700">{say}</li>
-      )}
-    </ol>
+    <div
+      data-od-region="fish-stage"
+      className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-white px-6 py-7 text-center shadow-sm"
+    >
+      <p
+        role="status"
+        aria-live="polite"
+        className="bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-500 bg-clip-text font-sans text-3xl font-extrabold leading-tight tracking-wide text-transparent sm:text-4xl"
+      >
+        {say}
+      </p>
+      <div className="mt-4 flex min-h-[240px] items-center justify-center sm:min-h-[320px]">
+        <img
+          src={`/fish/${name ?? 'idle'}.webp`}
+          alt=""
+          draggable={false}
+          className="max-h-[300px] w-full object-contain sm:max-h-[400px]"
+        />
+      </div>
+    </div>
   )
 }
 

@@ -954,7 +954,7 @@ export async function* runPipeline(input) {
       if (!analysisParsed?.ok) throw new Error('analysis 没有可用的运动表，无法生成动画程序');
       const generated = generateProgramSlots({
         analysis: analysisParsed,
-        problem: problem.text,
+        problem: problemTextForSlots(problem.text, outputs.read_problem),
         breakdownText: outputs.breakdown,
         drawFrame: outputs.scene_code,
       });
@@ -976,7 +976,16 @@ export async function* runPipeline(input) {
       buildDiagnostics = built.diagnostics;
     } catch (err) {
       if (err instanceof ProgramBuildError) {
-        // 切分失败 = C1 层面的失败。**如实报出来**，不要拿半成品去跑 Dry-Run。
+        /**
+         * 切分失败 = C1 层面的失败。**如实报出来**，不要拿半成品去跑 Dry-Run。
+         * v1.1.19：必须同时发 `stage_error`，否则前端 `dry_run` 永远停在 running
+         * （旧 UI 的阶段条/小肥鱼会一直显示“校验中”，看起来像卡死）。
+         */
+        const detail = formatSplitDiagnostics(err.diagnostics);
+        yield emit('stage_error', {
+          stage: 'dry_run',
+          error: { kind: 'build', message: '模型输出无法切成 8 个槽位', hint: detail },
+        });
         yield emit('dryrun_done', {
           verdict: 'fail',
           cancelled: false,
@@ -992,7 +1001,7 @@ export async function* runPipeline(input) {
           ],
           extensions: [],
           diagnostics: err.diagnostics,
-          detail: formatSplitDiagnostics(err.diagnostics),
+          detail,
         });
         yield emit('run_done', { verdict: 'fail', ms: Date.now() - started, stage: 'cleaner' });
         return;
@@ -1134,7 +1143,7 @@ export async function* runPipeline(input) {
 
       const generated = generateProgramSlots({
         analysis: analysisParsed,
-        problem: problem.text,
+        problem: problemTextForSlots(problem.text, outputs.read_problem),
         breakdownText: outputs.breakdown,
         drawFrame: outputs.scene_code,
       });
@@ -1229,7 +1238,7 @@ export async function* runPipeline(input) {
       const newDraw = result.text ?? '';
       const generated = generateProgramSlots({
         analysis: analysisParsed,
-        problem: problem.text,
+        problem: problemTextForSlots(problem.text, outputs.read_problem),
         breakdownText: outputs.breakdown,
         drawFrame: newDraw,
       });
@@ -1872,10 +1881,43 @@ export async function collectEvents(input) {
  *   · 这个标题只给动画页与导出文件名用，不进入后续 Prompt。
  */
 export function parseProblemTitle(text) {
-  const m = String(text ?? '').match(/^【题目(?:标题)?】[ \t]*(.*)$/m);
-  const raw = m?.[1]?.trim() ?? '';
-  if (!raw || raw === '无' || raw === '（无）' || raw === '(无)') return '未命名题目';
-  return raw;
+  const src = String(text ?? '');
+  /**
+   * 模型实际写法比提示词松：常见 `【题目】xxx`、`【题目】\nxxx`、
+   * `标题\nxxx`、`标题：xxx` 四种。v1.1.17 的纯图片题实测中模型写的是
+   * `标题\n斜面弹簧连接物块`，旧正则只认 `【题目】` ⇒ 标题变成“未命名题目”，
+   * 纯图片题的 PROBLEM 槽也跟着空掉。这里四种都认，仍然只取第一行标题。
+   */
+  const patterns = [
+    /^【题目(?:标题)?】[ \t]*([^\n]+)$/m,
+    /^【题目(?:标题)?】[ \t]*\n+([^\n]+)$/m,
+    /^标题[ \t]*[:：]?[ \t]*([^\n]+)$/m,
+    /^标题[ \t]*[:：]?[ \t]*\n+([^\n]+)$/m,
+  ];
+  for (const re of patterns) {
+    const m = src.match(re);
+    const raw = m?.[1]?.trim() ?? '';
+    if (!raw || raw === '无' || raw === '（无）' || raw === '(无)') continue;
+    return raw;
+  }
+  return '未命名题目';
+}
+
+/**
+ * 动画程序 `PROBLEM` 槽的正文（v1.1.19 修）：
+ *   · 有题面文字：原样用；
+ *   · **纯图片题**（题面为空）：用读题输出里的标题；
+ *   · 标题也取不到：用占位文案，**绝不让 PROBLEM 空着**。
+ *
+ * 为什么必须在这里兜底：v6 起 PROBLEM 不再由模型写，而是程序生成；旧实现直接
+ * 把 `problem.text` 塞进去，纯图片题就是空串 ⇒ 清洗器按 `slot.empty` 硬拒，
+ * 整题连 Dry-Run 都进不去（用户实测：只发图片 + 10 分钟无响应）。
+ */
+export function problemTextForSlots(problemText, readProblemText) {
+  const direct = String(problemText ?? '').trim();
+  if (direct) return direct;
+  const title = parseProblemTitle(readProblemText);
+  return title === '未命名题目' ? '（题目见图片）' : title;
 }
 
 /**

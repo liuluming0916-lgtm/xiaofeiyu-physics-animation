@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** 第 6 步：读题标题（只给动画页/导出用，不进入后续 Prompt）。 */
 
-import { collectEvents, parseProblemTitle } from '../core/orchestrator/pipeline.mjs';
+import { collectEvents, parseProblemTitle, problemTextForSlots } from '../core/orchestrator/pipeline.mjs';
 import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { getPrompt } from '../core/prompts/index.mjs';
 
@@ -23,6 +23,17 @@ check('长标题不截断', parseProblemTitle(`【题目】${LONG}`) === LONG);
 check('缺标题 ⇒ 未命名题目', parseProblemTitle('【题面复述】只有题面') === '未命名题目');
 check('空标题 ⇒ 未命名题目', parseProblemTitle('【题目】   ') === '未命名题目');
 check('只写“无” ⇒ 未命名题目', parseProblemTitle('【题目】无') === '未命名题目');
+
+/* v1.1.19：用户实测模型写成「标题\n…」而不是「【题目】…」，纯图片题因此丢标题 */
+const READ_TITLE_BLOCK = '标题\n斜面弹簧连接物块\n\n【物体】斜面、物块 M';
+check('★ 模型写「标题\\n…」也能解析', parseProblemTitle(READ_TITLE_BLOCK) === '斜面弹簧连接物块', parseProblemTitle(READ_TITLE_BLOCK));
+check('★ 「标题：…」也能解析', parseProblemTitle('标题：斜面弹簧连接物块') === '斜面弹簧连接物块');
+check('★ 「【题目】\\n…」换行写法也能解析', parseProblemTitle('【题目】\n斜面弹簧连接物块') === '斜面弹簧连接物块');
+
+/* v1.1.19：纯图片题的 PROBLEM 不能空（v6 起 PROBLEM 由程序生成） */
+check('★ 纯图片题 PROBLEM 用读题标题兜底', problemTextForSlots('', READ_TITLE_BLOCK) === '斜面弹簧连接物块');
+check('★ 有题面文字时优先用题面', problemTextForSlots('用户手打的题面', READ_TITLE_BLOCK) === '用户手打的题面');
+check('★ 标题也取不到时用占位文案', problemTextForSlots('', '没有标题') === '（题目见图片）');
 
 for (const id of ['read_problem', 'read_problem_v2']) {
   const p = getPrompt(id);

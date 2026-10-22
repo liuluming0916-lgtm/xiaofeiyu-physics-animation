@@ -3,7 +3,7 @@
   "version": "1.1.17",
   "private": true,
   "type": "module",
-  "description": "物理解题动画软件 v1.1.17 · 解题 → 动画 → 导出（v6 链路：读题/解题/物理分析后只写 drawFrame；固定 10×6 舞台；每小问 4 秒；知识卡 v2；发布载荷封装为 app.asar）",
+  "description": "物理解题动画软件 v1.1.17 · 解题 → 动画 → 导出（v6 链路；10×6 舞台；每小问 4 秒；知识卡 v2；解题页小肥鱼大图 + 纯图片题修复；发布载荷 app.asar）",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=20"
