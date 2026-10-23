@@ -82,7 +82,7 @@
       "domain": "mechanics",
       "pdfPage": 4,
       "image": "pages/q04.png",
-      "status": "candidate",
+      "status": "todo",
       "semantics": "v6",
       "problem": "如图(a)，物块 A 置于水平传送带上，通过跨过光滑轻质定滑轮的轻绳与右边的物块 B 相连。B 通过轻绳与物块 C 相连，连接各物块的轻绳均处于拉紧状态且不可伸长，A 与滑轮间的绳子与传送带平行。传送带始终以恒定速率顺时针转动。用挡板 P 使 A 保持静止。t=0 时，撤去挡板 P，同时在 A 上施加一水平外力 F，A、B、C 从静止开始运动。以 x 表示 A 离开初始位置的位移，F 与 x 成正比关系，取水平向右为 F 和 x 的正方向，变化关系如图(b)所示。A 第一次向右运动过程中，其速度 v 随位移 x 的变化关系如图(c)所示。当 x=1m 时，A 与传送带共速。已知 A、B 质量分别为 2kg、3kg，A 与传送带间的动摩擦因数小于 1，最大静摩擦力等于滑动摩擦力，重力加速度大小取 10m/s²，A 始终在传送带上，B、C 始终未与滑轮和地面相碰。\n(1) 求 A 离开初始位置向右运动 1m 的过程中，F 做的功；\n(2) 求 C 的质量和 A 与传送带间的动摩擦因数；\n(3) 当 A 第一次运动到 x=6m 时，剪断 B、C 间的绳子，A 开始向左运动。求 A 第一次运动到最左端时相对 x=0 位置的位移。",
       "knowledge": [
@@ -97,14 +97,9 @@
         "(3) x = 1/2 − 7√10/10 m"
       ],
       "answerNote": "第(3)问取负号解；正号解不符合实际。",
-      "program": "q04.program.json",
-      "preview": "q04.html",
       "source": "model",
-      "frozen": {
-        "sha256": "041acae9e80fdd601ce02e68657dc6f619bc6dc2c0438b2606ded61326bc4824",
-        "frozenAt": "2026-10-24",
-        "note": "B8 迁移到语义 key 后重新冻结（画面不变）"
-      }
+      "program": null,
+      "preview": null
     },
     {
       "id": "q05",
@@ -137,8 +132,8 @@
       "domain": "electromagnetism",
       "pdfPage": 6,
       "image": "pages/q06.png",
-      "status": "accepted",
-      "semantics": "legacy",
+      "status": "todo",
+      "semantics": "v6",
       "problem": "如图，金属导轨平行且水平放置，导轨间距为 L，导轨光滑无摩擦。定值电阻大小为 R，其余电阻忽略不计，电容大小为 C。在运动过程中，金属棒始终与导轨保持垂直。整个装置处于竖直方向且磁感应强度为 B 的匀强磁场中。\n(1) 开关 S 闭合时，对金属棒施加水平向右的恒力，金属棒能达到的最大速度为 v0。当外力功率为定值电阻功率的两倍时，求金属棒速度 v 的大小。\n(2) 当金属棒速度为 v 时，断开开关 S，改变水平外力并使金属棒匀速运动。当外力功率为定值电阻功率的两倍时，求电容器两端的电压以及从开关断开到此刻外力所做的功。",
       "knowledge": [
         "电磁感应",
@@ -151,27 +146,9 @@
         "(2) U = B L v0/4，W = C B² L² v0²/8"
       ],
       "answerNote": "按试卷答案；第(2)问以速度 v 断开后的过程，答案用 v0 表达。",
-      "acceptNote": "模型产出；2026-10-23 换为归一化版（舞台 10×6 + 每小问 4 s）：pass / 333 帧 / 4 步 / display 8 s（sub 1,2）。表达式用段锚点，位置用布局坐标。",
-      "acceptedAt": "2026-10-23",
-      "knownGaps": [
-        "画面是扁条（约 1.6 / 6 格）—— 骨架已决定不做，扁条是预期结果",
-        "开关没有闭合/断开的状态切换 —— 现版本不需要",
-        "电阻仍是矩形块（电容/开关已并联）—— 电路符号留到下一期补卡"
-      ],
-      "previousHandwritten": {
-        "program": "q06.handwritten.program.json",
-        "preview": "q06.handwritten.html",
-        "rejectedAt": "2026-10-23",
-        "rejectReason": "手写不算（金标准必须是模型产出）；画面有问题。保留作反例。"
-      },
-      "program": "q06.program.json",
-      "preview": "q06.html",
       "source": "model",
-      "frozen": {
-        "sha256": "93f020f18554a09daa999ccd4ffae5824275fffd2f8edf54c888916db90b5f60",
-        "frozenAt": "2026-10-24",
-        "note": "B8 时补录哈希；程序本身仍是 2026-10-23 冻结的那份"
-      }
+      "program": null,
+      "preview": null
     },
     {
       "id": "q07",
@@ -231,8 +208,8 @@
       "domain": "thermal",
       "pdfPage": 9,
       "image": "pages/q09.png",
-      "status": "accepted",
-      "semantics": "legacy",
+      "status": "todo",
+      "semantics": "v6",
       "problem": "如图，一竖直放置的汽缸内密封有一定量的气体，一不计厚度的轻质活塞可在汽缸内无摩擦滑动，移动范围被限制在卡销 a、b 之间，b 与汽缸底部的距离 bc = 10ab，活塞的面积为 1.0×10⁻² m²。初始时，活塞在卡销 a 处，汽缸内气体的压强、温度与活塞外大气的压强、温度相同，分别为 1.0×10⁵ Pa 和 300K。在活塞上施加竖直向下的外力，逐渐增大外力使活塞缓慢到达卡销 b 处（过程中气体温度视为不变），外力增加到 200N 并保持不变。\n(1) 求外力增加到 200N 时，卡销 b 对活塞支持力的大小；\n(2) 再将汽缸内气体加热使气体温度缓慢升高，求当活塞刚好能离开卡销 b 时气体的温度。",
       "knowledge": [
         "理想气体状态方程",
@@ -245,21 +222,9 @@
         "(2) T = 3600/11 K ≈ 327 K"
       ],
       "answerNote": "初始 V_a=11A·ab，到 b 等温压缩到 V_b=10A·ab；再等容升温到 p=1.2×10⁵ Pa。",
-      "acceptNote": "模型产出；2026-10-23 换为归一化版（舞台 10×6 + 每小问 4 s）：pass / 481 帧 / 5 步 / display 8 s（sub 1,1,1 | 2,2）。",
-      "acceptedAt": "2026-10-23",
-      "knownGaps": [
-        "卡销位置与活塞行程对不齐（词表里没有“卡销”这个元件）—— 留到下一期补卡",
-        "汽缸比例偏细 —— 骨架已决定不做，属预期",
-        "外力箭头是用 line + polygon 手画的，不是 Draw.arrow"
-      ],
-      "program": "q09.program.json",
-      "preview": "q09.html",
       "source": "model",
-      "frozen": {
-        "sha256": "b599bcaa8c8fca6bd72c17a62ccdbe696e1da1dd12b71e9f6b6ec14667e2c3c2",
-        "frozenAt": "2026-10-24",
-        "note": "B8 时补录哈希；程序本身仍是 2026-10-23 冻结的那份"
-      }
+      "program": null,
+      "preview": null
     },
     {
       "id": "q10",
@@ -283,5 +248,7 @@
       "program": null,
       "preview": null
     }
-  ]
+  ],
+  "restart": true,
+  "restartNote": "2026-10-24 用户裁决：上个版本链路跑出来的三道真题产物（q04/q06/q09 的程序、预览、候选笔记）全部删除，按当前口径（语义 key + 物理尺寸 + 带参考答案）重跑。重建期间可跑数为 0，这是显式标记，不是漏配；q04 跑通后把 restart 去掉。旧的候选笔记见 git 历史 30fab7c^:tests/real-exam/pilot.json。"
 }

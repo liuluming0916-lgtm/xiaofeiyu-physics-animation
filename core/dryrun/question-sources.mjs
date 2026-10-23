@@ -113,6 +113,10 @@ export function auditManifest(manifest, io = defaultIo()) {
   }
   if (manifest.format !== 'od-real-exam') push('manifest-format', `format=${manifest.format}`);
   if (manifest.version !== 2) push('manifest-version', `version=${manifest.version}（要求 2）`);
+  /* `restart: true` 允许"0 道可跑"（重建期），但必须写明理由 —— 否则它就是一个静音的逃生门 */
+  if (manifest.restart === true && (typeof manifest.restartNote !== 'string' || manifest.restartNote.trim().length < 20)) {
+    push('restart-note-missing', 'restart=true 时必须写 restartNote（≥20 字，说明为什么 0 道可跑）');
+  }
 
   const items = Array.isArray(manifest.items) ? manifest.items : [];
   if (!items.length) push('manifest-empty', 'items 为空');

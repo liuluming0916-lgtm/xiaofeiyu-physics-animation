@@ -9,7 +9,7 @@
  *   node core/dryrun/run-suite.mjs q01 q07            # 只跑指定前缀的题目
  */
 
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -20,6 +20,7 @@ import {
   deriveTiming,
   auditSelfControlFailures,
   REGRESSION_DIR,
+  REAL_EXAM_DIR,
 } from './question-sources.mjs';
 import { CHECK_IDS, TEMPLATE_VERSION, SDK_VERSION } from '../../contracts/spec/frozen-keys.mjs';
 import { labelOf } from '../../contracts/evidence.mjs';
@@ -214,12 +215,19 @@ export async function main() {
       for (const e of errors) console.error(`    · [${e.code}] ${e.detail}`);
       process.exitCode = 1;
     } else {
+      const ro = audit.runnable.length;
       console.log(
-        `  ✓ 真题清单体检：可跑 ${runnable.length} 道 · 待做 ${counts.todo} · 占位 ${counts.placeholder} · 冻结哈希一致`,
+        `  ✓ 真题清单体检：可跑 ${ro} 道 · 待做 ${counts.todo} · 占位 ${counts.placeholder} · 冻结哈希一致`,
       );
-      if (runnable.length < 3) {
-        console.error(`✗ 真题可跑的只有 ${runnable.length} 道（至少 3 道：q04/q06/q09）`);
+      /* 防"把 status 全改成 todo，门禁绿着但一道真题都没跑"。
+         重建期（manifest.restart=true + restartNote）允许 0 道，其余情况至少 3 道。 */
+      const manifest = JSON.parse(readFileSync(join(REAL_EXAM_DIR, 'index.json'), 'utf8'));
+      const restart = manifest.restart === true;
+      if (ro < 3 && !restart) {
+        console.error(`✗ 真题可跑的只有 ${ro} 道（至少 3 道；重建期请在 index.json 写 restart + restartNote）`);
         process.exitCode = 1;
+      } else if (ro < 3) {
+        console.log(`  ⚠ 真题集重建中（index.json restart=true）：可跑 ${ro} 道，③ 只跑合成题`);
       }
     }
   }
