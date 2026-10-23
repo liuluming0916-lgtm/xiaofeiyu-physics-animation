@@ -116,6 +116,24 @@ export function auditWiring(slots, run) {
   }
 
   /* ④ 差集 = 接线错误 */
+  /**
+   * 运行时注入的字段（不算"作者没给"）：
+   *   `state.<key>.angleDeg` 由 `injectBodyAngles()` 在**每帧渲染前**注入（见 sdk/runtime/animation-runtime.mjs），
+   *   元件卡也明写"由运行时按速度方向注入"。所以 drawFrame 读它时，stateAt 不必自己写。
+   *
+   * ⚠ 2026-10-24 真题实测：q04 的 drawFrame 写 `Draw.box(…, { angleDeg: state.block_A.angleDeg })`
+   *   是正确的画法（卡片示例就这么写），却因为没有把变量先解构（`A = state.block_A`）而被
+   *   静态扫描抓到 ⇒ C1 报 3 条 state-field-missing、物理修复跑满 2 轮仍失败。
+   *   上一版的程序"碰巧"过关，只因为它用了 `A.angleDeg` 别名 —— 说明这条判据当时靠的是写法运气。
+   *   正确口径：**只对 `SIM.bodies` 里列出的 key 放行**（运行时的注入只覆盖 bodies）。
+   */
+  const injectedFields = new Map();
+  for (const body of run?.program?.SIM?.bodies ?? []) {
+    const id = body?.id;
+    if (typeof id !== 'string' || !id) continue;
+    injectedFields.set(id, new Set(['angleDeg']));
+  }
+
   for (const [name, fields] of consumedState) {
     if (!providedState.has(name)) {
       issues.push({
@@ -133,6 +151,8 @@ export function auditWiring(slots, run) {
     const actual = providedFields.get(name);
     for (const field of fields) {
       if (actual?.has(field)) continue;
+      /* 运行时注入的字段（angleDeg）：只对 bodies 里的 key 放行 */
+      if (injectedFields.get(name)?.has(field)) continue;
       issues.push({
         check: 'C1',
         rule: 'state-field-missing',

@@ -757,8 +757,33 @@ console.log('\n『Z』接线对账：state / context 的“提供 vs 消费”�
     check('字段级诊断写明“不要用 drawFrame 去凑”', String(diag?.message ?? '').includes('不要用 drawFrame 去凑'));
   }
   {
-    const slots = { ...base, stateAt: 'return { x: context.k };' };
-    const { report } = await dryRun({ slots, entry: 'wiring-missing-context' });
+    /* v1.1.18 真题实测：`angleDeg` 是运行时注入的（injectBodyAngles），卡片示例就写它。
+       bodies 里有 ⇒ 读它不算"作者没给"；bodies 里没有 ⇒ 不注入，仍要报错。 */
+    const withBody = {
+      ...base,
+      VIEW: "SIM = { duration: 1, bodies: [{ id: 'block_A', at: (s) => [s.block_A.x, 0] }] };",
+      stateAt: 'return { block_A: { x: t, y: 0 } };',
+      drawFrame: 'Draw.box([state.block_A.x, state.block_A.y], 0.3, 0.3, { angleDeg: state.block_A.angleDeg });',
+      readouts: "return [{ key: 'x', label: 'x', value: state.block_A.x, unit: 'm' }];",
+    };
+    const ok = await dryRun({ slots: withBody, entry: 'wiring-angle-injected' });
+    check(
+      '★ state.<key>.angleDeg 由运行时注入：bodies 里有该 key ⇒ C1 不报缺字段',
+      ok.report.checks.find((c) => c.id === 'C1')?.status === 'pass',
+      JSON.stringify(ok.report.checks.find((c) => c.id === 'C1')?.diagnostics ?? []).slice(0, 300),
+    );
+
+    const noBody = { ...withBody, VIEW: 'SIM = { duration: 1, bodies: [] };' };
+    const bad = await dryRun({ slots: noBody, entry: 'wiring-angle-not-injected' });
+    const c1 = bad.report.checks.find((c) => c.id === 'C1');
+    check(
+      '★ 同一个字段，但 key 不在 bodies 里 ⇒ 仍按"缺字段"报错（放行不能扩大）',
+      c1?.status === 'fail' && (c1?.diagnostics ?? []).some((d) => d.rule === 'state-field-missing'),
+      JSON.stringify(c1?.diagnostics ?? []).slice(0, 300),
+    );
+  }
+  {
+    const slots = { ...base, stateAt: 'return { x: context.k };' };    const { report } = await dryRun({ slots, entry: 'wiring-missing-context' });
     const c1 = report.checks.find((c) => c.id === 'C1');
     const diag = (c1?.diagnostics ?? []).find((d) => d.rule === 'context-key-missing');
     check('★ 读了 context.k 但 setup 没导出 ⇒ C1 失败且指向 setup', c1?.status === 'fail' && diag?.slot === 'setup', JSON.stringify(diag));
