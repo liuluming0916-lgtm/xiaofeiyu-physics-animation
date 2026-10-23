@@ -55,7 +55,7 @@ export function precisionLabel(p) {
  *   所以**所有题都跑它**。`repair` 仍只在 Dry-Run 未通过时真正执行。
  *   ⇒ **链条按完整形态排布，不要在别处写死"某一步一定跑"（`skipped` 机制保留，通用）。**
  */
-export const STAGE_CHAIN = ['read_problem', 'solve', 'breakdown', 'analysis', 'scene_code', 'dry_run', 'repair', 'couple'];
+export const STAGE_CHAIN = ['read_problem', 'solve', 'breakdown', 'analysis', 'couple', 'scene_code', 'dry_run', 'repair'];
 export const STAGE_LABEL = {
     read_problem: '读题',
     solve: '解题',

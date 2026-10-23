@@ -40,7 +40,7 @@ import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledge
 import { buildJudgementVocabV2, parseJudgementV2 } from '../knowledgecard/v2/prompt.mjs';
 import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
 import { parseAnswersSlot, parseStepsSlot } from '../../sdk/runtime/animation-runtime.mjs';
-import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, physicalTableFromEntries, stageOfAnalysis } from '../analysis/index.mjs';
+import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, t0LayoutStates, anchorForType, buildStepsText, parseBreakdownSteps, physicalTableFromEntries } from '../analysis/index.mjs';
 import { parseStepTimes, fallbackStepTimes } from '../couple/index.mjs';
 import { buildDisplayTiming } from '../timing/display-time.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
@@ -406,9 +406,18 @@ export async function* runPipeline(input) {
   });
 
   try {
-    /* ── 逐阶段：read_problem → solve → breakdown → analysis → scene_code（drawFrame）── */
+    /* ── 逐阶段：read_problem → solve → breakdown ∥ analysis → couple → scene_code（drawFrame）── */
     /** @type {ReturnType<typeof parseAnalysisTable>|null} */
     let analysisParsed = null;
+    /**
+     * `couple` 现在跑在 `scene_code` **之前**（2026-10-24 用户裁决）：
+     * 画图要按"第几步、这一步对应哪段时间"来画，所以步骤表必须先定下来。
+     * 这两个变量在 scene_code 之前赋值，后面的交付段只负责把它们挂到程序上。
+     */
+    let stepTimes = null;
+    /** 时间表是否**通过校验**（兜底均分不算）—— 只有通过的才喂给 scene_code。 */
+    let stepTimesValid = false;
+    let coupling = null;
     const stageInputs = {
       // 第 0 步：题面文字 + 用户手打的描述/已知条件 + **判定词表**（图片由 `withImages` 附在消息里）
       read_problem: {
@@ -436,18 +445,27 @@ export async function* runPipeline(input) {
       /**
        * 新链路第 5 段：AI 只写 drawFrame。
        * 物理由 analysis 生成，drawFrame 只负责“怎么画”。
+       *
+       * 2026-10-24：除了位置与锚点，**尺寸不再由我们提供**（尺寸属于"怎么画"）。
+       * 同时把"第几步 / 这一步对应哪段时间 / t=0 各元件在哪"喂进来 ——
+       * 画图的人得知道自己在画哪一步，否则只能按 `t` 硬编码猜。
        */
       scene_code: {
         problem: problem.text,
         analysisText: () => (analysisParsed ? formatAnalysis(analysisParsed) : ''),
         readProblem: () => outputs.read_problem,
-        stateMap: () => (analysisParsed ? stateKeyMap(analysisParsed) : []),
-        /* B1'：把“运动在纸面上的范围”与“板的固定厚度（纸面单位）”作为只读数据给模型。 */
-        stageRange: () => {
-          if (!analysisParsed) return null;
-          return stageOfAnalysis(analysisParsed, { sizes: physicalOfSnapshot() })?.range ?? null;
-        },
-        boardThickness: () => physicalOfSnapshot().board?.h ?? null,
+        stateMap: () =>
+          analysisParsed
+            ? stateKeyMap(analysisParsed).map((m) => ({ ...m, anchor: anchorForType(m.type) }))
+            : [],
+        /* couple 的表：只有**通过校验**的表才喂给画图；兜底均分不进提示词。 */
+        steps: () =>
+          stepTimesValid && Array.isArray(stepTimes)
+            ? parseStepsSlot(buildStepsText(outputs.breakdown ?? '', analysisParsed, analysisParsed?.tPhys)).map(
+                (s, i) => ({ title: s.title, t0: stepTimes[i]?.t0, t1: stepTimes[i]?.t1 }),
+              )
+            : [],
+        t0States: () => (analysisParsed ? t0LayoutStates(analysisParsed) : null),
       },
     };
     async function executeStage(stage, index, enqueue) {
@@ -596,6 +614,124 @@ export async function* runPipeline(input) {
       await Promise.all(tasks);
     }
 
+    /**
+     * ── couple：把讲解步骤挂到动画时间轴上（2026-10-24 起跑在 scene_code **之前**）──
+     *
+     * 为什么前置：画图的人得知道"这一步在讲什么、对应哪段时间"，否则只能在
+     * drawFrame 里按 `t` 硬编码猜边界。它本来只吃 `analysis` + `breakdown`，
+     * 这两样在 scene_code 之前就齐了 —— 挪过去**不增加任何一次模型调用**。
+     *
+     * 这也是"第一轮校验"：时间表本身（重叠 / 越界 [0, T_phys] / 步数）必须先过。
+     * 过不了就重试一次；再不过就走均分兜底，但**兜底表不喂给 scene_code**
+     * （否则模型会按假边界画），只用来让页面还有时间轴可点。
+     */
+    async function* runCoupleStage() {
+      if (!analysisParsed?.ok) return;
+      const coupleIndex = PHASE5_STAGES.indexOf('couple');
+      yield emit('stage_start', { stage: 'couple', index: coupleIndex, total: PHASE5_STAGES.length });
+      const coupleStarted = Date.now();
+      const couplePrompt = getPrompt('couple', snapshot.rules);
+      /*
+       * 步骤从 breakdown **现算**（此刻还没有 `program`）：
+       * 先用 `buildStepsText` 归一，再用 `parseStepsSlot` 取回，
+       * 这样与最终 `STEPS` 槽位是同一份数据，不会出现"couple 按 A 编号、页面按 B 编号"。
+       */
+      const steps = parseStepsSlot(buildStepsText(outputs.breakdown ?? '', analysisParsed, analysisParsed.tPhys));
+      const tPhys = analysisParsed.tPhys;
+      let feedback = [];
+      let lastText = '';
+      let parsedOk = false;
+      let attempts = 0;
+      let warning = null;
+      let fallback = false;
+      for (let attempt = 0; attempt < 2 && !parsedOk; attempt += 1) {
+        attempts += 1;
+        const assembled = assemblePrompt({
+          problem: {
+            text: couplePrompt.buildUser({
+              problem: problem.text,
+              analysisText: formatAnalysis(analysisParsed),
+              steps,
+              tPhys,
+              feedback,
+            }),
+          },
+          instructions: couplePrompt.system,
+          instructionLabel: couplePrompt.label,
+          stage: 'couple',
+        });
+        try {
+          const result = await streamImpl({
+            endpoint: snapshot.endpoint,
+            apiKey: snapshot.apiKey,
+            stage: 'couple',
+            messages: assembled.messages,
+            signal: ac.signal,
+            vision: false,
+            onDelta: () => {},
+          });
+          lastText = result.text ?? '';
+        } catch (err) {
+          if (err instanceof ModelError && err.kind === 'cancelled') {
+            yield emit('cancelled', { stage: 'couple' });
+            yield emit('run_done', { verdict: 'cancelled', ms: Date.now() - started, cancelled: true });
+            return;
+          }
+          feedback = [String(err?.message ?? err)];
+          warning = String(err?.message ?? err);
+          continue;
+        }
+        const parsed = parseStepTimes(lastText, { stepCount: steps.length, tPhys });
+        if (parsed.ok) {
+          stepTimes = parsed.stepTimes;
+          parsedOk = true;
+          break;
+        }
+        feedback = parsed.problems;
+        warning = parsed.problems.join('；');
+      }
+      stepTimesValid = parsedOk;
+      if (!parsedOk) {
+        stepTimes = fallbackStepTimes(steps.length, tPhys);
+        fallback = true;
+        warning = warning ? `${warning}；已按步骤均分回退` : '步骤时间解析失败；已按步骤均分回退';
+      }
+      /**
+       * 时长归一化：每小问 4 秒。**在服务端算一次**，随事件一起下发给宿主。
+       * 宿主/模板自己算会与导出页（build-template）产生第二套口径。
+       */
+      const displayTiming = buildDisplayTiming(stepTimes);
+      if (lastText) yield emit('stage_delta', { stage: 'couple', text: lastText });
+      yield emit('stage_done', {
+        stage: 'couple',
+        chars: lastText.length,
+        ms: Date.now() - coupleStarted,
+        attempts,
+        fallback,
+        warning,
+        beforeDraw: true,
+        valid: stepTimesValid,
+      });
+      coupling = {
+        stepTimes,
+        displayStepTimes: displayTiming.stepTimes,
+        timeMap: displayTiming.timeMap,
+        displayDuration: displayTiming.displayDuration,
+        fallback,
+        warning,
+        attempts,
+      };
+      yield emit('coupling_done', {
+        stepTimes,
+        displayStepTimes: displayTiming.stepTimes,
+        timeMap: displayTiming.timeMap,
+        displayDuration: displayTiming.displayDuration,
+        fallback,
+        warning,
+        attempts,
+      });
+    }
+
     let parallelDone = false;
     for (let i = 0; i < snapshot.promptIds.length; i += 1) {
       const stage = snapshot.promptIds[i];
@@ -641,6 +777,8 @@ export async function* runPipeline(input) {
           yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis', analysisProblems: analysisParsed.problems });
           return;
         }
+        /* 第一轮校验（在画图之前）：步骤时间表必须先成立。 */
+        yield* runCoupleStage();
         continue;
       }
       if (stage === 'analysis' && parallelDone) continue;
@@ -1029,7 +1167,6 @@ export async function* runPipeline(input) {
         problem: problemTextForSlots(problem.text, outputs.read_problem),
         breakdownText: outputs.breakdown,
         drawFrame: outputs.scene_code,
-        physical: physicalOfSnapshot(),
       });
       const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
       const built = buildProgramFromText(programText, {
@@ -1220,6 +1357,8 @@ export async function* runPipeline(input) {
         yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis' });
         return;
       }
+      /* couple 已在主链路里、scene_code 之前跑过（见 runCoupleStage）；修复轮不重跑，
+         否则同一题会出现两个版本的步骤边界。 */
       const sc = await executeStage('scene_code', stageIndex('scene_code'), enq);
       yield* takeStageErrors(silent);
       if (!sc.ok) {
@@ -1234,7 +1373,6 @@ export async function* runPipeline(input) {
           problem: problemTextForSlots(problem.text, outputs.read_problem),
           breakdownText: outputs.breakdown,
           drawFrame: outputs.scene_code,
-          physical: physicalOfSnapshot(),
         });
         const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
         built = buildProgramFromText(programText, {
@@ -1375,7 +1513,6 @@ export async function* runPipeline(input) {
           problem: problemTextForSlots(problem.text, outputs.read_problem),
           breakdownText: outputs.breakdown,
           drawFrame: newDraw,
-          physical: physicalOfSnapshot(),
         });
         const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
         built = buildProgramFromText(programText, {
@@ -1802,99 +1939,16 @@ export async function* runPipeline(input) {
       yield emitDryRunDone(emit, { report, program, lineMap, buildDiagnostics });
     }
 
-    /* ── couple：步骤 ↔ 动画时间 ── */
-    let stepTimes = null;
-    let coupling = null;
-    if (shape.playable && analysisParsed?.ok) {
-      if (cancelled()) {
-        yield emit('cancelled', { stage: 'couple' });
-        yield emit('run_done', { verdict: 'cancelled', ms: Date.now() - started, cancelled: true });
-        return;
-      }
-      const coupleIndex = PHASE5_STAGES.indexOf('couple');
-      yield emit('stage_start', { stage: 'couple', index: coupleIndex, total: PHASE5_STAGES.length });
-      const coupleStarted = Date.now();
-      const couplePrompt = getPrompt('couple', snapshot.rules);
-      const steps = parseStepsSlot(program.slots.STEPS);
-      const tPhys = analysisParsed.tPhys;
-      let feedback = [];
-      let lastText = '';
-      let parsedOk = false;
-      let attempts = 0;
-      let warning = null;
-      let fallback = false;
-      for (let attempt = 0; attempt < 2 && !parsedOk; attempt += 1) {
-        attempts += 1;
-        const assembled = assemblePrompt({
-          problem: { text: couplePrompt.buildUser({ problem: problem.text, analysisText: formatAnalysis(analysisParsed), steps, tPhys, feedback }) },
-          instructions: couplePrompt.system,
-          instructionLabel: couplePrompt.label,
-          stage: 'couple',
-        });
-        try {
-          const result = await streamImpl({
-            endpoint: snapshot.endpoint,
-            apiKey: snapshot.apiKey,
-            stage: 'couple',
-            messages: assembled.messages,
-            signal: ac.signal,
-            vision: false,
-            onDelta: () => {},
-          });
-          lastText = result.text ?? '';
-        } catch (err) {
-          if (err instanceof ModelError && err.kind === 'cancelled') {
-            yield emit('cancelled', { stage: 'couple' });
-            yield emit('run_done', { verdict: 'cancelled', ms: Date.now() - started, cancelled: true });
-            return;
-          }
-          feedback = [String(err?.message ?? err)];
-          warning = String(err?.message ?? err);
-          continue;
-        }
-        const parsed = parseStepTimes(lastText, { stepCount: steps.length, tPhys });
-        if (parsed.ok) {
-          stepTimes = parsed.stepTimes;
-          parsedOk = true;
-          break;
-        }
-        feedback = parsed.problems;
-        warning = parsed.problems.join('；');
-      }
-      if (!parsedOk) {
-        stepTimes = fallbackStepTimes(steps.length, tPhys);
-        fallback = true;
-        warning = warning ? `${warning}；已按步骤均分回退` : '步骤时间解析失败；已按步骤均分回退';
-      }
-      if (Array.isArray(stepTimes)) program.stepTimes = stepTimes;
-      /**
-       * 时长归一化：每小问 4 秒。**在服务端算一次**，随事件一起下发给宿主。
-       * 宿主/模板自己算会与导出页（build-template）产生第二套口径；
-       * 这里把 timeMap / displayDuration / 显示秒 stepTimes 一并给出，
-       * 模板只负责按表换算。
-       */
-      const displayTiming = buildDisplayTiming(stepTimes);
-      if (lastText) yield emit('stage_delta', { stage: 'couple', text: lastText });
-      yield emit('stage_done', { stage: 'couple', chars: lastText.length, ms: Date.now() - coupleStarted, attempts, fallback, warning });
-      coupling = {
-        stepTimes,
-        displayStepTimes: displayTiming.stepTimes,
-        timeMap: displayTiming.timeMap,
-        displayDuration: displayTiming.displayDuration,
-        fallback,
-        warning,
-        attempts,
-      };
-      yield emit('coupling_done', {
-        stepTimes,
-        displayStepTimes: displayTiming.stepTimes,
-        timeMap: displayTiming.timeMap,
-        displayDuration: displayTiming.displayDuration,
-        fallback,
-        warning,
-        attempts,
-      });
-    } else {
+    /*
+     * couple 已在 scene_code **之前**跑完（见上面那个前置块），这里只把结果挂到程序上：
+     *   · `program.stepTimes` 让模板/导出页能按步骤跳转；
+     *   · `coupling`（含归一化后的显示秒与 timeMap）随后随 `run_done` 下发。
+     *
+     * ⚠ **不重跑 couple**：跑两次会让同一题的步骤边界出现两个版本，
+     *   而且第二次的结果会覆盖第一次，scene_code 用过的边界就对不上了。
+     */
+    if (Array.isArray(stepTimes)) program.stepTimes = stepTimes;
+    if (!shape.playable || !analysisParsed?.ok) {
       yield emit('stage_done', {
         stage: 'couple',
         skipped: true,

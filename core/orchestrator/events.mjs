@@ -32,7 +32,18 @@ import { PIPELINE_STAGES } from '../../contracts/spec/frozen-keys.mjs';
  * 换成 steps → answers 之后，`answers` 的输入里直接带着 STEPS 行式表，
  * 符号、步序、时间锚点在同一次上下文里天然对齐。
  */
-export const PHASE5_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'analysis', 'scene_code', 'dry_run', 'repair', 'couple']);
+/**
+ * 阶段顺序（2026-10-24 调序：`couple` 挪到 `scene_code` **之前**）。
+ *
+ * 为什么：画图要按"第几步、这一步对应哪段时间"来画。`couple` 本来只吃
+ * `analysis` + `breakdown`，这两样在 `scene_code` 之前就齐了；挪过去不增加模型调用，
+ * 只是把"步骤时间表"从**交付前的收尾**变成**画图的输入**。
+ *
+ * 顺带解决了两个老问题：
+ *   · `scene_code` 之前拿不到步骤边界，只能在 drawFrame 里按 `t` 硬编码猜；
+ *   · 时间表不合法时要等到最后才发现，画已经画完了。
+ */
+export const PHASE5_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'analysis', 'couple', 'scene_code', 'dry_run', 'repair']);
 
 /**
  * **需要调用模型、且要跑 Prompt 的阶段**（= 执行链去掉本地阶段）。

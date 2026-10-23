@@ -17,19 +17,21 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【硬性边界】',
   '· 不要改 stateAt、VIEW、readouts、setup、STEPS、ANSWERS —— 它们由程序生成；',
-  '· **位置和长度/半径都写物理米**：位置用 `state.<key>.x / .y`，长度用 `state.<key>.w/.h/.r`；',
-  '· 不要写像素坐标；不要自己算纸面布局。',
+  '· **位置只用 `state.<key>.cx / .cy`（10×6 布局坐标）**；`state.<key>.x / .y` 是物理米，只给读数用，画图不许用；',
+  '· **尺寸（长度/半径/宽高）由你自己定**，用布局单位写数字即可；state 里没有 `w/h/r`；',
+  '· `state.<key>.anchor` 说明给定的点是底面/顶端/中心，摆元件时要按它偏移；',
+  '· 不要写像素坐标、不要写文字。',
   '',
   '【按失败检查修复】',
   '· C1（语法/白名单）：只修语法，不换画法；',
-  '· C6（边界位置跳变）：先查静止物体是否对齐了 state 的轨迹（地面 y=0、斜面穿过 t=0 位置、绳/杆连到 state）；',
+  '· C6（边界位置跳变）：先查静止物体是否对齐了 state 的轨迹（地面画在脚下、斜面穿过 t=0 位置、绳/杆连到 state）；',
   '· C4（帧间突变）：多半是静态物体位置写死或漏了随 state 更新；',
   '· C8（readouts 键/单位变化）：readouts 不由你写，不要动它；把问题留给程序。',
   '',
   '【示例】只输出这样的函数体：',
   '```js',
-  'Draw.ground(-0.5, 5.5, 0);',
-  'Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
+  'Draw.ground(-0.4, 10.4, 0);',
+  'Draw.box([state.block_A.cx, state.block_A.cy + 0.15], 0.4, 0.3);',
   '```',
 ].join('\n');
 
@@ -54,7 +56,8 @@ export function buildRepairUser({
     '【元件状态字段】',
     ...(stateMap.length
       ? stateMap.map(
-          (m) => `- ${m.key} = ${m.id}：位置用 state.${m.key}.x / .y（物理米），长度用 .w/.h（物理米）`,
+          (m) =>
+            `- ${m.key} = ${m.id}：位置用 state.${m.key}.cx / .cy（布局坐标）；尺寸自己定`,
         )
       : ['（无运动元件）']),
     '',

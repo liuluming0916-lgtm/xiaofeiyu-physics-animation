@@ -4,11 +4,11 @@
  * 为什么需要它（2026-10-23 用户裁决 A 方案）：
  *   旧方案用"全时段实体包络"决定相机 —— 它保证**不出画**，但框多大由题目世界决定，
  *   于是 0.4 m 的物块在 11 m 宽的题里只剩 19 px，在 1.2×10⁶ m 的题里直接 0 px。
- *   新方案反过来：相机永远拍同一张 10×6 的纸，题目世界只用来**折算位置**；
- *   元件尺寸改用布局单位（几何表里那套 0.4×0.3），从此与题目的量级无关。
+ *   新方案反过来：相机永远拍同一张 10×6 的纸，题目世界只用来**折算位置**。
  *
  * 这一版只做"位置折算"：物理 `x/y` 保留原值（读数、C10 用），
- * 视觉中心 `cu/cv`（= 卡片里的 `cx/cy`）改成布局单位。
+ * 布局坐标 `cx/cy` 是画图唯一该用的东西；
+ * **尺寸不在这里**（2026-10-24 回滚）：画多大由 `drawFrame` 自己定。
  */
 
 export const STAGE_WIDTH = 10;
@@ -21,34 +21,29 @@ export const STAGE_PADDING = 0.06;
  * 为什么用 analysis：`scene_code` 需要先知道舞台多大才能画，而 drawFrame 还没发生；
  * 物理分析表里已经有每段的 x(t)/y(t)，足够算"物体活动到哪"。
  * 每段采 33 个点；再向外放一点余量，避免元件贴边被裁。
+ *
+ * **只算位置，不含元件尺寸**（2026-10-24 回滚）：尺寸由 `drawFrame` 自己定，
+ * 让它参与取景会把"画多大"和"走多远"绑死，长行程的题物块就只剩几个像素。
  */
 export function envelopeFromAnalysis(analysis, opts = {}) {
   const samplesPerSegment = Math.max(4, Math.floor(opts.samples ?? 33));
   const margin = Number(opts.margin ?? 0.35);
-  const sizes = opts.sizes ?? null;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
 
   for (const el of analysis?.elements ?? []) {
-    /*
-     * C 方案：包络必须含**元件自身的尺寸**，否则大板/大球会从纸上伸出去。
-     * 用物理米；没有 physical 的元件（符号件）按 0 处理。
-     */
-    const size = sizes?.[el.type] ?? null;
-    const halfW = Number.isFinite(size?.w) ? size.w / 2 : Number.isFinite(size?.r) ? size.r : 0;
-    const halfH = Number.isFinite(size?.h) ? size.h / 2 : Number.isFinite(size?.r) ? size.r : 0;
     for (const seg of el.segments ?? []) {
       for (let i = 0; i <= samplesPerSegment; i += 1) {
         const t = seg.t0 + ((seg.t1 - seg.t0) * i) / samplesPerSegment;
         const x = seg.x?.fn?.(t);
         const y = seg.y?.fn?.(t);
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        minX = Math.min(minX, x - halfW);
-        maxX = Math.max(maxX, x + halfW);
-        minY = Math.min(minY, y - halfH);
-        maxY = Math.max(maxY, y + halfH);
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
       }
     }
   }
@@ -108,8 +103,8 @@ export function toLayout(frame, x, y) {
  * 否则会出现"棒从电容里长出来"这类压线（q06 实测：模型把导轨从 1.0 起画，
  * 而棒的活动范围是 0.93–9.1）。
  */
-export function layoutRange(analysis, frame, opts = {}) {
-  const env = envelopeFromAnalysis(analysis, opts);
+export function layoutRange(analysis, frame) {
+  const env = envelopeFromAnalysis(analysis);
   if (!env) return null;
   const [u0, v0] = toLayout(frame, env.minX, env.minY);
   const [u1, v1] = toLayout(frame, env.maxX, env.maxY);
@@ -122,9 +117,9 @@ export function layoutRange(analysis, frame, opts = {}) {
 }
 
 /** 一次算好"纸 + 活动范围"，给生成器与 scene_code 提示词共用 */
-export function stageOfAnalysis(analysis, opts = {}) {
-  const env = envelopeFromAnalysis(analysis, opts);
+export function stageOfAnalysis(analysis) {
+  const env = envelopeFromAnalysis(analysis);
   if (!env) return null;
   const frame = computeStageFrame(env);
-  return { frame, range: layoutRange(analysis, frame, opts), env };
+  return { frame, range: layoutRange(analysis, frame), env };
 }

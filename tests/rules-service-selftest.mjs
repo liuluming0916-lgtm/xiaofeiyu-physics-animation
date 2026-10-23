@@ -57,7 +57,7 @@ const fakeRunStream = async (opts) => {
     solve: '取向右为正。a = 2 m/s²，t* = 1.0 s，Δx = 1.0 m，结论带单位。',
     breakdown: 'title: 第 1 步 · 加速\ntex: 物块受摩擦力加速\n\ntitle: 第 2 步 · 匀速\ntex: 共速后随带匀速',
     analysis: ANALYSIS_EXAMPLE,
-    scene_code: 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
+    scene_code: 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.block_A.cx, state.block_A.cy + 0.15], 0.4, 0.3);',
     couple: 'step: 1\nsub: 1\nt0: 0\nt1: 1.5\n\nstep: 2\nsub: 1\nt0: 1.5\nt1: 3.0',
   };
   const text = replies[opts.stage] ?? '';

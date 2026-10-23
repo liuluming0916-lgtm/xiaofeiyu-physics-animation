@@ -24,6 +24,8 @@ export {
   physicalTableFromEntries,
   geometryFor,
   geometryFields,
+  ANCHOR_BY_TYPE,
+  anchorForType,
 } from './geometry.mjs';
 
 export {
@@ -34,6 +36,7 @@ export {
   buildReadouts,
   buildView,
   stateKeyMap,
+  t0LayoutStates,
 } from './generate.mjs';
 
 export { buildDisplayTiming, DISPLAY_SECONDS_PER_SUB } from '../timing/display-time.mjs';

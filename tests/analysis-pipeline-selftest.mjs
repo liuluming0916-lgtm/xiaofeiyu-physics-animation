@@ -50,7 +50,7 @@ const REPLIES = {
   analysis: ANALYSIS_EXAMPLE,
   scene_code: [
     'Draw.ground(-0.5, 5.5, 0);',
-    'Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
+    'Draw.box([state.block_A.cx, state.block_A.cy + 0.15], 0.4, 0.3);',
   ].join('\n'),
   couple: ['step: 1', 't0: 0', 't1: 1', '', 'step: 2', 't0: 1', 't1: 3'].join('\n'),
 };
@@ -101,8 +101,9 @@ console.log('新链路端到端取证（v6）\n');
 check('阶段链里没有 answers', !PHASE5_STAGES.includes('answers'), PHASE5_STAGES.join(','));
 check('阶段链里有 analysis', PHASE5_STAGES.includes('analysis'));
 check(
-  '模型调用顺序 = read_problem → solve → breakdown → analysis → scene_code → couple',
-  calls.join(',') === 'read_problem,solve,breakdown,analysis,scene_code,couple',
+  '模型调用顺序 = read_problem → solve → breakdown → analysis → couple → scene_code',
+  /* 2026-10-24：couple 前置（画图要用步骤边界） */
+  calls.join(',') === 'read_problem,solve,breakdown,analysis,couple,scene_code',
   calls.join(','),
 );
 
@@ -120,7 +121,7 @@ check(
 );
 
 const doneStages = events.filter((e) => e.type === 'stage_done').map((e) => e.stage);
-check('六个模型阶段都完成（含 couple）', doneStages.join(',') === 'read_problem,solve,breakdown,analysis,scene_code,couple', doneStages.join(','));
+check('六个模型阶段都完成（含 couple）', doneStages.join(',') === 'read_problem,solve,breakdown,analysis,couple,scene_code', doneStages.join(','));
 
 const dry = events.find((e) => e.type === 'dryrun_done');
 check('Dry-Run 通过', dry?.verdict === 'pass', dry?.verdict);
@@ -191,15 +192,18 @@ if (programEvent) {
   const slots = programEvent.slots ?? {};
   check('stateAt 由 analysis 生成（含 state.block_A）', String(slots.stateAt ?? '').includes('state.block_A'));
   check(
-    '★ stateAt 带 type 与语义 key（block_A），且不再有 cx/cy',
+    '★ stateAt 带 type、语义 key（block_A）与布局坐标 cx/cy；不带尺寸',
     /type:\s*"block"/.test(String(slots.stateAt)) &&
       /state\.block_A\s*=/.test(String(slots.stateAt)) &&
-      !/\bcx:/.test(String(slots.stateAt)) &&
-      !/\bcy:/.test(String(slots.stateAt)),
+      /\bcx:/.test(String(slots.stateAt)) &&
+      /\bcy:/.test(String(slots.stateAt)) &&
+      /anchor:/.test(String(slots.stateAt)) &&
+      !/\bw:/.test(String(slots.stateAt)) &&
+      !/\bh:/.test(String(slots.stateAt)),
     String(slots.stateAt).slice(-160),
   );
   check('VIEW 由 analysis 生成（duration=3）', String(slots.VIEW ?? '').includes('duration: 3'));
-  check('★ VIEW 的 body 用 u/v（纸面内部量）', String(slots.VIEW ?? '').includes('b.u, b.v'), String(slots.VIEW));
+  check('★ VIEW 的 body 用 cx/cy（布局坐标）', String(slots.VIEW ?? '').includes('b.cx, b.cy'), String(slots.VIEW));
   check('readouts 由 analysis 生成', String(slots.readouts ?? '').includes('block_A.x'));
   check('drawFrame 是 AI 那段', String(slots.drawFrame ?? '').includes('Draw.ground(-0.5, 5.5, 0);'));
   check('ANSWERS 为空', String(slots.ANSWERS ?? '') === '');

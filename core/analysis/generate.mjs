@@ -13,7 +13,7 @@
  *   · STEPS 只留 title / tex（v6；时间轴由 analysis 负责，C5/C6 改读 analysis）。
  */
 
-import { builtinPhysicalTable, geometryFields } from './geometry.mjs';
+import { anchorForType } from './geometry.mjs';
 import { computeStageFrame, stageOfAnalysis } from '../stage/frame.mjs';
 
 /**
@@ -203,9 +203,14 @@ export function buildStepsText(breakdownText, _analysis, _tPhys, fallbackTitle =
     .join('\n\n');
 }
 
-/** 舞台常量（带 `uCenter/vCenter`，供生成代码直接内联） */
-function stageOf(analysis, physical) {
-  const info = stageOfAnalysis(analysis, { sizes: physical });
+/**
+ * 舞台常量（带 `uCenter/vCenter`，供生成代码直接内联）。
+ *
+ * **只折算位置**：世界框由 analysis 的轨迹决定，元件尺寸不参与 ——
+ * 尺寸属于"怎么画"，由 `drawFrame` 自己定（2026-10-24 用户裁决）。
+ */
+function stageOf(analysis) {
+  const info = stageOfAnalysis(analysis);
   const base = info ? info.frame : computeStageFrame({ minX: 0, minY: 0, maxX: 10, maxY: 6 });
   return {
     ...base,
@@ -213,12 +218,24 @@ function stageOf(analysis, physical) {
     vCenter: base.frame.v1 / 2,
   };
 }
-export function buildStateAt(analysis, opts = {}) {
-  /* C 方案：尺寸只来自卡 physical（物理米）。默认内置卡表；流水线传本题快照的卡表。 */
-  const physical = opts.physical ?? builtinPhysicalTable().physical;
+/**
+ * 生成 `stateAt`：每个运动元件一个对象。
+ *
+ * 口径（2026-10-24 用户裁决 —— 动画契约回滚到 1.1.17 的"少约束"版）：
+ *   · `x / y`  = 物理米，**只给读数**（C1 仍然禁止在 `drawFrame` 里用）；
+ *   · `cx / cy` = 该元件在 10×6 布局纸上的坐标（0–10 / 0–6），**画图只用它**；
+ *   · `anchor` = 这个点是元件的哪个部位（bottom / center / top），只表达语义、不含尺寸；
+ *   · **不给任何尺寸**（没有 `w/h/r`）：画多大由 `drawFrame` 自己定。
+ *
+ * 为什么删尺寸：尺寸是"怎么画"的一部分。以前由卡片喂 `physical`（或视觉几何表），
+ * 于是"物块多大"由我们决定、由题目的物理量级决定；q04 那道 25 m 的题物块只剩 4 px，
+ * 就是因为尺寸跟着世界跨度缩放。放权之后，尺寸回到卡片的"可照抄写法"里当范例，
+ * 由模型按画面需要选。
+ */
+export function buildStateAt(analysis) {
   const lines = ['// 由 analysis 运动表生成；不要手改', 'const state = {};'];
-  /* 舞台：由**物理分析表 + 元件尺寸**估世界框 → 折成 10×6 布局纸。 */
-  const stage = stageOf(analysis, physical);
+  /* 舞台：由**物理分析表的位置轨迹**估世界框 → 折成 10×6 布局纸。 */
+  const stage = stageOf(analysis);
   const keys = stateKeys(analysis);
   keys.forEach(({ id, key, type }, i) => {
     const el = analysis.elements[i];
@@ -248,20 +265,15 @@ export function buildStateAt(analysis, opts = {}) {
       .join('');
     lines.push(`else { x${i} = ${lx}; y${i} = ${ly};${lastExtra} }`);
 
-    /* ── 舞台（2026-10-23 A 方案；B2/B3 质心化；C 方案真实比例）──
-     * `x/y` 是**物理质心**（读数、C10 用）；`u/v` 是质心在 10×6 纸上的位置（内部量）。
-     * 不再暴露 `cx/cy`：绘制一律用物理 `x/y`，由运行时的 `Draw` 折算。 */
-    const uExpr = `${fmt(stage.uCenter)} + (x${i} - ${fmt(stage.cx)}) * ${fmt(stage.s)}`;
-    const vExpr = `${fmt(stage.vCenter)} + (y${i} - ${fmt(stage.cy)}) * ${fmt(stage.s)}`;
-    lines.push(`const u${i} = ${uExpr};`);
-    lines.push(`const v${i} = ${vExpr};`);
-    const fields = Object.entries(geometryFields(physical, type))
-      .map(([k, v2]) => `${k}: ${fmt(v2)}`)
-      .join(', ');
+    /* ── 布局坐标（2026-10-24 回滚到 1.1.17 口径）──
+     * `x/y` 仍是物理米（读数、C10 用）；`cx/cy` 是同一个点在 10×6 纸上的布局坐标。
+     * 只做**位置**换算：`anchor` 说明这个点是元件的哪一面，尺寸一律不给。 */
+    const cxExpr = `${fmt(stage.uCenter)} + (x${i} - ${fmt(stage.cx)}) * ${fmt(stage.s)}`;
+    const cyExpr = `${fmt(stage.vCenter)} + (y${i} - ${fmt(stage.cy)}) * ${fmt(stage.s)}`;
+    const anchor = JSON.stringify(anchorForType(type));
     const extras = extraKeys.map((k) => `${k}: ${k}${i}`).join(', ');
     lines.push(
-      `state.${key} = { x: x${i}, y: y${i}, u: u${i}, v: v${i}, type: ${JSON.stringify(type)}` +
-        (fields ? `, ${fields}` : '') +
+      `state.${key} = { x: x${i}, y: y${i}, cx: ${cxExpr}, cy: ${cyExpr}, anchor: ${anchor}, type: ${JSON.stringify(type)}` +
         (extras ? `, ${extras}` : '') +
         ' };',
     );
@@ -293,25 +305,25 @@ export function buildReadouts(analysis, tPhys) {
   return lines.join('\n');
 }
 
-/** 生成 VIEW 槽位正文：时长 + 刚体位置（v/a 箭头由此求导） + 阶段边界 + 舞台框 */
-export function buildView(analysis, tPhys, opts = {}) {
+/**
+ * 生成 VIEW 槽位正文：时长 + 刚体位置（v/a 箭头由此求导） + 阶段边界 + 纸面框。
+ *
+ * `stage` 只带 `u0/u1/v0/v1`（相机固定拍这张 10×6 的纸），**故意不带 `s/cx/cy`**：
+ * 带了的话运行时的 `Draw` 会按 `s` 再折算一次位置，而 drawFrame 里已经是布局坐标了。
+ */
+export function buildView(analysis, tPhys) {
   const keys = stateKeys(analysis);
-  const physical = opts.physical ?? builtinPhysicalTable().physical;
-  const st = stageOf(analysis, physical);
+  const st = stageOf(analysis);
   const stageJson = JSON.stringify({
     u0: st.frame.u0,
     u1: st.frame.u1,
     v0: st.frame.v0,
     v1: st.frame.v1,
-    /* B4：位置变换参数（物理米 → 纸面）。长度/半径不乘 s。 */
-    s: st.s,
-    cx: st.cx,
-    cy: st.cy,
   });
   const bodies = keys
     .map(
       ({ key }) =>
-        `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.u, b.v]; } }`,
+        `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.cx, b.cy]; } }`,
     )
     .join(',\n');
   const bounds = [...new Set((analysis.elements ?? []).flatMap((e) => e.segments.flatMap((s) => [s.t0, s.t1])))]
@@ -349,10 +361,9 @@ function stripCodeFence(s) {
  * @param {string} input.problem
  * @param {string} [input.breakdownText]
  * @param {string} input.drawFrame  AI 写的 drawFrame 函数体
- * @param {Record<string, object>} [input.physical] 本题卡表派生的物理尺寸（缺省用内置卡表）
  * @returns {Record<string,string>}
  */
-export function generateProgramSlots({ analysis, problem, breakdownText, drawFrame, physical }) {
+export function generateProgramSlots({ analysis, problem, breakdownText, drawFrame }) {
   const tPhys = analysis?.tPhys;
   if (!(typeof tPhys === 'number' && Number.isFinite(tPhys) && tPhys > 0)) {
     throw new Error('analysis 缺少有效的 T_phys，无法生成动画程序');
@@ -363,9 +374,9 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
     STEPS: buildStepsText(breakdownText, analysis, tPhys),
     // C7 / ANSWERS 已删；留空串，程序形状允许（见 checkProgramShape）
     ANSWERS: '',
-    VIEW: buildView(analysis, tPhys, { physical }),
+    VIEW: buildView(analysis, tPhys),
     setup: `const T_PHYS = ${fmt(tPhys)};`,
-    stateAt: buildStateAt(analysis, { physical }),
+    stateAt: buildStateAt(analysis),
     drawFrame: stripCodeFence(drawFrame),
     readouts: buildReadouts(analysis, tPhys),
   };
@@ -374,4 +385,31 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
 /** 给 drawFrame 提示词用的状态键映射 */
 export function stateKeyMap(analysis) {
   return stateKeys(analysis).map(({ id, key, type }) => ({ id, key, type }));
+}
+
+/**
+ * t = 0 时每个元件的**布局坐标**（给 `scene_code` 摆静止件用）。
+ *
+ * 为什么单独算：静止件（地面、带、滑轮、斜面）要在"元件此刻在哪"上对齐，
+ * 而 `drawFrame` 拿到的 `state` 是逐帧的；把 t=0 的位置直接写进 user，
+ * 模型就不用猜，斜面也不会画歪。
+ *
+ * @returns {Record<string, {cx:number, cy:number, anchor:string}>}
+ */
+export function t0LayoutStates(analysis) {
+  const stage = stageOf(analysis);
+  const out = {};
+  stateKeys(analysis).forEach(({ key, type }, i) => {
+    const el = analysis?.elements?.[i];
+    const seg = el?.segments?.[0];
+    const x = seg?.x?.fn?.(0);
+    const y = seg?.y?.fn?.(0);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    out[key] = {
+      cx: stage.uCenter + (x - stage.cx) * stage.s,
+      cy: stage.vCenter + (y - stage.cy) * stage.s,
+      anchor: anchorForType(type),
+    };
+  });
+  return out;
 }

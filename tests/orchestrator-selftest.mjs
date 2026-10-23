@@ -172,8 +172,11 @@ console.log('『A』事件序列与阶段链');
     console.log('DEBUG done :', events.filter((e) => e.type === 'stage_done').map((e) => `${e.stage}${e.skipped ? '(skipped)' : ''}`).join(','));
     console.log('DEBUG types:', [...new Set(types)].join(','));
   }  check(
-    '阶段链顺序正确（read_problem→solve→breakdown→analysis→scene_code→dry_run→couple）',
-    started.join(',') === [...MODEL_STAGES, 'dry_run', 'couple'].join(','),
+    '阶段链顺序正确（read_problem→solve→breakdown→analysis→**couple**→scene_code→dry_run）',
+    /* 2026-10-24：couple 前置到 scene_code 之前（画图要用步骤边界）。
+       它不在 `MODEL_STAGES` 里（那个列表驱动主循环，couple 由 `runCoupleStage` 单独跑），
+       所以这里按实际顺序写死一张表。 */
+    started.join(',') === 'read_problem,solve,breakdown,analysis,couple,scene_code,dry_run',
     started.join(','),
   );
   check('新链路不再有 answers 阶段', !started.includes('answers'), started.join(','));
@@ -438,8 +441,8 @@ console.log('\n『C』取消语义（§21.1 第 3 条）');
       if (e.type === 'stage_done' && e.stage === 'breakdown') ac.abort(); // v6：analysis 已并行启动，取消发生在 breakdown 完成后
     }
     check(
-      '取消后不再调用后续模型（analysis 已启动，但 scene_code 没跑）',
-      !stream.calls.some((c) => c.stage === 'scene_code') && stream.calls.length <= 4,
+      '取消后不再调用后续模型（analysis 已启动；couple 可能已发起但不会画出动画）',
+      !stream.calls.some((c) => c.stage === 'scene_code') && stream.calls.length <= 5,
       `实际 ${stream.calls.length}`,
     );
     check('取消后不执行 Dry-Run', dry.calls.length === 0, `实际 ${dry.calls.length}`);
