@@ -219,7 +219,7 @@ async function main() {
         stage === 'analysis'
           ? ANALYSIS_EXAMPLE
           : stage === 'scene_code'
-            ? 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);'
+            ? 'Draw.box([state.block_A.x, state.block_A.y], 0.3, 0.3);'
             : `【${stage} 的正文】由动能定理可得答案。`;
       args.onDelta?.(text);
       return { text, reasoning: '', usage: null, model: 'fake' };

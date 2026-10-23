@@ -50,7 +50,7 @@ const REPLIES = {
   analysis: ANALYSIS_EXAMPLE,
   scene_code: [
     'Draw.ground(-0.5, 5.5, 0);',
-    'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
+    'Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
   ].join('\n'),
   couple: ['step: 1', 't0: 0', 't1: 1', '', 'step: 2', 't0: 1', 't1: 3'].join('\n'),
 };
@@ -189,10 +189,17 @@ check('★ 证据形状仍是前端可读的（from/depth/origin/charsBySlot 都
 const programEvent = events.find((e) => e.type === 'dryrun_done')?.program;
 if (programEvent) {
   const slots = programEvent.slots ?? {};
-  check('stateAt 由 analysis 生成（含 state.e0）', String(slots.stateAt ?? '').includes('state.e0'));
-  check('★ stateAt 带 type 与视觉中心 cx/cy', /type:\s*"block"/.test(String(slots.stateAt)) && /\bcx:/.test(String(slots.stateAt)) && /\bcy:/.test(String(slots.stateAt)), String(slots.stateAt).slice(-160));
+  check('stateAt 由 analysis 生成（含 state.block_A）', String(slots.stateAt ?? '').includes('state.block_A'));
+  check(
+    '★ stateAt 带 type 与语义 key（block_A），且不再有 cx/cy',
+    /type:\s*"block"/.test(String(slots.stateAt)) &&
+      /state\.block_A\s*=/.test(String(slots.stateAt)) &&
+      !/\bcx:/.test(String(slots.stateAt)) &&
+      !/\bcy:/.test(String(slots.stateAt)),
+    String(slots.stateAt).slice(-160),
+  );
   check('VIEW 由 analysis 生成（duration=3）', String(slots.VIEW ?? '').includes('duration: 3'));
-  check('★ VIEW 的 body 用视觉中心 cx/cy', String(slots.VIEW ?? '').includes('.cx') && String(slots.VIEW ?? '').includes('.cy'), String(slots.VIEW));
+  check('★ VIEW 的 body 用 u/v（纸面内部量）', String(slots.VIEW ?? '').includes('b.u, b.v'), String(slots.VIEW));
   check('readouts 由 analysis 生成', String(slots.readouts ?? '').includes('block_A.x'));
   check('drawFrame 是 AI 那段', String(slots.drawFrame ?? '').includes('Draw.ground(-0.5, 5.5, 0);'));
   check('ANSWERS 为空', String(slots.ANSWERS ?? '') === '');

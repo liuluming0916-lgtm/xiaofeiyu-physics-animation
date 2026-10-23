@@ -71,11 +71,43 @@ function anchorOf(seg) {
   return { t0: seg?.t0, x0: a.x0, y0: a.y0, vx0: a.vx0, vy0: a.vy0, ax: a.ax, ay: a.ay };
 }
 
-/** 元件 id → 安全的 state 键（e0、e1…）；同时给 drawFrame 的提示词一份映射 */
+const JS_RESERVED = new Set([
+  'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do',
+  'else', 'export', 'extends', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
+  'let', 'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof', 'var', 'void',
+  'while', 'with', 'yield', 'enum', 'await', 'implements', 'interface', 'package', 'private',
+  'protected', 'public', 'static', 'null', 'true', 'false',
+]);
+
+/**
+ * 元件 id → 语义化 state 键（B3'）。
+ *
+ * `e0` 这种按顺序编号的键有两个问题：元件重排后会串对象、日志里不可读。
+ * 规则：id 本身是合法 JS 标识符就直接用（`block_A`）；否则退化为 `type_序号`（`物块A` → `block_1`）。
+ * 重复/保留字自动加 `_2`。
+ */
+function semanticKeyOf(id, type, index, used) {
+  const raw = String(id ?? '').trim();
+  let base;
+  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(raw)) {
+    base = raw;
+  } else {
+    const t = String(type ?? '').trim().replace(/[^A-Za-z0-9_$]/g, '_').replace(/^_+/, '');
+    base = /^[A-Za-z_$]/.test(t) ? `${t}_${index + 1}` : `el_${index + 1}`;
+  }
+  let key = base;
+  let n = 2;
+  while (used.has(key) || JS_RESERVED.has(key)) key = `${base}_${n++}`;
+  used.add(key);
+  return key;
+}
+
+/** 元件 id → state 键（语义化）；同时给 drawFrame 的提示词一份映射 */
 function stateKeys(analysis) {
+  const used = new Set();
   return (analysis.elements ?? []).map((el, i) => ({
     id: el.id,
-    key: `e${i}`,
+    key: semanticKeyOf(el.id, el.type, i, used),
     type: el.type ?? 'unknown',
   }));
 }
@@ -216,9 +248,9 @@ export function buildStateAt(analysis, opts = {}) {
       .join('');
     lines.push(`else { x${i} = ${lx}; y${i} = ${ly};${lastExtra} }`);
 
-    /* ── 舞台（2026-10-23 A 方案；B2/B3 质心化）──
-     * `x/y` 是**物理质心**（读数、C10 用）；`u/v` 是质心在 10×6 纸上的位置。
-     * B3：不再做“接触点 → 视觉中心”的偏移 —— 质心即中心，`cx/cy` 就是 `u/v`。 */
+    /* ── 舞台（2026-10-23 A 方案；B2/B3 质心化；C 方案真实比例）──
+     * `x/y` 是**物理质心**（读数、C10 用）；`u/v` 是质心在 10×6 纸上的位置（内部量）。
+     * 不再暴露 `cx/cy`：绘制一律用物理 `x/y`，由运行时的 `Draw` 折算。 */
     const uExpr = `${fmt(stage.uCenter)} + (x${i} - ${fmt(stage.cx)}) * ${fmt(stage.s)}`;
     const vExpr = `${fmt(stage.vCenter)} + (y${i} - ${fmt(stage.cy)}) * ${fmt(stage.s)}`;
     lines.push(`const u${i} = ${uExpr};`);
@@ -228,7 +260,7 @@ export function buildStateAt(analysis, opts = {}) {
       .join(', ');
     const extras = extraKeys.map((k) => `${k}: ${k}${i}`).join(', ');
     lines.push(
-      `state.${key} = { x: x${i}, y: y${i}, u: u${i}, v: v${i}, type: ${JSON.stringify(type)}, cx: u${i}, cy: v${i}` +
+      `state.${key} = { x: x${i}, y: y${i}, u: u${i}, v: v${i}, type: ${JSON.stringify(type)}` +
         (fields ? `, ${fields}` : '') +
         (extras ? `, ${extras}` : '') +
         ' };',
@@ -279,7 +311,7 @@ export function buildView(analysis, tPhys, opts = {}) {
   const bodies = keys
     .map(
       ({ key }) =>
-        `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.cx ?? b.x, b.cy ?? b.y]; } }`,
+        `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.u, b.v]; } }`,
     )
     .join(',\n');
   const bounds = [...new Set((analysis.elements ?? []).flatMap((e) => e.segments.flatMap((s) => [s.t0, s.t1])))]

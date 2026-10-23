@@ -29,7 +29,7 @@ export const REPAIR_INSTRUCTION = [
   '【示例】只输出这样的函数体：',
   '```js',
   'Draw.ground(-0.5, 5.5, 0);',
-  'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
+  'Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
   '```',
 ].join('\n');
 

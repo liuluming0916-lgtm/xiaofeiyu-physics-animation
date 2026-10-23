@@ -108,7 +108,7 @@ let cancelledOnce = false;
  * v6：AI 只写 drawFrame；物理/数据槽位由 analysis 生成。
  * 这个默认值让所有不关心画面的用例都能跑完整条链。
  */
-const GOOD_DRAW_FRAME = 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);';
+const GOOD_DRAW_FRAME = 'Draw.box([state.block_A.x, state.block_A.y], 0.3, 0.3);';
 const DEFAULT_REPLIES = {
   analysis: ANALYSIS_EXAMPLE,
   scene_code: GOOD_DRAW_FRAME,
@@ -563,7 +563,7 @@ console.log('\n『E』端到端：analysis 当模型输出，生成 8 槽位后�
   /* ── v6 的核心：物理/数据槽位由 analysis 生成，AI 只写 drawFrame ── */
   check('ANSWERS 为空（C7 已删）', dd.program.slots.ANSWERS.trim() === '', JSON.stringify(dd.program.slots.ANSWERS));
   check('VIEW 的 duration 取自 analysis 的 T_phys=3', dd.program.slots.VIEW.includes('duration: 3'), dd.program.slots.VIEW);
-  check('stateAt 由 analysis 生成（含分段变量 tt0）', dd.program.slots.stateAt.includes('tt0') && dd.program.slots.stateAt.includes('e0'), dd.program.slots.stateAt);
+  check('stateAt 由 analysis 生成（含分段变量 tt0）', dd.program.slots.stateAt.includes('tt0') && dd.program.slots.stateAt.includes('block_A'), dd.program.slots.stateAt);
   check('setup 只生成 T_PHYS 常量', dd.program.slots.setup.includes('T_PHYS = 3'), dd.program.slots.setup);
   check('drawFrame 逐字来自 AI', dd.program.slots.drawFrame.trim() === GOOD_DRAW_FRAME, dd.program.slots.drawFrame);
   check('STEPS 来自 breakdown（标题保留）', dd.program.slots.STEPS.includes('title: 第 1 步'), dd.program.slots.STEPS);
@@ -577,7 +577,7 @@ console.log('\n『E』端到端：analysis 当模型输出，生成 8 槽位后�
   const sceneCall = stream.calls.find((c) => detectStage(c.messages) === 'scene_code');
   const sceneUser = String(sceneCall?.messages?.find((m) => m.role === 'user')?.content ?? '');
   check('scene_code 的输入含 analysis 运动表', sceneUser.includes('元件运动表') && sceneUser.includes('block_A'), sceneUser.slice(0, 120));
-  check('scene_code 的输入含状态键映射（block_A → e0）', sceneUser.includes('e0'), sceneUser.slice(0, 200));
+  check('scene_code 的输入含状态键映射（block_A → block_A）', sceneUser.includes('block_A'), sceneUser.slice(0, 200));
 }
 
 console.log('\n『E-2』deriveTimeAxis 从 STEPS 里推导总时长');

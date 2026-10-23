@@ -55,7 +55,7 @@ const rows = [];
 for (const span of SPANS) {
   const { player, frame } = build(
     span,
-    'Draw.ground(0, ' + span + ', 0);\nDraw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
+    'Draw.ground(0, ' + span + ', 0);\nDraw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
   );
   const st = player.program.stateAt(0);
   const stage = player.program.SIM.stage;
@@ -68,9 +68,9 @@ for (const span of SPANS) {
   rows.push({
     span,
     s: stage.s,
-    wPhysical: st.e0.w,
+    wPhysical: st.block_A.w,
     paperWidth: boxWidth,
-    expectPaper: st.e0.w * stage.s,
+    expectPaper: st.block_A.w * stage.s,
     contactErr: Math.abs(boxBottom - groundY),
     pxWidth: boxWidth * frame.transform.scale,
   });
@@ -99,11 +99,25 @@ if (!(rows[2].pxWidth < MIN_PX)) fail('极端大题：折算后像素宽应小�
 
 /* minPx：1.2e6 m 的球，画出来半径至少 3 px */
 {
-  const { canvas } = build(1.2e6, 'Draw.circle([state.e0.x, state.e0.y], state.e0.r);', 'ball');
+  const { canvas } = build(1.2e6, 'Draw.circle([state.block_A.x, state.block_A.y], state.block_A.r);', 'ball');
   const arcs = canvas.__calls.filter((c) => c.op === 'arc');
   const rPx = arcs.length ? arcs[arcs.length - 1].args[2] : 0;
   console.log(`\n极端大题圆点半径：${rPx.toFixed(2)} px（判据 ≥ ${MIN_PX / 2}）`);
   if (!(rPx >= MIN_PX / 2 - 1e-9)) fail('极端大题里圆点没有按 MIN_PX 兜底（会看不见）');
+}
+
+/* 纸面溢出：100 m 的盒子塞进 1.2 m 的题，必须告警一次（不静默） */
+{
+  const warns = [];
+  const orig = console.warn;
+  console.warn = (...args) => warns.push(args.join(' '));
+  try {
+    build(1.2, 'Draw.box([0, 0], 100, 100);');
+  } finally {
+    console.warn = orig;
+  }
+  console.log(`\n纸面溢出告警：${warns.length} 条`);
+  if (!warns.some((w) => w.includes('画面超出'))) fail('纸面溢出没有告警（超纸应提示一次）');
 }
 
 /* 老程序（无 stage）不受影响：坐标与长度原样 */

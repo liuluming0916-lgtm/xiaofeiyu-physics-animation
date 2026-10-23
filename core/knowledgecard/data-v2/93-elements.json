@@ -7,11 +7,11 @@
       "title": "元件·物块 / 滑块",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·物块 / 滑块\n\n## 判据\n题面或配图里出现「物块」「滑块」这类东西时画这一件。\n\n## 状态字段\n- `state.<key>.angleDeg` 由运行时按速度方向注入；没有速度时由场景卡给静态角。\n- `state.<key>.x / .y` 是**质心**（物理米），画位置用它。\n- `state.<key>.w / .h` 是 physical 的物理米值（绘制时本地自动乘 s）；不要写死宽高。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h, { angleDeg: state.e0.angleDeg });`\n\n## 这条元件最常错的地方\n把 `x/y` 当成接触点（块会浮起来）；写死 `+0.1` 或 `0.4×0.3`。\n\n## 自检\n- [ ] 用 `x/y/w/h`，没有写死半高或宽高。\n- [ ] 位置与长度都是物理米（本地自动折纸面），没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
+      "content": "# 元件·物块 / 滑块\n\n## 判据\n题面或配图里出现「物块」「滑块」这类东西时画这一件。\n\n## 状态字段\n- `state.<key>.angleDeg` 由运行时按速度方向注入；没有速度时由场景卡给静态角。\n- `state.<key>.x / .y` 是**质心**（物理米），画位置用它。\n- `state.<key>.w / .h` 是 physical 的物理米值（绘制时本地自动乘 s）；不要写死宽高。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h, { angleDeg: state.block_A.angleDeg });`\n\n## 这条元件最常错的地方\n把 `x/y` 当成接触点（块会浮起来）；写死 `+0.1` 或 `0.4×0.3`。\n\n## 自检\n- [ ] 用 `x/y/w/h`，没有写死半高或宽高。\n- [ ] 位置与长度都是物理米（本地自动折纸面），没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
       "order": 900,
       "priority": "high",
       "code_examples": [
-        "Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h, { angleDeg: state.e0.angleDeg });"
+        "Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h, { angleDeg: state.block_A.angleDeg });"
       ],
       "kind": "element",
       "constant": false,
@@ -32,11 +32,11 @@
       "title": "元件·长木板 / 小车",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·长木板 / 小车\n\n## 判据\n题面或配图里出现「长木板」「平板」「车板」「小车」这类东西时画这一件；小车不画轮子，用矩形示意即可。\n\n## 状态字段\n- `state.<key>.angleDeg` 由运行时按速度方向注入；没有速度时由场景卡给静态角。\n- `state.<key>.x / .y` 是**质心**（物理米），画位置用 `state.<key>.x / .y`。\n- `state.<key>.w / .h` 是 physical 的物理米值（绘制时本地自动乘 s）；板厚从 `.h` 读（卡默认 0.02 m）；**板长按题面给**（板没有默认长，不要从 state 读）。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.e0.x, state.e0.y], 3.0, state.e0.h, { angleDeg: state.e0.angleDeg });`（3.0 换成题面板长）\n\n## 这条元件最常错的地方\n把板长写死、或从 state.w 读（板没有默认长）；板是长条；小车也只用矩形示意。\n\n## 自检\n- [ ] 板厚不写死；板长按题面给。\n- [ ] 位置与长度都是物理米（本地自动折纸面），没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
+      "content": "# 元件·长木板 / 小车\n\n## 判据\n题面或配图里出现「长木板」「平板」「车板」「小车」这类东西时画这一件；小车不画轮子，用矩形示意即可。\n\n## 状态字段\n- `state.<key>.angleDeg` 由运行时按速度方向注入；没有速度时由场景卡给静态角。\n- `state.<key>.x / .y` 是**质心**（物理米），画位置用 `state.<key>.x / .y`。\n- `state.<key>.w / .h` 是 physical 的物理米值（绘制时本地自动乘 s）；板厚从 `.h` 读（卡默认 0.02 m）；**板长按题面给**（板没有默认长，不要从 state 读）。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.board_A.x, state.board_A.y], 3.0, state.board_A.h, { angleDeg: state.board_A.angleDeg });`（3.0 换成题面板长）\n\n## 这条元件最常错的地方\n把板长写死、或从 state.w 读（板没有默认长）；板是长条；小车也只用矩形示意。\n\n## 自检\n- [ ] 板厚不写死；板长按题面给。\n- [ ] 位置与长度都是物理米（本地自动折纸面），没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
       "order": 901,
       "priority": "high",
       "code_examples": [
-        "Draw.box([state.e0.x, state.e0.y], 3.0, state.e0.h, { angleDeg: state.e0.angleDeg });"
+        "Draw.box([state.board_A.x, state.board_A.y], 3.0, state.board_A.h, { angleDeg: state.board_A.angleDeg });"
       ],
       "kind": "element",
       "constant": false,
@@ -56,11 +56,11 @@
       "title": "元件·小球 / 质点 / 卫星",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·小球 / 质点 / 卫星\n\n## 判据\n题面或配图里出现「小球」「质点」「卫星」这类东西时画这一件；质点和卫星按题目语义可以画成小球，也可以画成小物块。\n\n## 状态字段\n- `state.<key>.x / .y` 是**质心**（物理米），画位置用 `state.<key>.x / .y`。\n- 小球用 `state.<key>.r`（物理米，来自卡）；质点画成物块时用 `state.<key>.w / .h`。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- 小球/质点（圆形）：`Draw.circle([state.e0.x, state.e0.y], state.e0.r);`\n- 质点按题意当物块（方形）：`Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);`\n\n## 这条元件最常错的地方\n质点一律画成大圆；或反过来把小球画成方块。按题目语义选 `circle` 或 `box`，不要自造 SDK 里没有的函数名。\n\n## 自检\n- [ ] 用 `x/y`；小球/卫星用 `r`，方块用 `w/h`。\n- [ ] 卫星只画本体，椭圆轨道归 `celestial_orbit` 场景。\n- [ ] 位置与长度都是物理米（本地自动折纸面），没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
+      "content": "# 元件·小球 / 质点 / 卫星\n\n## 判据\n题面或配图里出现「小球」「质点」「卫星」这类东西时画这一件；质点和卫星按题目语义可以画成小球，也可以画成小物块。\n\n## 状态字段\n- `state.<key>.x / .y` 是**质心**（物理米），画位置用 `state.<key>.x / .y`。\n- 小球用 `state.<key>.r`（物理米，来自卡）；质点画成物块时用 `state.<key>.w / .h`。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- 小球/质点（圆形）：`Draw.circle([state.ball_A.x, state.ball_A.y], state.ball_A.r);`\n- 质点按题意当物块（方形）：`Draw.box([state.ball_A.x, state.ball_A.y], state.ball_A.w, state.ball_A.h);`\n\n## 这条元件最常错的地方\n质点一律画成大圆；或反过来把小球画成方块。按题目语义选 `circle` 或 `box`，不要自造 SDK 里没有的函数名。\n\n## 自检\n- [ ] 用 `x/y`；小球/卫星用 `r`，方块用 `w/h`。\n- [ ] 卫星只画本体，椭圆轨道归 `celestial_orbit` 场景。\n- [ ] 位置与长度都是物理米（本地自动折纸面），没有像素；画布上不写字。\n- [ ] 静止物体按读题几何摆放，没有悬空。",
       "order": 904,
       "priority": "high",
       "code_examples": [
-        "Draw.circle([state.e0.x, state.e0.y], state.e0.r);"
+        "Draw.circle([state.ball_A.x, state.ball_A.y], state.ball_A.r);"
       ],
       "kind": "element",
       "constant": false,
@@ -82,11 +82,11 @@
       "title": "元件·弹簧",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·弹簧（连接件）\n\n## 判据\n题面或配图里出现「弹簧」这类东西时画这一件；它通常只是连接件。\n\n## 状态字段\n- 两端各取一个端点：A 可以是 `state.<key>.x / .y`，也可以是固定世界坐标；B 同理。\n- 两端都要更新；只接一端会让弹簧“斜穿”物体。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.spring([0, 1.8], [state.e0.x, state.e0.y], { coils: 12 });`\n\n## 这条元件最常错的地方\n两端各写一套来源；只更新活动端；把弹簧当成有质量的振子。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 没有给弹簧硬造独立 state。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
+      "content": "# 元件·弹簧（连接件）\n\n## 判据\n题面或配图里出现「弹簧」这类东西时画这一件；它通常只是连接件。\n\n## 状态字段\n- 两端各取一个端点：A 可以是 `state.<key>.x / .y`，也可以是固定世界坐标；B 同理。\n- 两端都要更新；只接一端会让弹簧“斜穿”物体。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.spring([0, 1.8], [state.spring_A.x, state.spring_A.y], { coils: 12 });`\n\n## 这条元件最常错的地方\n两端各写一套来源；只更新活动端；把弹簧当成有质量的振子。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 没有给弹簧硬造独立 state。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
       "order": 906,
       "priority": "high",
       "code_examples": [
-        "Draw.spring([0, 1.8], [state.e0.x, state.e0.y], { coils: 12 });"
+        "Draw.spring([0, 1.8], [state.spring_A.x, state.spring_A.y], { coils: 12 });"
       ],
       "kind": "element",
       "constant": false,
@@ -103,11 +103,11 @@
       "title": "元件·绳 / 细线",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·绳 / 细线（连接件）\n\n## 判据\n题面或配图里出现「绳」「细线」这类东西时画这一件；它通常只是连接件。\n\n## 状态字段\n- 两端各取一个端点：A / B 都可以是 `state.<key>.x / .y` 或固定世界坐标。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.line([0, 1.8], [state.e0.x, state.e0.y]);`\n\n## 这条元件最常错的地方\n只接一端；绳松弛时仍硬拉成直线（没有松弛量就画直绳，并承认这是示意）。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 没有硬造独立 state。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
+      "content": "# 元件·绳 / 细线（连接件）\n\n## 判据\n题面或配图里出现「绳」「细线」这类东西时画这一件；它通常只是连接件。\n\n## 状态字段\n- 两端各取一个端点：A / B 都可以是 `state.<key>.x / .y` 或固定世界坐标。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.line([0, 1.8], [state.rope_A.x, state.rope_A.y]);`\n\n## 这条元件最常错的地方\n只接一端；绳松弛时仍硬拉成直线（没有松弛量就画直绳，并承认这是示意）。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 没有硬造独立 state。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
       "order": 908,
       "priority": "high",
       "code_examples": [
-        "Draw.line([0, 1.8], [state.e0.x, state.e0.y]);"
+        "Draw.line([0, 1.8], [state.rope_A.x, state.rope_A.y]);"
       ],
       "kind": "element",
       "constant": false,
@@ -124,11 +124,11 @@
       "title": "元件·轨迹",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·轨迹（跟随件）\n\n## 判据\n题面或配图里出现「轨迹」这类东西时画这一件；它不独立触发，必须跟随一个运动元件。\n\n## 状态字段\n- 目标元件的 `state.<key>.x / .y` 是采样点；没有目标就不画。\n- 用 `context.at(tt)` 采样历史，只画到当前 `t` 为止；不要画“还没发生”的时段。\n\n## 画法\n- `Draw.trace([[0, 0], [state.e0.x, state.e0.y]]);`\n\n## 这条元件最常错的地方\n另写一条解析曲线当轨迹；没有目标还硬画；把未来时段也画出来。\n\n## 自检\n- [ ] 轨迹跟随一个真实运动元件。\n- [ ] 只画到当前 `t`，没有未来时段。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
+      "content": "# 元件·轨迹（跟随件）\n\n## 判据\n题面或配图里出现「轨迹」这类东西时画这一件；它不独立触发，必须跟随一个运动元件。\n\n## 状态字段\n- 目标元件的 `state.<key>.x / .y` 是采样点；没有目标就不画。\n- 用 `context.at(tt)` 采样历史，只画到当前 `t` 为止；不要画“还没发生”的时段。\n\n## 画法\n- `Draw.trace([[0, 0], [state.trace_path_A.x, state.trace_path_A.y]]);`\n\n## 这条元件最常错的地方\n另写一条解析曲线当轨迹；没有目标还硬画；把未来时段也画出来。\n\n## 自检\n- [ ] 轨迹跟随一个真实运动元件。\n- [ ] 只画到当前 `t`，没有未来时段。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
       "order": 919,
       "priority": "high",
       "code_examples": [
-        "Draw.trace([[0, 0], [state.e0.x, state.e0.y]]);"
+        "Draw.trace([[0, 0], [state.trace_path_A.x, state.trace_path_A.y]]);"
       ],
       "kind": "element",
       "constant": false,
@@ -353,11 +353,11 @@
       "title": "元件·导体棒 / 金属棒",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·导体棒 / 金属棒\n\n## 判据\n题面或配图里出现「导体棒」「金属棒」这类东西时画这一件；导轨由 `rail` 场景卡负责。\n\n## 状态字段\n- 用 `state.<key>.x / .y` 定棒的中心；棒长与方向由导轨/场景给。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.line([state.e0.x - 0.5, state.e0.y], [state.e0.x + 0.5, state.e0.y], { width: 3 });`\n\n## 这条元件最常错的地方\n把导轨也画进导体棒；棒长与导轨间距不一致；棒的两端没落在导轨上。\n\n## 自检\n- [ ] 只画棒，导轨交给 `rail` 场景。\n- [ ] 棒长与导轨间距一致，两端落在导轨上。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
+      "content": "# 元件·导体棒 / 金属棒\n\n## 判据\n题面或配图里出现「导体棒」「金属棒」这类东西时画这一件；导轨由 `rail` 场景卡负责。\n\n## 状态字段\n- 用 `state.<key>.x / .y` 定棒的中心；棒长与方向由导轨/场景给。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.line([state.conductor_rod_A.x - 0.5, state.conductor_rod_A.y], [state.conductor_rod_A.x + 0.5, state.conductor_rod_A.y], { width: 3 });`\n\n## 这条元件最常错的地方\n把导轨也画进导体棒；棒长与导轨间距不一致；棒的两端没落在导轨上。\n\n## 自检\n- [ ] 只画棒，导轨交给 `rail` 场景。\n- [ ] 棒长与导轨间距一致，两端落在导轨上。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
       "order": 909,
       "priority": "high",
       "code_examples": [
-        "Draw.line([state.e0.x - 0.5, state.e0.y], [state.e0.x + 0.5, state.e0.y], { width: 3 });"
+        "Draw.line([state.conductor_rod_A.x - 0.5, state.conductor_rod_A.y], [state.conductor_rod_A.x + 0.5, state.conductor_rod_A.y], { width: 3 });"
       ],
       "kind": "element",
       "constant": false,
@@ -378,11 +378,11 @@
       "title": "元件·轻杆 / 细杆（连接件）",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·轻杆 / 细杆（连接件）\n\n## 判据\n题面或配图里出现「轻杆」「细杆」「直杆」这类东西时画这一件；它通常只是连接件，不拥有独立 `state`。\n\n## 状态字段\n- 两端各取一个端点：可以是 `state.<key>.x / .y`，也可以是固定世界坐标。\n- 两端都要更新；不要只挪一端。没有独立 state 时不要硬造。\n\n## 画法\n- `Draw.line([0, 1.0], [state.e0.x, state.e0.y], { width: 3 });`\n\n## 这条元件最常错的地方\n只接一端；把轻杆当成有质量的转动杆；杆的弹力方向当成“沿杆”。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 轻杆没有被当成独立运动体。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
+      "content": "# 元件·轻杆 / 细杆（连接件）\n\n## 判据\n题面或配图里出现「轻杆」「细杆」「直杆」这类东西时画这一件；它通常只是连接件，不拥有独立 `state`。\n\n## 状态字段\n- 两端各取一个端点：可以是 `state.<key>.x / .y`，也可以是固定世界坐标。\n- 两端都要更新；不要只挪一端。没有独立 state 时不要硬造。\n\n## 画法\n- `Draw.line([0, 1.0], [state.light_rod_A.x, state.light_rod_A.y], { width: 3 });`\n\n## 这条元件最常错的地方\n只接一端；把轻杆当成有质量的转动杆；杆的弹力方向当成“沿杆”。\n\n## 自检\n- [ ] 两端都来自实际端点，没有悬空。\n- [ ] 轻杆没有被当成独立运动体。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
       "order": 909,
       "priority": "high",
       "code_examples": [
-        "Draw.line([0, 1.0], [state.e0.x, state.e0.y], { width: 3 });"
+        "Draw.line([0, 1.0], [state.light_rod_A.x, state.light_rod_A.y], { width: 3 });"
       ],
       "kind": "element",
       "constant": false,
@@ -488,11 +488,11 @@
       "title": "元件·活塞",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·活塞\n\n## 判据\n题面或配图里出现「活塞」「注射器活塞」这类东西时画这一件；气缸由 `cylinder` 场景画。\n\n## 状态字段\n- 用 `state.<key>.x / .y` 定活塞中心；`w / h` 是纸面尺寸。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);`\n\n## 这条元件最常错的地方\n活塞与气缸各画一套坐标；活塞厚度写死。\n\n## 自检\n- [ ] 用 `x/y/w/h`，与气缸共用同一套坐标。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。\n- [ ] 气缸由场景卡负责，活塞不重复画缸壁。",
+      "content": "# 元件·活塞\n\n## 判据\n题面或配图里出现「活塞」「注射器活塞」这类东西时画这一件；气缸由 `cylinder` 场景画。\n\n## 状态字段\n- 用 `state.<key>.x / .y` 定活塞中心；`w / h` 是纸面尺寸。\n- 不要写 `stateAt` / `VIEW` / `setup` / `readouts`。\n\n## 画法\n- `Draw.box([state.piston_A.x, state.piston_A.y], state.piston_A.w, state.piston_A.h);`\n\n## 这条元件最常错的地方\n活塞与气缸各画一套坐标；活塞厚度写死。\n\n## 自检\n- [ ] 用 `x/y/w/h`，与气缸共用同一套坐标。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。\n- [ ] 气缸由场景卡负责，活塞不重复画缸壁。",
       "order": 927,
       "priority": "high",
       "code_examples": [
-        "Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);"
+        "Draw.box([state.piston_A.x, state.piston_A.y], state.piston_A.w, state.piston_A.h);"
       ],
       "kind": "element",
       "constant": false,
@@ -513,11 +513,11 @@
       "title": "元件·水银柱（液面 A / 液面 B）",
       "origin": "builtin",
       "enabled": true,
-      "content": "# 元件·水银柱（液面 A / 液面 B）\n\n## 判据\n题面或配图里出现「水银柱」「汞柱」这类东西时画这一件；玻璃管由 `gas_tube` 场景画。\n\n## 状态字段\n- `state.<key>.yA` 与 `state.<key>.yB` 是两个液面的高度，由 `analysis` 分别算出。\n- 只画两个液面之间的填充；管壁与裁剪由 `gas_tube` 场景负责。\n\n## 画法\n- `Draw.polygon([[0, state.e0.yA], [0.1, state.e0.yA], [0.1, state.e0.yB], [0, state.e0.yB]], { fill: 'rgba(120,120,120,0.35)' });`\n- `Draw.line([0, state.e0.yA], [0.1, state.e0.yA], { width: 2 });`\n- `Draw.line([0, state.e0.yB], [0.1, state.e0.yB], { width: 2 });`\n\n## 这条元件最常错的地方\n只画一个液面；把整根柱画成固定长度；液面越出管口。\n\n## 自检\n- [ ] `yA` / `yB` 两个液面都由 analysis 给出。\n- [ ] 只填充两液面之间，管壁归场景卡。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
+      "content": "# 元件·水银柱（液面 A / 液面 B）\n\n## 判据\n题面或配图里出现「水银柱」「汞柱」这类东西时画这一件；玻璃管由 `gas_tube` 场景画。\n\n## 状态字段\n- `state.<key>.yA` 与 `state.<key>.yB` 是两个液面的高度，由 `analysis` 分别算出。\n- 只画两个液面之间的填充；管壁与裁剪由 `gas_tube` 场景负责。\n\n## 画法\n- `Draw.polygon([[0, state.mercury_A.yA], [0.1, state.mercury_A.yA], [0.1, state.mercury_A.yB], [0, state.mercury_A.yB]], { fill: 'rgba(120,120,120,0.35)' });`\n- `Draw.line([0, state.mercury_A.yA], [0.1, state.mercury_A.yA], { width: 2 });`\n- `Draw.line([0, state.mercury_A.yB], [0.1, state.mercury_A.yB], { width: 2 });`\n\n## 这条元件最常错的地方\n只画一个液面；把整根柱画成固定长度；液面越出管口。\n\n## 自检\n- [ ] `yA` / `yB` 两个液面都由 analysis 给出。\n- [ ] 只填充两液面之间，管壁归场景卡。\n- [ ] 位置与长度都是物理米（本地自动折纸面），画布上不写字。",
       "order": 928,
       "priority": "high",
       "code_examples": [
-        "Draw.polygon([[0, state.e0.yA], [0.1, state.e0.yA], [0.1, state.e0.yB], [0, state.e0.yB]], { fill: 'rgba(120,120,120,0.35)' });"
+        "Draw.polygon([[0, state.mercury_A.yA], [0.1, state.mercury_A.yA], [0.1, state.mercury_A.yB], [0, state.mercury_A.yB]], { fill: 'rgba(120,120,120,0.35)' });"
       ],
       "kind": "element",
       "constant": false,

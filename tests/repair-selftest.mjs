@@ -43,8 +43,8 @@ const endpoint = {
   timeoutMs: 5000,
 };
 
-const GOOD_DRAW = 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);';
-const FIXED_DRAW = '/*FIXED*/ Draw.line([state.e0.x - 0.2, 0], [state.e0.x + 0.2, 0]);';
+const GOOD_DRAW = 'Draw.box([state.block_A.x, state.block_A.y], 0.3, 0.3);';
+const FIXED_DRAW = '/*FIXED*/ Draw.line([state.block_A.x - 0.2, 0], [state.block_A.x + 0.2, 0]);';
 
 function fakeReport({ verdict = 'pass', failed = [] } = {}) {
   const ids = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C8', 'C9'];
@@ -174,7 +174,7 @@ export async function main() {
     check('系统段是「自愈修复」', sys.includes('【本阶段指令：自愈修复】'), sys.slice(0, 80));
     check('带失败检查 C4', user.includes('C4'), user.slice(0, 160));
     check('带上一轮 drawFrame', user.includes('Draw.box'), user.slice(0, 200));
-    check('带 analysis 表与 state 映射', user.includes('block_A') && user.includes('e0'));
+    check('带 analysis 表与 state 映射', user.includes('block_A'));
     check('不要求 8 槽位标记', !user.includes('@slot:'));
   }
 

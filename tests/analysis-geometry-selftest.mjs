@@ -71,16 +71,16 @@ console.log('\n『B』state 字段（physical 直接进 state；质心即中心�
 {
   const a = parseAnalysisTable(ANALYSIS_EXAMPLE);
   const s0 = stateAt(buildStateAt(a), 0);
-  check('block 的 state 带 type', s0.e0?.type === 'block', JSON.stringify(s0.e0));
+  check('block 的 state 键是语义 key（block_A）', s0.block_A?.type === 'block', JSON.stringify(s0.block_A));
   check(
-    'block t=0：x=0、y=0.05（质心），cx=u、cy=v',
-    s0.e0.x === 0 && s0.e0.y === 0.05 && Math.abs(s0.e0.cx - s0.e0.u) < 1e-9 && Math.abs(s0.e0.cy - s0.e0.v) < 1e-9,
-    JSON.stringify(s0.e0),
+    'block t=0：x=0、y=0.05（质心），且不再暴露 cx/cy',
+    s0.block_A.x === 0 && s0.block_A.y === 0.05 && s0.block_A.cx === undefined && s0.block_A.cy === undefined,
+    JSON.stringify(s0.block_A),
   );
-  check('block 的 w/h = physical 0.2×0.1（物理米）', s0.e0.w === 0.2 && s0.e0.h === 0.1, JSON.stringify(s0.e0));
+  check('block 的 w/h = physical 0.2×0.1（物理米）', s0.block_A.w === 0.2 && s0.block_A.h === 0.1, JSON.stringify(s0.block_A));
 
   const view = buildView(a, a.tPhys);
-  check('VIEW 的 body 用 cx/cy', view.includes('.cx') && view.includes('.cy'), view);
+  check('VIEW 的 body 用 u/v（纸面，内部量）', view.includes('b.u, b.v'), view);
 
   const ballText = [
     'element: ball_A',
@@ -98,12 +98,40 @@ console.log('\n『B』state 字段（physical 直接进 state；质心即中心�
     'y: 0.05',
   ].join('\n');
   const sb = stateAt(buildStateAt(parseAnalysisTable(ballText)), 0);
-  check('ball 的 r / w / h 进 state', sb.e0?.r === 0.05 && sb.e0?.w === 0.1 && sb.e0?.h === 0.1, JSON.stringify(sb.e0));
-  check('ball 的 cy = v（质心即中心）', Math.abs(sb.e0?.cy - sb.e0?.v) < 1e-9, JSON.stringify(sb.e0));
+  check('ball 的 r / w / h 进 state', sb.ball_A?.r === 0.05 && sb.ball_A?.w === 0.1 && sb.ball_A?.h === 0.1, JSON.stringify(sb.ball_A));
+  check('state 不再暴露 cx/cy', sb.ball_A?.cx === undefined && sb.ball_A?.cy === undefined, JSON.stringify(sb.ball_A));
 
   const unknown = parseAnalysisTable(ANALYSIS_EXAMPLE.replace(/^type: block\n/gm, ''));
   const su = stateAt(buildStateAt(unknown), 0);
-  check('缺 type 退化为 unknown + 无尺寸 + cx=u', su.e0?.type === 'unknown' && su.e0?.w === undefined && Math.abs(su.e0.cx - su.e0.u) < 1e-9, JSON.stringify(su.e0));
+  check(
+    '缺 type 退化为 unknown + 无尺寸 + 无 cx/cy',
+    su.block_A?.type === 'unknown' && su.block_A?.w === undefined && su.block_A?.cx === undefined,
+    JSON.stringify(su.block_A),
+  );
+}
+
+console.log('\n『B2』语义 key 清洗（非 ASCII / JS 保留字）');
+{
+  const mk = (id) =>
+    [
+      `element: ${id}`,
+      'type: block',
+      'segment: 1',
+      't0: 0',
+      't1: 1',
+      'x0: 0',
+      'y0: 0.05',
+      'vx0: 1',
+      'vy0: 0',
+      'ax: 0',
+      'ay: 0',
+      'x: x0 + vx0*(t - t0)',
+      'y: y0',
+    ].join('\n');
+  const cn = stateAt(buildStateAt(parseAnalysisTable(mk('物块A'))), 0);
+  check('非 ASCII id → type_序号（block_1）', cn.block_1?.type === 'block', Object.keys(cn).join(','));
+  const rsv = stateAt(buildStateAt(parseAnalysisTable(mk('class'))), 0);
+  check('JS 保留字 → 自动加 _2（class_2）', rsv.class_2?.type === 'block', Object.keys(rsv).join(','));
 }
 
 console.log('\n『C』负例：没有隐藏表可退');
@@ -144,7 +172,7 @@ console.log('\n『D』运行期：用户卡覆盖 / 缺省');
     cloneCards(cards).map((e) => (e.id === 'wb_el_block' ? { ...e, physical: { w: 0.3, h: 0.2 } } : e)),
   );
   const s = stateAt(buildStateAt(parseAnalysisTable(ANALYSIS_EXAMPLE), { physical: wider.physical }), 0);
-  check('改卡 physical ⇒ state.w/h 跟着变', s.e0?.w === 0.3 && s.e0?.h === 0.2, JSON.stringify(s.e0));
+  check('改卡 physical ⇒ state.w/h 跟着变', s.block_A?.w === 0.3 && s.block_A?.h === 0.2, JSON.stringify(s.block_A));
 
   const empty = physicalTableFromEntries([]);
   check('空卡表 ⇒ 用内置卡（不是隐藏表）', empty.problems.length === 0 && empty.physical.block.w === 0.2, empty.problems.join(' | '));

@@ -13,7 +13,7 @@ if (!analysis.ok) {
 
 const drawFrame = [
   'Draw.ground(-0.5, 5.5, 0);',
-  'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
+  'Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
 ].join('\n');
 
 const slots = generateProgramSlots({
@@ -84,7 +84,7 @@ if (c5?.status !== 'fail') {
 
 /* C6：analysis 边界处 position 跳变时必须失败 */
 const badC6 = await dryRun({
-  slots: { ...built.program.slots, stateAt: 'return { e0: { x: t < 1 ? t : t + 0.4, y: 0 } };' },
+  slots: { ...built.program.slots, stateAt: 'return { block_A: { x: t < 1 ? t : t + 0.4, y: 0 } };' },
   entry: 'analysis-generate-bad-c6',
   meta: { mode: 'BOTH', tPhys: analysis.tPhys, boundaries },
 });
@@ -142,7 +142,7 @@ if (c6?.status !== 'fail') {
     // eslint-disable-next-line no-new-func
     const f = new Function('t', `${expSlots.stateAt}`);
     const st = f(1);
-    if (!(Number.isFinite(st?.e0?.x) && st.e0.x > 0)) {
+    if (!(Number.isFinite(st?.rod?.x) && st.rod.x > 0)) {
       console.log('FAIL 生成的 stateAt 跑不出有限位置', JSON.stringify(st));
       failed += 1;
     }

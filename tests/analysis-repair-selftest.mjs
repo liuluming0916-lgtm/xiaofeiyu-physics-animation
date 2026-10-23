@@ -37,7 +37,7 @@ const streamImpl = async (opts) => {
     text =
       sceneCalls === 1
         ? 'Draw.nopeThisFunctionDoesNotExist();'
-        : 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.e0.x, state.e0.y], 0.2, 0.2);';
+        : 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.block_A.x, state.block_A.y], 0.2, 0.2);';
   }
   opts.onDelta?.(text);
   return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
@@ -124,7 +124,7 @@ check('修复只动 drawFrame', repairRounds[0]?.updated?.length === 1 && repair
   let calls = 0;
   const manualStream = async (opts) => {
     calls += 1;
-    const text = 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);';
+    const text = 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);';
     opts.onDelta?.(text);
     return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
   };

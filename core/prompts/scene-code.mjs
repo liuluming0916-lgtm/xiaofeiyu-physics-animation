@@ -23,7 +23,7 @@ export const SCENE_CODE_INSTRUCTION = [
   '- `state.<key>.x / .y` = 物理米，**画位置用它**；',
   '- `state.<key>.w / .h / .r` = 物理米（卡里的默认尺寸），直接传给 Draw；',
   '- `state.<key>.cx / .cy` = 旧的纸面坐标，**不要再用**。',
-  '元件 key 映射写在 user 消息里（例如 e0 = block_A）。',
+  '元件 key 映射写在 user 消息里（例如 block_A（键就是元件名））。',
   '',
   '【规则】',
   '1. 位置一律从 `state` 读；**不要**在 drawFrame 里重算运动、时间或速度。',
@@ -40,7 +40,7 @@ export const SCENE_CODE_INSTRUCTION = [
   '```js',
   'Draw.ground(-0.2, 3.2, 0);',
   'Draw.belt([-0.1, 0], [3.1, 0], { ticks: 18, r: 0.05 });',
-  'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
+  'Draw.box([state.block_A.x, state.block_A.y], state.block_A.w, state.block_A.h);',
   '```',
 ].join('\n');
 

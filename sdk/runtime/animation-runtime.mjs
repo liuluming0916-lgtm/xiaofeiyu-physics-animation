@@ -3180,6 +3180,8 @@ export function createPlayer(program, opts) {
 
   let viewport = null;
   let transform = null;
+  /** 纸面溢出告警只报一次（每帧报会刷屏） */
+  let overflowWarned = false;
 
   function viewportOf() {
     const dpr = opts.dpr ?? 1;
@@ -3216,6 +3218,30 @@ export function createPlayer(program, opts) {
     program.drawFrame(state.t, st);
     /* v1.1.9：与 `sampleFrame` 共用同一个注入函数（防两条路径分叉）。 */
     emitKinematicArrows(program, state.t);
+
+    /*
+     * C 方案：纸面溢出告警（只报一次）。
+     * 正常路径下包络已经把元件尺寸算进去；一旦画面超出 10×6 纸，多半是
+     * drawFrame 里把长度写成了纸面值（或板长/带长按题面给错了）。
+     */
+    if (!overflowWarned && stageFrame) {
+      const env = buffer.envelope();
+      const tol = 0.6;
+      if (
+        env &&
+        (env.minX < stageFrame.u0 - tol ||
+          env.maxX > stageFrame.u1 + tol ||
+          env.minY < stageFrame.v0 - tol ||
+          env.maxY > stageFrame.v1 + tol)
+      ) {
+        overflowWarned = true;
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[stage] 画面超出 10×6 纸：bbox=(${env.minX.toFixed(2)}, ${env.minY.toFixed(2)})–(${env.maxX.toFixed(2)}, ${env.maxY.toFixed(2)})；` +
+            '检查 drawFrame 的位置/长度是否都按物理米写。',
+        );
+      }
+    }
 
     const visible = buffer.records.filter((r) => {
       if (r.op === 'arrow') return state.mask[r.category] !== false;
