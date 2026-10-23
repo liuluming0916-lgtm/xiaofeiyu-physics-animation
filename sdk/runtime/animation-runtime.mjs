@@ -927,6 +927,43 @@ export class Draw {
     this.buffer = buffer;
     this.theme = opts.theme ?? DEFAULT_THEME;
     this.by = opts.by ?? '模型';
+    /**
+     * B4：世界 → 10×6 纸的位置变换（惰性读取 `SIM.stage`）。
+     *
+     * 为什么是 getter：装配时 `Draw` 先创建、`SIM` 由 VIEW 槽位稍后赋值，
+     * 传函数就能在真正绘制时拿到最终舞台。没有 stage 的老程序（15 道回归题）不折算。
+     */
+    this.stageOf = opts.stage ?? null;
+  }
+
+  /** 取舞台；`s/cx/cy` 缺一不可，否则视为“没有舞台”。 */
+  _stageFrame() {
+    const raw = typeof this.stageOf === 'function' ? this.stageOf() : this.stageOf;
+    if (!raw || !Number.isFinite(raw.s) || !Number.isFinite(raw.cx) || !Number.isFinite(raw.cy)) return null;
+    return {
+      s: raw.s,
+      cx: raw.cx,
+      cy: raw.cy,
+      u0: Number.isFinite(raw.u0) ? raw.u0 : 0,
+      u1: Number.isFinite(raw.u1) ? raw.u1 : 10,
+      v0: Number.isFinite(raw.v0) ? raw.v0 : 0,
+      v1: Number.isFinite(raw.v1) ? raw.v1 : 6,
+    };
+  }
+
+  /** 单个位置点：物理米 → 纸面单位。长度/半径**不走这里**（B0：长度不缩放）。 */
+  _p(x, y) {
+    const f = this._stageFrame();
+    if (!f) return { x, y };
+    return {
+      x: (f.u0 + f.u1) / 2 + (x - f.cx) * f.s,
+      y: (f.v0 + f.v1) / 2 + (y - f.cy) * f.s,
+    };
+  }
+
+  _pos(point, where) {
+    const p = toPoint(point, where);
+    return this._p(p.x, p.y);
   }
 
   _push(record) {
@@ -944,8 +981,8 @@ export class Draw {
   /* —— 基本几何 —— */
 
   line(a, b, style) {
-    const p = toPoint(a, 'Draw.line(a)');
-    const q = toPoint(b, 'Draw.line(b)');
+    const p = this._pos(a, 'Draw.line(a)');
+    const q = this._pos(b, 'Draw.line(b)');
     return this._push({
       op: 'line',
       x1: p.x,
@@ -972,7 +1009,7 @@ export class Draw {
    *     C1 静态预检负责把"没给 mag"报出来。
    */
   arrow(from, vec, opts = {}) {
-    const p = toPoint(from, 'Draw.arrow(from)');
+    const p = this._pos(from, 'Draw.arrow(from)');
     const v = toPoint(vec, 'Draw.arrow(vec)');
     const category = opts.category ?? 'aux';
     if (!(category in VECTOR_COLORS)) {
@@ -1009,9 +1046,14 @@ export class Draw {
 
   polygon(points, style = {}) {
     const pts = points.map((p, i) => {
-      const q = toPoint(p, `Draw.polygon(points[${i}])`);
+      const q = this._pos(p, `Draw.polygon(points[${i}])`);
       return [q.x, q.y];
     });
+    return this._polygon(pts, style);
+  }
+
+  /** 已是纸面坐标的多边形（box / ground / incline 内部调用，避免二次折算）。 */
+  _polygon(pts, style = {}) {
     return this._push({
       op: 'polygon',
       points: pts,
@@ -1025,7 +1067,7 @@ export class Draw {
   }
 
   circle(center, r, style = {}) {
-    const c = toPoint(center, 'Draw.circle(center)');
+    const c = this._pos(center, 'Draw.circle(center)');
     assertFiniteNumber(r, 'Draw.circle(r)');
     return this._push({
       op: 'circle',
@@ -1043,8 +1085,8 @@ export class Draw {
 
   /** 随动弹簧：跟随两端锚点自动定形（§4.2） */
   spring(a, b, opts = {}) {
-    const p = toPoint(a, 'Draw.spring(a)');
-    const q = toPoint(b, 'Draw.spring(b)');
+    const p = this._pos(a, 'Draw.spring(a)');
+    const q = this._pos(b, 'Draw.spring(b)');
     return this._push({
       op: 'spring',
       a: [p.x, p.y],
@@ -1060,7 +1102,7 @@ export class Draw {
 
   /** 滑轮：圆心 + 半径 + 可选轮轴 */
   pulley(center, r, opts = {}) {
-    const c = toPoint(center, 'Draw.pulley(center)');
+    const c = this._pos(center, 'Draw.pulley(center)');
     assertFiniteNumber(r, 'Draw.pulley(r)');
     return this._push({
       op: 'pulley',
@@ -1074,8 +1116,8 @@ export class Draw {
 
   /** 传送带 / 履带：两端滚轮 + 上下带面 + 可选表面刻度（表达"随带运动"） */
   belt(a, b, opts = {}) {
-    const p = toPoint(a, 'Draw.belt(a)');
-    const q = toPoint(b, 'Draw.belt(b)');
+    const p = this._pos(a, 'Draw.belt(a)');
+    const q = this._pos(b, 'Draw.belt(b)');
     return this._push({
       op: 'belt',
       a: [p.x, p.y],
@@ -1091,7 +1133,7 @@ export class Draw {
 
   /** 均匀场点/叉阵列（§4.2 特殊渲染需求：磁场区必须铺满 ×/·） */
   fieldDots(rect, opts = {}) {
-    const o = toPoint(rect, 'Draw.fieldDots(rect)');
+    const o = this._pos(rect, 'Draw.fieldDots(rect)');
     assertFiniteNumber(rect.w, 'Draw.fieldDots(rect.w)');
     assertFiniteNumber(rect.h, 'Draw.fieldDots(rect.h)');
     const symbol = opts.symbol ?? 'dot';
@@ -1120,8 +1162,8 @@ export class Draw {
 
   /** 尺寸/角度标注弧（§4.2） */
   dimension(from, to, opts = {}) {
-    const p = toPoint(from, 'Draw.dimension(from)');
-    const q = toPoint(to, 'Draw.dimension(to)');
+    const p = this._pos(from, 'Draw.dimension(from)');
+    const q = this._pos(to, 'Draw.dimension(to)');
     const kind = opts.kind ?? 'linear';
     if (!['linear', 'angle'].includes(kind)) {
       throw new RangeError(`Draw.dimension(kind) 只能是 linear | angle，收到 ${kind}`);
@@ -1143,7 +1185,7 @@ export class Draw {
 
   /** 弧线：轨迹、圆周、角度弧都用它 */
   arc(center, r, a0, a1, opts = {}) {
-    const c = toPoint(center, 'Draw.arc(center)');
+    const c = this._pos(center, 'Draw.arc(center)');
     assertFiniteNumber(r, 'Draw.arc(r)');
     assertFiniteNumber(a0, 'Draw.arc(a0)');
     assertFiniteNumber(a1, 'Draw.arc(a1)');
@@ -1168,7 +1210,7 @@ export class Draw {
 
   /** 椭圆：天体轨道、示意椭圆轨迹（rx/ry 为世界坐标半轴） */
   ellipse(center, rx, ry, opts = {}) {
-    const c = toPoint(center, 'Draw.ellipse(center)');
+    const c = this._pos(center, 'Draw.ellipse(center)');
     assertFiniteNumber(rx, 'Draw.ellipse(rx)');
     assertFiniteNumber(ry, 'Draw.ellipse(ry)');
     if (!(rx > 0) || !(ry > 0)) throw new RangeError('Draw.ellipse(rx/ry) 必须是正数');
@@ -1193,7 +1235,7 @@ export class Draw {
   /** 折线/路径（可闭合、可填充） */
   curve(points, opts = {}) {
     const pts = points.map((p, i) => {
-      const q = toPoint(p, `Draw.curve(points[${i}])`);
+      const q = this._pos(p, `Draw.curve(points[${i}])`);
       return [q.x, q.y];
     });
     return this._push({
@@ -1226,8 +1268,8 @@ export class Draw {
 
   /** 光线路 */
   ray(from, to, opts = {}) {
-    const p = toPoint(from, 'Draw.ray(from)');
-    const q = toPoint(to, 'Draw.ray(to)');
+    const p = this._pos(from, 'Draw.ray(from)');
+    const q = this._pos(to, 'Draw.ray(to)');
     return this._push({
       op: 'ray',
       x1: p.x,
@@ -1244,7 +1286,7 @@ export class Draw {
 
   /** 透镜 */
   lens(center, opts = {}) {
-    const c = toPoint(center, 'Draw.lens(center)');
+    const c = this._pos(center, 'Draw.lens(center)');
     assertFiniteNumber(opts.height, 'Draw.lens(height)');
     assertFiniteNumber(opts.focal, 'Draw.lens(focal)');
     return this._push({
@@ -1265,7 +1307,7 @@ export class Draw {
 
   /** 坐标轴框（p–V / v–t 等任意二维图，§4.2） */
   axisBox(origin, xLen, yLen, opts = {}) {
-    const o = toPoint(origin, 'Draw.axisBox(origin)');
+    const o = this._pos(origin, 'Draw.axisBox(origin)');
     assertFiniteNumber(xLen, 'Draw.axisBox(xLen)');
     assertFiniteNumber(yLen, 'Draw.axisBox(yLen)');
     return this._push({
@@ -1329,10 +1371,12 @@ export class Draw {
 
   /** 斜线阴影地面：从 (x0,y) 到 (x1,y)，下方画短斜线，表达"固定地面" */
   ground(x0, x1, y = 0, opts = {}) {
-    return this.polygon(
+    const p = this._p(x0, y);
+    const q = this._p(x1, y);
+    return this._polygon(
       [
-        [x0, y],
-        [x1, y],
+        [p.x, p.y],
+        [q.x, q.y],
       ],
       { hatch: opts.hatch ?? 'below', stroke: opts.color ?? this.theme.body, closed: false, layer: opts.layer ?? 0 },
     );
@@ -1347,7 +1391,7 @@ export class Draw {
    * 顶点始终是斜面**最高**的那一端；`base` 缺省取坡脚正下方（直角角点）。
    */
   incline(apex, opts = {}) {
-    const a = toPoint(apex, 'Draw.incline(apex)');
+    const a = this._pos(apex, 'Draw.incline(apex)');
     assertFiniteNumber(opts.length, 'Draw.incline(length)');
     assertFiniteNumber(opts.angleDeg, 'Draw.incline(angleDeg)');
     const L = opts.length;
@@ -1355,8 +1399,8 @@ export class Draw {
     const side = opts.angleDeg < 0 ? -1 : 1;
     const footY = a.y - L * Math.sin(th);
     const footX = a.x + side * L * Math.cos(th);
-    const base = toPoint(opts.base ?? [footX, footY], 'Draw.incline(base)');
-    return this.polygon(
+    const base = opts.base != null ? this._pos(opts.base, 'Draw.incline(base)') : { x: footX, y: footY };
+    return this._polygon(
       [
         [a.x, a.y],
         [footX, footY],
@@ -1368,7 +1412,7 @@ export class Draw {
 
   /** 方块/滑块：中心 + 宽高 + 可选转角 */
   box(center, w, h, opts = {}) {
-    const c = toPoint(center, 'Draw.box(center)');
+    const c = this._pos(center, 'Draw.box(center)');
     assertFiniteNumber(w, 'Draw.box(w)');
     assertFiniteNumber(h, 'Draw.box(h)');
     const th = (opts.angleDeg ?? 0) * DEG;
@@ -1380,7 +1424,7 @@ export class Draw {
       [hw, hh],
       [-hw, hh],
     ].map(([dx, dy]) => [c.x + dx * Math.cos(th) - dy * Math.sin(th), c.y + dx * Math.sin(th) + dy * Math.cos(th)]);
-    return this.polygon(corners, {
+    return this._polygon(corners, {
       fill: opts.fill ?? this.theme.surface,
       stroke: opts.stroke ?? this.theme.body,
       layer: opts.layer ?? 1,
@@ -1479,7 +1523,7 @@ export function buildProgramSource(slots, opts = {}) {
   L.push('function buildProgram(runtime){');
   L.push(`  var PROGRAM = ${JSON.stringify({ mode })};`);
   L.push('  var buffer = new runtime.CommandBuffer();');
-  L.push('  var Draw = new runtime.Draw(buffer, {});');
+  L.push('  var Draw = new runtime.Draw(buffer, { stage: function () { return SIM && SIM.stage; } });');
   L.push('  var Phys = runtime.PhysRef;');
   L.push('  var context = { SIM: null, STEPS: null, ANSWERS: null, MODE: PROGRAM.mode, Draw: Draw, Phys: Phys };');
   L.push('  function RETURN(key, value){ context[key] = value; return value; }');

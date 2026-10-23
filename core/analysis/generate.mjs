@@ -265,7 +265,16 @@ export function buildReadouts(analysis, tPhys) {
 export function buildView(analysis, tPhys) {
   const keys = stateKeys(analysis);
   const st = stageOf(analysis);
-  const stageJson = JSON.stringify({ u0: st.frame.u0, u1: st.frame.u1, v0: st.frame.v0, v1: st.frame.v1 });
+  const stageJson = JSON.stringify({
+    u0: st.frame.u0,
+    u1: st.frame.u1,
+    v0: st.frame.v0,
+    v1: st.frame.v1,
+    /* B4：位置变换参数（物理米 → 纸面）。长度/半径不乘 s。 */
+    s: st.s,
+    cx: st.cx,
+    cy: st.cy,
+  });
   const bodies = keys
     .map(
       ({ key }) =>

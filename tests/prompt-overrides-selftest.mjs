@@ -90,7 +90,7 @@ const STAGE_LABELS = [
   ['自愈修复', 'repair'],
 ];
 
-const GOOD_DRAW = 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);';
+const GOOD_DRAW = 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);';
 
 function fakeStream(replies = {}) {
   const calls = [];

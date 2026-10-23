@@ -13,7 +13,7 @@ if (!analysis.ok) {
 
 const drawFrame = [
   'Draw.ground(-0.5, 5.5, 0);',
-  'Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);',
+  'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
 ].join('\n');
 
 const slots = generateProgramSlots({

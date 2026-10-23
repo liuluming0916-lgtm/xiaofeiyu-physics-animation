@@ -43,8 +43,8 @@ const endpoint = {
   timeoutMs: 5000,
 };
 
-const GOOD_DRAW = 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);';
-const FIXED_DRAW = '/*FIXED*/ Draw.line([state.e0.cx - 0.2, 0], [state.e0.cx + 0.2, 0]);';
+const GOOD_DRAW = 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);';
+const FIXED_DRAW = '/*FIXED*/ Draw.line([state.e0.x - 0.2, 0], [state.e0.x + 0.2, 0]);';
 
 function fakeReport({ verdict = 'pass', failed = [] } = {}) {
   const ids = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C8', 'C9'];

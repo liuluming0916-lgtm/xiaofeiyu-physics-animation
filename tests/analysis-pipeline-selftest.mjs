@@ -50,7 +50,7 @@ const REPLIES = {
   analysis: ANALYSIS_EXAMPLE,
   scene_code: [
     'Draw.ground(-0.5, 5.5, 0);',
-    'Draw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);',
+    'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
   ].join('\n'),
   couple: ['step: 1', 't0: 0', 't1: 1', '', 'step: 2', 't0: 1', 't1: 3'].join('\n'),
 };
@@ -129,6 +129,13 @@ check(
   'C1–C9 全绿（C7 已删）',
   (dry?.checks ?? []).every((c) => c.status === 'pass'),
   (dry?.checks ?? []).map((c) => `${c.id}:${c.status}`).join(' '),
+);
+/* B6：C1 不再因为 drawFrame 用物理坐标 .x/.y 而失败（B4 起这是正确写法） */
+const c1Diags = (dry?.checks ?? []).find((c) => c.id === 'C1')?.diagnostics ?? [];
+check(
+  '★ C1 允许 drawFrame 用 state.*.x/.y（不再报 physical-coord-in-draw）',
+  !c1Diags.some((d) => d.rule === 'physical-coord-in-draw'),
+  c1Diags.map((d) => d.rule).join(','),
 );
 
 const runDone = events.find((e) => e.type === 'run_done');

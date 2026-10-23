@@ -17,7 +17,8 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【硬性边界】',
   '· 不要改 stateAt、VIEW、readouts、setup、STEPS、ANSWERS —— 它们由程序生成；',
-  '· 不要重算运动；位置只从 `state.<key>.x / .y` 读；',
+  '· **位置参数写物理米**：只从 `state.<key>.x / .y` 读；**长度/半径写纸面单位**：用 `state.<key>.w/.h/.r`；',
+  '· 位置与长度不要相加（一个米、一个纸面单位）；',
   '· 不要写字、不要画 v/a 箭头、不要写像素坐标。',
   '',
   '【按失败检查修复】',
@@ -29,7 +30,7 @@ export const REPAIR_INSTRUCTION = [
   '【示例】只输出这样的函数体：',
   '```js',
   'Draw.ground(-0.5, 5.5, 0);',
-  'Draw.box([state.e0.x, state.e0.y + 0.1], 0.2, 0.2);',
+  'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
   '```',
 ].join('\n');
 
@@ -52,7 +53,11 @@ export function buildRepairUser({
     String(analysisText ?? '').trim(),
     '',
     '【元件状态字段】',
-    ...(stateMap.length ? stateMap.map((m) => `- ${m.key} = ${m.id}：位置用 state.${m.key}.x / state.${m.key}.y`) : ['（无运动元件）']),
+    ...(stateMap.length
+      ? stateMap.map(
+          (m) => `- ${m.key} = ${m.id}：位置用 state.${m.key}.x / .y（物理米），长度用 .w/.h（纸面单位）`,
+        )
+      : ['（无运动元件）']),
     '',
     ...(readProblem && String(readProblem).trim()
       ? ['【读题几何（静止物体的摆放依据）】', String(readProblem).trim(), '']

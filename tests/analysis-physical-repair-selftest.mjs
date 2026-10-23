@@ -39,7 +39,7 @@ const REPLIES = {
   solve: 'a=2, t*=1, dx=1',
   breakdown: 'title: 第1步\ntex: 加速\n\ntitle: 第2步\ntex: 匀速',
   analysis: ANALYSIS_EXAMPLE,
-  scene_code: 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.e0.cx, state.e0.cy], 0.2, 0.2);',
+  scene_code: 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.e0.x, state.e0.y], 0.2, 0.2);',
   couple: 'step: 1\nt0: 0\nt1: 1\n\nstep: 2\nt0: 1\nt1: 3',
 };
 

@@ -2376,36 +2376,14 @@ export async function dryRun(input) {
       })();
       const wiringIssues = wiring.issues ?? [];
       const lintDiags = lint.results.flatMap((r) => r.diagnostics.map((d) => ({ slot: r.slot, ...d, entry })));
-      /**
-       * ── 舞台化（2026-10-23）：`drawFrame` 不得拿物理米画 ──
-       *
-       * 有 `SIM.stage` 时，画面坐标是 10×6 的布局单位，`state.*.x/.y` 是物理米。
-       * 模型偶发会写成 `Draw.box([state.e0.x, state.e0.y], …)` —— 画出来直接掉到画布角落
-       * （q09 实测：汽缸画在左下角、活塞跑到画面外）。这是**确定性**错误，只能靠闸门拦。
-       */
-      let stageCoordProblem = null;
-      if (/stage\s*:/.test(String(slots.VIEW ?? ''))) {
-        const hit = /state\s*\.\s*[A-Za-z_$][\w$]*\s*\.\s*([xy])\b/.exec(String(slots.drawFrame ?? ''));
-        if (hit) {
-          stageCoordProblem = `drawFrame 里用了物理坐标 state.*.${hit[1]}；有舞台时必须用布局坐标 .cx/.cy（画出来才在 10×6 纸里）`;
-          lintDiags.push({
-            check: 'C1',
-            rule: 'physical-coord-in-draw',
-            slot: 'drawFrame',
-            line: 1,
-            column: 1,
-            message: stageCoordProblem,
-          });
-        }
-      }
-      const ok = lint.ok && wiringIssues.length === 0 && !stageCoordProblem;
+      /* B6：`physical-coord-in-draw` 已删 —— B4 起 `drawFrame` 的位置就是物理米，由运行时折纸面。 */
+      const ok = lint.ok && wiringIssues.length === 0;
       const detail = ok
         ? wiring.skipped
           ? `8 槽位全部通过（代码型槽位走 §6.2 全表；数据型槽位走行式表/JSON 结构校验；接线对账未执行）`
           : `8 槽位全部通过（静态契约 + 接线对账：${wiring.provided.state.length} 个 state 键 / ${wiring.provided.context.length} 个 context 键都对上了）`
         : `${lint.totalDiagnostics} 条静态诊断（其中 ${lint.advisoryDiagnostics ?? 0} 条为告警、` +
           `${lint.blockingDiagnostics ?? 0} 条硬拦）` +
-          (stageCoordProblem ? `；drawFrame 用了物理坐标` : '') +
           (wiringIssues.length ? `；接线错误 ${wiringIssues.length} 条` : '');
       return result('C1', ok, detail, {
         /**
@@ -2420,7 +2398,7 @@ export async function dryRun(input) {
          * 它们还会命中 `banned-identifier`，那条不计入 `advisoryDiagnostics`。
          * ⚠ 接线错误一律**硬拦**：它必然在运行期变成 undefined/NaN，提前拦住才有意义。
          */
-        blocking: ok ? true : (lint.blockingDiagnostics ?? 0) > 0 || wiringIssues.length > 0 || Boolean(stageCoordProblem),
+        blocking: ok ? true : (lint.blockingDiagnostics ?? 0) > 0 || wiringIssues.length > 0,
         // ⚠ 补上 `slot`：lint 的一部分诊断只给了规则与行列号，
         // 报告里不带槽位名的话，"第 6 行"到底指哪个槽位就得靠猜（第 2 期修）。
         diagnostics: [...lintDiags, ...wiringIssues],

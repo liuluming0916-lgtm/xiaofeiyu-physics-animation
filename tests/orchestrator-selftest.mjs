@@ -108,7 +108,7 @@ let cancelledOnce = false;
  * v6：AI 只写 drawFrame；物理/数据槽位由 analysis 生成。
  * 这个默认值让所有不关心画面的用例都能跑完整条链。
  */
-const GOOD_DRAW_FRAME = 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);';
+const GOOD_DRAW_FRAME = 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);';
 const DEFAULT_REPLIES = {
   analysis: ANALYSIS_EXAMPLE,
   scene_code: GOOD_DRAW_FRAME,

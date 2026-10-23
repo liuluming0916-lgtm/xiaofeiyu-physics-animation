@@ -1715,7 +1715,7 @@ function fakeStream(captured) {
       stage === 'analysis'
         ? ANALYSIS_EXAMPLE
         : stage === 'scene_code' || stage === 'repair'
-          ? 'Draw.box([state.e0.cx, state.e0.cy], 0.3, 0.3);'
+          ? 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);'
           : solveReplyText(stage);
     opts.onDelta?.(full);
     return { text: full, reasoning: '', usage: null, model: 'fake', deltas: [full] };

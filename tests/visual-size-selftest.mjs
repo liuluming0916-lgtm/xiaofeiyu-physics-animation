@@ -47,7 +47,7 @@ function measure(span) {
     analysis: a,
     problem: '合成用例',
     breakdownText: 'title: 一路匀速\ntex: 演示',
-    drawFrame: 'Draw.ground(0, 10, 0);\nDraw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);',
+    drawFrame: 'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
   });
   const canvas = makeMockCanvas(W, H);
   const assembly = assembleProgramSource(slots, { mode: 'BOTH' });
@@ -57,26 +57,49 @@ function measure(span) {
   player.state.t = 0;
   player.render();
   const st = player.program.stateAt(0);
-  const scale = player.program.SIM?.stage ? (canvas.width && player.transform?.scale) || 0 : 0;
+  const stage = player.program.SIM?.stage;
   /* 相机 scale：stage 存在时由纸决定；直接取渲染后的写实值 */
   const frame = player.render();
   const px = frame.transform.scale;
+  /* B4：位置必须是“物理 → 纸面”折算后的点；长度必须保持纸面尺寸（不乘 s） */
+  const poly = (player.buffer?.records ?? []).find((r) => r.op === 'polygon');
+  let paperCenter = null;
+  let paperWidth = 0;
+  if (poly && poly.points?.length) {
+    const xs = poly.points.map((p) => p[0]);
+    const ys = poly.points.map((p) => p[1]);
+    paperCenter = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+    paperWidth = Math.max(...xs) - Math.min(...xs);
+  }
+  const expectCenter = stage
+    ? {
+        x: (stage.u0 + stage.u1) / 2 + (st.e0.x - stage.cx) * stage.s,
+        y: (stage.v0 + stage.v1) / 2 + (st.e0.y - stage.cy) * stage.s,
+      }
+    : { x: st.e0.x, y: st.e0.y };
+  const centerErr = paperCenter
+    ? Math.max(Math.abs(paperCenter.x - expectCenter.x), Math.abs(paperCenter.y - expectCenter.y))
+    : Infinity;
   return {
     span,
-    stage: Boolean(player.program.SIM?.stage),
+    stage: Boolean(stage),
     w: st.e0.w,
     h: st.e0.h,
     scale: px,
     widthPx: st.e0.w * px,
     heightPx: st.e0.h * px,
+    paperWidth,
+    centerErr,
   };
 }
 
 const rows = SPANS.map(measure);
 console.log('视觉尺寸一致性 · 画布 ' + W + '×' + H);
-console.log('跨度(m)\tstage\tw(布局)\tscale(px/单位)\t物块宽(px)\t物块高(px)');
+console.log('跨度(m)\tstage\tw(纸面)\tscale(px/单位)\t物块宽(px)\t物块高(px)\t纸面宽\t中心误差');
 for (const r of rows) {
-  console.log(`${r.span}\t${r.stage}\t${r.w}\t${r.scale.toFixed(1)}\t${r.widthPx.toFixed(1)}\t${r.heightPx.toFixed(1)}`);
+  console.log(
+    `${r.span}\t${r.stage}\t${r.w}\t${r.scale.toFixed(1)}\t${r.widthPx.toFixed(1)}\t${r.heightPx.toFixed(1)}\t${r.paperWidth.toFixed(6)}\t${r.centerErr.toExponential(2)}`,
+  );
 }
 
 let failed = 0;
@@ -90,6 +113,14 @@ if (!ok) {
 }
 if (!rows.every((r) => r.stage)) {
   console.log('✗ 有题目没有 stage（相机仍在 fit 物理包络）');
+  failed += 1;
+}
+if (!rows.every((r) => Math.abs(r.paperWidth - r.w) < 1e-9)) {
+  console.log('✗ 长度被错误缩放：纸面宽度 ≠ state.w（B4 只缩放位置，不缩放长度）');
+  failed += 1;
+}
+if (!rows.every((r) => r.centerErr < 1e-6)) {
+  console.log('✗ 位置没有按 stage 折算：画出来的中心与 (u0+u1)/2+(x-cx)·s 不一致');
   failed += 1;
 }
 
