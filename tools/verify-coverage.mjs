@@ -72,6 +72,11 @@ const EXEMPT_FILES = new Map([
     '**v1 退役层**：v1.1.18 起知识卡不再封死进代码（`OD_BUILTIN_BUNDLE` 已从主进程删除）；本脚本只作历史取证保留，不挂门禁。',
   ],
   [
+    'tools/check-encoding.mjs',
+    '**编码门禁的辅助脚本，不是 verify-all 的步骤**：它由 `1-Check.bat` 与 `.githooks/pre-commit` 直接调用，' +
+      '职责是拦“UTF-8 源码被 PowerShell 写成 GBK/UTF-16”；它不参与项目产物判定，也不应该为了让门禁变绿而再跑一遍。',
+  ],
+  [
     'tools/build-demo-questions.mjs',
     '**已被挂载为子步骤**：`tools/web-build.mjs` 的 ⓪ 段会调用它（门禁 ⑬⑭ 因此覆盖到它）。' +
       '它不是独立门禁步骤，所以不出现在 STEPS 里 —— 这是"子步骤"而非"漏挂"。',

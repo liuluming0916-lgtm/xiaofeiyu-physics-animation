@@ -12,7 +12,9 @@ echo.
 echo   Press any key to start...
 pause >nul
 
-set "NODE_EXE=C:\Users\Liu LuMing\AppData\Local\OpenDesign\toolchains\dsh\node-v24.19.0-win-x64\node.exe"
+set "NODE_EXE=node"
+where node >nul 2>nul
+if errorlevel 1 set "NODE_EXE=C:\Users\Liu LuMing\AppData\Local\OpenDesign\toolchains\dsh\node-v24.19.0-win-x64\node.exe"
 if not exist "%NODE_EXE%" set "NODE_EXE=node"
 
 echo.
