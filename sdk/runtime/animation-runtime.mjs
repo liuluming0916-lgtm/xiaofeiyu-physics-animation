@@ -3307,7 +3307,7 @@ export function createPlayer(program, opts) {
         // eslint-disable-next-line no-console
         console.warn(
           `[stage] 画面超出 10×6 纸：bbox=(${env.minX.toFixed(2)}, ${env.minY.toFixed(2)})–(${env.maxX.toFixed(2)}, ${env.maxY.toFixed(2)})；` +
-            '检查 drawFrame 的位置/长度是否都按物理米写。',
+            '检查 drawFrame 是否画到 0–10 × 0–6 之外（位置应当来自 state 的 cx/cy，尺寸自定）。',
         );
       }
     }
