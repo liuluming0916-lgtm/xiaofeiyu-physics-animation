@@ -83,7 +83,7 @@ function endpoint(over = {}) {
 }
 
 const STAGE_LABELS = [
-  ['读题与判定', 'read_problem'],
+  ['读题', 'read_problem'],
   ['解题', 'solve'],
   ['答案讲解', 'breakdown'],
   ['物理分析', 'analysis'],
@@ -359,7 +359,7 @@ async function main() {
     {
       const dir = freshDir();
       const cat = listPromptCatalog({ dir });
-      check('Prompt 目录：8 项、每组都有说明', cat.items.length === 8 && cat.items.every((i) => i.group && i.groupTitle));
+      check('Prompt 目录：7 项、每组都有说明', cat.items.length === 7 && cat.items.every((i) => i.group && i.groupTitle));
       check('Prompt 目录：knowledgecard / distill 已删除（没有 not-wired 分组）', cat.items.filter((i) => i.group === 'not-wired').length === 0);
 
       const cl = loadCleaningTable({ dir });

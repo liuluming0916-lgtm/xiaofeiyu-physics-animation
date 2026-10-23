@@ -65,7 +65,7 @@ function buildSlotConditionalText(prompt, knowledgecardText) {
 }
 
 /* 五个阶段，输入按真实链路累积 */
-stage({ id: 'read_problem', slot: null, problemText: problem, extraUser: getPrompt('read_problem').buildUser({ problem, vocab }) });
+stage({ id: 'read_problem', slot: null, problemText: problem, extraUser: getPrompt('read_problem_v2').buildUser({ problem, vocab }) });
 stage({ id: 'solve', slot: 'solve', problemText: problem, concepts: ['conveyor_belt'], elements: ['belt', 'block'] });
 /* 第 9 期调序：steps 先于 answers（答案的时间锚点必须照着已定的时间轴填） */
 stage({

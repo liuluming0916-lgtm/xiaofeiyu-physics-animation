@@ -1756,8 +1756,16 @@
       texSvg: msg.texSvg || null,
       /* C2：Dry-Run 算出的标注避让表（没有就是 null ⇒ 播放器不挪任何字） */
       labelAvoid: msg.labelAvoid || null,
-      /* v6：步骤 ↔ 动画时间（没有就不联动） */
+      /* v6：步骤 ↔ 动画时间（没有就不联动）。v1.1.17：这里应是**显示秒** */
       stepTimes: Array.isArray(msg.stepTimes) ? msg.stepTimes : null,
+      /* v1.1.17：时长归一化（每小问 4 s）。宿主注入时必须一起带，
+         否则 T_DISPLAY 会退回 player.duration（物理秒）—— 这就是
+         “导出页 4 秒、live 页 1.08 秒”的根因。 */
+      timeMap: Array.isArray(msg.timeMap) && msg.timeMap.length ? msg.timeMap : null,
+      displayDuration:
+        typeof msg.displayDuration === 'number' && isFinite(msg.displayDuration) && msg.displayDuration > 0
+          ? msg.displayDuration
+          : null,
     };
     // 公式索引是在脚本顶部从**旧的** PROGRAM_DATA 推导的，注入后必须重算，
     // 否则宿主注入的公式 SVG 不会被用到（会退回 ODTex/原文降级链）。

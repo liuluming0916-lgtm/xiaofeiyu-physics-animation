@@ -59,6 +59,18 @@ const EXEMPT_FILES = new Map([
       '第 9 期加它是因为环境离线（无 electron-builder），需要一条"用上一版绿色版的 Electron 运行时重打包"的路线。',
   ],
   ['tests/negative-injection/cases.mjs', '负向注入的**用例数据**，由 run-injection.mjs 驱动'],
+  /**
+   * v1.1.18：v1 知识卡链路已退役。两份 v1 取证脚本归档在
+   * `archive/v1/tests/`，不再挂门禁 —— 让它们继续跑等于用绿灯证明“退役层没坏”。
+   */
+  [
+    'tests/knowledgecard-selftest.mjs',
+    '**v1 退役层**：v1 知识卡/读题已归档到 `archive/v1/`，运行时只走 v2；本脚本只作历史取证保留，不挂门禁。',
+  ],
+  [
+    'tests/builtin-seal-selftest.mjs',
+    '**v1 退役层**：v1.1.18 起知识卡不再封死进代码（`OD_BUILTIN_BUNDLE` 已从主进程删除）；本脚本只作历史取证保留，不挂门禁。',
+  ],
   [
     'tools/build-demo-questions.mjs',
     '**已被挂载为子步骤**：`tools/web-build.mjs` 的 ⓪ 段会调用它（门禁 ⑬⑭ 因此覆盖到它）。' +

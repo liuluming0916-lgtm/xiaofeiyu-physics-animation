@@ -264,6 +264,11 @@ export function serverEventSource(baseURL, input) {
                     : {}),
                 mode: input.mode,
                 devMode: input.devMode === true,
+                ...(input.startAt ? { startAt: input.startAt } : {}),
+                ...(input.startAt ? { baseReadProblem: input.baseReadProblem ?? null } : {}),
+                ...(input.startAt === 'draw'
+                    ? { analysisText: input.analysisText ?? null, slots: input.slots ?? null }
+                    : {}),
             }),
             signal: ac.signal,
         });

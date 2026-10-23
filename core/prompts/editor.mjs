@@ -8,8 +8,8 @@
  *
  * ── 为什么编辑器要把 Prompt **分组**（用户裁决：不能平铺）
  *
- * 程序里能编辑的有 8 份正文：读题 v2 / 读题 v1 / 解题 / 分步 / 物理分析 /
- * 动画代码 / 步骤耦合 / 自愈修复。`read_problem` 只在旧配置下跑，`repair`
+ * 程序里能编辑的有 7 份正文：读题 / 解题 / 分步 / 物理分析 /
+ * 动画代码 / 步骤耦合 / 自愈修复。v1 读题已退役，不再出现在编辑器里；`repair`
  * 只在 drawFrame 没过校验时跑，所以按「每道题都会跑 / 特定情况跑」分组。
  * 若平铺成一排，用户会以为"改了没效果 = 坏了"，或者更糟——
  * 以为自己在用一份自定义的规则，其实那份规则从未被调用。
@@ -36,13 +36,11 @@ import {
 
 /** 编辑器里的分组口径（**从阶段清单派生**，不另抄一份） */
 const ALWAYS_PROMPT_IDS = (() => {
-  const ids = [...MODEL_STAGES];
-  // 默认配置跑的是 read_problem_v2；v1 仍保留给旧配置，所以两份都要能编辑。
-  const at = ids.indexOf('read_problem');
-  ids.splice(at >= 0 ? at + 1 : 0, 0, 'read_problem_v2');
+  // v1.1.18：v1 读题退役，只保留 read_problem_v2。
+  const ids = [...MODEL_STAGES].map((id) => (id === 'read_problem' ? 'read_problem_v2' : id));
   // couple 是交付前必跑的模型阶段，不属于「只在特定情况下跑」。
   ids.push('couple');
-  return Object.freeze(ids);
+  return Object.freeze([...new Set(ids)]);
 })();
 
 export const PROMPT_SECTORS = Object.freeze({
@@ -55,7 +53,7 @@ export const PROMPT_SECTORS = Object.freeze({
 });
 
 /** 改它就要特别小心（会**静默**坏掉下游，而不是报错） */
-const HIGH_RISK_IDS = new Set(['read_problem', 'read_problem_v2']);
+const HIGH_RISK_IDS = new Set(['read_problem_v2']);
 
 const err = (code, path, message, hint) => ({ code, path, message, ...(hint ? { hint } : {}) });
 

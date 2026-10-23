@@ -142,6 +142,18 @@ export async function main() {
       missing.code,
     );
 
+    /**
+     * v6：ANSWERS 故意留空（答案在解题/分步里，C7 已退役）。
+     * 这一条必须用“v6 生成物”的口径，而不是 q01 这种旧夹具。
+     */
+    const emptyAnswers = await exportMod.buildExportPage({
+      slots: { ...q01.slots, ANSWERS: '' },
+      id: 'v6-empty-answers',
+      title: 'v6 空 ANSWERS',
+      model: 'stub',
+    });
+    check('★ v6 空 ANSWERS ⇒ 允许导出（不再按“8 槽全非空”拒绝）', emptyAnswers.ok === true, emptyAnswers.message);
+
     const extra = await exportMod.buildExportPage({ slots: { ...q01.slots, EXTRA: 'x' } });
     check('★ 多出未登记槽位 ⇒ 拒绝', extra.ok === false && /未登记的槽位/.test(extra.message));
 

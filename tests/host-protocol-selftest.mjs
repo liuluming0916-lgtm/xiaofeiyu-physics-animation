@@ -20,6 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 
 import { makeDocumentStub, makeStubElement } from './harness/dom-stub.mjs';
+import { validateProgramPayload as validateLiveProgramPayload } from '../web/.build/lib/host-protocol.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(HERE, '..');
@@ -214,6 +215,14 @@ console.log('\n『B-2』第 8 期：偏好"每次打开都干净"（用户裁决
   check('启动时清理旧格式键（只清自己的前缀）', /purgeLegacyPrefs\(\);/.test(templateSrc));
   check('曲线图默认开：只有 SIM.chart === false 才关', /hint === false\) return false;[\s\S]{0,160}return true;/.test(templateSrc));
   check('点播放"差一帧也算到结尾"⇒ 从头重播', /dispOf\(player\.state\.t\) >= T_DISPLAY - guard\) player\.state\.t = 0;/.test(templateSrc));
+  check(
+    '★ program 注入保留 timeMap（live 页与导出页同一套归一化）',
+    /timeMap:\s*Array\.isArray\(msg\.timeMap\)/.test(templateSrc),
+  );
+  check(
+    '★ program 注入保留 displayDuration',
+    /displayDuration:[\s\S]{0,160}msg\.displayDuration/.test(templateSrc),
+  );
 
   // 行为面：给一份"上次启动"的偏好，本次启动（换编号）不该吃到它
   const legacyKey = 'od-animation-prefs:' + 'stub';
@@ -335,6 +344,14 @@ console.log('\n『B-2』注入的健壮性');
   windowStub.dispatch('message', { data: { source: 'od-host', type: 'program', slots: noAnswers, mode: 'NUMERIC', stepTimes: [{ step: 1, t0: 0, t1: 1 }] } });
   check('★ 空 ANSWERS ⇒ 接受并 ready', messages.some((m) => m.type === 'ready'), JSON.stringify(messages.map((m) => m.type + (m.code ? ':' + m.code : ''))));
   check('★ 空 ANSWERS 不报 bad-program', !messages.some((m) => m.type === 'error' && m.code === 'bad-program'));
+
+  /**
+   * ⚠ 同一个载荷还要过**宿主侧 React 门卫**（`validateProgramPayload`）。
+   * 模板页接受、宿主门卫拒绝，正是 v1.1.17 的真实假绿：动画页永远收不到 program。
+   * 这里直接 import 构建产物（门禁 ⑬⑭ 先于本步）验证真实代码路径。
+   */
+  const liveProblem = validateLiveProgramPayload({ slots: noAnswers, mode: 'BOTH' });
+  check('★ React 宿主门卫也接受空 ANSWERS', liveProblem === null, String(liveProblem));
 }
 
 console.log('\n『B-3』成品页拒绝运行时覆盖（§13.1 导出保真）');

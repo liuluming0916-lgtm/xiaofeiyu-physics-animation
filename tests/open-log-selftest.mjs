@@ -69,6 +69,8 @@ function sampleRun() {
     problem: { text: '一物块从斜面顶端滑下，求到底端的速度。', imageCount: 1 },
     model: 'model-a',
     endpoint: '我的模型',
+    /* v1.1.18：图片内嵌（对话里仍只留占位，原图单独存一份） */
+    images: [{ mime: 'image/png', data: Buffer.from('fake-png-bytes'), name: 'problem.png' }],
   });
 
   log.event({ type: 'run_start', model: 'model-a', entry: '斜面下滑' });
@@ -121,6 +123,12 @@ async function main() {
     check('★ 对话记了消息原文（system + user）', record.dialogue.length === 1 && record.dialogue[0].messages.length === 2);
     check('对话记了模型返回全文', String(record.dialogue[0].output ?? '').includes('动能定理'));
     check('★ 图片只留占位、不留 base64（否则日志会几十 MB）', JSON.stringify(record.dialogue[0].messages).includes('图片已省略'));
+    check(
+      '★ 题目原图内嵌（v1.1.18 用户裁决；对话里省略、单独字段保留）',
+      record.run.problem.images?.length === 1 &&
+        String(record.run.problem.images[0].dataUrl ?? '').startsWith('data:image/png;base64,'),
+      JSON.stringify(record.run.problem.images?.map((x) => ({ name: x.name, bytes: x.bytes }))),
+    );
     check('★ 动画代码在（8 槽位里的几个）', record.animation.available && String(record.animation.slots.drawFrame ?? '').includes('Draw.dot'));
     check('★ 解题过程在（solve 与 steps 都有正文）', String(record.solution.solve ?? '').includes('动能定理') && String(record.solution.breakdown ?? '').includes('第一步'));
     check('结论是 fail（不是"报错"也不是 null）', record.run.verdict === 'fail');

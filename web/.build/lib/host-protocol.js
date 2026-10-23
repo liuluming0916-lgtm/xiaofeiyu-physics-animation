@@ -94,7 +94,14 @@ export function validateProgramPayload(payload) {
     }
     for (const k of SLOT_KEYS) {
         const v = slots[k];
-        if (typeof v !== 'string' || v.length === 0)
+        if (typeof v !== 'string')
+            return `槽位 ${k} 不是字符串（§3.2 审计 2）`;
+        /**
+         * v6 起 `ANSWERS` 故意留空（答案在解题/分步里，C7 已退役）。
+         * 其余 7 个槽位仍必须非空；这里不能再用“8 个都非空”的旧口径，
+         * 否则 v6 程序会在动画页入口被自己的门卫挡住。
+         */
+        if (k !== 'ANSWERS' && v.length === 0)
             return `槽位 ${k} 缺失或为空（§3.2 审计 2）`;
     }
     if (payload.mode !== 'BOTH' && payload.mode !== 'NUMERIC' && payload.mode !== 'SYMBOLIC') {

@@ -30,7 +30,7 @@
 | 宿主 → 模板 | `showStep` | `{ index }` | §13.2 原文 |
 | 宿主 → 模板 | `setVectorMask` | `{ velocity, acceleration, force, trace, grid }` | §13.2 原文 |
 | 宿主 → 模板 | `setTheme` | `{ theme }` | §13.2 原文 |
-| 宿主 → 模板 | **`program`** | `{ slots, mode, texSvg?, labelAvoid?, stepTimes? }` | ★ **第 3 期新增**（见 §3） |
+| 宿主 → 模板 | **`program`** | `{ slots, mode, texSvg?, labelAvoid?, stepTimes?, timeMap?, displayDuration? }` | ★ **第 3 期新增**（见 §3） |
 | 模板 → 宿主 | `ready` | `{ duration, stepCount }` | §13.2 原文 |
 | 模板 → 宿主 | `state` | `{ t, duration, playing, rate, stepIndex, readouts }` | §13.2 原文 |
 | 模板 → 宿主 | `error` | `{ code, message, slot }` | §13.2 原文 |
@@ -89,14 +89,22 @@
              "setup": "…", "stateAt": "…", "drawFrame": "…", "readouts": "…" },
   "mode": "BOTH",             // 或旧值 "NUMERIC" / "SYMBOLIC"
   "texSvg": { "renderer": "…", "formulas": { "tex": "<svg…>" } },  // 可选
-  "stepTimes": [               // 可选：couple 产出的步骤时间
-    { "step": 1, "t0": 0, "t1": 0.6 }
-  ]
+  "labelAvoid": null,          // 可选：C2 标注避让表
+  "stepTimes": [               // 可选：**显示秒**步骤时间（每小问 4 s）
+    { "step": 1, "sub": 1, "t0": 0, "t1": 1.2 }
+  ],
+  "timeMap": [                 // 可选：物理秒 → 显示秒分段映射
+    { "sub": 1, "p0": 0, "p1": 2, "d0": 0, "d1": 4 }
+  ],
+  "displayDuration": 4         // 可选：显示总时长（秒）
 }
 ```
 
 > v6：`ANSWERS` 允许空串（C7 已删）；其余 7 个槽位仍必须非空。
 > `stepTimes` 缺失时页签只换文字，不做动画联动。
+> **v1.1.17 起**：`stepTimes` 必须是 couple 换算后的**显示秒**，并同时带
+> `timeMap / displayDuration`；模板只按表换算，不再自己推。否则 live 页会退回
+> `player.duration`（物理秒），与导出页的 4 s 不一致。
 
 **模板侧处理规则（已实现）：**
 
@@ -161,3 +169,4 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | 1.0 | 2026-10（第 3 期） | 由 §13.2 草案定稿：新增 `source` 字段语义、新增 `program` 注入消息与两条装载路径、明确时序与错误码 |
+| 1.1.17 | 2026-10-23 | `program` 增加 `labelAvoid`、显示秒 `stepTimes`、`timeMap`、`displayDuration`；模板 `applyProgram` 必须保留这四个字段，live 页与导出页同一套时长归一化 |

@@ -114,7 +114,7 @@ function routeStream({ repair = FIXED_DRAW } = {}) {
 function input(stream, dry) {
   return {
     problem: { text: '水平传送带题。' },
-    config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 1 },
+    config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 2 },
     streamImpl: stream,
     dryRunImpl: dry,
   };
@@ -189,6 +189,21 @@ export async function main() {
     check('repair_round 在 repair stage_done 之后', round > events.findIndex((e) => e.type === 'stage_done' && e.stage === 'repair'));
     check('修复后的 dryrun_done 带 round=1', roundDry > round);
     check('事件序号单调递增', events.every((e, i) => i === 0 || e.seq > events[i - 1].seq));
+  }
+
+  console.log('\n『B7』只有告警（pass-with-warnings）不进自愈');
+  {
+    /* C8 是 warning：verdict=pass-with-warnings，没有硬拦；不应调用任何修复轮 */
+    const dry = fakeDryRun(fakeReport({ verdict: 'pass-with-warnings', failed: ['C8'] }));
+    const stream = routeStream();
+    const events = await collectEvents(input(stream, dry));
+    const runDone = events.find((e) => e.type === 'run_done');
+    const repairStarts = events.filter((e) => e.type === 'stage_start' && e.stage === 'repair');
+    const rounds = events.filter((e) => e.type === 'repair_round');
+    check('★ 告警-only 不触发 repair', repairStarts.length === 0 && stream.calls.filter((c) => c.round).length === 0, `${repairStarts.length}/${stream.calls.filter((c) => c.round).length}`);
+    check('★ 不产生 repair_round（不白跑 3 轮）', rounds.length === 0, String(rounds.length));
+    check('★ Dry-Run 只跑 1 次（首轮）', dry.calls.length === 1, String(dry.calls.length));
+    check('★ 结论仍是 pass-with-warnings，照常交付', runDone?.verdict === 'pass-with-warnings', String(runDone?.verdict));
   }
 
   console.log(`\n${failures.length ? '✗' : '✓'} v6 画图自愈取证：通过 ${passed} 条，失败 ${failures.length} 条`);

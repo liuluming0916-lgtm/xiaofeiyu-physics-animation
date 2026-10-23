@@ -144,6 +144,26 @@ check(
   JSON.stringify(coupling?.stepTimes),
 );
 check('★ run_done 也带 stepTimes', JSON.stringify(runDone?.stepTimes) === JSON.stringify(coupling?.stepTimes), JSON.stringify(runDone?.stepTimes));
+check('★ coupling_done 带 displayDuration=4（每小问 4 秒）', coupling?.displayDuration === 4, JSON.stringify(coupling?.displayDuration));
+check(
+  '★ coupling_done 带 timeMap（物理 0–3 → 显示 0–4）',
+  JSON.stringify(coupling?.timeMap) === JSON.stringify([{ sub: 1, p0: 0, p1: 3, d0: 0, d1: 4 }]),
+  JSON.stringify(coupling?.timeMap),
+);
+check(
+  '★ displayStepTimes 已换算到显示秒（末步 t1=4）',
+  coupling?.displayStepTimes?.length === 2 &&
+    Math.abs(coupling.displayStepTimes[1].t1 - 4) < 1e-6 &&
+    Math.abs(coupling.displayStepTimes[0].t1 - 4 / 3) < 1e-6,
+  JSON.stringify(coupling?.displayStepTimes),
+);
+check(
+  '★ run_done 也带 displayDuration / timeMap / displayStepTimes',
+  runDone?.displayDuration === 4 &&
+    Array.isArray(runDone?.timeMap) &&
+    runDone?.displayStepTimes?.length === 2,
+  JSON.stringify({ displayDuration: runDone?.displayDuration, timeMap: runDone?.timeMap, displayStepTimes: runDone?.displayStepTimes }),
+);
 check('没有 stage_error', !events.some((e) => e.type === 'stage_error'), JSON.stringify(events.find((e) => e.type === 'stage_error') ?? null).slice(0, 400));
 
 /* ── v6 知识卡：生产路径必须走 v2 引擎，而不是原样 v2 卡喂 v1 引擎 ── */
@@ -349,6 +369,47 @@ if (programEvent) {
   check('★ couple 两次都失败 ⇒ 按比例回退', fallbackCoupling?.fallback === true && fallbackCoupling?.stepTimes?.length === 2, JSON.stringify(fallbackCoupling));
   check('★ 回退时带 warning（不静默）', typeof fallbackCoupling?.warning === 'string' && fallbackCoupling.warning.length > 0, JSON.stringify(fallbackCoupling?.warning));
   check('★ 回退不把整题打崩（仍然 pass）', fallbackEvents.find((e) => e.type === 'run_done')?.verdict === 'pass');
+}
+
+/* ── v1.1.18 手动打回：从 solve 重跑（沿用上一版 read_problem，不重新读题） ── */
+{
+  const calls = [];
+  const manualStream = async (opts) => {
+    calls.push(opts.stage);
+    const text = REPLIES[opts.stage] ?? '（占位）';
+    opts.onDelta?.(text);
+    return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
+  };
+  const events = await collectEvents({
+    problem: { text: '水平传送带题。' },
+    startAt: 'solve',
+    baseReadProblem: REPLIES.read_problem,
+    config: {
+      endpoint: {
+        id: 'stub',
+        displayName: 'stub',
+        baseURL: 'http://127.0.0.1:1/v1',
+        defaultModel: 'stub-model',
+        visionModel: 'stub-vision',
+        supportsVision: true,
+        supportsJsonMode: true,
+        enableThinking: false,
+        timeoutMs: 1000,
+      },
+      apiKey: 'sk-test',
+      regexRules: [],
+      knowledgecardEntries: [],
+      knowledgecardVersion: 2,
+      knowledgecardVocab: vocab,
+    },
+    streamImpl: manualStream,
+  });
+  const runDone = events.find((e) => e.type === 'run_done');
+  const readSkipped = events.find((e) => e.type === 'stage_done' && e.stage === 'read_problem');
+  check('★ 从 solve 重跑：read_problem 不再调模型', !calls.includes('read_problem'), calls.join(','));
+  check('★ read_problem 如实标记 skipped', readSkipped?.skipped === true, JSON.stringify(readSkipped));
+  check('★ 从 solve 重跑仍能 pass', runDone?.verdict === 'pass', String(runDone?.verdict));
+  check('★ 仍然给出可播放程序', Boolean(events.find((e) => e.type === 'dryrun_done')?.program?.slots?.drawFrame));
 }
 
 console.log(`\n通过 ${passed}，失败 ${failures.length}`);

@@ -35,7 +35,7 @@ check('★ 纯图片题 PROBLEM 用读题标题兜底', problemTextForSlots('', 
 check('★ 有题面文字时优先用题面', problemTextForSlots('用户手打的题面', READ_TITLE_BLOCK) === '用户手打的题面');
 check('★ 标题也取不到时用占位文案', problemTextForSlots('', '没有标题') === '（题目见图片）');
 
-for (const id of ['read_problem', 'read_problem_v2']) {
+for (const id of ['read_problem_v2']) {
   const p = getPrompt(id);
   check(`${id} 要求【题目】`, p.system.includes('【题目】'));
   check(`${id} 允许长度不限`, p.system.includes('长度不限'));
@@ -82,7 +82,7 @@ const pass = {
 };
 const events = await collectEvents({
   problem: { text: '用户手打的题面' },
-  config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 1 },
+  config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 2 },
   streamImpl: stream,
   dryRunImpl: async () => ({ report: pass, run: null, lint: null }),
 });

@@ -50,9 +50,11 @@ export const SCENE_CODE_INSTRUCTION = [
  *   "某类题应该怎么画" 的嘱咐 —— 那是单题返修意见，写进来就变成所有题都要背的链路提示词
  *   （用户 2026-10-23 明令）。
  *
- * @param {{ problem?: string, analysisText?: string, readProblem?: string, stateMap?: Array<{id:string,key:string}>, stage?: {frame?:object, range?:object}|null }} input
+ * @param {{ problem?: string, analysisText?: string, readProblem?: string, stateMap?: Array<{id:string,key:string}>,
+ *   stageRange?: {uMin:number,uMax:number,vMin:number,vMax:number}|null, boardThickness?: number|null }} input
  */
-export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMap = [] } = {}) {
+export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMap = [], stageRange, boardThickness } = {}) {
+  const fmt = (n) => (Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '?');
   return [
     '【题目】',
     problem ?? '',
@@ -68,6 +70,17 @@ export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMa
         )
       : ['（无运动元件）']),
     '',
+    ...(stageRange && Number.isFinite(stageRange.uMin)
+      ? [
+          '【运动在纸面上的范围（10×6 纸面单位）】',
+          `u ${fmt(stageRange.uMin)}–${fmt(stageRange.uMax)}，v ${fmt(stageRange.vMin)}–${fmt(stageRange.vMax)}`,
+          '地面 / 带 / 板 / 导轨至少覆盖这个范围；场景尺寸由你按题面与演示需要决定。',
+          '',
+        ]
+      : []),
+    ...(Number.isFinite(boardThickness)
+      ? ['【板厚（只读；纸面单位）】', String(boardThickness), '板仍画 box：长度你按题面给，厚度用这个值。', '']
+      : []),
     ...(readProblem && String(readProblem).trim()
       ? ['【读题几何（静止物体的摆放依据）】', String(readProblem).trim(), '']
       : []),

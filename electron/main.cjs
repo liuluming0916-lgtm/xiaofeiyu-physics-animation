@@ -132,8 +132,8 @@ if (process.env.OD_DISABLE_CRASH_REPORTER === '1') {
 async function startService() {
   const dataDir = userDataDir();
 
-  // 打包形态：内置词条读编译常量（第 8 期 A3）
-  process.env.OD_BUILTIN_BUNDLE = '1';
+  // v1.1.18：知识卡不再“封死”进代码；v1 编译常量只留在 archive/v1，运行时不再设置 OD_BUILTIN_BUNDLE。
+  // v2 内置卡读 data-v2/*.json；用户卡仍走 ai-rules。
   process.env.OD_HISTORY_PATH = path.join(dataDir, 'history.db');
   process.env.OD_OBS_DIR = path.join(dataDir, 'observability');
   /**

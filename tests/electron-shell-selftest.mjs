@@ -100,7 +100,10 @@ async function main() {
     check('★ 端口用 0（系统分配），不写死', /port:\s*0/.test(mainSrc));
     check('★ 显式调用 svc.listen() 拿真实端口', /await svc\.listen\(\)/.test(mainSrc));
     check('规则根目录指向用户数据目录（Program Files 只读）', /root:\s*path\.join\(dataDir,\s*'ai-rules'\)/.test(mainSrc));
-    check('★ 打包形态打开发布词条常量（OD_BUILTIN_BUNDLE=1）', /OD_BUILTIN_BUNDLE\s*=\s*'1'/.test(mainSrc));
+    check(
+      '★ 打包形态不再封死知识卡（v1.1.18 删除 OD_BUILTIN_BUNDLE=1）',
+      !/OD_BUILTIN_BUNDLE\s*=\s*'1'/.test(mainSrc),
+    );
     check(
       '账本/观测落用户数据目录、导出落「文档」（第 9 期改）',
       ['OD_HISTORY_PATH', 'OD_OBS_DIR', 'OD_EXPORT_DIR'].every((k) => mainSrc.includes(k)) && !mainSrc.includes('OD_DISTILL_DIR'),

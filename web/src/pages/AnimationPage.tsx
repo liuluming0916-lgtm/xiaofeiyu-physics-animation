@@ -14,10 +14,11 @@
  *   第 9 步的本地服务会把它挂到 `/template`；第 3 期先在 repo 内直接引用构建产物。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   DEFAULT_MASK,
+  SLOT_KEYS,
   postToTemplate,
   parseTemplateMessage,
   validateProgramPayload,
@@ -63,10 +64,15 @@ interface TemplateExportHook {
  */
 const TEMPLATE_URL = './template/animation-template.html'
 
-export function AnimationPage() {
+export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve' | 'draw') => void }) {
   const st = useApp()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [ready, setReady] = useState<TemplateReady | null>(null)
+  /** v1.1.18：警告弹窗 + 版本对比 */
+  const [retryOpen, setRetryOpen] = useState(false)
+  const [compareIndex, setCompareIndex] = useState<number | null>(null)
+  /** iframe 每次 onLoad 递增，用来重发 program（切页回来 / 模板重载都走这里） */
+  const [reloadSeq, setReloadSeq] = useState(0)
   /**
    * ── 第 8 期：**本次启动编号**（用户裁决"每次打开都要干净"）──
    *
@@ -111,6 +117,34 @@ export function AnimationPage() {
   const pushLog = useCallback((s: string) => {
     setLog((prev) => [...prev.slice(-9), `${new Date().toLocaleTimeString()} ${s}`])
   }, [])
+
+  /**
+   * v1.1.17 修：切页回来动画页空壳。
+   *
+   * `App` 切页会卸载本页、销毁 iframe；但 `templateReady` 是 **store 全局**，
+   * 旧值 true 会带进新 iframe，导致 `ready` 分支直接 return、不再注入。
+   * 这里在 mount / unmount 都把“模板已就绪”复位；真正的注入由下面的
+   * `programPayload` 效果 + iframe `onLoad` 重新完成。
+   */
+  useEffect(() => {
+    useApp.getState().setTemplateReady(false)
+    setReady(null)
+    setLog([])
+    return () => useApp.getState().setTemplateReady(false)
+  }, [])
+
+  /**
+   * v1.1.18：带警告/失败的结果进入动画页时**弹一次**。
+   * “我知道了”或“手动打回”都会 acknowledge，之后只留常驻告警横幅，不反复骚扰。
+   */
+  useEffect(() => {
+    if (st.run.running) return
+    if (!st.programSlots) return
+    if (st.run.warningAcknowledged) return
+    if (st.run.verdict === 'pass-with-warnings' || st.run.verdict === 'fail') {
+      setRetryOpen(true)
+    }
+  }, [st.run.running, st.run.verdict, st.run.warningAcknowledged, st.programSlots, st.programEpoch])
 
   /* ── 收模板消息（协议 §2 的方向判据） ── */
   useEffect(() => {
@@ -188,24 +222,28 @@ export function AnimationPage() {
   )
 
   /**
-   * `program` 注入（协议 §3/§4）。
+   * `program` 注入载荷。
    *
-   * ★ 三处必须留意（前两处是第 3 期交付后修的真缺陷，见 README 13.12）：
+   * ★ 两条注入路径（立即重试 + ready）必须发**同一份**载荷；抽成 memo 是为了
+   *   让 timing / labelAvoid 这类“晚到字段”也进入依赖数组，不在两处手抄漏字段。
    *
-   * ① **依赖数组只放决定"要不要重注入"的东西**：就绪、槽位、模式。
-   *    早先把 `st.mask` / `st.rate` 也放进去了，而本效果内部又会 `setTemplateReady(true)`
-   *    ⇒ 触发自身重跑 ⇒ **重复注入**。开关与倍速改由下面两个独立效果同步。
-   *
-   * ② **`texSvg` 必须一起发**：模板的公式索引来自 `PROGRAM_DATA.texSvg`。
-   *    不发它就退回 ODTex/原文降级链 —— 演示界面里公式变成 `\frac` 原文就是这个原因
-   *    （模板内部**早就支持**注入公式，但宿主从来没把预渲染结果发过去）。
-   *
-   * ③ **`id` / `title` 是可选字段**：不发的话模板页头会一直写着"空壳模板"，
-   *    让人分不清"注入成功"还是"注入失败停在空壳"。协议 §3 已补记这两个字段。
+   * v1.1.17：`stepTimes` 发**显示秒**（couple 已按每小问 4 s 换算），
+   * 同时带 `timeMap / displayDuration`；模板只按表换算，不再自己推。
    */
-  useEffect(() => {
-    if (!st.programSlots) return
-    const payload = {
+  const programPayload = useMemo(() => {
+    if (!st.programSlots) return null
+    /**
+     * 只有 timeMap + displayDuration 都在，才把 stepTimes 换成显示秒；
+     * 否则退回原始物理秒（旧服务端/老产物），避免“显示秒 stepTimes + 物理 T_DISPLAY”
+     * 这种半套数据导致步骤跳转错位。
+     */
+    const hasDisplayTiming =
+      Array.isArray(st.programTimeMap) &&
+      st.programTimeMap.length > 0 &&
+      typeof st.programDisplayDuration === 'number' &&
+      Number.isFinite(st.programDisplayDuration) &&
+      st.programDisplayDuration > 0
+    return {
       slots: st.programSlots,
       mode: st.programMode,
       texSvg: TEX_SVG,
@@ -213,65 +251,65 @@ export function AnimationPage() {
       title: st.programTitle,
       /* C2：标注避让表（Dry-Run 算的）。模板收到后会交给播放器按表挪字 + 画引线 */
       labelAvoid: st.programLabelAvoid,
-      /* v6：步骤 ↔ 动画时间（couple 产出；没有就不发） */
-      stepTimes: st.programStepTimes,
+      /* v6：步骤 ↔ 动画时间。优先用显示秒版本；没有就退回原始物理秒（老行为） */
+      stepTimes: hasDisplayTiming
+        ? (st.programDisplayStepTimes ?? st.programStepTimes)
+        : st.programStepTimes,
+      timeMap: hasDisplayTiming ? st.programTimeMap : null,
+      displayDuration: hasDisplayTiming ? st.programDisplayDuration : null,
       /* 第 8 期：本次启动编号（偏好键隔离用） */
       launchId,
     }
-    const bad = validateProgramPayload(payload)
+  }, [
+    st.programSlots,
+    st.programMode,
+    st.programTitle,
+    st.programLabelAvoid,
+    st.programDisplayStepTimes,
+    st.programStepTimes,
+    st.programTimeMap,
+    st.programDisplayDuration,
+    launchId,
+  ])
+
+  useEffect(() => {
+    if (!programPayload) return
+    const bad = validateProgramPayload(programPayload)
     if (bad) {
       useApp.getState().setTemplateError({ code: 'bad-program', message: bad })
       return
     }
 
     /**
-     * ★ 不等 `ready`，直接**重试注入**若干次（第 3 期交付后改）。
+     * ★ 不等 `ready`，直接**重试注入**若干次。
      *
-     * 为什么改成这样：原先写成"**收到 `ready` 才发 `program`**"，
-     * 而空壳的 `ready` 又依赖它在没拿到题目时也主动上报 —— 一条**双向依赖**，
-     * 任何一端出问题都表现为"永远停在空壳"，且**外在表现完全一样、极难定位**
-     * （我为此连续两轮修错地方）。
-     *
-     * `postMessage` 对同一个窗口重复投递是幂等的，而模板那边本来就有
-     * `program-already-inlined` 拒绝重复注入的保护（§13.1）—— 所以"多发几次"是安全的，
-     * 代价只是几条多余消息，换来的是**不依赖握手时序**。
-     * 保留 `ready` 分支只为尽早注入（第一条消息到达即可），不再是唯一路径。
+     * `postMessage` 对同一个窗口重复投递是幂等的，模板有
+     * `program-already-inlined` 拒绝重复注入的保护 —— 多发几次只多几条消息，
+     * 换来的是不依赖握手时序。`reloadSeq` 由 iframe `onLoad` 递增：
+     * 切页回来 / 模板重载后，不需要猜“2.5 秒够不够”，加载完一定再发一次。
      */
-    let tries = 0
     const send = () => {
-      tries += 1
-      const ok = post('program', payload)
-      if (tries === 1 && ok) useApp.getState().setTemplateReady(true)
+      const ok = post('program', programPayload)
+      if (ok) useApp.getState().setTemplateReady(true)
       return ok
     }
     send()
-    const timers = [400, 1200, 2500].map((ms) => window.setTimeout(send, ms))
+    const timers = [400, 1200, 2500, 5000].map((ms) => window.setTimeout(send, ms))
     return () => timers.forEach((t) => window.clearTimeout(t))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st.programSlots, st.programMode, post, launchId])
+  }, [programPayload, reloadSeq, post])
 
   /**
    * `ready` 到达后**立刻**再注入一次（不等重试定时器）。
    *
-   * 上一个是"多发几次保底"，这个是"握手成功就马上走"。
-   * 两条路径都通向同一件事，**互为兜底** —— 这正是上一版缺的：
-   * 上一版只有 `ready` 一条路，那条路一断就永远停在空壳。
+   * ⚠ v1.1.17 修：这里**不能再判断 `st.templateReady`**。
+   * 切页回来时它是上一轮 iframe 留下的 true；新 iframe 的 ready 一到就被
+   * 这个 guard 挡掉，页面停在空壳。复位由本页 mount/unmount 与 iframe onLoad 负责。
    */
   useEffect(() => {
-    if (!ready || !st.programSlots || st.templateReady) return
-    post('program', {
-      slots: st.programSlots,
-      mode: st.programMode,
-      texSvg: TEX_SVG,
-      id: st.programTitle,
-      title: st.programTitle,
-      stepTimes: st.programStepTimes,
-      /* 第 8 期：本次启动编号（两条注入路径都要带，否则先到的那条会写错键） */
-      launchId,
-    })
+    if (!ready || !programPayload) return
+    post('program', programPayload)
     useApp.getState().setTemplateReady(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, st.programSlots, st.programMode, st.templateReady, post, launchId])
+  }, [ready, programPayload, post])
 
   /* ── 开关与倍速的同步（与注入解耦，避免上面那类自触发循环） ── */
   useEffect(() => {
@@ -459,6 +497,13 @@ export function AnimationPage() {
     [exportPage, exportGif],
   )
 
+  const currentVersion = st.programVersions[st.programVersionIndex] ?? null
+  const compareVersion = compareIndex == null ? null : st.programVersions[compareIndex] ?? null
+  const changedSlots =
+    currentVersion && compareVersion
+      ? SLOT_KEYS.filter((k) => String(currentVersion.slots[k] ?? '') !== String(compareVersion.slots[k] ?? ''))
+      : []
+
   return (
     <div className="space-y-4">
 
@@ -522,17 +567,34 @@ export function AnimationPage() {
       */}
       
 
-      {/* ── iframe：模板页本体（导出 = 另存为它，§13.1） ── */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <iframe
-          ref={iframeRef}
-          title="动画模板页"
-          src={TEMPLATE_URL}
-          className="h-[720px] w-full"
-          // 模板页需要脚本（播放器就在里面）；同源即可
-          sandbox="allow-scripts allow-same-origin"
-        />
-      </div>
+      {/* ── iframe：模板页本体（导出 = 另存为它，§13.1） ──
+          v1.1.18：手动打回会先清空 programSlots（running=true），此时**卸载 iframe**；
+          新程序到达后再按 programEpoch 重挂载。模板“第一次注入即锁死”，
+          不能拿旧 iframe 去接新版本。 */}
+      {st.run.running ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          正在{st.run.repairRounds.length ? '按上一版重跑' : '生成'}…（完成后会自动装载新动画）
+        </div>
+      ) : st.programSlots ? (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <iframe
+            key={`od-frame-${st.programEpoch}`}
+            ref={iframeRef}
+            title="动画模板页"
+            src={TEMPLATE_URL}
+            className="h-[720px] w-full"
+            onLoad={() => {
+              /* 新 iframe 一定是“未就绪”：复位后由注入 effect 重发 program。
+                 切页回来 / 模板重载都走这里，不再依赖固定重试窗口。 */
+              setReady(null)
+              useApp.getState().setTemplateReady(false)
+              setReloadSeq((n) => n + 1)
+            }}
+            // 模板页需要脚本（播放器就在里面）；同源即可
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      ) : null}
 
       {/* ── 读数面板已删除（第 7 期，用户裁决：「删了不要」）──
           数值改由模板页里的曲线图游标承担；宿主不再把读数值重复显示一遍。 */}
@@ -563,6 +625,181 @@ export function AnimationPage() {
               : '正在打包单文件页…'
             : result?.text}
         </p>
+      )}
+
+      {st.programVersions.length > 1 && (
+        <details className="rounded-lg border border-slate-200 bg-white">
+          <summary className="cursor-pointer px-3 py-2 text-xs text-slate-600">
+            版本历史（{st.programVersions.length} 个；可对比 / 回退）
+          </summary>
+          <div className="space-y-2 border-t border-slate-100 px-3 py-2">
+            {st.programVersions.map((v, i) => (
+              <div key={v.id} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-mono text-slate-500">v{v.id}</span>
+                <span className="text-slate-600">
+                  {v.source === 'run' ? '初次' : v.source === 'repair' ? `修复·${v.verdict ?? ''}` : '手动'}
+                </span>
+                <span className="text-slate-400">{new Date(v.at).toLocaleTimeString()}</span>
+                {i === st.programVersionIndex && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">当前</span>}
+                <button
+                  type="button"
+                  className="rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  onClick={() => setCompareIndex(i)}
+                >
+                  对比
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-amber-300 px-2 py-0.5 text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={i === st.programVersionIndex}
+                  onClick={() => {
+                    useApp.getState().rollbackProgram(i)
+                    pushLog(`↩ 回退到 v${v.id}`)
+                  }}
+                >
+                  回退
+                </button>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {retryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              useApp.getState().acknowledgeWarning()
+              setRetryOpen(false)
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="retry-title"
+            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+          >
+            <h2 id="retry-title" className="text-base font-semibold text-slate-900">
+              {st.run.verdict === 'fail' ? '这一版没有通过校验' : '这一版有小警告'}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              动画已经可以播放，但
+              {st.run.verdict === 'fail' ? '有硬拦项没过' : '有告警项'}。
+              你可以先用着，也可以手动打回让模型重跑。
+              {st.programVersions.length > 1 ? '旧版本已保留在“版本历史”里，可对比/回退。' : ''}
+            </p>
+            {st.run.banner && (
+              <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+                {st.run.banner.title}
+                {st.run.banner.failedChecks?.length ? `（${st.run.banner.failedChecks.join(' / ')}）` : ''}
+              </p>
+            )}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                autoFocus
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  useApp.getState().acknowledgeWarning()
+                  setRetryOpen(false)
+                }}
+              >
+                我知道了
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-blue-300 px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!st.run.analysisText}
+                title={st.run.analysisText ? '保留 analysis/stateAt/VIEW/STEPS，只让模型重画 drawFrame' : '缺少上一版 analysis，只能用“从解题重跑”'}
+                onClick={() => {
+                  setRetryOpen(false)
+                  onManualRetry('draw')
+                }}
+              >
+                只重画动画
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                onClick={() => {
+                  setRetryOpen(false)
+                  onManualRetry('solve')
+                }}
+              >
+                从解题重跑
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {compareVersion && currentVersion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCompareIndex(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compare-title"
+            className="flex max-h-[85vh] w-full max-w-5xl flex-col rounded-xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+              <h2 id="compare-title" className="text-base font-semibold text-slate-900">
+                版本对比：v{compareVersion.id} → v{currentVersion.id}
+              </h2>
+              <button type="button" className="text-sm text-slate-500 hover:text-slate-900" onClick={() => setCompareIndex(null)}>
+                关闭
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-auto p-5">
+              {changedSlots.length === 0 ? (
+                <p className="text-sm text-slate-500">两份程序的 8 个槽位完全相同。</p>
+              ) : (
+                changedSlots.map((k) => (
+                  <details key={k} className="rounded border border-slate-200" open={k === 'drawFrame'}>
+                    <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-slate-700">
+                      {k} <span className="text-slate-400">（有差异）</span>
+                    </summary>
+                    <div className="grid gap-2 border-t border-slate-100 p-2 md:grid-cols-2">
+                      <div>
+                        <p className="mb-1 text-[11px] text-slate-500">v{compareVersion.id}</p>
+                        <pre className="max-h-72 overflow-auto rounded bg-slate-50 p-2 text-[11px] leading-relaxed text-slate-800">
+{compareVersion.slots[k] ?? ''}
+                        </pre>
+                      </div>
+                      <div>
+                        <p className="mb-1 text-[11px] text-slate-500">v{currentVersion.id}</p>
+                        <pre className="max-h-72 overflow-auto rounded bg-slate-50 p-2 text-[11px] leading-relaxed text-slate-800">
+{currentVersion.slots[k] ?? ''}
+                        </pre>
+                      </div>
+                    </div>
+                  </details>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">
+              <button
+                type="button"
+                className="rounded-md border border-amber-300 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-50"
+                onClick={() => {
+                  useApp.getState().rollbackProgram(compareIndex ?? 0)
+                  setCompareIndex(null)
+                  pushLog(`↩ 回退到 v${compareVersion.id}`)
+                }}
+              >
+                回退到 v{compareVersion.id}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

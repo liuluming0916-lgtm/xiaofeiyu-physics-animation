@@ -69,7 +69,7 @@ export const CHECK_NAMES = Object.freeze({
 });
 
 /** 解题过程要展示的阶段（其余阶段是代码/校验，不属于"过程文字"） */
-const SOLUTION_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'answers']);
+const SOLUTION_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'analysis', 'couple']);
 
 /** 单条文本上限：防一份日志被某个失控输出撑到几十 MB（截断会明确标注） */
 const MAX_TEXT = 400_000;
@@ -98,6 +98,30 @@ export function resolveOpenLogDir({ dir, appDir } = {}) {
   if (process.env.OD_OPEN_LOG_DIR) return resolve(process.env.OD_OPEN_LOG_DIR);
   const base = appDir ?? process.env.OD_APP_DIR ?? PROJECT_ROOT;
   return join(resolve(base), OPEN_LOG_DIRNAME);
+}
+
+/**
+ * 把题目图片/解析图片变成可内嵌的记录。
+ *
+ * v1.1.18 用户裁决：图片**内嵌**进日志（不另外开 assets 目录）。
+ * 这样老师把一份 HTML/JSON 发给开发者时，图不会再丢；代价是日志会变大，
+ * 用户明确接受，所以这里不设大小上限，只如实记 bytes / sha256。
+ */
+function imageRecords(list = []) {
+  return (Array.isArray(list) ? list : [])
+    .filter((img) => img && Buffer.isBuffer(img.data) && img.data.length > 0)
+    .map((img, i) => {
+      const mime = typeof img.mime === 'string' && /^image\/[a-z0-9.+-]+$/i.test(img.mime) ? img.mime : 'image/png';
+      const data = img.data;
+      return {
+        index: i + 1,
+        name: String(img.name ?? `image-${i + 1}`),
+        mime,
+        bytes: data.length,
+        sha256: createHash('sha256').update(data).digest('hex'),
+        dataUrl: `data:${mime};base64,${data.toString('base64')}`,
+      };
+    });
 }
 
 function clampText(text) {
@@ -166,9 +190,19 @@ function trimCheck(c) {
  *   model?: string|null,
  *   endpoint?: string|null,
  *   devMode?: boolean,
+ *   images?: Array<{mime:string,data:Buffer,name?:string}>,
+ *   referenceImages?: Array<{mime:string,data:Buffer,name?:string}>,
  * }} [input]
  */
-export function createRunLog({ appVersion: version = null, problem = {}, model = null, endpoint = null, devMode = false } = {}) {
+export function createRunLog({
+  appVersion: version = null,
+  problem = {},
+  model = null,
+  endpoint = null,
+  devMode = false,
+  images = [],
+  referenceImages = [],
+} = {}) {
   const startedAt = new Date().toISOString();
   const runId = makeRunId();
 
@@ -179,10 +213,21 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
   /** 每次模型调用 */
   const dialogue = [];
   const errors = [];
+  /** 阶段时间线（start/done/error/skipped），按到达顺序 */
+  const timeline = [];
   let lastReport = null;
   let runDone = null;
   let entry = null;
   let finalModel = model;
+  /** 生成溯源（从事件/报告里抓，最后落进 run / animation） */
+  let promptHash = null;
+  let knowledgecardHash = null;
+  /** v1.1.18：除“四样”外，把判定/知识卡/耦合/拆图也留档 */
+  let judgement = null;
+  let knowledgecard = null;
+  let diagram = null;
+  let coupling = null;
+  let runStart = null;
 
   const bump = (stage, text) => {
     if (typeof text !== 'string' || !text) return;
@@ -197,14 +242,99 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
       if (!ev || typeof ev !== 'object') return;
       switch (ev.type) {
         case 'run_start':
+          runStart = {
+            entry: ev.entry ?? null,
+            model: ev.model ?? null,
+            mode: ev.mode ?? null,
+            stages: Array.isArray(ev.stages) ? ev.stages : [],
+            imageCount: Number(ev.imageCount ?? 0) || 0,
+            maxRepairRounds: ev.maxRepairRounds ?? null,
+          };
           if (ev.model) finalModel = ev.model;
           if (ev.entry) entry = ev.entry;
           break;
+        case 'stage_start':
+          timeline.push({
+            at: ev.at ?? new Date().toISOString(),
+            stage: ev.stage ?? null,
+            phase: 'start',
+            round: Number.isFinite(ev.round) ? ev.round : null,
+            mode: ev.mode ?? null,
+            index: ev.index ?? null,
+          });
+          break;
+        case 'stage_done':
+          timeline.push({
+            at: ev.at ?? new Date().toISOString(),
+            stage: ev.stage ?? null,
+            phase: ev.skipped ? 'skipped' : 'done',
+            round: Number.isFinite(ev.round) ? ev.round : null,
+            ms: ev.ms ?? null,
+            reason: ev.reason ?? null,
+            updated: Array.isArray(ev.updated) ? ev.updated : null,
+          });
+          break;
         case 'stage_delta':
           bump(ev.stage, ev.text);
+          if (typeof ev.promptHash === 'string' && ev.promptHash) promptHash = ev.promptHash;
+          break;
+        case 'judgement_done':
+          judgement = {
+            stage: ev.stage ?? null,
+            concepts: Array.isArray(ev.concepts) ? ev.concepts : [],
+            tags: Array.isArray(ev.tags) ? ev.tags : [],
+            elements: Array.isArray(ev.elements) ? ev.elements : [],
+            scenes: Array.isArray(ev.scenes) ? ev.scenes : [],
+            unknowns: ev.unknowns ?? {},
+            problems: Array.isArray(ev.problems) ? ev.problems : [],
+            why: ev.why ?? '',
+            empty: ev.empty === true,
+          };
+          break;
+        case 'knowledgecard_done':
+          knowledgecard = {
+            hash: ev.hash ?? null,
+            libraryCount: ev.libraryCount ?? null,
+            matched: ev.matched ?? null,
+            entries: Array.isArray(ev.entries) ? ev.entries : [],
+            emptySlots: Array.isArray(ev.emptySlots) ? ev.emptySlots : [],
+            truncatedSlots: Array.isArray(ev.truncatedSlots) ? ev.truncatedSlots : [],
+            warnings: Array.isArray(ev.warnings) ? ev.warnings : [],
+            charsBySlot: ev.charsBySlot ?? {},
+            injectedBySlot: ev.injectedBySlot ?? {},
+            judgement: ev.judgement ?? null,
+            judgementUnknowns: ev.judgementUnknowns ?? null,
+            judgementProblems: ev.judgementProblems ?? null,
+            judgementEmpty: ev.judgementEmpty === true,
+          };
+          break;
+        case 'diagram_done':
+          diagram = {
+            ok: ev.ok === true,
+            reason: ev.reason ?? null,
+            bbox: ev.bbox ?? null,
+            width: ev.width ?? null,
+            height: ev.height ?? null,
+            fallbackWhole: ev.fallbackWhole === true,
+          };
+          break;
+        case 'coupling_done':
+          coupling = {
+            stepTimes: Array.isArray(ev.stepTimes) ? ev.stepTimes : null,
+            displayStepTimes: Array.isArray(ev.displayStepTimes) ? ev.displayStepTimes : null,
+            timeMap: Array.isArray(ev.timeMap) ? ev.timeMap : null,
+            displayDuration: Number.isFinite(ev.displayDuration) ? ev.displayDuration : null,
+            fallback: ev.fallback === true,
+            warning: ev.warning ?? null,
+            attempts: ev.attempts ?? null,
+          };
           break;
         case 'dryrun_done':
           lastReport = ev;
+          if (ev.program?.provenance) {
+            if (ev.program.provenance.promptHash) promptHash = ev.program.provenance.promptHash;
+            if (ev.program.provenance.knowledgecardHash) knowledgecardHash = ev.program.provenance.knowledgecardHash;
+          }
           rounds.push({
             /**
              * `round` 的语义：**首次校验没有轮次**（流水线不传），自愈轮次从 1 开始。
@@ -220,6 +350,14 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
           });
           break;
         case 'stage_error':
+          timeline.push({
+            at: ev.at ?? new Date().toISOString(),
+            stage: ev.stage ?? null,
+            phase: 'error',
+            round: Number.isFinite(ev.round) ? ev.round : null,
+            kind: ev.error?.kind ?? 'unknown',
+            message: clampText(String(ev.error?.message ?? '')),
+          });
           errors.push({
             stage: ev.stage ?? null,
             kind: ev.error?.kind ?? 'unknown',
@@ -229,6 +367,15 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
           break;
         case 'run_done':
           runDone = ev;
+          if (Number.isFinite(ev.displayDuration)) {
+            coupling = {
+              ...(coupling ?? { stepTimes: null, displayStepTimes: null, timeMap: null, fallback: false, warning: null, attempts: null }),
+              stepTimes: ev.stepTimes ?? coupling?.stepTimes ?? null,
+              displayStepTimes: ev.displayStepTimes ?? coupling?.displayStepTimes ?? null,
+              timeMap: ev.timeMap ?? coupling?.timeMap ?? null,
+              displayDuration: ev.displayDuration,
+            };
+          }
           break;
         case 'run_label':
           if (ev.entry) entry = ev.entry;
@@ -280,6 +427,8 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
       for (const s of SOLUTION_STAGES) {
         if (stageText.has(s)) solution[s] = clampText(stageText.get(s) ?? '');
       }
+      const embeddedImages = imageRecords(images);
+      const embeddedReferenceImages = imageRecords(referenceImages);
 
       return {
         format: OPEN_LOG_FORMAT,
@@ -297,11 +446,25 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
           cancelled: Boolean(cancelled || runDone?.cancelled),
           verdict: runDone?.verdict ?? finalRound?.verdict ?? (errors.length ? 'error' : null),
           ms: Number(runDone?.ms ?? 0) || null,
-          banner: runDone?.banner ? clampText(String(runDone.banner)) : null,
+          /** 告警横幅是对象；旧代码 `String(object)` 会写成 [object Object]。兼容旧的字符串形态。 */
+          banner:
+            typeof runDone?.banner === 'string'
+              ? { title: '告警横幅', message: runDone.banner }
+              : runDone?.banner && typeof runDone.banner === 'object'
+                ? JSON.parse(JSON.stringify(runDone.banner))
+                : null,
+          promptHash,
+          knowledgecardHash,
+          start: runStart,
+          timeline,
           problem: {
             text: clampText(String(problem?.text ?? '')),
             imageCount: Number(problem?.imageCount ?? 0) || 0,
+            images: embeddedImages,
           },
+          ...(embeddedReferenceImages.length
+            ? { reference: { imageCount: embeddedReferenceImages.length, images: embeddedReferenceImages } }
+            : {}),
         },
         gates: {
           verdict: finalRound?.verdict ?? null,
@@ -314,7 +477,18 @@ export function createRunLog({ appVersion: version = null, problem = {}, model =
         animation: {
           available: Object.keys(slots).length > 0,
           slots: Object.fromEntries(Object.entries(slots).map(([k, v]) => [k, clampText(String(v))])),
+          stepTimes: coupling?.stepTimes ?? runDone?.stepTimes ?? null,
+          displayStepTimes: coupling?.displayStepTimes ?? runDone?.displayStepTimes ?? null,
+          timeMap: coupling?.timeMap ?? runDone?.timeMap ?? null,
+          displayDuration: coupling?.displayDuration ?? runDone?.displayDuration ?? null,
+          promptHash,
+          knowledgecardHash,
         },
+        /** v1.1.18：读题判定 / 卡片命中 / 拆图 / 步骤耦合，全部留在同一份 record 里 */
+        judgement,
+        knowledgecard,
+        diagram,
+        coupling,
         solution,
         errors,
       };
@@ -454,7 +628,7 @@ export function renderHtml(record) {
         .join('\n')
     : '<p class="muted">没有记录到模型调用（可能一步都没跑起来，或走的是演示源）。</p>';
 
-  const slotNames = ['PROBLEM', 'STEPS', 'ANSWERS', 'VIEW', 'PARAM', 'stateAt', 'drawFrame', 'PROBE'];
+  const slotNames = ['PROBLEM', 'STEPS', 'ANSWERS', 'VIEW', 'setup', 'stateAt', 'drawFrame', 'readouts'];
   const order = [...new Set([...slotNames.filter((s) => s in slots), ...Object.keys(slots)])];
   const codeHtml = order.length
     ? order
@@ -486,6 +660,58 @@ export function renderHtml(record) {
         .map((e) => `<li><strong>${esc(e.stage ?? '运行')}</strong> · ${esc(e.kind)}：${esc(e.message)}${e.hint ? `<br><span class="muted">→ ${esc(e.hint)}</span>` : ''}</li>`)
         .join('')}</ul>`
     : '<p class="muted">没有阶段级错误。</p>';
+
+  /* ── v1.1.18：判定 / 知识卡 / 耦合 / 拆图 / 时间线 / 图片 ── */
+  const judgement = record?.judgement ?? null;
+  const knowledgecard = record?.knowledgecard ?? null;
+  const coupling = record?.coupling ?? null;
+  const diagram = record?.diagram ?? null;
+  const timeline = Array.isArray(r.timeline) ? r.timeline : [];
+  const images = Array.isArray(r.problem?.images) ? r.problem.images : [];
+  const referenceImages = Array.isArray(r.reference?.images) ? r.reference.images : [];
+
+  const jsonBlock = (title, value, open = false) =>
+    value == null ? '' : block(title, JSON.stringify(value, null, 2), { open, meta: `${JSON.stringify(value).length} 字符` });
+
+  const judgementHtml = jsonBlock('读题判定（元件 / 场景 / 表外词 / 判定依据）', judgement, false);
+  const knowledgecardHtml = knowledgecard
+    ? `<p class="muted">命中 ${esc(String(knowledgecard.matched ?? '—'))} 条；动画槽注入 ${
+        knowledgecard.injectedBySlot?.scene_code ?? '—'
+      } 条，${knowledgecard.charsBySlot?.scene_code ?? '—'} 字符。</p>
+       ${knowledgecard.entries?.length ? `<ul class="tight">${knowledgecard.entries
+         .map((e) => `<li><strong>${esc(e.title ?? e.entry_id ?? '')}</strong> <span class="muted">via ${esc(e.via ?? '')} · ${esc(
+           String(e.charsBySlot?.scene_code ?? ''),
+         )} 字符</span></li>`)
+         .join('')}</ul>` : ''}
+       ${jsonBlock('知识卡完整证据（含空槽/截断/表外词）', knowledgecard, false)}`
+    : '';
+  const couplingHtml = jsonBlock('步骤耦合（物理秒 / 显示秒 / timeMap）', coupling, false);
+  const diagramHtml = jsonBlock('示意图拆图结果', diagram, false);
+
+  const timelineHtml = timeline.length
+    ? `<table class="gates"><thead><tr><th>到达时间</th><th>阶段</th><th>动作</th><th>轮次</th><th>耗时</th><th>说明</th></tr></thead><tbody>${timeline
+        .map(
+          (t) =>
+            `<tr><td class="nowrap">${esc(fmtTime(t.at))}</td><td>${esc(t.stage ?? '')}</td><td>${esc(t.phase ?? '')}</td><td>${
+              t.round == null ? '—' : esc(String(t.round))
+            }</td><td>${t.ms == null ? '—' : esc(fmtMs(t.ms))}</td><td>${esc(t.reason ?? t.message ?? '')}</td></tr>`,
+        )
+        .join('')}</tbody></table>`
+    : '<p class="muted">没有阶段时间线。</p>';
+
+  const imageHtml = (list, title) =>
+    list.length
+      ? `<h3>${esc(title)}（${list.length} 张，已内嵌）</h3>${list
+          .map(
+            (img) =>
+              `<figure style="margin:12px 0"><img src="${esc(img.dataUrl)}" alt="${esc(img.name ?? '')}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="muted">${esc(
+                img.name ?? '',
+              )} · ${esc(img.mime ?? '')} · ${esc(String(img.bytes ?? ''))} 字节</figcaption></figure>`,
+          )
+          .join('')}`
+      : '';
+
+  const imagesHtml = `${imageHtml(images, '题目图片')}${imageHtml(referenceImages, '参考答案 / 解析图片')}`;
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -539,12 +765,18 @@ export function renderHtml(record) {
       <span>耗时：${esc(fmtMs(r.ms))}</span>
       <span>模型：${esc(r.model ?? '—')}</span>
       <span>端点：${esc(r.endpoint ?? '—')}</span>
+      ${r.promptHash ? `<span>prompt：<code>${esc(String(r.promptHash).slice(0, 12))}…</code></span>` : ''}
+      ${r.knowledgecardHash ? `<span>知识卡：<code>${esc(String(r.knowledgecardHash).slice(0, 12))}…</code></span>` : ''}
       ${r.devMode ? badge('开发模式（不拦截）', 'amber') : ''}
       ${r.cancelled ? badge('已取消', 'slate') : ''}
     </div>
     <p class="lead">结论：<strong>${esc(VERDICT_TEXT[verdict] ?? verdict)}</strong></p>
     ${conclusion}
-    ${r.banner ? `<p class="bad">告警横幅：${esc(r.banner)}</p>` : ''}
+    ${
+      r.banner
+        ? `<p class="bad">告警横幅：${esc(r.banner.title ?? '')}${r.banner.message ? ` · ${esc(r.banner.message)}` : ''}</p>`
+        : ''
+    }
   </div>
 
   <h2>① 题目</h2>
@@ -553,7 +785,7 @@ export function renderHtml(record) {
       ? `<pre class="mono">${esc(r.problem.text)}</pre>`
       : '<p class="muted">题面是空的（纯图片题：转写结果见「解题过程」里的 read_problem）。</p>'
   }
-  ${r.problem?.imageCount ? `<p class="muted">本次带了 ${esc(String(r.problem.imageCount))} 张图（图片本体不进日志）。</p>` : ''}
+  ${r.problem?.imageCount ? `<p class="muted">本次带了 ${esc(String(r.problem.imageCount))} 张图（已内嵌在本日志末尾「图片」一节）。</p>` : ''}
   ${errorsHtml && errors.length ? `<h3>运行错误</h3>${errorsHtml}` : ''}
 
   <h2>② 门禁（C1–C9）</h2>
@@ -561,14 +793,26 @@ export function renderHtml(record) {
   ${roundsHtml}
 
   <h2>③ 用户与大模型的对话</h2>
-  <p class="muted">按阶段列出：发给模型的完整消息（含系统提示词）+ 模型返回的全文。图片只记张数与长度。</p>
+  <p class="muted">按阶段列出：发给模型的完整消息（含系统提示词）+ 模型返回的全文。对话里的图片仍只记张数与长度；原始图片见末尾。</p>
   ${dialogueHtml}
+
+  <h2>③-2 读题判定 / 知识卡 / 拆图 / 步骤耦合</h2>
+  <p class="muted">这些是 v1.1.18 新增的排障证据：模型判了什么、抽了哪几张卡、拆图成功没有、步骤怎么对到时间。</p>
+  ${judgementHtml}
+  ${knowledgecardHtml}
+  ${diagramHtml}
+  ${couplingHtml}
 
   <h2>④ 动画代码（8 个槽位）</h2>
   ${codeHtml}
 
+  <h2>④-2 阶段时间线（start / done / error / skipped）</h2>
+  ${timelineHtml}
+
   <h2>⑤ 解题过程</h2>
   ${solutionHtml}
+
+  ${imagesHtml ? `<h2>⑥ 图片（内嵌）</h2>${imagesHtml}` : ''}
 
   <footer>
     由「物理解题动画 v${esc(record?.appVersion ?? '?')}」自动导出 · ${esc(fmtTime(record?.exportedAt))}<br>

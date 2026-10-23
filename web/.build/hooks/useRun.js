@@ -1,15 +1,17 @@
 /**
  * 驱动一次运行并把事件灌进 store。
  *
- * 单独一个 Hook 的原因：**取消语义要落在组件生命周期上**。
- * 组件卸载时必须 `cancel()`，否则用户切页后会留下一条还在跑的流（§21.1 第 3 条）。
+ * v1.1.18：运行器挂在 `App` 级（不是解题页），所以**切页不会取消**；
+ * 只有整个应用卸载（关窗口）时才 `cancel()`。
+ * 旧实现放在 `SolvePage` 里，切到设置页会卸载组件 → cancel → 服务端事件没人收，
+ * 回来时按钮一直卡在“生成中”。
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { demoEventSource, serverEventSource } from '../lib/run-stream';
 import { useApp } from '../state/store';
 export function useRun() {
     const handleRef = useRef(null);
-    // 卸载即取消：这是"取消后无残留"在 UI 侧的那一半
+    // App 卸载（关窗口）即取消；解题页/设置页切换不会触发这里
     useEffect(() => {
         return () => {
             handleRef.current?.cancel();
@@ -37,6 +39,15 @@ export function useRun() {
             mode: st.mode,
             /** 第 8 期：开发模式（不拦截）—— 勾了就把"别拦我"这句话传到后端 */
             devMode: st.devMode === true,
+            ...(opts.startAt ? { startAt: opts.startAt } : {}),
+            ...(opts.startAt === 'solve' ? { baseReadProblem: opts.baseReadProblem ?? st.run.readProblemText ?? null } : {}),
+            ...(opts.startAt === 'draw'
+                ? {
+                    baseReadProblem: opts.baseReadProblem ?? st.run.readProblemText ?? null,
+                    analysisText: opts.baseAnalysisText ?? st.run.analysisText ?? null,
+                    slots: opts.baseSlots ?? st.programSlots ?? null,
+                }
+                : {}),
         };
         const handle = opts.source === 'demo' ? demoEventSource() : serverEventSource(opts.baseURL ?? '', input);
         handleRef.current = handle;
@@ -53,7 +64,7 @@ export function useRun() {
             'dry_run',
             'repair',
             'couple',
-        ]);
+        ], Boolean(opts.startAt), opts.startAt === 'draw');
         try {
             for await (const ev of handle.events) {
                 useApp.getState().applyEvent(ev);

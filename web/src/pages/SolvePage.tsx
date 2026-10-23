@@ -19,16 +19,28 @@ import { DEMO_QUESTION_LIST } from '../lib/demo-questions'
 import { STAGE_CHAIN, precisionLabel, type RepairBanner } from '../lib/run-stream'
 import { api } from '../lib/rules-api'
 import { Markdown, MathBlock, parseRowTable } from '../lib/markdown'
-import { useRun } from '../hooks/useRun'
+import type { StartRunOptions } from '../hooks/useRun'
 import { selectIsSkipped, useApp, listDevReports, clearDevReports } from '../state/store'
 
 /** §16 的体积与格式限制（与 `core/gateway/model-client.mjs` 保持一致） */
 const IMAGE_MAX_BYTES = 15 * 1024 * 1024
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp']
+/** 开新题前“会清空旧动画”的提示：勾过“不再提示”后写 localStorage */
+const CLEAR_WARN_KEY = 'od-clear-animation-warning-skip'
 
-export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) {
+export function SolvePage({
+  onOpenAnimation,
+  runStart,
+  runCancel,
+}: {
+  onOpenAnimation: () => void
+  /** 运行器挂在 App 级：切页不取消（v1.1.18 · B+1） */
+  runStart: (opts: StartRunOptions) => Promise<void>
+  runCancel: () => void
+}) {
   const st = useApp()
-  const { start, cancel } = useRun()
+  const start = runStart
+  const cancel = runCancel
   const fileRef = useRef<HTMLInputElement>(null)
   /** v1.1.16：解析图片的入口（与题目图片分开） */
   const refFileRef = useRef<HTMLInputElement>(null)
@@ -57,6 +69,46 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
    */
   const [runSource, setRunSource] = useState<'demo' | 'server'>('demo')
   const [visionNote, setVisionNote] = useState('正在读取连接配置…')
+
+  /**
+   * ── v1.1.18 · 开新题前的“清空旧动画”确认（用户裁决 B+1）──
+   *
+   * 旧动画还挂在 store 里时，开始新题会把它清掉。这里先弹窗，**默认按钮是取消**；
+   * 勾选“以后不再提示”（默认勾上）后，下一次不再弹。
+   * 没有旧动画时完全不弹。
+   */
+  const [dontWarnClear, setDontWarnClear] = useState(() => {
+    try {
+      return localStorage.getItem(CLEAR_WARN_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [clearWarnOpen, setClearWarnOpen] = useState(false)
+  const [dontAskAgain, setDontAskAgain] = useState(true)
+  const beginRun = useCallback(() => {
+    void start({ source: runSource })
+  }, [start, runSource])
+  const onStartClick = useCallback(() => {
+    if (st.programSlots && !dontWarnClear) {
+      setDontAskAgain(true)
+      setClearWarnOpen(true)
+      return
+    }
+    beginRun()
+  }, [st.programSlots, dontWarnClear, beginRun])
+  const confirmClearAndStart = useCallback(() => {
+    if (dontAskAgain) {
+      try {
+        localStorage.setItem(CLEAR_WARN_KEY, '1')
+      } catch {
+        /* 隐私模式：不记也可以，下次再问 */
+      }
+      setDontWarnClear(true)
+    }
+    setClearWarnOpen(false)
+    beginRun()
+  }, [dontAskAgain, beginRun])
 
   const refreshVision = useCallback(() => {
     let alive = true
@@ -386,7 +438,7 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
                */
               disabled={running || (!st.problemText.trim() && st.images.length === 0)}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              onClick={() => void start({ source: runSource })}
+              onClick={onStartClick}
             >
               {running ? '生成中…' : '开始生成动画'}
             </button>
@@ -430,7 +482,8 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
           )}
           running={st.run.running}
           hasError={Boolean(st.run.error)}
-          finished={Boolean(st.programSlots) && !st.run.running}
+          finished={Boolean(st.programSlots) && !st.run.running && st.run.verdict !== 'fail'}
+          failed={!st.run.running && st.run.verdict === 'fail'}
         />
 
         {st.run.error && (
@@ -579,6 +632,59 @@ export function SolvePage({ onOpenAnimation }: { onOpenAnimation: () => void }) 
           </div>
         )}
       </section>
+
+      {/* ── v1.1.18 · 开新题前的“清空旧动画”确认 ──
+          默认焦点在“取消”；勾选“以后不再提示”（默认勾上）后，下一次直接开始。 */}
+      {clearWarnOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setClearWarnOpen(false)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-animation-title"
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+          >
+            <h2 id="clear-animation-title" className="text-base font-semibold text-slate-900">
+              开始新题会清空当前动画
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              当前已经有一份生成好的动画。开始新题会把它从本页清掉（不会删除已导出的文件）。
+              如果你还要看它，请先点“取消”。
+            </p>
+            <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={dontAskAgain}
+                onChange={(e) => setDontAskAgain(e.target.checked)}
+                data-od-id="clear-animation-dont-ask"
+              />
+              以后不再提示（默认勾选；取消勾选则每次开始新题都提醒）
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                autoFocus
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => setClearWarnOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                onClick={confirmClearAndStart}
+              >
+                继续并清空
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 第 8 期 A2：连接设置小窗（发布版没有设置页，模型的地址与 Key 从这里填） */}
       <ConnectionDialog open={connOpen} onClose={() => setConnOpen(false)} onSaved={refreshVision} />
@@ -788,24 +894,24 @@ function RepairPanel({ run }: { run: ReturnType<typeof useApp.getState>['run'] }
 const STAGE_SAY: Record<string, string> = {
   read_problem: '小肥鱼正在看题…',
   solve: '小肥鱼正在解题…',
-  breakdown: '小肥鱼正在把答案切块…',
-  analysis: '小肥鱼正在分析运动…',
+  breakdown: '小肥鱼正在努力思考…',
+  analysis: '小肥鱼正在努力思考…',
   scene_code: '小肥鱼正在努力画画…',
   dry_run: '小肥鱼正在检查…',
   repair: '小肥鱼正在完善…',
-  couple: '小肥鱼正在对齐讲解与动画…',
+  couple: '小肥鱼正在做最后对齐…',
 }
 
-/** 阶段 → 表情包文件（图来自「表情包参考」，已拷进 web/public/fish/） */
+/** 阶段 → 漫画分镜（图来自「表情包」3×3 拼图，已裁成 512×512 webp） */
 const STAGE_FISH: Record<string, string> = {
-  read_problem: 'stage1',
-  solve: 'stage2',
-  breakdown: 'stage3',
-  analysis: 'stage4',
-  scene_code: 'stage5',
-  dry_run: 'stage6',
-  repair: 'stage7',
-  couple: 'stage7',
+  read_problem: 'read',
+  solve: 'solve',
+  breakdown: 'think',
+  analysis: 'think',
+  scene_code: 'draw',
+  dry_run: 'check',
+  repair: 'repair',
+  couple: 'done',
 }
 
 /**
@@ -822,25 +928,34 @@ function FishStage({
   running,
   hasError,
   finished,
+  failed,
 }: {
   stage: string | undefined
   running: boolean
   hasError: boolean
   finished: boolean
+  failed: boolean
 }) {
-  const name = hasError ? 'stage7' : stage ? STAGE_FISH[stage] : undefined
+  /**
+   * 漫画分镜风：新图自带浅蓝背景与桌面场景，所以不再要求透明底；
+   * 用白色内框 + 圆角把每格框成“分镜”。待机/错误态仍是旧透明贴纸，
+   * 放在白框里也能融进去。
+   */
+  const name = hasError || failed ? 'error' : finished ? 'done' : stage ? STAGE_FISH[stage] : undefined
   const say = hasError
     ? '小肥鱼卡住了…'
-    : running
-      ? (stage ? STAGE_SAY[stage] : '小肥鱼正在准备…')
-      : finished
-        ? '小肥鱼画好啦！'
-        : '小肥鱼在等你出题…'
+    : failed
+      ? '小肥鱼没画成…'
+      : running
+        ? (stage ? STAGE_SAY[stage] : '小肥鱼正在准备…')
+        : finished
+          ? '小肥鱼画好啦！'
+          : '小肥鱼在等你出题…'
 
   return (
     <div
       data-od-region="fish-stage"
-      className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-white px-6 py-7 text-center shadow-sm"
+      className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-white px-5 py-6 text-center shadow-sm sm:px-6 sm:py-7"
     >
       <p
         role="status"
@@ -849,12 +964,12 @@ function FishStage({
       >
         {say}
       </p>
-      <div className="mt-4 flex min-h-[240px] items-center justify-center sm:min-h-[320px]">
+      <div className="mx-auto mt-4 w-full max-w-[440px] overflow-hidden rounded-2xl border border-white/80 bg-white shadow-inner">
         <img
           src={`/fish/${name ?? 'idle'}.webp`}
           alt=""
           draggable={false}
-          className="max-h-[300px] w-full object-contain sm:max-h-[400px]"
+          className="aspect-square w-full object-cover"
         />
       </div>
     </div>

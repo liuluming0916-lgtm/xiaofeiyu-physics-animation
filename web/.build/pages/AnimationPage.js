@@ -14,8 +14,8 @@ import { jsxs as _jsxs, jsx as _jsx } from "react/jsx-runtime";
  *   它必须与宿主**同源或可被 postMessage 触达**。为了让"离线自包含"这条约束不被破坏，
  *   第 9 步的本地服务会把它挂到 `/template`；第 3 期先在 repo 内直接引用构建产物。
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_MASK, postToTemplate, parseTemplateMessage, validateProgramPayload, } from '../lib/host-protocol';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_MASK, SLOT_KEYS, postToTemplate, parseTemplateMessage, validateProgramPayload, } from '../lib/host-protocol';
 import { TEX_SVG } from '../lib/demo-questions';
 import { api } from '../lib/rules-api';
 import { DEFAULT_GIF_FPS, DEFAULT_GIF_HEIGHT, DEFAULT_GIF_WIDTH, encodeGif, frameTimes, readScaled, } from '../lib/gif-encode.js';
@@ -30,10 +30,15 @@ import { useApp } from '../state/store';
  * 这正是产物体检（`tools/web-build.mjs`）会拦的一类问题。
  */
 const TEMPLATE_URL = './template/animation-template.html';
-export function AnimationPage() {
+export function AnimationPage({ onManualRetry }) {
     const st = useApp();
     const iframeRef = useRef(null);
     const [ready, setReady] = useState(null);
+    /** v1.1.18：警告弹窗 + 版本对比 */
+    const [retryOpen, setRetryOpen] = useState(false);
+    const [compareIndex, setCompareIndex] = useState(null);
+    /** iframe 每次 onLoad 递增，用来重发 program（切页回来 / 模板重载都走这里） */
+    const [reloadSeq, setReloadSeq] = useState(0);
     /**
      * ── 第 8 期：**本次启动编号**（用户裁决"每次打开都要干净"）──
      *
@@ -79,6 +84,35 @@ export function AnimationPage() {
     const pushLog = useCallback((s) => {
         setLog((prev) => [...prev.slice(-9), `${new Date().toLocaleTimeString()} ${s}`]);
     }, []);
+    /**
+     * v1.1.17 修：切页回来动画页空壳。
+     *
+     * `App` 切页会卸载本页、销毁 iframe；但 `templateReady` 是 **store 全局**，
+     * 旧值 true 会带进新 iframe，导致 `ready` 分支直接 return、不再注入。
+     * 这里在 mount / unmount 都把“模板已就绪”复位；真正的注入由下面的
+     * `programPayload` 效果 + iframe `onLoad` 重新完成。
+     */
+    useEffect(() => {
+        useApp.getState().setTemplateReady(false);
+        setReady(null);
+        setLog([]);
+        return () => useApp.getState().setTemplateReady(false);
+    }, []);
+    /**
+     * v1.1.18：带警告/失败的结果进入动画页时**弹一次**。
+     * “我知道了”或“手动打回”都会 acknowledge，之后只留常驻告警横幅，不反复骚扰。
+     */
+    useEffect(() => {
+        if (st.run.running)
+            return;
+        if (!st.programSlots)
+            return;
+        if (st.run.warningAcknowledged)
+            return;
+        if (st.run.verdict === 'pass-with-warnings' || st.run.verdict === 'fail') {
+            setRetryOpen(true);
+        }
+    }, [st.run.running, st.run.verdict, st.run.warningAcknowledged, st.programSlots, st.programEpoch]);
     /* ── 收模板消息（协议 §2 的方向判据） ── */
     useEffect(() => {
         const onMessage = (e) => {
@@ -149,25 +183,28 @@ export function AnimationPage() {
         return ok;
     }, [pushLog]);
     /**
-     * `program` 注入（协议 §3/§4）。
+     * `program` 注入载荷。
      *
-     * ★ 三处必须留意（前两处是第 3 期交付后修的真缺陷，见 README 13.12）：
+     * ★ 两条注入路径（立即重试 + ready）必须发**同一份**载荷；抽成 memo 是为了
+     *   让 timing / labelAvoid 这类“晚到字段”也进入依赖数组，不在两处手抄漏字段。
      *
-     * ① **依赖数组只放决定"要不要重注入"的东西**：就绪、槽位、模式。
-     *    早先把 `st.mask` / `st.rate` 也放进去了，而本效果内部又会 `setTemplateReady(true)`
-     *    ⇒ 触发自身重跑 ⇒ **重复注入**。开关与倍速改由下面两个独立效果同步。
-     *
-     * ② **`texSvg` 必须一起发**：模板的公式索引来自 `PROGRAM_DATA.texSvg`。
-     *    不发它就退回 ODTex/原文降级链 —— 演示界面里公式变成 `\frac` 原文就是这个原因
-     *    （模板内部**早就支持**注入公式，但宿主从来没把预渲染结果发过去）。
-     *
-     * ③ **`id` / `title` 是可选字段**：不发的话模板页头会一直写着"空壳模板"，
-     *    让人分不清"注入成功"还是"注入失败停在空壳"。协议 §3 已补记这两个字段。
+     * v1.1.17：`stepTimes` 发**显示秒**（couple 已按每小问 4 s 换算），
+     * 同时带 `timeMap / displayDuration`；模板只按表换算，不再自己推。
      */
-    useEffect(() => {
+    const programPayload = useMemo(() => {
         if (!st.programSlots)
-            return;
-        const payload = {
+            return null;
+        /**
+         * 只有 timeMap + displayDuration 都在，才把 stepTimes 换成显示秒；
+         * 否则退回原始物理秒（旧服务端/老产物），避免“显示秒 stepTimes + 物理 T_DISPLAY”
+         * 这种半套数据导致步骤跳转错位。
+         */
+        const hasDisplayTiming = Array.isArray(st.programTimeMap) &&
+            st.programTimeMap.length > 0 &&
+            typeof st.programDisplayDuration === 'number' &&
+            Number.isFinite(st.programDisplayDuration) &&
+            st.programDisplayDuration > 0;
+        return {
             slots: st.programSlots,
             mode: st.programMode,
             texSvg: TEX_SVG,
@@ -175,65 +212,65 @@ export function AnimationPage() {
             title: st.programTitle,
             /* C2：标注避让表（Dry-Run 算的）。模板收到后会交给播放器按表挪字 + 画引线 */
             labelAvoid: st.programLabelAvoid,
-            /* v6：步骤 ↔ 动画时间（couple 产出；没有就不发） */
-            stepTimes: st.programStepTimes,
+            /* v6：步骤 ↔ 动画时间。优先用显示秒版本；没有就退回原始物理秒（老行为） */
+            stepTimes: hasDisplayTiming
+                ? (st.programDisplayStepTimes ?? st.programStepTimes)
+                : st.programStepTimes,
+            timeMap: hasDisplayTiming ? st.programTimeMap : null,
+            displayDuration: hasDisplayTiming ? st.programDisplayDuration : null,
             /* 第 8 期：本次启动编号（偏好键隔离用） */
             launchId,
         };
-        const bad = validateProgramPayload(payload);
+    }, [
+        st.programSlots,
+        st.programMode,
+        st.programTitle,
+        st.programLabelAvoid,
+        st.programDisplayStepTimes,
+        st.programStepTimes,
+        st.programTimeMap,
+        st.programDisplayDuration,
+        launchId,
+    ]);
+    useEffect(() => {
+        if (!programPayload)
+            return;
+        const bad = validateProgramPayload(programPayload);
         if (bad) {
             useApp.getState().setTemplateError({ code: 'bad-program', message: bad });
             return;
         }
         /**
-         * ★ 不等 `ready`，直接**重试注入**若干次（第 3 期交付后改）。
+         * ★ 不等 `ready`，直接**重试注入**若干次。
          *
-         * 为什么改成这样：原先写成"**收到 `ready` 才发 `program`**"，
-         * 而空壳的 `ready` 又依赖它在没拿到题目时也主动上报 —— 一条**双向依赖**，
-         * 任何一端出问题都表现为"永远停在空壳"，且**外在表现完全一样、极难定位**
-         * （我为此连续两轮修错地方）。
-         *
-         * `postMessage` 对同一个窗口重复投递是幂等的，而模板那边本来就有
-         * `program-already-inlined` 拒绝重复注入的保护（§13.1）—— 所以"多发几次"是安全的，
-         * 代价只是几条多余消息，换来的是**不依赖握手时序**。
-         * 保留 `ready` 分支只为尽早注入（第一条消息到达即可），不再是唯一路径。
+         * `postMessage` 对同一个窗口重复投递是幂等的，模板有
+         * `program-already-inlined` 拒绝重复注入的保护 —— 多发几次只多几条消息，
+         * 换来的是不依赖握手时序。`reloadSeq` 由 iframe `onLoad` 递增：
+         * 切页回来 / 模板重载后，不需要猜“2.5 秒够不够”，加载完一定再发一次。
          */
-        let tries = 0;
         const send = () => {
-            tries += 1;
-            const ok = post('program', payload);
-            if (tries === 1 && ok)
+            const ok = post('program', programPayload);
+            if (ok)
                 useApp.getState().setTemplateReady(true);
             return ok;
         };
         send();
-        const timers = [400, 1200, 2500].map((ms) => window.setTimeout(send, ms));
+        const timers = [400, 1200, 2500, 5000].map((ms) => window.setTimeout(send, ms));
         return () => timers.forEach((t) => window.clearTimeout(t));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [st.programSlots, st.programMode, post, launchId]);
+    }, [programPayload, reloadSeq, post]);
     /**
      * `ready` 到达后**立刻**再注入一次（不等重试定时器）。
      *
-     * 上一个是"多发几次保底"，这个是"握手成功就马上走"。
-     * 两条路径都通向同一件事，**互为兜底** —— 这正是上一版缺的：
-     * 上一版只有 `ready` 一条路，那条路一断就永远停在空壳。
+     * ⚠ v1.1.17 修：这里**不能再判断 `st.templateReady`**。
+     * 切页回来时它是上一轮 iframe 留下的 true；新 iframe 的 ready 一到就被
+     * 这个 guard 挡掉，页面停在空壳。复位由本页 mount/unmount 与 iframe onLoad 负责。
      */
     useEffect(() => {
-        if (!ready || !st.programSlots || st.templateReady)
+        if (!ready || !programPayload)
             return;
-        post('program', {
-            slots: st.programSlots,
-            mode: st.programMode,
-            texSvg: TEX_SVG,
-            id: st.programTitle,
-            title: st.programTitle,
-            stepTimes: st.programStepTimes,
-            /* 第 8 期：本次启动编号（两条注入路径都要带，否则先到的那条会写错键） */
-            launchId,
-        });
+        post('program', programPayload);
         useApp.getState().setTemplateReady(true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, st.programSlots, st.programMode, st.templateReady, post, launchId]);
+    }, [ready, programPayload, post]);
     /* ── 开关与倍速的同步（与注入解耦，避免上面那类自触发循环） ── */
     useEffect(() => {
         if (!st.templateReady)
@@ -404,13 +441,48 @@ export function AnimationPage() {
         else
             void exportGif();
     }), [exportPage, exportGif]);
-    return (_jsxs("div", { className: "space-y-4", children: [st.run.banner && (_jsxs("div", { role: "alert", className: "rounded-lg border-2 border-amber-400 bg-amber-50 p-4 text-sm", children: [_jsxs("p", { className: "font-semibold text-amber-900", children: ["\u26A0 ", st.run.banner.title, st.run.banner.failedChecks.length > 0 && (_jsxs("span", { className: "ml-2 font-mono text-xs", children: ["\uFF08", st.run.banner.failedChecks.join(' / '), "\uFF09"] }))] }), _jsx("p", { className: "mt-1 text-amber-900", children: st.run.banner.message })] })), st.run.advisory && (_jsxs("p", { className: "rounded-lg border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900", "data-od-id": "advisory-banner-animation", children: [_jsx("strong", { children: "\u5F00\u53D1\u6A21\u5F0F" }), "\uFF1A\u8FD9\u6761\u52A8\u753B**\u6CA1\u6709\u901A\u8FC7\u786C\u5224\u636E**", st.run.gatesBypassed.length ? '（' + st.run.gatesBypassed.join(' / ') + '）' : '', "\u3002\u753B\u9762\u53EF\u4EE5\u770B\u3001\u53EF\u4EE5\u5BFC\u51FA\uFF0C\u4F46\u5BFC\u51FA\u6587\u4EF6\u91CC\u4F1A\u5199\u660E\u201C\u672A\u901A\u8FC7\u6821\u9A8C\u201D\u3002"] })), !st.programSlots && (_jsxs("p", { className: "rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900", children: ["\u8FD8\u6CA1\u6709\u53EF\u64AD\u653E\u7684\u52A8\u753B\uFF1A\u8BF7\u5148\u5230", _jsx("strong", { children: "\u89E3\u9898\u9875" }), "\u70B9\u300C\u5F00\u59CB\u751F\u6210\u52A8\u753B\u300D\u3002"] })), st.templateError && (_jsxs("div", { className: "rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900", children: [_jsxs("p", { className: "font-medium", children: ["\u6A21\u677F\u9875\u62A5\u544A\u9519\u8BEF\uFF1A", st.templateError.code] }), _jsx("p", { className: "mt-1", children: st.templateError.message })] })), st.programSlots && !st.templateReady && !st.templateError && (_jsx("p", { className: "text-sm text-slate-500", children: "\u6B63\u5728\u7B49\u5F85\u6A21\u677F\u9875\u5C31\u7EEA\u2026" })), _jsx("div", { className: "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm", children: _jsx("iframe", { ref: iframeRef, title: "\u52A8\u753B\u6A21\u677F\u9875", src: TEMPLATE_URL, className: "h-[720px] w-full", 
+    const currentVersion = st.programVersions[st.programVersionIndex] ?? null;
+    const compareVersion = compareIndex == null ? null : st.programVersions[compareIndex] ?? null;
+    const changedSlots = currentVersion && compareVersion
+        ? SLOT_KEYS.filter((k) => String(currentVersion.slots[k] ?? '') !== String(compareVersion.slots[k] ?? ''))
+        : [];
+    return (_jsxs("div", { className: "space-y-4", children: [st.run.banner && (_jsxs("div", { role: "alert", className: "rounded-lg border-2 border-amber-400 bg-amber-50 p-4 text-sm", children: [_jsxs("p", { className: "font-semibold text-amber-900", children: ["\u26A0 ", st.run.banner.title, st.run.banner.failedChecks.length > 0 && (_jsxs("span", { className: "ml-2 font-mono text-xs", children: ["\uFF08", st.run.banner.failedChecks.join(' / '), "\uFF09"] }))] }), _jsx("p", { className: "mt-1 text-amber-900", children: st.run.banner.message })] })), st.run.advisory && (_jsxs("p", { className: "rounded-lg border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900", "data-od-id": "advisory-banner-animation", children: [_jsx("strong", { children: "\u5F00\u53D1\u6A21\u5F0F" }), "\uFF1A\u8FD9\u6761\u52A8\u753B**\u6CA1\u6709\u901A\u8FC7\u786C\u5224\u636E**", st.run.gatesBypassed.length ? '（' + st.run.gatesBypassed.join(' / ') + '）' : '', "\u3002\u753B\u9762\u53EF\u4EE5\u770B\u3001\u53EF\u4EE5\u5BFC\u51FA\uFF0C\u4F46\u5BFC\u51FA\u6587\u4EF6\u91CC\u4F1A\u5199\u660E\u201C\u672A\u901A\u8FC7\u6821\u9A8C\u201D\u3002"] })), !st.programSlots && (_jsxs("p", { className: "rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900", children: ["\u8FD8\u6CA1\u6709\u53EF\u64AD\u653E\u7684\u52A8\u753B\uFF1A\u8BF7\u5148\u5230", _jsx("strong", { children: "\u89E3\u9898\u9875" }), "\u70B9\u300C\u5F00\u59CB\u751F\u6210\u52A8\u753B\u300D\u3002"] })), st.templateError && (_jsxs("div", { className: "rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900", children: [_jsxs("p", { className: "font-medium", children: ["\u6A21\u677F\u9875\u62A5\u544A\u9519\u8BEF\uFF1A", st.templateError.code] }), _jsx("p", { className: "mt-1", children: st.templateError.message })] })), st.programSlots && !st.templateReady && !st.templateError && (_jsx("p", { className: "text-sm text-slate-500", children: "\u6B63\u5728\u7B49\u5F85\u6A21\u677F\u9875\u5C31\u7EEA\u2026" })), st.run.running ? (_jsxs("div", { className: "rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600", children: ["\u6B63\u5728", st.run.repairRounds.length ? '按上一版重跑' : '生成', "\u2026\uFF08\u5B8C\u6210\u540E\u4F1A\u81EA\u52A8\u88C5\u8F7D\u65B0\u52A8\u753B\uFF09"] })) : st.programSlots ? (_jsx("div", { className: "overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm", children: _jsx("iframe", { ref: iframeRef, title: "\u52A8\u753B\u6A21\u677F\u9875", src: TEMPLATE_URL, className: "h-[720px] w-full", onLoad: () => {
+                        /* 新 iframe 一定是“未就绪”：复位后由注入 effect 重发 program。
+                           切页回来 / 模板重载都走这里，不再依赖固定重试窗口。 */
+                        setReady(null);
+                        useApp.getState().setTemplateReady(false);
+                        setReloadSeq((n) => n + 1);
+                    }, 
                     // 模板页需要脚本（播放器就在里面）；同源即可
-                    sandbox: "allow-scripts allow-same-origin" }) }), _jsxs("p", { className: "text-xs text-slate-500", children: ["\u8BF4\u660E\uFF1A\u753B\u5E03\u3001\u4E09\u680F\u3001\u64AD\u653E\u63A7\u5236\u4E0E\u66F2\u7EBF\u56FE\u5168\u90E8\u7531", _jsx("strong", { children: "\u6A21\u677F\u9875\u81EA\u5DF1" }), "\u6E32\u67D3 \uFF08\u64AD\u653E\u5668\u5C31\u662F\u6A21\u677F\u9875\u672C\u8EAB\uFF09\uFF0C\u5BBF\u4E3B\u53EA\u8D1F\u8D23\u628A\u9898\u76EE\u6CE8\u5165\u8FDB\u53BB\u2014\u2014\u8FD9\u6837\u5BFC\u51FA\u7684\u6587\u4EF6 \u4E0E\u5C4F\u5E55\u4E0A\u770B\u5230\u7684\u624D\u662F\u540C\u4E00\u4E2A\u4E1C\u897F\u3002\u672C\u671F iframe \u6307\u5411\u6784\u5EFA\u4EA7\u7269", ' ', _jsx("code", { className: "rounded bg-slate-100 px-1", children: TEMPLATE_URL }), "\u3002"] }), _jsxs("details", { open: Boolean(st.programSlots) && !st.templateReady, className: "rounded-lg border border-slate-200 bg-white", children: [_jsxs("summary", { className: "cursor-pointer px-3 py-2 text-xs text-slate-600", children: ["\u5BBF\u4E3B \u2194 \u6A21\u677F \u901A\u4FE1\u65E5\u5FD7\uFF08", log.length, " \u6761\uFF09", !st.templateReady && st.programSlots ? ' —— 尚未就绪，请看下面' : ''] }), _jsx("pre", { className: "max-h-40 overflow-auto border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700", children: log.length ? log.join('\n') : '（还没有任何消息往来）' })] }), (busy || result) && (_jsx("p", { className: result && !result.ok ? 'text-xs text-red-700' : 'text-xs text-slate-500', children: busy
+                    sandbox: "allow-scripts allow-same-origin" }, `od-frame-${st.programEpoch}`) })) : null, _jsxs("p", { className: "text-xs text-slate-500", children: ["\u8BF4\u660E\uFF1A\u753B\u5E03\u3001\u4E09\u680F\u3001\u64AD\u653E\u63A7\u5236\u4E0E\u66F2\u7EBF\u56FE\u5168\u90E8\u7531", _jsx("strong", { children: "\u6A21\u677F\u9875\u81EA\u5DF1" }), "\u6E32\u67D3 \uFF08\u64AD\u653E\u5668\u5C31\u662F\u6A21\u677F\u9875\u672C\u8EAB\uFF09\uFF0C\u5BBF\u4E3B\u53EA\u8D1F\u8D23\u628A\u9898\u76EE\u6CE8\u5165\u8FDB\u53BB\u2014\u2014\u8FD9\u6837\u5BFC\u51FA\u7684\u6587\u4EF6 \u4E0E\u5C4F\u5E55\u4E0A\u770B\u5230\u7684\u624D\u662F\u540C\u4E00\u4E2A\u4E1C\u897F\u3002\u672C\u671F iframe \u6307\u5411\u6784\u5EFA\u4EA7\u7269", ' ', _jsx("code", { className: "rounded bg-slate-100 px-1", children: TEMPLATE_URL }), "\u3002"] }), _jsxs("details", { open: Boolean(st.programSlots) && !st.templateReady, className: "rounded-lg border border-slate-200 bg-white", children: [_jsxs("summary", { className: "cursor-pointer px-3 py-2 text-xs text-slate-600", children: ["\u5BBF\u4E3B \u2194 \u6A21\u677F \u901A\u4FE1\u65E5\u5FD7\uFF08", log.length, " \u6761\uFF09", !st.templateReady && st.programSlots ? ' —— 尚未就绪，请看下面' : ''] }), _jsx("pre", { className: "max-h-40 overflow-auto border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700", children: log.length ? log.join('\n') : '（还没有任何消息往来）' })] }), (busy || result) && (_jsx("p", { className: result && !result.ok ? 'text-xs text-red-700' : 'text-xs text-slate-500', children: busy
                     ? busy.kind === 'gif'
                         ? `正在逐帧渲染… ${busy.done} / ${busy.total}`
                         : '正在打包单文件页…'
-                    : result?.text }))] }));
+                    : result?.text })), st.programVersions.length > 1 && (_jsxs("details", { className: "rounded-lg border border-slate-200 bg-white", children: [_jsxs("summary", { className: "cursor-pointer px-3 py-2 text-xs text-slate-600", children: ["\u7248\u672C\u5386\u53F2\uFF08", st.programVersions.length, " \u4E2A\uFF1B\u53EF\u5BF9\u6BD4 / \u56DE\u9000\uFF09"] }), _jsx("div", { className: "space-y-2 border-t border-slate-100 px-3 py-2", children: st.programVersions.map((v, i) => (_jsxs("div", { className: "flex flex-wrap items-center gap-2 text-xs", children: [_jsxs("span", { className: "font-mono text-slate-500", children: ["v", v.id] }), _jsx("span", { className: "text-slate-600", children: v.source === 'run' ? '初次' : v.source === 'repair' ? `修复·${v.verdict ?? ''}` : '手动' }), _jsx("span", { className: "text-slate-400", children: new Date(v.at).toLocaleTimeString() }), i === st.programVersionIndex && _jsx("span", { className: "rounded bg-slate-100 px-1.5 py-0.5 text-slate-600", children: "\u5F53\u524D" }), _jsx("button", { type: "button", className: "rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-50", onClick: () => setCompareIndex(i), children: "\u5BF9\u6BD4" }), _jsx("button", { type: "button", className: "rounded border border-amber-300 px-2 py-0.5 text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40", disabled: i === st.programVersionIndex, onClick: () => {
+                                        useApp.getState().rollbackProgram(i);
+                                        pushLog(`↩ 回退到 v${v.id}`);
+                                    }, children: "\u56DE\u9000" })] }, v.id))) })] })), retryOpen && (_jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4", role: "presentation", onClick: (e) => {
+                    if (e.target === e.currentTarget) {
+                        useApp.getState().acknowledgeWarning();
+                        setRetryOpen(false);
+                    }
+                }, children: _jsxs("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "retry-title", className: "w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl", children: [_jsx("h2", { id: "retry-title", className: "text-base font-semibold text-slate-900", children: st.run.verdict === 'fail' ? '这一版没有通过校验' : '这一版有小警告' }), _jsxs("p", { className: "mt-2 text-sm leading-relaxed text-slate-600", children: ["\u52A8\u753B\u5DF2\u7ECF\u53EF\u4EE5\u64AD\u653E\uFF0C\u4F46", st.run.verdict === 'fail' ? '有硬拦项没过' : '有告警项', "\u3002 \u4F60\u53EF\u4EE5\u5148\u7528\u7740\uFF0C\u4E5F\u53EF\u4EE5\u624B\u52A8\u6253\u56DE\u8BA9\u6A21\u578B\u91CD\u8DD1\u3002", st.programVersions.length > 1 ? '旧版本已保留在“版本历史”里，可对比/回退。' : ''] }), st.run.banner && (_jsxs("p", { className: "mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900", children: [st.run.banner.title, st.run.banner.failedChecks?.length ? `（${st.run.banner.failedChecks.join(' / ')}）` : ''] })), _jsxs("div", { className: "mt-5 flex flex-wrap justify-end gap-2", children: [_jsx("button", { type: "button", autoFocus: true, className: "rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50", onClick: () => {
+                                        useApp.getState().acknowledgeWarning();
+                                        setRetryOpen(false);
+                                    }, children: "\u6211\u77E5\u9053\u4E86" }), _jsx("button", { type: "button", className: "rounded-md border border-blue-300 px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40", disabled: !st.run.analysisText, title: st.run.analysisText ? '保留 analysis/stateAt/VIEW/STEPS，只让模型重画 drawFrame' : '缺少上一版 analysis，只能用“从解题重跑”', onClick: () => {
+                                        setRetryOpen(false);
+                                        onManualRetry('draw');
+                                    }, children: "\u53EA\u91CD\u753B\u52A8\u753B" }), _jsx("button", { type: "button", className: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700", onClick: () => {
+                                        setRetryOpen(false);
+                                        onManualRetry('solve');
+                                    }, children: "\u4ECE\u89E3\u9898\u91CD\u8DD1" })] })] }) })), compareVersion && currentVersion && (_jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4", role: "presentation", onClick: (e) => {
+                    if (e.target === e.currentTarget)
+                        setCompareIndex(null);
+                }, children: _jsxs("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "compare-title", className: "flex max-h-[85vh] w-full max-w-5xl flex-col rounded-xl border border-slate-200 bg-white shadow-2xl", children: [_jsxs("div", { className: "flex items-center justify-between border-b border-slate-100 px-5 py-3", children: [_jsxs("h2", { id: "compare-title", className: "text-base font-semibold text-slate-900", children: ["\u7248\u672C\u5BF9\u6BD4\uFF1Av", compareVersion.id, " \u2192 v", currentVersion.id] }), _jsx("button", { type: "button", className: "text-sm text-slate-500 hover:text-slate-900", onClick: () => setCompareIndex(null), children: "\u5173\u95ED" })] }), _jsx("div", { className: "min-h-0 flex-1 space-y-3 overflow-auto p-5", children: changedSlots.length === 0 ? (_jsx("p", { className: "text-sm text-slate-500", children: "\u4E24\u4EFD\u7A0B\u5E8F\u7684 8 \u4E2A\u69FD\u4F4D\u5B8C\u5168\u76F8\u540C\u3002" })) : (changedSlots.map((k) => (_jsxs("details", { className: "rounded border border-slate-200", open: k === 'drawFrame', children: [_jsxs("summary", { className: "cursor-pointer px-3 py-2 text-xs font-medium text-slate-700", children: [k, " ", _jsx("span", { className: "text-slate-400", children: "\uFF08\u6709\u5DEE\u5F02\uFF09" })] }), _jsxs("div", { className: "grid gap-2 border-t border-slate-100 p-2 md:grid-cols-2", children: [_jsxs("div", { children: [_jsxs("p", { className: "mb-1 text-[11px] text-slate-500", children: ["v", compareVersion.id] }), _jsx("pre", { className: "max-h-72 overflow-auto rounded bg-slate-50 p-2 text-[11px] leading-relaxed text-slate-800", children: compareVersion.slots[k] ?? '' })] }), _jsxs("div", { children: [_jsxs("p", { className: "mb-1 text-[11px] text-slate-500", children: ["v", currentVersion.id] }), _jsx("pre", { className: "max-h-72 overflow-auto rounded bg-slate-50 p-2 text-[11px] leading-relaxed text-slate-800", children: currentVersion.slots[k] ?? '' })] })] })] }, k)))) }), _jsx("div", { className: "flex justify-end gap-2 border-t border-slate-100 px-5 py-3", children: _jsxs("button", { type: "button", className: "rounded-md border border-amber-300 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-50", onClick: () => {
+                                    useApp.getState().rollbackProgram(compareIndex ?? 0);
+                                    setCompareIndex(null);
+                                    pushLog(`↩ 回退到 v${compareVersion.id}`);
+                                }, children: ["\u56DE\u9000\u5230 v", compareVersion.id] }) })] }) }))] }));
 }
 /** 默认开关（导出给别处复用，避免重复定义） */
 export const DEFAULT_VECTOR_MASK = DEFAULT_MASK;

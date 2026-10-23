@@ -31,6 +31,11 @@ function clean(entry) {
     priority: entry.priority === 'high' ? 'high' : 'normal',
     content: entry.content,
     code_examples: Array.isArray(entry.code_examples) ? [...entry.code_examples] : [],
+    /* B1'：`size`（纸面）与 `physical`（物理米）是尺寸唯一来源；这里必须保留，否则从 UI 存一次卡就丢了。 */
+    ...(entry.size && typeof entry.size === 'object' && !Array.isArray(entry.size) ? { size: { ...entry.size } } : {}),
+    ...(entry.physical && typeof entry.physical === 'object' && !Array.isArray(entry.physical)
+      ? { physical: { ...entry.physical } }
+      : {}),
   };
 }
 

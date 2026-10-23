@@ -69,7 +69,7 @@ function fakeReport({ verdict = 'pass', failed = [] } = {}) {
 function runInput(stream, dryRun) {
   return {
     problem: { text: '水平传送带题。' },
-    config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 1 },
+    config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 2 },
     streamImpl: stream,
     dryRunImpl: dryRun,
   };

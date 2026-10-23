@@ -60,6 +60,12 @@ const MOTION_FIELDS = new Set([
   'note',
 ]);
 
+/**
+ * B2：`analysis` 只输出质心轨迹，**尺寸一律来自元件卡**（`size` 纸面 + `physical` 物理米）。
+ * 这些字段出现在分析表里 ⇒ 明确报 `size-not-allowed`，不静默忽略。
+ */
+const FORBIDDEN_SIZE_FIELDS = new Set(['w', 'h', 'r', 'pointr', 'size', 'physical']);
+
 function problem(code, message, extra = {}) {
   return { code, message, ...extra };
 }
@@ -126,6 +132,8 @@ function checkFields(fields, allowed) {
  * 解析并校验分析表。
  *
  * @param {string} text
+ * @param {{ allowedTypes?: Iterable<string>|null }} [opts]
+ *   `allowedTypes` 给定时，`type` 必须命中（B2 决定 A：不允许 `unknown` / 自造名）。
  * @returns {{
  *   format: string, version: number, ok: boolean,
  *   problems: Array<{code:string,message:string}>,
@@ -136,7 +144,11 @@ function checkFields(fields, allowed) {
  *   text: string,
  * }}
  */
-export function parseAnalysisTable(text) {
+export function parseAnalysisTable(text, opts = {}) {
+  const allowedTypes =
+    opts.allowedTypes && typeof opts.allowedTypes[Symbol.iterator] === 'function'
+      ? new Set([...opts.allowedTypes].filter(Boolean).map(String))
+      : null;
   const problems = [];
   const warnings = [];
   const segments = [];
@@ -167,6 +179,19 @@ export function parseAnalysisTable(text) {
       continue;
     }
     const { fields } = parsed;
+
+    /* B2：尺寸字段一律拒绝（尺寸只来自卡） */
+    const forbidden = [...fields.keys()].filter((k) => FORBIDDEN_SIZE_FIELDS.has(k));
+    if (forbidden.length) {
+      problems.push(
+        problem(
+          'size-not-allowed',
+          `analysis 不能输出尺寸字段（${forbidden.join(' / ')}）；尺寸只来自元件卡，physical 表只读`,
+          { element: fields.get('element')?.trim() || undefined },
+        ),
+      );
+      continue;
+    }
 
     /* ── 假设行 ── */
     if (fields.has('assumption')) {
@@ -206,6 +231,17 @@ export function parseAnalysisTable(text) {
       const type = (fields.get('type') ?? '').trim();
       if (type.length > 40) {
         problems.push(problem('element-type-long', `type 过长（>40 字符）：${type.slice(0, 20)}…`, { element }));
+        continue;
+      }
+      /* B2 决定 A：type 必须命中元件词表；不允许 unknown / 空 / 自造名 */
+      if (allowedTypes && !allowedTypes.has(type)) {
+        problems.push(
+          problem(
+            'type-unknown',
+            `type 必须是元件词表 id（${[...allowedTypes].join(' / ')}）；收到 "${type || '(空)'}"；不允许 unknown 或自造名`,
+            { element },
+          ),
+        );
         continue;
       }
 

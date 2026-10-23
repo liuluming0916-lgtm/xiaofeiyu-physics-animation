@@ -19,12 +19,25 @@ const BUILTIN_CONTEXT = new Set(['SIM', 'STEPS', 'ANSWERS', 'MODE', 'Draw', 'Phy
 
 const CODE_SLOT_KEYS = ['VIEW', 'setup', 'stateAt', 'drawFrame', 'readouts'];
 
-/** 静态扫出某个源码里 `state.<name>` 的读取（不含 `state?.name`） */
+/**
+ * 静态扫出某个源码里 `state.<name>` / `state.<name>.<field>` 的读取
+ * （不含 `state?.name`；可选链的嵌套字段也不强行报，避免误杀）。
+ *
+ * v1.1.18：以前只对顶层 key 对账 —— `state.e0` 存在、但 `state.e0.vx` 不存在时
+ * C1 会放行，等到 C2/C3 才炸。现在把顶层 key 与它的字段分开记。
+ *
+ * @returns {Map<string, Set<string>>} name → 读到的字段集合（顶层读取给空集）
+ */
 function scanStateReads(source) {
-  const out = new Set();
-  const re = /\bstate\.([A-Za-z_$][\w$]*)/g;
+  const out = new Map();
+  const re = /\bstate\.([A-Za-z_$][\w$]*)(?:\s*\.\s*([A-Za-z_$][\w$]*))?/g;
+  const add = (name, field) => {
+    const set = out.get(name) ?? new Set();
+    if (field) set.add(field);
+    out.set(name, set);
+  };
   let m;
-  while ((m = re.exec(String(source ?? '')))) out.add(m[1]);
+  while ((m = re.exec(String(source ?? '')))) add(m[1], m[2] ?? null);
   return out;
 }
 
@@ -51,12 +64,24 @@ export function auditWiring(slots, run) {
         而这恰恰是最需要报出来的情况。所以优先用 `run.stateAt`（独立的只读探针）取样，
         取不到再退回 frames 的并集。 */
   const providedState = new Set();
+  /** name → 该对象实际提供的字段（只对对象型 state 值收集） */
+  const providedFields = new Map();
+  const rememberState = (state) => {
+    if (!state || typeof state !== 'object') return;
+    for (const [k, v] of Object.entries(state)) {
+      providedState.add(k);
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const set = providedFields.get(k) ?? new Set();
+        for (const f of Object.keys(v)) set.add(f);
+        providedFields.set(k, set);
+      }
+    }
+  };
   const duration = Number.isFinite(run?.duration) && run.duration > 0 ? run.duration : 1;
   if (typeof run?.stateAt === 'function') {
     for (const t of [0, duration / 2, duration]) {
       try {
-        const state = run.stateAt(t);
-        if (state && typeof state === 'object') for (const k of Object.keys(state)) providedState.add(k);
+        rememberState(run.stateAt(t));
       } catch {
         /* 该时刻取不到：少一个样本 */
       }
@@ -65,7 +90,7 @@ export function auditWiring(slots, run) {
   if (providedState.size === 0 && frames.length) {
     const picks = [frames[0], frames[Math.floor(frames.length / 2)], frames[frames.length - 1]];
     for (const f of picks) {
-      if (f?.state && typeof f.state === 'object') for (const k of Object.keys(f.state)) providedState.add(k);
+      if (f?.state && typeof f.state === 'object') rememberState(f.state);
     }
   }
   if (providedState.size === 0) {
@@ -77,24 +102,47 @@ export function auditWiring(slots, run) {
   const providedContext = new Set((ctxKeys ?? []).filter((k) => !BUILTIN_CONTEXT.has(k)));
 
   /* ③ 消费方：静态读取 */
-  const consumedState = new Set([...scanStateReads(slots.drawFrame), ...scanStateReads(slots.readouts)]);
+  const consumedState = new Map();
+  for (const source of [slots.drawFrame, slots.readouts]) {
+    for (const [name, fields] of scanStateReads(source)) {
+      const set = consumedState.get(name) ?? new Set();
+      for (const f of fields) set.add(f);
+      consumedState.set(name, set);
+    }
+  }
   const consumedContext = new Set();
   for (const k of CODE_SLOT_KEYS) {
     for (const name of scanContextReads(slots[k])) consumedContext.add(name);
   }
 
   /* ④ 差集 = 接线错误 */
-  for (const name of consumedState) {
-    if (providedState.has(name)) continue;
-    issues.push({
-      check: 'C1',
-      rule: 'state-key-missing',
-      slot: 'stateAt',
-      name,
-      message:
-        `drawFrame / readouts 读了 state.${name}，但 stateAt 的 return 里没有它 —— ` +
-        `请在 stateAt 的 return 里补上 ${name}（不要去改 drawFrame 去凑，那样会把几何改坏）`,
-    });
+  for (const [name, fields] of consumedState) {
+    if (!providedState.has(name)) {
+      issues.push({
+        check: 'C1',
+        rule: 'state-key-missing',
+        slot: 'stateAt',
+        name,
+        message:
+          `drawFrame / readouts 读了 state.${name}，但 stateAt 的 return 里没有它 —— ` +
+          `请在 stateAt 的 return 里补上 ${name}（不要去改 drawFrame 去凑，那样会把几何改坏）`,
+      });
+      continue;
+    }
+    /* 顶层对象存在，再对它的字段：state.e0 有，不等于 state.e0.vx 有 */
+    const actual = providedFields.get(name);
+    for (const field of fields) {
+      if (actual?.has(field)) continue;
+      issues.push({
+        check: 'C1',
+        rule: 'state-field-missing',
+        slot: 'stateAt',
+        name: `${name}.${field}`,
+        message:
+          `代码读了 state.${name}.${field}，但 stateAt 返回的 ${name} 里没有 ${field} —— ` +
+          `请在 stateAt 里补上 ${name}.${field}，不要用 drawFrame 去凑（那样会把几何改坏）`,
+      });
+    }
   }
   for (const name of consumedContext) {
     /* 运行时注入的名字（`context.at` 是只读探针，不是作者提供的）不算“缺” */

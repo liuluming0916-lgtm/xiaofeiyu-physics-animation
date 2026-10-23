@@ -11,6 +11,7 @@
  */
 
 import { elementIdsOf, sceneIdsOf } from './vocab.mjs';
+import { validatePhysical, validateSize } from './size.mjs';
 
 export const ENTRY_FIELD_ORDER_V2 = Object.freeze([
   'id',
@@ -21,6 +22,8 @@ export const ENTRY_FIELD_ORDER_V2 = Object.freeze([
   'constant',
   'elements',
   'scenes',
+  'size',
+  'physical',
   'order',
   'priority',
   'content',
@@ -82,6 +85,15 @@ export function validateEntryV2(entry, { vocab, where = '词条' } = {}) {
     if (!Array.isArray(entry.code_examples)) p.push(`${where}.code_examples 必须是数组`);
     else if (entry.code_examples.some((c) => typeof c !== 'string' || !c.trim())) p.push(`${where}.code_examples 含非字符串或空串`);
   }
+  if ('size' in entry) {
+    if (entry.kind !== 'element') p.push(`${where} 是 ${entry.kind} 卡，不应有 size（场景尺寸由模型按题决定）`);
+    const optionalDims = Array.isArray(entry.elements) && entry.elements.includes('board') ? ['w'] : [];
+    p.push(...validateSize(entry.size, `${where}.size`, { optionalDims }));
+  }
+  if ('physical' in entry) {
+    if (entry.kind !== 'element') p.push(`${where} 是 ${entry.kind} 卡，不应有 physical`);
+    p.push(...validatePhysical(entry.physical, `${where}.physical`));
+  }
 
   const elementIds = elementIdsOf(vocab);
   const sceneIds = sceneIdsOf(vocab);
@@ -128,6 +140,10 @@ function baseOf(entry) {
     order: Number.isInteger(entry.order) ? entry.order : 100,
     priority: ENTRY_PRIORITIES_V2.includes(entry.priority) ? entry.priority : 'normal',
     code_examples: Array.isArray(entry.code_examples) ? [...entry.code_examples] : [],
+    ...(entry.size && typeof entry.size === 'object' && !Array.isArray(entry.size) ? { size: { ...entry.size } } : {}),
+    ...(entry.physical && typeof entry.physical === 'object' && !Array.isArray(entry.physical)
+      ? { physical: { ...entry.physical } }
+      : {}),
   };
   return out;
 }

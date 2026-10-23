@@ -17,6 +17,8 @@ import { join } from 'node:path';
 import { isCliEntry } from '../tools/paths.mjs';
 import { createRulesService } from '../tools/rules-service.mjs';
 import { initRulesWorkspace } from '../core/rules/index.mjs';
+import { ANALYSIS_EXAMPLE, parseAnalysisTable } from '../core/analysis/index.mjs';
+import { generateProgramSlots } from '../core/analysis/generate.mjs';
 
 let passed = 0;
 const failures = [];
@@ -40,6 +42,29 @@ function freshDir() {
 
 const KEY = 'sk-SERVICE0123456789abcdef';
 
+/**
+ * /api/run 的假模型。
+ *
+ * 这个测试要证明的不是“模型会不会解题”，而是**规则快照有没有真的进 system 消息**：
+ * 所以只要每个阶段回一份能过链路的最小文本，并把每次调用的 system 留下来即可。
+ */
+const seenSystems = [];
+const fakeRunStream = async (opts) => {
+  const system = String(opts.messages?.[0]?.content ?? '');
+  seenSystems.push({ stage: opts.stage, system });
+  const replies = {
+    read_problem: '【题目】传送带与物块\n【动画元件】block\n【场景】belt\n【判定依据】题面出现物块与传送带',
+    solve: '取向右为正。a = 2 m/s²，t* = 1.0 s，Δx = 1.0 m，结论带单位。',
+    breakdown: 'title: 第 1 步 · 加速\ntex: 物块受摩擦力加速\n\ntitle: 第 2 步 · 匀速\ntex: 共速后随带匀速',
+    analysis: ANALYSIS_EXAMPLE,
+    scene_code: 'Draw.ground(-0.5, 5.5, 0);\nDraw.box([state.e0.cx, state.e0.cy], state.e0.w, state.e0.h);',
+    couple: 'step: 1\nsub: 1\nt0: 0\nt1: 1.5\n\nstep: 2\nsub: 1\nt0: 1.5\nt1: 3.0',
+  };
+  const text = replies[opts.stage] ?? '';
+  opts.onDelta?.(text);
+  return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
+};
+
 async function main() {
   console.log('规则工作室服务取证（第 6 期第 5 项）\n');
 
@@ -48,7 +73,7 @@ async function main() {
   mkdirSync(staticDir, { recursive: true });
   writeFileSync(join(staticDir, 'index.html'), '<!doctype html><title>ui</title>ok', 'utf8');
 
-  const svc = createRulesService({ port: 0, root: dir, staticDir });
+  const svc = createRulesService({ port: 0, root: dir, staticDir, streamImpl: fakeRunStream, openLogDir: join(dir, 'open-log') });
   const port = await svc.listen();
   const base = `http://127.0.0.1:${port}`;
 
@@ -87,8 +112,8 @@ async function main() {
     console.log('\n『B』Prompt：改得动，改坏了被拒');
     {
       const cat = await call('GET', '/api/prompts');
-      check('目录接口通，8 项', cat.status === 200 && cat.json.items.length === 8, String(cat.json?.items?.length));
-      check('目录把"哪几段不能删"也一起给了（界面不用硬编码）', Array.isArray(cat.json.requirements.read_problem.errors));
+      check('目录接口通，7 项（v1 读题已退役）', cat.status === 200 && cat.json.items.length === 7, String(cat.json?.items?.length));
+      check('目录把"哪几段不能删"也一起给了（界面不用硬编码）', Array.isArray(cat.json.requirements.read_problem_v2.errors));
 
       const one = await call('GET', '/api/prompts/solve');
       check('打开一份：内置正文 + 状态', one.status === 200 && one.json.status === 'builtin' && one.json.builtinText.includes('现在执行【解题】阶段'));
@@ -99,10 +124,10 @@ async function main() {
       const after = await call('GET', '/api/prompts/solve');
       check('再打开：状态变 ok、正文是我的', after.json.status === 'ok' && after.json.overrideText.includes('先说研究对象'));
 
-      // 硬门禁：删掉【动画元件】
-      const badSave = await call('PUT', '/api/prompts/read_problem', { text: '现在执行【读题与判定】阶段。\n只写转写，不判元件。\n' });
-      check('★ 删掉【动画元件】⇒ 400 被拒', badSave.status === 400 && hasIssue(badSave.json, 'prompt.missing-required-token'));
-      const still = await call('GET', '/api/prompts/read_problem');
+      // 硬门禁：删掉【动画元件】/【场景】
+      const badSave = await call('PUT', '/api/prompts/read_problem_v2', { text: '现在执行【读题】阶段。\n只写转写，不判元件。\n' });
+      check('★ 删掉【动画元件】/【场景】⇒ 400 被拒', badSave.status === 400 && hasIssue(badSave.json, 'prompt.missing-required-token'));
+      const still = await call('GET', '/api/prompts/read_problem_v2');
       check('★ 被拒之后它仍然是 builtin（没有半保存）', still.json.status === 'builtin');
 
       const reset = await call('DELETE', '/api/prompts/solve?expectedHash=' + encodeURIComponent(after.json.expectedHash));
@@ -115,7 +140,7 @@ async function main() {
     {
       const cat = await call('GET', '/api/prompts');
       const ids = (cat.json.items ?? []).map((i) => i.id);
-      check('目录里有 8 个 id', ids.length === 8, ids.join(','));
+      check('目录里有 7 个 id', ids.length === 7, ids.join(','));
 
       const bad = [];
       for (const id of ids) {
@@ -132,7 +157,7 @@ async function main() {
       // 这条专门钉住事故本身：solve 只配了 warnings，但 errors 必须是"空数组"而不是"没有这个键"
       const solve = await call('GET', '/api/prompts/solve');
       check('solve 的 requirements.errors 是空数组（不是 undefined）', Array.isArray(solve.json.requirements.errors) && solve.json.requirements.errors.length === 0);
-      check('（对照）read_problem 的 errors 非空（它真有不能删的段落）', solve.status === 200 && (await call('GET', '/api/prompts/read_problem')).json.requirements.errors.length === 1);
+      check('（对照）read_problem_v2 的 errors 非空（它真有不能删的段落）', solve.status === 200 && (await call('GET', '/api/prompts/read_problem_v2')).json.requirements.errors.length === 2);
     }
 
     /* ── 形状回归（二）：清洗与端点两个接口 ── */
@@ -205,6 +230,104 @@ async function main() {
 
       const keySaved = await call('POST', '/api/endpoints/ep_main/key', { key: KEY });
       check('设 Key 成功', keySaved.status === 200 && keySaved.json.ok === true);
+
+      /**
+       * ★ 真实 HTTP：`/api/run` 必须把当前提示词覆盖带进 system 消息。
+       *
+       * 这是 v1.1.17 的假绿点之一：设置页保存成功、测试也“生效”，
+       * 但真实 `/api/run` 构造 config 时没传 `rulesSnapshot`，跑题永远用内置正文。
+       * 这里不直接调 `runPipeline`，而是走真实服务 + 真实 SSE，才能钉住这条接线。
+       */
+      {
+        const marker = '【自定义解题标记】';
+        const override = `现在执行【解题】阶段。\n${marker}先说研究对象，再列方程（编号），结论带单位。\n`;
+        const savedPrompt = await call('PUT', '/api/prompts/solve', { text: override });
+        check('准备：保存一条可识别的解题覆盖正文', savedPrompt.status === 200 && savedPrompt.json.ok === true, JSON.stringify(savedPrompt.json));
+
+        seenSystems.length = 0;
+        const runRes = await fetch(`${base}/api/run`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            problem: { text: '水平传送带上放一个物块，u=2 m/s，μ=0.2，g=10。求共速时间与位移。' },
+            images: [],
+            mode: 'BOTH',
+          }),
+        });
+        const runText = await runRes.text();
+        check('★ POST /api/run 起得来（SSE 200）', runRes.status === 200 && runText.includes('event:'), `${runRes.status} ${runText.slice(0, 120)}`);
+
+        const solveTurn = seenSystems.find((x) => x.stage === 'solve');
+        check(
+          '★ /api/run 的 solve system 真的用了覆盖正文（不是内置）',
+          Boolean(solveTurn) && solveTurn.system.includes(marker),
+          solveTurn ? solveTurn.system.slice(0, 200) : '没有 solve 调用',
+        );
+
+        /* v1.1.18 手动打回：真实 HTTP 也要能把 startAt=solve 传进流水线 */
+        seenSystems.length = 0;
+        const retryRes = await fetch(`${base}/api/run`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            problem: { text: '水平传送带上放一个物块，u=2 m/s，μ=0.2，g=10。' },
+            images: [],
+            mode: 'BOTH',
+            startAt: 'solve',
+            baseReadProblem: '【题目】传送带与物块\n【动画元件】block\n【场景】belt\n【判定依据】沿用上一版',
+          }),
+        });
+        const retryText = await retryRes.text();
+        check(
+          '★ POST /api/run（startAt=solve）起得来',
+          retryRes.status === 200 && retryText.includes('event:'),
+          `${retryRes.status} ${retryText.slice(0, 120)}`,
+        );
+        check(
+          '★ startAt=solve 时 read_problem 不再调模型',
+          !seenSystems.some((x) => x.stage === 'read_problem'),
+          seenSystems.map((x) => x.stage).join(','),
+        );
+
+        /* 只重画 drawFrame：真实 HTTP 必须能走 runManualDraw */
+        {
+          const analysis = parseAnalysisTable(ANALYSIS_EXAMPLE);
+          const baseSlots = generateProgramSlots({
+            analysis,
+            problem: '水平传送带上放一个物块。',
+            breakdownText: 'title: 第 1 步\ntex: 物块加速',
+            drawFrame: 'Draw.nopeThisFunctionDoesNotExist();',
+          });
+          seenSystems.length = 0;
+          const drawRes = await fetch(`${base}/api/run`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              problem: { text: '水平传送带上放一个物块。' },
+              images: [],
+              mode: 'BOTH',
+              startAt: 'draw',
+              analysisText: ANALYSIS_EXAMPLE,
+              slots: baseSlots,
+              baseReadProblem: '【题目】传送带\n【动画元件】block\n【场景】belt',
+            }),
+          });
+          const drawText = await drawRes.text();
+          check('★ POST /api/run（startAt=draw）起得来', drawRes.status === 200 && drawText.includes('event:'), `${drawRes.status} ${drawText.slice(0, 120)}`);
+          check(
+            '★ startAt=draw 走的是 repair/manual，而不是 read_problem',
+            !seenSystems.some((x) => x.stage === 'read_problem') && seenSystems.every((x) => x.stage === 'scene_code'),
+            seenSystems.map((x) => x.stage).join(','),
+          );
+          check('★ 只重画的 dryrun_done 带 mode=BOTH（否则 live 门卫会拒）', drawText.includes('"mode":"BOTH"'), drawText.slice(-300));
+        }
+
+        /* 收尾：删掉覆盖，避免影响后续用例 */
+        const after = await call('GET', '/api/prompts/solve');
+        if (after.status === 200 && after.json.expectedHash) {
+          await call('DELETE', `/api/prompts/solve?expectedHash=${encodeURIComponent(after.json.expectedHash)}`);
+        }
+      }
 
       const listed = await call('GET', '/api/endpoints');
       check('★ 端点列表里**没有明文 Key**（只有打码值）', !JSON.stringify(listed.json).includes(KEY));
@@ -320,7 +443,7 @@ async function main() {
         const promptsJson = await prompts.json();
         check(
           '★ 未手工 init：/api/prompts 仍可读（不再 rules.no-index）',
-          prompts.status === 200 && Array.isArray(promptsJson.items) && promptsJson.items.length === 8,
+          prompts.status === 200 && Array.isArray(promptsJson.items) && promptsJson.items.length === 7,
           `${prompts.status} ${JSON.stringify(promptsJson).slice(0, 200)}`,
         );
         const cleaning = await fetch(`${base2}/api/cleaning`);

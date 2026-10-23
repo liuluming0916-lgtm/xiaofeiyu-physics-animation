@@ -18,14 +18,16 @@ import { DEMO_QUESTION_LIST } from '../lib/demo-questions';
 import { STAGE_CHAIN, precisionLabel } from '../lib/run-stream';
 import { api } from '../lib/rules-api';
 import { Markdown, MathBlock, parseRowTable } from '../lib/markdown';
-import { useRun } from '../hooks/useRun';
 import { selectIsSkipped, useApp, listDevReports, clearDevReports } from '../state/store';
 /** §16 的体积与格式限制（与 `core/gateway/model-client.mjs` 保持一致） */
 const IMAGE_MAX_BYTES = 15 * 1024 * 1024;
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp'];
-export function SolvePage({ onOpenAnimation }) {
+/** 开新题前“会清空旧动画”的提示：勾过“不再提示”后写 localStorage */
+const CLEAR_WARN_KEY = 'od-clear-animation-warning-skip';
+export function SolvePage({ onOpenAnimation, runStart, runCancel, }) {
     const st = useApp();
-    const { start, cancel } = useRun();
+    const start = runStart;
+    const cancel = runCancel;
     const fileRef = useRef(null);
     /** v1.1.16：解析图片的入口（与题目图片分开） */
     const refFileRef = useRef(null);
@@ -53,6 +55,47 @@ export function SolvePage({ onOpenAnimation }) {
      */
     const [runSource, setRunSource] = useState('demo');
     const [visionNote, setVisionNote] = useState('正在读取连接配置…');
+    /**
+     * ── v1.1.18 · 开新题前的“清空旧动画”确认（用户裁决 B+1）──
+     *
+     * 旧动画还挂在 store 里时，开始新题会把它清掉。这里先弹窗，**默认按钮是取消**；
+     * 勾选“以后不再提示”（默认勾上）后，下一次不再弹。
+     * 没有旧动画时完全不弹。
+     */
+    const [dontWarnClear, setDontWarnClear] = useState(() => {
+        try {
+            return localStorage.getItem(CLEAR_WARN_KEY) === '1';
+        }
+        catch {
+            return false;
+        }
+    });
+    const [clearWarnOpen, setClearWarnOpen] = useState(false);
+    const [dontAskAgain, setDontAskAgain] = useState(true);
+    const beginRun = useCallback(() => {
+        void start({ source: runSource });
+    }, [start, runSource]);
+    const onStartClick = useCallback(() => {
+        if (st.programSlots && !dontWarnClear) {
+            setDontAskAgain(true);
+            setClearWarnOpen(true);
+            return;
+        }
+        beginRun();
+    }, [st.programSlots, dontWarnClear, beginRun]);
+    const confirmClearAndStart = useCallback(() => {
+        if (dontAskAgain) {
+            try {
+                localStorage.setItem(CLEAR_WARN_KEY, '1');
+            }
+            catch {
+                /* 隐私模式：不记也可以，下次再问 */
+            }
+            setDontWarnClear(true);
+        }
+        setClearWarnOpen(false);
+        beginRun();
+    }, [dontAskAgain, beginRun]);
     const refreshVision = useCallback(() => {
         let alive = true;
         api
@@ -158,11 +201,14 @@ export function SolvePage({ onOpenAnimation }) {
                                      * 只能在文字框里随便敲两个字才能提交 —— 等于逼用户写假数据。
                                      * 纯图片题是这个产品的正当入口（拍照搜题），不该被这条校验挡住。
                                      */
-                                    disabled: running || (!st.problemText.trim() && st.images.length === 0), className: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300", onClick: () => void start({ source: runSource }), children: running ? '生成中…' : '开始生成动画' }), running && (_jsx("button", { type: "button", className: "text-sm text-slate-600 underline hover:text-slate-900", onClick: cancel, children: "\u53D6\u6D88" }))] }), !running && !st.problemText.trim() && st.images.length === 0 && (_jsx("p", { className: "mt-2 text-xs text-slate-500", children: "\u81F3\u5C11\u7ED9\u4E00\u6837\uFF1A\u9898\u9762\u6587\u5B57\uFF0C\u6216\u4E00\u5F20\u9898\u76EE\u56FE\u7247\uFF08\u7EAF\u56FE\u7247\u9898\u53EF\u4EE5\u76F4\u63A5\u70B9\u4E0A\u9762\u7684\u6309\u94AE\uFF09\u3002" })), runSource === 'server' ? (_jsxs("p", { className: "mt-3 rounded bg-emerald-50 p-2 text-xs text-emerald-900", children: [_jsx("strong", { children: "\u5DF2\u63A5\u672C\u673A\u6A21\u578B" }), "\uFF1A\u70B9\u300C\u5F00\u59CB\u751F\u6210\u52A8\u753B\u300D\u4F1A**\u771F\u5B9E\u8C03\u7528\u4F60\u914D\u7F6E\u7684\u6A21\u578B**\uFF08\u89E3\u9898 \u2192 \u5206\u6B65 \u2192 \u52A8\u753B\u4EE3\u7801\uFF09\uFF0C \u5E76\u5728\u670D\u52A1\u7AEF\u8DD1 C1\u2013C9 \u6821\u9A8C\u3002", _jsx("strong", { children: "\u5224\u5B9A\u6765\u81EA\u771F\u5B9E\u6821\u9A8C\u5185\u6838" }), "\uFF08\u4E0D\u518D\u662F\"\u672A\u6821\u9A8C\"\uFF09\u3002 \u60F3\u770B\u6F14\u793A\uFF08\u4E0D\u82B1 token\uFF09\uFF1A\u5728\u300C\u2699 \u8FDE\u63A5\u8BBE\u7F6E\u300D\u91CC\u5220\u6389 Key \u5373\u53EF\u9000\u56DE\u6F14\u793A\u6E90\u3002"] })) : (_jsxs("p", { className: "mt-3 rounded bg-amber-50 p-2 text-xs text-amber-900", children: [_jsx("strong", { children: "\u5F53\u524D\u662F\u300C\u6F14\u793A\u6E90\u300D" }), "\uFF1A\u4E0D\u8C03\u7528\u6A21\u578B\uFF0C\u7528\u672C\u5730\u771F\u9898\uFF08", DEMO_QUESTION_LIST.map((q) => q.title).join('、'), "\uFF09\u8D70\u5B8C\u6574\u524D\u7AEF\u6D41\u7A0B\uFF0C \u5224\u5B9A\u663E\u793A\u4E3A\u300C\u672A\u6821\u9A8C\u300D\u3002", _jsx("strong", { children: "\u60F3\u771F\u6B63\u89E3\u9898" }), "\uFF1A\u70B9\u53F3\u4E0A\u89D2\u300C\u2699 \u8FDE\u63A5\u8BBE\u7F6E\u300D\u586B\u63A5\u53E3\u5730\u5740\u3001\u6A21\u578B ID \u4E0E Key\uFF0C \u4FDD\u5B58\u540E\u8FD9\u91CC\u4F1A\u53D8\u6210\u300C\u5DF2\u63A5\u672C\u673A\u6A21\u578B\u300D\u3002"] }))] }) }), _jsxs("section", { className: "space-y-4", children: [_jsx(FishStage, { stage: (st.run.stages.length ? st.run.stages : [...STAGE_CHAIN]).find((s) => (st.run.stageStatus[s] ?? 'pending') === 'running'), running: st.run.running, hasError: Boolean(st.run.error), finished: Boolean(st.programSlots) && !st.run.running }), st.run.error && (_jsxs("div", { className: "rounded-lg border border-red-300 bg-red-50 p-4", children: [_jsx("p", { className: "font-medium text-red-900", children: st.run.error.kind === 'auth'
+                                    disabled: running || (!st.problemText.trim() && st.images.length === 0), className: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300", onClick: onStartClick, children: running ? '生成中…' : '开始生成动画' }), running && (_jsx("button", { type: "button", className: "text-sm text-slate-600 underline hover:text-slate-900", onClick: cancel, children: "\u53D6\u6D88" }))] }), !running && !st.problemText.trim() && st.images.length === 0 && (_jsx("p", { className: "mt-2 text-xs text-slate-500", children: "\u81F3\u5C11\u7ED9\u4E00\u6837\uFF1A\u9898\u9762\u6587\u5B57\uFF0C\u6216\u4E00\u5F20\u9898\u76EE\u56FE\u7247\uFF08\u7EAF\u56FE\u7247\u9898\u53EF\u4EE5\u76F4\u63A5\u70B9\u4E0A\u9762\u7684\u6309\u94AE\uFF09\u3002" })), runSource === 'server' ? (_jsxs("p", { className: "mt-3 rounded bg-emerald-50 p-2 text-xs text-emerald-900", children: [_jsx("strong", { children: "\u5DF2\u63A5\u672C\u673A\u6A21\u578B" }), "\uFF1A\u70B9\u300C\u5F00\u59CB\u751F\u6210\u52A8\u753B\u300D\u4F1A**\u771F\u5B9E\u8C03\u7528\u4F60\u914D\u7F6E\u7684\u6A21\u578B**\uFF08\u89E3\u9898 \u2192 \u5206\u6B65 \u2192 \u52A8\u753B\u4EE3\u7801\uFF09\uFF0C \u5E76\u5728\u670D\u52A1\u7AEF\u8DD1 C1\u2013C9 \u6821\u9A8C\u3002", _jsx("strong", { children: "\u5224\u5B9A\u6765\u81EA\u771F\u5B9E\u6821\u9A8C\u5185\u6838" }), "\uFF08\u4E0D\u518D\u662F\"\u672A\u6821\u9A8C\"\uFF09\u3002 \u60F3\u770B\u6F14\u793A\uFF08\u4E0D\u82B1 token\uFF09\uFF1A\u5728\u300C\u2699 \u8FDE\u63A5\u8BBE\u7F6E\u300D\u91CC\u5220\u6389 Key \u5373\u53EF\u9000\u56DE\u6F14\u793A\u6E90\u3002"] })) : (_jsxs("p", { className: "mt-3 rounded bg-amber-50 p-2 text-xs text-amber-900", children: [_jsx("strong", { children: "\u5F53\u524D\u662F\u300C\u6F14\u793A\u6E90\u300D" }), "\uFF1A\u4E0D\u8C03\u7528\u6A21\u578B\uFF0C\u7528\u672C\u5730\u771F\u9898\uFF08", DEMO_QUESTION_LIST.map((q) => q.title).join('、'), "\uFF09\u8D70\u5B8C\u6574\u524D\u7AEF\u6D41\u7A0B\uFF0C \u5224\u5B9A\u663E\u793A\u4E3A\u300C\u672A\u6821\u9A8C\u300D\u3002", _jsx("strong", { children: "\u60F3\u771F\u6B63\u89E3\u9898" }), "\uFF1A\u70B9\u53F3\u4E0A\u89D2\u300C\u2699 \u8FDE\u63A5\u8BBE\u7F6E\u300D\u586B\u63A5\u53E3\u5730\u5740\u3001\u6A21\u578B ID \u4E0E Key\uFF0C \u4FDD\u5B58\u540E\u8FD9\u91CC\u4F1A\u53D8\u6210\u300C\u5DF2\u63A5\u672C\u673A\u6A21\u578B\u300D\u3002"] }))] }) }), _jsxs("section", { className: "space-y-4", children: [_jsx(FishStage, { stage: (st.run.stages.length ? st.run.stages : [...STAGE_CHAIN]).find((s) => (st.run.stageStatus[s] ?? 'pending') === 'running'), running: st.run.running, hasError: Boolean(st.run.error), finished: Boolean(st.programSlots) && !st.run.running && st.run.verdict !== 'fail', failed: !st.run.running && st.run.verdict === 'fail' }), st.run.error && (_jsxs("div", { className: "rounded-lg border border-red-300 bg-red-50 p-4", children: [_jsx("p", { className: "font-medium text-red-900", children: st.run.error.kind === 'auth'
                                     ? '模型鉴权失败'
                                     : st.run.error.kind === 'network'
                                         ? '无法连接模型端点'
-                                        : '出错了' }), _jsx("p", { className: "mt-1 text-sm text-red-800", children: st.run.error.message }), st.run.error.hint && _jsxs("p", { className: "mt-1 text-xs text-red-700", children: ["\u2192 ", st.run.error.hint] })] })), st.run.banner && _jsx(WarningBanner, { banner: st.run.banner }), _jsxs("details", { className: "rounded-lg border border-slate-200 bg-white shadow-sm", children: [_jsx("summary", { className: "cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700", children: "\u89E3\u9898\u8FC7\u7A0B\uFF08\u70B9\u5F00\u67E5\u770B\uFF09" }), _jsx("div", { className: "space-y-4 border-t border-slate-100 p-5 pt-4", children: (st.run.stageText.solve || st.run.stageText.breakdown || st.run.stageText.analysis) && (_jsxs("div", { className: "rounded-lg border border-slate-200 bg-white p-5 shadow-sm", children: [_jsx("h2", { className: "text-base font-medium text-slate-900", children: "\u89E3\u9898\u8FC7\u7A0B" }), st.run.promptHash && (_jsxs("p", { className: "mt-1 font-mono text-[11px] text-slate-400", children: ["promptHash = ", st.run.promptHash] })), _jsxs("div", { className: "mt-3 space-y-4 text-sm text-slate-800", children: [_jsxs("div", { children: [_jsx("h3", { className: "mb-1 text-sm font-semibold text-slate-500", children: "\u89E3\u9898" }), _jsx(Markdown, { text: st.run.stageText.solve ?? '' })] }), steps.length > 0 && (_jsxs("div", { children: [_jsx("h3", { className: "mb-1 text-sm font-semibold text-slate-500", children: "\u5206\u6B65\u89E3\u6790" }), _jsx("ol", { className: "space-y-2", children: steps.map((s, i) => (_jsxs("li", { className: "rounded border border-slate-200 p-3", children: [_jsx("p", { className: "font-medium text-slate-900", children: s.title ?? `第 ${i + 1} 步` }), _jsx("div", { className: "mt-1 text-slate-700", children: _jsx(MathBlock, { tex: s.tex ?? '' }) }), _jsxs("p", { className: "mt-1 font-mono text-xs text-slate-500", children: ["t \u2208 [", s.t0 ?? '?', ", ", s.t1 ?? '?', "] s"] })] }, i))) })] }))] })] })) })] }), _jsxs("details", { className: "rounded-lg border border-slate-200 bg-white shadow-sm", children: [_jsx("summary", { className: "cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700", children: "\u5224\u636E \u00B7 \u77E5\u8BC6\u5361\u4F9D\u636E \u00B7 \u81EA\u6108\u8FC7\u7A0B\uFF08\u70B9\u5F00\u67E5\u770B\uFF09" }), _jsxs("div", { className: "space-y-4 border-t border-slate-100 p-5 pt-4", children: [st.run.verdict && _jsx(VerdictPanel, { run: st.run, skipped: skipped }), st.run.knowledgecard && _jsx(KnowledgecardPanel, { run: st.run }), st.run.repairRounds.length > 0 && _jsx(RepairPanel, { run: st.run })] })] }), (st.referenceText.trim() || st.referenceImages.length > 0) && (_jsxs("div", { className: "rounded-lg border border-sky-200 bg-sky-50 p-4", children: [_jsxs("p", { className: "text-sm font-semibold text-sky-900", children: ["\u672C\u6B21\u6309\u4F60\u63D0\u4F9B\u7684\u89E3\u6790\u751F\u6210", _jsx("span", { className: "ml-2 rounded bg-sky-200 px-1.5 py-0.5 text-[11px] font-normal text-sky-900", children: "\u6765\u6E90\uFF1A\u53C2\u8003\u7B54\u6848" })] }), _jsxs("div", { className: "mt-2 grid gap-3 md:grid-cols-2", children: [_jsxs("div", { children: [_jsx("p", { className: "text-xs font-medium text-sky-800", children: "\u4F60\u63D0\u4F9B\u7684\u89E3\u6790" }), _jsx("pre", { className: "mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700", children: st.referenceText.trim() || '（只提供了解析图片，没有文字）' })] }), _jsxs("div", { children: [_jsx("p", { className: "text-xs font-medium text-sky-800", children: "\u5206\u6B65\u8BB2\u89E3" }), _jsx("pre", { className: "mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700", children: st.run.stageText.breakdown?.trim() || '（还没有讲解）' })] })] }), st.run.stageText.breakdown?.includes('解析未提供') && (_jsx("p", { className: "mt-2 rounded bg-amber-100 p-2 text-xs text-amber-900", children: "\u6709\u89E3\u6790\u6CA1\u6709\u8986\u76D6\u5230\u7684\u91CF\uFF08\u6587\u4E2D\u6807\u4E86\u201C\u89E3\u6790\u672A\u63D0\u4F9B\u201D\uFF09\u2014\u2014 \u8FD9\u4E9B\u6570\u9700\u8981\u4F60\u4EBA\u5DE5\u786E\u8BA4\uFF0C\u6A21\u578B\u6CA1\u6709\u88AB\u5141\u8BB8\u81EA\u5DF1\u8865\u3002" })), _jsxs("p", { className: "mt-2 text-[11px] text-sky-700", children: ["\u5DE6\u8FB9\u662F\u4F60\u7684\u539F\u6587\uFF0C\u53F3\u8FB9\u662F\u6A21\u578B\u62BD\u53D6\u7684\u7ED3\u679C\uFF1B\u4E24\u8FB9\u4E0D\u4E00\u81F4\u65F6", _jsx("strong", { children: "\u4EE5\u4F60\u7684\u89E3\u6790\u4E3A\u51C6" }), "\u3002"] })] })), st.programSlots && !st.run.running && (_jsxs("div", { className: "rounded-lg border border-green-200 bg-green-50 p-4", children: [_jsx("p", { className: "text-sm text-green-900", children: "\u52A8\u753B\u5DF2\u5C31\u7EEA\u3002" }), _jsx("button", { type: "button", className: "mt-2 rounded-md bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800", onClick: onOpenAnimation, children: "\u6253\u5F00\u52A8\u753B\u9875 \u2192" })] }))] }), _jsx(ConnectionDialog, { open: connOpen, onClose: () => setConnOpen(false), onSaved: refreshVision })] }));
+                                        : '出错了' }), _jsx("p", { className: "mt-1 text-sm text-red-800", children: st.run.error.message }), st.run.error.hint && _jsxs("p", { className: "mt-1 text-xs text-red-700", children: ["\u2192 ", st.run.error.hint] })] })), st.run.banner && _jsx(WarningBanner, { banner: st.run.banner }), _jsxs("details", { className: "rounded-lg border border-slate-200 bg-white shadow-sm", children: [_jsx("summary", { className: "cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700", children: "\u89E3\u9898\u8FC7\u7A0B\uFF08\u70B9\u5F00\u67E5\u770B\uFF09" }), _jsx("div", { className: "space-y-4 border-t border-slate-100 p-5 pt-4", children: (st.run.stageText.solve || st.run.stageText.breakdown || st.run.stageText.analysis) && (_jsxs("div", { className: "rounded-lg border border-slate-200 bg-white p-5 shadow-sm", children: [_jsx("h2", { className: "text-base font-medium text-slate-900", children: "\u89E3\u9898\u8FC7\u7A0B" }), st.run.promptHash && (_jsxs("p", { className: "mt-1 font-mono text-[11px] text-slate-400", children: ["promptHash = ", st.run.promptHash] })), _jsxs("div", { className: "mt-3 space-y-4 text-sm text-slate-800", children: [_jsxs("div", { children: [_jsx("h3", { className: "mb-1 text-sm font-semibold text-slate-500", children: "\u89E3\u9898" }), _jsx(Markdown, { text: st.run.stageText.solve ?? '' })] }), steps.length > 0 && (_jsxs("div", { children: [_jsx("h3", { className: "mb-1 text-sm font-semibold text-slate-500", children: "\u5206\u6B65\u89E3\u6790" }), _jsx("ol", { className: "space-y-2", children: steps.map((s, i) => (_jsxs("li", { className: "rounded border border-slate-200 p-3", children: [_jsx("p", { className: "font-medium text-slate-900", children: s.title ?? `第 ${i + 1} 步` }), _jsx("div", { className: "mt-1 text-slate-700", children: _jsx(MathBlock, { tex: s.tex ?? '' }) }), _jsxs("p", { className: "mt-1 font-mono text-xs text-slate-500", children: ["t \u2208 [", s.t0 ?? '?', ", ", s.t1 ?? '?', "] s"] })] }, i))) })] }))] })] })) })] }), _jsxs("details", { className: "rounded-lg border border-slate-200 bg-white shadow-sm", children: [_jsx("summary", { className: "cursor-pointer select-none px-5 py-3 text-sm font-medium text-slate-700", children: "\u5224\u636E \u00B7 \u77E5\u8BC6\u5361\u4F9D\u636E \u00B7 \u81EA\u6108\u8FC7\u7A0B\uFF08\u70B9\u5F00\u67E5\u770B\uFF09" }), _jsxs("div", { className: "space-y-4 border-t border-slate-100 p-5 pt-4", children: [st.run.verdict && _jsx(VerdictPanel, { run: st.run, skipped: skipped }), st.run.knowledgecard && _jsx(KnowledgecardPanel, { run: st.run }), st.run.repairRounds.length > 0 && _jsx(RepairPanel, { run: st.run })] })] }), (st.referenceText.trim() || st.referenceImages.length > 0) && (_jsxs("div", { className: "rounded-lg border border-sky-200 bg-sky-50 p-4", children: [_jsxs("p", { className: "text-sm font-semibold text-sky-900", children: ["\u672C\u6B21\u6309\u4F60\u63D0\u4F9B\u7684\u89E3\u6790\u751F\u6210", _jsx("span", { className: "ml-2 rounded bg-sky-200 px-1.5 py-0.5 text-[11px] font-normal text-sky-900", children: "\u6765\u6E90\uFF1A\u53C2\u8003\u7B54\u6848" })] }), _jsxs("div", { className: "mt-2 grid gap-3 md:grid-cols-2", children: [_jsxs("div", { children: [_jsx("p", { className: "text-xs font-medium text-sky-800", children: "\u4F60\u63D0\u4F9B\u7684\u89E3\u6790" }), _jsx("pre", { className: "mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700", children: st.referenceText.trim() || '（只提供了解析图片，没有文字）' })] }), _jsxs("div", { children: [_jsx("p", { className: "text-xs font-medium text-sky-800", children: "\u5206\u6B65\u8BB2\u89E3" }), _jsx("pre", { className: "mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-[11px] leading-relaxed text-slate-700", children: st.run.stageText.breakdown?.trim() || '（还没有讲解）' })] })] }), st.run.stageText.breakdown?.includes('解析未提供') && (_jsx("p", { className: "mt-2 rounded bg-amber-100 p-2 text-xs text-amber-900", children: "\u6709\u89E3\u6790\u6CA1\u6709\u8986\u76D6\u5230\u7684\u91CF\uFF08\u6587\u4E2D\u6807\u4E86\u201C\u89E3\u6790\u672A\u63D0\u4F9B\u201D\uFF09\u2014\u2014 \u8FD9\u4E9B\u6570\u9700\u8981\u4F60\u4EBA\u5DE5\u786E\u8BA4\uFF0C\u6A21\u578B\u6CA1\u6709\u88AB\u5141\u8BB8\u81EA\u5DF1\u8865\u3002" })), _jsxs("p", { className: "mt-2 text-[11px] text-sky-700", children: ["\u5DE6\u8FB9\u662F\u4F60\u7684\u539F\u6587\uFF0C\u53F3\u8FB9\u662F\u6A21\u578B\u62BD\u53D6\u7684\u7ED3\u679C\uFF1B\u4E24\u8FB9\u4E0D\u4E00\u81F4\u65F6", _jsx("strong", { children: "\u4EE5\u4F60\u7684\u89E3\u6790\u4E3A\u51C6" }), "\u3002"] })] })), st.programSlots && !st.run.running && (_jsxs("div", { className: "rounded-lg border border-green-200 bg-green-50 p-4", children: [_jsx("p", { className: "text-sm text-green-900", children: "\u52A8\u753B\u5DF2\u5C31\u7EEA\u3002" }), _jsx("button", { type: "button", className: "mt-2 rounded-md bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800", onClick: onOpenAnimation, children: "\u6253\u5F00\u52A8\u753B\u9875 \u2192" })] }))] }), clearWarnOpen && (_jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4", role: "presentation", onClick: (e) => {
+                    if (e.target === e.currentTarget)
+                        setClearWarnOpen(false);
+                }, children: _jsxs("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "clear-animation-title", className: "w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl", children: [_jsx("h2", { id: "clear-animation-title", className: "text-base font-semibold text-slate-900", children: "\u5F00\u59CB\u65B0\u9898\u4F1A\u6E05\u7A7A\u5F53\u524D\u52A8\u753B" }), _jsx("p", { className: "mt-2 text-sm leading-relaxed text-slate-600", children: "\u5F53\u524D\u5DF2\u7ECF\u6709\u4E00\u4EFD\u751F\u6210\u597D\u7684\u52A8\u753B\u3002\u5F00\u59CB\u65B0\u9898\u4F1A\u628A\u5B83\u4ECE\u672C\u9875\u6E05\u6389\uFF08\u4E0D\u4F1A\u5220\u9664\u5DF2\u5BFC\u51FA\u7684\u6587\u4EF6\uFF09\u3002 \u5982\u679C\u4F60\u8FD8\u8981\u770B\u5B83\uFF0C\u8BF7\u5148\u70B9\u201C\u53D6\u6D88\u201D\u3002" }), _jsxs("label", { className: "mt-4 flex cursor-pointer items-center gap-2 text-xs text-slate-600", children: [_jsx("input", { type: "checkbox", checked: dontAskAgain, onChange: (e) => setDontAskAgain(e.target.checked), "data-od-id": "clear-animation-dont-ask" }), "\u4EE5\u540E\u4E0D\u518D\u63D0\u793A\uFF08\u9ED8\u8BA4\u52FE\u9009\uFF1B\u53D6\u6D88\u52FE\u9009\u5219\u6BCF\u6B21\u5F00\u59CB\u65B0\u9898\u90FD\u63D0\u9192\uFF09"] }), _jsxs("div", { className: "mt-5 flex justify-end gap-2", children: [_jsx("button", { type: "button", autoFocus: true, className: "rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50", onClick: () => setClearWarnOpen(false), children: "\u53D6\u6D88" }), _jsx("button", { type: "button", className: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700", onClick: confirmClearAndStart, children: "\u7EE7\u7EED\u5E76\u6E05\u7A7A" })] })] }) })), _jsx(ConnectionDialog, { open: connOpen, onClose: () => setConnOpen(false), onSaved: refreshVision })] }));
 }
 /* ────────────────────────────── 子组件 ────────────────────────────── */
 /** 命中方式的中文标签（与 `core/knowledgecard/engine.mjs` 的 `via` 取值逐一对应） */
@@ -217,23 +263,23 @@ function RepairPanel({ run }) {
 const STAGE_SAY = {
     read_problem: '小肥鱼正在看题…',
     solve: '小肥鱼正在解题…',
-    breakdown: '小肥鱼正在把答案切块…',
-    analysis: '小肥鱼正在分析运动…',
+    breakdown: '小肥鱼正在努力思考…',
+    analysis: '小肥鱼正在努力思考…',
     scene_code: '小肥鱼正在努力画画…',
     dry_run: '小肥鱼正在检查…',
     repair: '小肥鱼正在完善…',
-    couple: '小肥鱼正在对齐讲解与动画…',
+    couple: '小肥鱼正在做最后对齐…',
 };
-/** 阶段 → 表情包文件（图来自「表情包参考」，已拷进 web/public/fish/） */
+/** 阶段 → 漫画分镜（图来自「表情包」3×3 拼图，已裁成 512×512 webp） */
 const STAGE_FISH = {
-    read_problem: 'stage1',
-    solve: 'stage2',
-    breakdown: 'stage3',
-    analysis: 'stage4',
-    scene_code: 'stage5',
-    dry_run: 'stage6',
-    repair: 'stage7',
-    couple: 'stage7',
+    read_problem: 'read',
+    solve: 'solve',
+    breakdown: 'think',
+    analysis: 'think',
+    scene_code: 'draw',
+    dry_run: 'check',
+    repair: 'repair',
+    couple: 'done',
 };
 /**
  * 表情包主视觉：**只有小肥鱼 + 大标题**（v1.1.18 用户裁决）。
@@ -244,16 +290,23 @@ const STAGE_FISH = {
  *   · 一行大号渐变标题（`aria-live`，阶段一变就读出来）。
  * 过程/判据/自愈仍在下方的折叠面板里，需要证据时再展开。
  */
-function FishStage({ stage, running, hasError, finished, }) {
-    const name = hasError ? 'stage7' : stage ? STAGE_FISH[stage] : undefined;
+function FishStage({ stage, running, hasError, finished, failed, }) {
+    /**
+     * 漫画分镜风：新图自带浅蓝背景与桌面场景，所以不再要求透明底；
+     * 用白色内框 + 圆角把每格框成“分镜”。待机/错误态仍是旧透明贴纸，
+     * 放在白框里也能融进去。
+     */
+    const name = hasError || failed ? 'error' : finished ? 'done' : stage ? STAGE_FISH[stage] : undefined;
     const say = hasError
         ? '小肥鱼卡住了…'
-        : running
-            ? (stage ? STAGE_SAY[stage] : '小肥鱼正在准备…')
-            : finished
-                ? '小肥鱼画好啦！'
-                : '小肥鱼在等你出题…';
-    return (_jsxs("div", { "data-od-region": "fish-stage", className: "overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-white px-6 py-7 text-center shadow-sm", children: [_jsx("p", { role: "status", "aria-live": "polite", className: "bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-500 bg-clip-text font-sans text-3xl font-extrabold leading-tight tracking-wide text-transparent sm:text-4xl", children: say }), _jsx("div", { className: "mt-4 flex min-h-[240px] items-center justify-center sm:min-h-[320px]", children: _jsx("img", { src: `/fish/${name ?? 'idle'}.webp`, alt: "", draggable: false, className: "max-h-[300px] w-full object-contain sm:max-h-[400px]" }) })] }));
+        : failed
+            ? '小肥鱼没画成…'
+            : running
+                ? (stage ? STAGE_SAY[stage] : '小肥鱼正在准备…')
+                : finished
+                    ? '小肥鱼画好啦！'
+                    : '小肥鱼在等你出题…';
+    return (_jsxs("div", { "data-od-region": "fish-stage", className: "overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50 via-white to-white px-5 py-6 text-center shadow-sm sm:px-6 sm:py-7", children: [_jsx("p", { role: "status", "aria-live": "polite", className: "bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-500 bg-clip-text font-sans text-3xl font-extrabold leading-tight tracking-wide text-transparent sm:text-4xl", children: say }), _jsx("div", { className: "mx-auto mt-4 w-full max-w-[440px] overflow-hidden rounded-2xl border border-white/80 bg-white shadow-inner", children: _jsx("img", { src: `/fish/${name ?? 'idle'}.webp`, alt: "", draggable: false, className: "aspect-square w-full object-cover" }) })] }));
 }
 function VerdictPanel({ run, skipped }) {
     const tone = skipped

@@ -75,11 +75,11 @@ console.log('『A』一页示例');
   check('第 1 段 t=0.5 时 x=0.25', Math.abs(s1.x.fn(0.5) - 0.25) < 1e-12, String(s1.x.fn(0.5)));
   check('第 2 段 t=2.0 时 x=3.0', Math.abs(s2.x.fn(2) - 3) < 1e-12, String(s2.x.fn(2)));
   check('段端 x 连续（t=1 都是 1.0）', Math.abs(s1.x.fn(1) - s2.x.fn(1)) < 1e-12);
-  check('y 是常数 0', s1.y.fn(0.2) === 0 && s2.y.fn(2.9) === 0);
+  check('y 是常数 0.05（质心高度）', s1.y.fn(0.2) === 0.05 && s2.y.fn(2.9) === 0.05);
   check('第 2 段 anchor.x0=1.0、vx0=2.0', s2.anchor.x0 === 1 && s2.anchor.vx0 === 2);
 
   const p = positionAt(r, 'block_A', 2);
-  check('positionAt(block_A, 2) = (3, 0)', p && Math.abs(p.x - 3) < 1e-12 && Math.abs(p.y) < 1e-12, JSON.stringify(p));
+  check('positionAt(block_A, 2) = (3, 0.05)', p && Math.abs(p.x - 3) < 1e-12 && Math.abs(p.y - 0.05) < 1e-12, JSON.stringify(p));
   const before = positionAt(r, 'block_A', -1);
   check('t 早于首段时取首段 t0（x=0）', before && Math.abs(before.x) < 1e-12, JSON.stringify(before));
   const after = positionAt(r, 'block_A', 10);
@@ -170,6 +170,22 @@ console.log('\n『C』允许的写法与提示词一致性');
 
   const noType = parseAnalysisTable(segText());
   check('★ 缺 type 时退化为 unknown（不硬失败）', noType.ok && noType.elements[0]?.type === 'unknown', noType.elements[0]?.type);
+
+  /* B2：type 必须命中词表（决定 A）；尺寸字段一律拒绝 */
+  const allowed = ['block', 'ball', 'board'];
+  const noTypeStrict = parseAnalysisTable(segText(), { allowedTypes: allowed });
+  check('★ 给定词表时缺 type ⇒ type-unknown', !noTypeStrict.ok && codes(noTypeStrict).includes('type-unknown'), codes(noTypeStrict).join(','));
+  const fakeType = parseAnalysisTable(segText({ type: '物块A' }), { allowedTypes: allowed });
+  check('★ 自造 type ⇒ type-unknown', !fakeType.ok && codes(fakeType).includes('type-unknown'), codes(fakeType).join(','));
+  const unknownType = parseAnalysisTable(segText({ type: 'unknown' }), { allowedTypes: allowed });
+  check('★ unknown ⇒ type-unknown', !unknownType.ok && codes(unknownType).includes('type-unknown'), codes(unknownType).join(','));
+  const goodType = parseAnalysisTable(segText({ type: 'block' }), { allowedTypes: allowed });
+  check('词表内 type 通过', goodType.ok, codes(goodType).join(','));
+
+  const withW = parseAnalysisTable(segText({ extra: 'w: 0.4' }));
+  check('★ analysis 输出 w ⇒ size-not-allowed', !withW.ok && codes(withW).includes('size-not-allowed'), codes(withW).join(','));
+  const withPhysical = parseAnalysisTable(segText({ extra: 'physical: 0.3' }));
+  check('★ analysis 输出 physical ⇒ size-not-allowed', !withPhysical.ok && codes(withPhysical).includes('size-not-allowed'), codes(withPhysical).join(','));
 
   const fenced = parseAnalysisTable('```text\n' + ANALYSIS_EXAMPLE + '\n```');
   check('允许 ``` 围栏', fenced.ok, fenced.problems.map((p) => p.message).join(' / '));

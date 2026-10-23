@@ -89,8 +89,11 @@ export async function buildTexAssets(texList) {
 
 function assertSlots(slots) {
   if (!slots || typeof slots !== 'object') return '缺少 slots';
-  const missing = SLOT_KEY_NAMES.filter((k) => typeof slots[k] !== 'string' || slots[k].length === 0);
-  if (missing.length) return `槽位缺失或为空：${missing.join('、')}（§3.2 要求 8 个都非空）`;
+  /* v6 起 ANSWERS 故意留空；其余 7 个槽位仍必须非空。 */
+  const missing = SLOT_KEY_NAMES.filter(
+    (k) => typeof slots[k] !== 'string' || (k !== 'ANSWERS' && slots[k].length === 0),
+  );
+  if (missing.length) return `槽位缺失或为空：${missing.join('、')}（§3.2：ANSWERS 允许空串，其余 7 个必须非空）`;
   const extra = Object.keys(slots).filter((k) => !SLOT_KEY_NAMES.includes(k));
   if (extra.length) return `出现了未登记的槽位：${extra.join('、')}（未登记即拒）`;
   return null;

@@ -21,6 +21,7 @@ import { normalizeDataSlot } from '../sdk/runtime/animation-runtime.mjs';
 import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
 import { ModelError, buildUserMessage } from '../core/gateway/index.mjs';
 import { startFakeEndpoint } from './fake-endpoint/server.mjs';
+import vocab from '../contracts/knowledgecard-vocab-v2.json' with { type: 'json' };
 
 let passed = 0;
 const failures = [];
@@ -145,7 +146,7 @@ function fakeDryRun(verdict = 'pass') {
 
 const baseInput = (over = {}) => ({
   problem: { text: '一物块从斜面顶端滑下，求到底端的速度。' },
-  config: { endpoint: endpoint(), apiKey: 'sk-test', regexRules: [] },
+  config: { endpoint: endpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardVocab: vocab },
   ...over,
 });
 
@@ -240,6 +241,8 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
       title: '传送带（测试夹具）',
       origin: 'user',
       category: 'solution_skill',
+      kind: 'scene',
+      scenes: ['belt'],
       enabled: true,
       constant: false,
       recursive: false,
@@ -255,7 +258,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
   const img = { mime: 'image/png', data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]) };
   const withWb = (over) =>
     baseInput({
-      config: { endpoint: endpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardEntries: wbEntries },
+      config: { endpoint: endpoint(), apiKey: 'sk-test', regexRules: [], knowledgecardEntries: wbEntries, knowledgecardVocab: vocab },
       ...over,
     });
 
@@ -263,7 +266,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
   {
     const stream = fakeStream({
       scene_code: GOOD_DRAW_FRAME,
-      read_problem: '【题面复述】物块在水平面上匀加速。\n【考点】uniform_acceleration\n【题型】速度公式与位移公式\n【动画元件】block\n【判定依据】题干给了加速度与时间求位移。',
+      read_problem: '【题目】水平面匀加速\n【物体】物块\n【姿态】水平\n【动画元件】block\n【场景】无\n【判定依据】题干给了加速度与时间求位移。',
     });
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: fakeDryRun('pass') }));
     const rpDone = events.find((e) => e.type === 'stage_done' && e.stage === 'read_problem');
@@ -273,7 +276,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
 
     const jd = events.find((e) => e.type === 'judgement_done');
     check('★ 判定留痕：发出 judgement_done 事件（计划 §5 S4 第 4 项）', Boolean(jd));
-    check('★ 判定留痕：考点被解析成表内 id（不是模型写的原文）', jd?.concepts?.join(',') === 'uniform_acceleration', JSON.stringify(jd?.concepts));
+    check('★ 判定留痕：考点表已退役 ⇒ concepts 为空数组（v2 不再判考点）', Array.isArray(jd?.concepts) && jd.concepts.length === 0, JSON.stringify(jd?.concepts));
     check('★ 判定留痕：题型标签已退役 ⇒ 解析结果为空数组（不再产出第三方题型名）', Array.isArray(jd?.tags) && jd.tags.length === 0, JSON.stringify(jd?.tags));
     check('★ 判定留痕：动画元件被解析出来', jd?.elements?.join(',') === 'block', JSON.stringify(jd?.elements));
     check('★ 判定留痕：带上【判定依据】（可复核）', String(jd?.why ?? '').includes('加速度'));
@@ -284,17 +287,17 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
   {
     const stream = fakeStream({
       scene_code: GOOD_DRAW_FRAME,
-      read_problem: '【考点】量子纠缠\n【题型】不存在的题型\n【动画元件】航天飞机\n【判定依据】瞎判',
+      read_problem: '【题目】瞎判\n【动画元件】航天飞机\n【场景】不存在的题型\n【判定依据】瞎判',
     });
     const events = await collectEvents(baseInput({ streamImpl: stream, dryRunImpl: fakeDryRun('pass') }));
     const jd = events.find((e) => e.type === 'judgement_done');
-    check('反例：三个字段全是表外词 ⇒ 判定为空但**事件照样发**', jd?.empty === true && jd.concepts.length === 0 && jd.elements.length === 0);
+    check('反例：三个字段全是表外词 ⇒ 判定为空但**事件照样发**', jd?.empty === true && jd.concepts.length === 0 && jd.elements.length === 0 && (jd.scenes ?? []).length === 0);
     check(
       '反例：表外词被**如实报出**（不许静默丢弃）',
-      JSON.stringify(jd?.unknowns ?? {}).includes('量子纠缠') && JSON.stringify(jd?.unknowns ?? {}).includes('航天飞机'),
+      JSON.stringify(jd?.unknowns ?? {}).includes('航天飞机') && JSON.stringify(jd?.unknowns ?? {}).includes('不存在的题型'),
       JSON.stringify(jd?.unknowns),
     );
-    check('反例：结构问题被报出（unknown-concept / unknown-element）', (jd?.problems ?? []).some((p) => p.code === 'unknown-concept') && (jd?.problems ?? []).some((p) => p.code === 'unknown-element'));
+    check('反例：结构问题被报出（unknown-element / unknown-scene）', (jd?.problems ?? []).some((p) => p.code === 'unknown-element') && (jd?.problems ?? []).some((p) => p.code === 'unknown-scene'));
     check('反例：整条链**没被打崩**（仍然 run_done=pass）', events.at(-1)?.verdict === 'pass');
   }
 
@@ -309,19 +312,18 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
 
   /* ② 图片题：真的跑，而且**转写文字进入知识卡的扫描文本** */
   {
-    // 反例：转写里没有“传送带” ⇒ 该词条不该命中
-    const streamNo = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: '【物体与姿态】水平面；【物体】物块。' });
+    // 反例：读题没判 belt 场景 ⇒ v2 卡不该命中
+    const streamNo = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: '【题目】水平面\n【动画元件】无\n【场景】无' });
     const evNo = await collectEvents(withWb({ images: [img], streamImpl: streamNo, dryRunImpl: fakeDryRun('pass') }));
     const wbNo = evNo.find((e) => e.type === 'knowledgecard_done');
-    check('反例：转写里没有“传送带”⇒ 该词条不命中', !(wbNo?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'));
+    check('反例：读题没判 belt 场景 ⇒ 该词条不命中', !(wbNo?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'));
 
-    // 正例：转写里有“传送带”与“物块” ⇒ 命中（题面本身没有“传送带”三个字）
-    const transcript = '【题面复述】水平传送带以速率 u 运行。【物体与姿态】水平传送带；物块轻放其上。';
-    const streamYes = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: transcript });
+    // 正例：读题判了 belt 场景 ⇒ v2 卡命中（v2 不再扫题面/转写字面量）
+    const streamYes = fakeStream({ scene_code: GOOD_DRAW_FRAME, read_problem: '【题目】传送带\n【动画元件】无\n【场景】belt' });
     const evYes = await collectEvents(withWb({ images: [img], streamImpl: streamYes, dryRunImpl: fakeDryRun('pass') }));
     const wbYes = evYes.find((e) => e.type === 'knowledgecard_done');
     check(
-      '正例：**图片题的图只以转写文字的形式存在**，转写里出现“传送带”⇒ 该词条命中',
+      '正例：读题判出 belt 场景 ⇒ v2 场景卡命中',
       (wbYes?.entries ?? []).some((p) => p.entry_id === 'wb_test_conveyor'),
       JSON.stringify((wbYes?.entries ?? []).map((p) => p.entry_id)),
     );
@@ -329,7 +331,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
     check('图片题里模型被调用 6 次（读题判定 + 解题 + 分步 + 分析 + 动画 + couple）', streamYes.calls.length === 6, String(streamYes.calls.length));
     const rpCall = streamYes.calls.find((c) => detectStage(c.messages) === 'read_problem');
     check('读题阶段的请求里**确实带了图片**', Boolean(rpCall) && Array.isArray(rpCall.messages.find((m) => m.role === 'user')?.content));
-    check('读题阶段要求"沿用原词"（否则后面的检索会找不到规范）', String(rpCall?.messages?.[0]?.content ?? '').includes('沿用题面与图片里的原词'));
+    check('读题阶段明确"不写数值"（v2 只看结构）', String(rpCall?.messages?.[0]?.content ?? '').includes('不要写任何数值'));
     check('读题阶段明确"不要解题"（它只转写与判定）', String(rpCall?.messages?.[0]?.content ?? '').includes('不要解题'));
     check(
       '★ 第 9 期：读题阶段的**用户消息里只注入元件词表**（考点表 / 题型表已下线，它们没有消费者）',
@@ -738,6 +740,21 @@ console.log('\n『Z』接线对账：state / context 的“提供 vs 消费”�
     check('★ 读了 state.yB 但 stateAt 没返回 ⇒ C1 失败', c1?.status === 'fail');
     check('★ 诊断指向 stateAt（而不是 drawFrame）', diag?.slot === 'stateAt' && diag?.name === 'yB', JSON.stringify(diag));
     check('诊断里写明“别去改 drawFrame 凑”', String(diag?.message ?? '').includes('不要去改 drawFrame'));
+  }
+  {
+    /* v1.1.18：顶层 key 有、但字段没有 —— 旧实现只看 e0，会放行 */
+    const slots = {
+      ...base,
+      stateAt: 'return { e0: { x: t } };',
+      drawFrame: 'Draw.box([state.e0.x, state.e0.y], 0.3, 0.3);',
+      readouts: "return [{ key: 'x', label: 'x', value: state.e0.x, unit: 'm' }];",
+    };
+    const { report } = await dryRun({ slots, entry: 'wiring-missing-field' });
+    const c1 = report.checks.find((c) => c.id === 'C1');
+    const diag = (c1?.diagnostics ?? []).find((d) => d.rule === 'state-field-missing');
+    check('★ state.e0 存在但 state.e0.y 不存在 ⇒ C1 失败', c1?.status === 'fail', JSON.stringify(c1?.diagnostics ?? []).slice(0, 300));
+    check('★ 字段级诊断指向 stateAt 的 e0.y', diag?.slot === 'stateAt' && diag?.name === 'e0.y', JSON.stringify(diag));
+    check('字段级诊断写明“不要用 drawFrame 去凑”', String(diag?.message ?? '').includes('不要用 drawFrame 去凑'));
   }
   {
     const slots = { ...base, stateAt: 'return { x: context.k };' };

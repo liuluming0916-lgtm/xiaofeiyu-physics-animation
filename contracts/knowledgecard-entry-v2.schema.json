@@ -37,6 +37,45 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "default": []
+    },
+    "size": {
+      "description": "B1'：外观尺寸（10×6 纸面单位，跨题一样大，渲染不乘 s）。只给 element 卡；场景卡不写（尺寸由模型按题决定）。board 的 w 可缺省（长度由模型给）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor", "shape"],
+      "properties": {
+        "anchor": { "enum": ["bottom", "center", "top"] },
+        "shape": {
+          "enum": ["box", "circle", "belt", "incline", "line", "point", "trace", "curve", "polygon", "spring"]
+        },
+        "w": { "type": "number", "exclusiveMinimum": 0 },
+        "h": { "type": "number", "exclusiveMinimum": 0 },
+        "r": { "type": "number", "exclusiveMinimum": 0 },
+        "pointR": { "type": "number", "minimum": 0 },
+        "minPx": { "type": "number", "minimum": 0, "default": 0 },
+        "rotatable": { "type": "boolean", "default": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "shape": { "enum": ["box", "belt", "incline", "line"] } }, "required": ["shape"] },
+          "then": { "required": ["w", "h"] }
+        },
+        {
+          "if": { "properties": { "shape": { "const": "circle" } }, "required": ["shape"] },
+          "then": { "required": ["r"] }
+        }
+      ]
+    },
+    "physical": {
+      "description": "B1'：真实尺寸（物理米）。只给 element 卡，只用于 analysis 把质心放到支撑面上方；不参与渲染。至少要给 h 或 r。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "w": { "type": "number", "exclusiveMinimum": 0 },
+        "h": { "type": "number", "exclusiveMinimum": 0 },
+        "r": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "anyOf": [{ "required": ["h"] }, { "required": ["r"] }]
     }
   },
   "allOf": [
@@ -67,7 +106,9 @@
         "properties": {
           "constant": { "const": true },
           "elements": { "maxItems": 0 },
-          "scenes": { "maxItems": 0 }
+          "scenes": { "maxItems": 0 },
+          "size": { "not": {} },
+          "physical": { "not": {} }
         }
       }
     }

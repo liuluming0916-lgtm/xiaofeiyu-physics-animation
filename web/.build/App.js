@@ -8,12 +8,13 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * ⚠ v1.1.9alpha 起：规则页与蒸馏页删除，设置页合并提示词卡 / 本地规则卡 / 知识卡 / AI 帮写。
  *   导航只剩 解题 / 动画 / 设置 / 导出；端点与 Key 走右上角「⚙ 连接设置」。
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AnimationPage } from './pages/AnimationPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SettingsPage } from './pages/SettingsPage';
 import { SolvePage } from './pages/SolvePage';
 import { requestExport } from './lib/export-bus';
+import { useRun } from './hooks/useRun';
 import { useApp } from './state/store';
 /**
  * 第 8 期：**发布构建开关**（用户 2026-10-17 裁决）。
@@ -27,6 +28,38 @@ import { useApp } from './state/store';
 const RELEASE = __OD_RELEASE__;
 export function App() {
     const [page, setPage] = useState('solve');
+    /**
+     * ── v1.1.18：运行器挂在 App 级，而不是解题页 ──
+     *
+     * 用户裁决（B+1）：跑到一半切到设置页/动画页，解题应该**继续跑**。
+     * 旧实现把 `useRun` 放在 `SolvePage` 里，页面一卸载就 `cancel()`；
+     * 服务端随后发的 `cancelled/run_done` 没人接收，回来时按钮还卡在“生成中”。
+     *
+     * 挂到 App 级后，只有整个应用卸载（关窗口）才会取消；页面切换不影响流。
+     */
+    const { start, cancel } = useRun();
+    /**
+     * 动画页“手动打回”：
+     *   · 当前只开放“从 solve 重跑”（沿用上一版读题/判定）；
+     *   · 先 acknowledge，避免旧警告弹窗在新一轮里又弹；
+     *   · 运行器在 App 级，所以页面不用卸载。
+     */
+    const manualRetry = useCallback((mode) => {
+        const st = useApp.getState();
+        if (!st.programSlots)
+            return;
+        if (mode === 'draw' && !st.run.analysisText)
+            return;
+        st.acknowledgeWarning();
+        void start({
+            source: 'server',
+            startAt: mode,
+            baseReadProblem: st.run.readProblemText,
+            ...(mode === 'draw'
+                ? { baseSlots: st.programSlots, baseAnalysisText: st.run.analysisText }
+                : {}),
+        });
+    }, [start]);
     const programSlots = useApp((s) => s.programSlots);
     const running = useApp((s) => s.run.running);
     const verdict = useApp((s) => s.run.verdict);
@@ -67,9 +100,9 @@ export function App() {
                                                             return;
                                                         setPage('animation');
                                                         requestExport('gif');
-                                                    }, children: ["\u5BFC\u51FA GIF", _jsx("span", { className: "block text-[11px] text-slate-500", children: "25 fps / 960\u00D7540\uFF0C\u4E0D\u542B\u66F2\u7EBF\u56FE" })] })] })] })] })] }) }), !RELEASE && (_jsx("div", { className: "border-b border-amber-200 bg-amber-50", children: _jsxs("div", { className: "mx-auto max-w-[1400px] px-6 py-2 text-xs text-amber-900", children: ["\u89E3\u9898/\u52A8\u753B\u4E24\u9875\u4ECD\u7136\u8DD1\u7684\u662F", _jsx("strong", { children: "\u6F14\u793A\u6E90" }), "\uFF08\u4E0D\u8C03\u6A21\u578B\u3001\u7528\u672C\u5730\u771F\u9898\u9A71\u52A8\u754C\u9762\uFF09\uFF0C\u5224\u5B9A\u663E\u793A\u4E3A", _jsx("strong", { children: "\u300C\u672A\u6821\u9A8C\u300D" }), "\u3002\u771F\u6B63\u80FD", _jsx("strong", { children: "\u6539\u914D\u7F6E" }), "\u7684\u662F", _jsx("strong", { children: "\u300C\u8BBE\u7F6E\u300D" }), "\u9875 \u2014\u2014 \u5B83\u9700\u8981\u4E00\u4E2A\u672C\u673A\u670D\u52A1\uFF08\u7528 ", _jsx("code", { className: "rounded bg-amber-100 px-1", children: "3-OpenRules.bat" }), " \u6253\u5F00\u624D\u53EF\u7528\uFF09\u3002", verdict === 'skipped' && _jsx("span", { className: "ml-1 font-medium", children: "\uFF08\u5F53\u524D\u8FD9\u4EFD\u7ED3\u679C\u5C31\u672A\u7ECF\u8FC7\u6821\u9A8C\uFF09" })] }) })), _jsx("main", { className: "mx-auto max-w-[1400px] px-6 py-6", children: _jsx(ErrorBoundary, { label: page === 'solve' ? '解题' : page === 'animation' ? '动画' : '设置', children: page === 'solve' ? (_jsx(SolvePage, { onOpenAnimation: () => setPage('animation') })) : page === 'animation' ? (_jsx(AnimationPage, {})) : page === 'settings' ? (_jsx(SettingsPage, {})) : (
+                                                    }, children: ["\u5BFC\u51FA GIF", _jsx("span", { className: "block text-[11px] text-slate-500", children: "25 fps / 960\u00D7540\uFF0C\u4E0D\u542B\u66F2\u7EBF\u56FE" })] })] })] })] })] }) }), !RELEASE && (_jsx("div", { className: "border-b border-amber-200 bg-amber-50", children: _jsxs("div", { className: "mx-auto max-w-[1400px] px-6 py-2 text-xs text-amber-900", children: ["\u89E3\u9898/\u52A8\u753B\u4E24\u9875\u4ECD\u7136\u8DD1\u7684\u662F", _jsx("strong", { children: "\u6F14\u793A\u6E90" }), "\uFF08\u4E0D\u8C03\u6A21\u578B\u3001\u7528\u672C\u5730\u771F\u9898\u9A71\u52A8\u754C\u9762\uFF09\uFF0C\u5224\u5B9A\u663E\u793A\u4E3A", _jsx("strong", { children: "\u300C\u672A\u6821\u9A8C\u300D" }), "\u3002\u771F\u6B63\u80FD", _jsx("strong", { children: "\u6539\u914D\u7F6E" }), "\u7684\u662F", _jsx("strong", { children: "\u300C\u8BBE\u7F6E\u300D" }), "\u9875 \u2014\u2014 \u5B83\u9700\u8981\u4E00\u4E2A\u672C\u673A\u670D\u52A1\uFF08\u7528 ", _jsx("code", { className: "rounded bg-amber-100 px-1", children: "3-OpenRules.bat" }), " \u6253\u5F00\u624D\u53EF\u7528\uFF09\u3002", verdict === 'skipped' && _jsx("span", { className: "ml-1 font-medium", children: "\uFF08\u5F53\u524D\u8FD9\u4EFD\u7ED3\u679C\u5C31\u672A\u7ECF\u8FC7\u6821\u9A8C\uFF09" })] }) })), _jsx("main", { className: "mx-auto max-w-[1400px] px-6 py-6", children: _jsx(ErrorBoundary, { label: page === 'solve' ? '解题' : page === 'animation' ? '动画' : '设置', children: page === 'solve' ? (_jsx(SolvePage, { onOpenAnimation: () => setPage('animation'), runStart: start, runCancel: cancel })) : page === 'animation' ? (_jsx(AnimationPage, { onManualRetry: manualRetry })) : page === 'settings' ? (_jsx(SettingsPage, {})) : (
                     /* 未知页码（理论上到不了）也退回解题页，不白屏 */
-                    _jsx(SolvePage, { onOpenAnimation: () => setPage('animation') })) }, page) }), !RELEASE && (_jsx("footer", { className: "mx-auto max-w-[1400px] px-6 pb-8 text-xs text-slate-400", children: "\u5F00\u53D1\u6784\u5EFA \u00B7 \u4F9D\u636E\u300A\u7269\u7406\u89E3\u9898\u52A8\u753B\u8F6F\u4EF6\u81EA\u7814\u65B9\u6848\u300B\u00A715 / \u00A713 / \u00A79\uFF1B\u534F\u8BAE\u89C1 contracts/host-protocol.md\u3002" }))] }));
+                    _jsx(SolvePage, { onOpenAnimation: () => setPage('animation'), runStart: start, runCancel: cancel })) }, page) }), !RELEASE && (_jsx("footer", { className: "mx-auto max-w-[1400px] px-6 pb-8 text-xs text-slate-400", children: "\u5F00\u53D1\u6784\u5EFA \u00B7 \u4F9D\u636E\u300A\u7269\u7406\u89E3\u9898\u52A8\u753B\u8F6F\u4EF6\u81EA\u7814\u65B9\u6848\u300B\u00A715 / \u00A713 / \u00A79\uFF1B\u534F\u8BAE\u89C1 contracts/host-protocol.md\u3002" }))] }));
 }
 function NavButton({ active, disabled, onClick, children, title, }) {
     return (_jsx("button", { type: "button", disabled: disabled, onClick: onClick, title: title, "aria-current": active ? 'page' : undefined, className: `rounded-md px-3 py-1.5 font-sans text-sm font-normal ${active ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'} ${disabled ? 'cursor-not-allowed text-slate-300 hover:bg-transparent' : ''}`, children: children }));

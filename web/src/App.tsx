@@ -8,13 +8,14 @@
  *   导航只剩 解题 / 动画 / 设置 / 导出；端点与 Key 走右上角「⚙ 连接设置」。
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { AnimationPage } from './pages/AnimationPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { SettingsPage } from './pages/SettingsPage'
 import { SolvePage } from './pages/SolvePage'
 import { requestExport } from './lib/export-bus'
+import { useRun } from './hooks/useRun'
 import { useApp } from './state/store'
 
 type Page = 'solve' | 'animation' | 'settings'
@@ -32,6 +33,39 @@ const RELEASE = __OD_RELEASE__
 
 export function App() {
   const [page, setPage] = useState<Page>('solve')
+  /**
+   * ── v1.1.18：运行器挂在 App 级，而不是解题页 ──
+   *
+   * 用户裁决（B+1）：跑到一半切到设置页/动画页，解题应该**继续跑**。
+   * 旧实现把 `useRun` 放在 `SolvePage` 里，页面一卸载就 `cancel()`；
+   * 服务端随后发的 `cancelled/run_done` 没人接收，回来时按钮还卡在“生成中”。
+   *
+   * 挂到 App 级后，只有整个应用卸载（关窗口）才会取消；页面切换不影响流。
+   */
+  const { start, cancel } = useRun()
+  /**
+   * 动画页“手动打回”：
+   *   · 当前只开放“从 solve 重跑”（沿用上一版读题/判定）；
+   *   · 先 acknowledge，避免旧警告弹窗在新一轮里又弹；
+   *   · 运行器在 App 级，所以页面不用卸载。
+   */
+  const manualRetry = useCallback(
+    (mode: 'solve' | 'draw') => {
+      const st = useApp.getState()
+      if (!st.programSlots) return
+      if (mode === 'draw' && !st.run.analysisText) return
+      st.acknowledgeWarning()
+      void start({
+        source: 'server',
+        startAt: mode,
+        baseReadProblem: st.run.readProblemText,
+        ...(mode === 'draw'
+          ? { baseSlots: st.programSlots as unknown as Record<string, string>, baseAnalysisText: st.run.analysisText }
+          : {}),
+      })
+    },
+    [start],
+  )
   const programSlots = useApp((s) => s.programSlots)
   const running = useApp((s) => s.run.running)
   const verdict = useApp((s) => s.run.verdict)
@@ -161,14 +195,13 @@ export function App() {
           label={page === 'solve' ? '解题' : page === 'animation' ? '动画' : '设置'}
         >
           {page === 'solve' ? (
-            <SolvePage onOpenAnimation={() => setPage('animation')} />
+            <SolvePage onOpenAnimation={() => setPage('animation')} runStart={start} runCancel={cancel} />
           ) : page === 'animation' ? (
-            <AnimationPage />
-          ) : page === 'settings' ? (
+            <AnimationPage onManualRetry={manualRetry} />          ) : page === 'settings' ? (
             <SettingsPage />
           ) : (
             /* 未知页码（理论上到不了）也退回解题页，不白屏 */
-            <SolvePage onOpenAnimation={() => setPage('animation')} />
+            <SolvePage onOpenAnimation={() => setPage('animation')} runStart={start} runCancel={cancel} />
           )}
         </ErrorBoundary>
       </main>

@@ -13,7 +13,7 @@
  *   · STEPS 只留 title / tex（v6；时间轴由 analysis 负责，C5/C6 改读 analysis）。
  */
 
-import { centerOffset, geometryFields } from './geometry.mjs';
+import { builtinSizeTable, geometryFields } from './geometry.mjs';
 import { computeStageFrame, stageOfAnalysis } from '../stage/frame.mjs';
 
 /**
@@ -181,7 +181,9 @@ function stageOf(analysis) {
     vCenter: base.frame.v1 / 2,
   };
 }
-export function buildStateAt(analysis) {
+export function buildStateAt(analysis, opts = {}) {
+  /* B1：尺寸只来自卡。默认内置卡表；流水线传本题快照的卡表（用户改 w 立即生效）。 */
+  const sizes = opts.sizes ?? builtinSizeTable().sizes;
   const lines = ['// 由 analysis 运动表生成；不要手改', 'const state = {};'];
   /* 舞台：由**物理分析表**估世界框 → 折成 10×6 布局纸（相机之后固定拍这张纸）。 */
   const stage = stageOf(analysis);
@@ -214,23 +216,19 @@ export function buildStateAt(analysis) {
       .join('');
     lines.push(`else { x${i} = ${lx}; y${i} = ${ly};${lastExtra} }`);
 
-    /* ── 舞台（2026-10-23 A 方案）──
-     * `x/y` 仍是物理米（读数、C10 用）；`u/v` 是本元件的**布局坐标**（10×6 纸上的位置）。
-     * `cx/cy` 从此是布局坐标（= u/v + 视觉几何表里的偏移，偏移也是布局单位），
-     * 所以同一元件在任何量级的题里屏幕尺寸都一样 —— 这就是"元件不会过小/过大"。 */
+    /* ── 舞台（2026-10-23 A 方案；B2/B3 质心化）──
+     * `x/y` 是**物理质心**（读数、C10 用）；`u/v` 是质心在 10×6 纸上的位置。
+     * B3：不再做“接触点 → 视觉中心”的偏移 —— 质心即中心，`cx/cy` 就是 `u/v`。 */
     const uExpr = `${fmt(stage.uCenter)} + (x${i} - ${fmt(stage.cx)}) * ${fmt(stage.s)}`;
     const vExpr = `${fmt(stage.vCenter)} + (y${i} - ${fmt(stage.cy)}) * ${fmt(stage.s)}`;
-    const { dx, dy } = centerOffset(type);
-    const cx = dx === 0 ? `u${i}` : `u${i} + ${fmt(dx)}`;
-    const cy = dy === 0 ? `v${i}` : `v${i} + ${fmt(dy)}`;
     lines.push(`const u${i} = ${uExpr};`);
     lines.push(`const v${i} = ${vExpr};`);
-    const fields = Object.entries(geometryFields(type))
+    const fields = Object.entries(geometryFields(sizes, type))
       .map(([k, v2]) => `${k}: ${fmt(v2)}`)
       .join(', ');
     const extras = extraKeys.map((k) => `${k}: ${k}${i}`).join(', ');
     lines.push(
-      `state.${key} = { x: x${i}, y: y${i}, u: u${i}, v: v${i}, type: ${JSON.stringify(type)}, cx: ${cx}, cy: ${cy}` +
+      `state.${key} = { x: x${i}, y: y${i}, u: u${i}, v: v${i}, type: ${JSON.stringify(type)}, cx: u${i}, cy: v${i}` +
         (fields ? `, ${fields}` : '') +
         (extras ? `, ${extras}` : '') +
         ' };',
@@ -309,9 +307,10 @@ function stripCodeFence(s) {
  * @param {string} input.problem
  * @param {string} [input.breakdownText]
  * @param {string} input.drawFrame  AI 写的 drawFrame 函数体
+ * @param {Record<string, object>} [input.sizes] 本题卡表派生的尺寸（缺省用内置卡表）
  * @returns {Record<string,string>}
  */
-export function generateProgramSlots({ analysis, problem, breakdownText, drawFrame }) {
+export function generateProgramSlots({ analysis, problem, breakdownText, drawFrame, sizes }) {
   const tPhys = analysis?.tPhys;
   if (!(typeof tPhys === 'number' && Number.isFinite(tPhys) && tPhys > 0)) {
     throw new Error('analysis 缺少有效的 T_phys，无法生成动画程序');
@@ -324,7 +323,7 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
     ANSWERS: '',
     VIEW: buildView(analysis, tPhys),
     setup: `const T_PHYS = ${fmt(tPhys)};`,
-    stateAt: buildStateAt(analysis),
+    stateAt: buildStateAt(analysis, { sizes }),
     drawFrame: stripCodeFence(drawFrame),
     readouts: buildReadouts(analysis, tPhys),
   };

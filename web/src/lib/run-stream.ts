@@ -144,6 +144,10 @@ export type RunEvent =
       type: 'coupling_done'
       at: string
       stepTimes: Array<{ step: number; t0: number; t1: number }>
+      /** v1.1.17：换算到显示秒的步骤时间（每小问 4 s） */
+      displayStepTimes?: Array<{ step: number; sub: number; t0: number; t1: number }> | null
+      timeMap?: Array<{ sub: number; p0: number; p1: number; d0: number; d1: number }> | null
+      displayDuration?: number | null
       fallback?: boolean
       warning?: string | null
       attempts?: number
@@ -161,7 +165,13 @@ export type RunEvent =
       banner?: RepairBanner | null
       delivery?: { playable: boolean; mode: string; missing: string[] }
       stepTimes?: Array<{ step: number; t0: number; t1: number }> | null
+      displayStepTimes?: Array<{ step: number; sub: number; t0: number; t1: number }> | null
+      timeMap?: Array<{ sub: number; p0: number; p1: number; d0: number; d1: number }> | null
+      displayDuration?: number | null
       coupling?: { stepTimes: Array<{ step: number; t0: number; t1: number }>; fallback: boolean; warning: string | null; attempts: number } | null
+      /** v1.1.18 手动打回：原始读题/分析（不是 8 槽位的一部分） */
+      readProblemText?: string | null
+      analysisText?: string | null
     }
 
 /** 世界书依据（第 5 期 · §9.2 第 6 步 / §15 的"世界书依据"面板） */
@@ -269,6 +279,11 @@ export interface RunInput {
   devMode?: boolean
   /** 演示源用的真题（id 对应 `tests/regression-15/`） */
   demoQuestionId?: string
+  /** v1.1.18 手动打回：从 solve 重跑 / 只重画 drawFrame */
+  startAt?: 'solve' | 'draw'
+  baseReadProblem?: string | null
+  analysisText?: string | null
+  slots?: Record<string, string> | null
 }
 
 export interface RunHandle {
@@ -531,6 +546,11 @@ export function serverEventSource(baseURL: string, input: RunInput): RunHandle {
           : {}),
         mode: input.mode,
         devMode: input.devMode === true,
+        ...(input.startAt ? { startAt: input.startAt } : {}),
+        ...(input.startAt ? { baseReadProblem: input.baseReadProblem ?? null } : {}),
+        ...(input.startAt === 'draw'
+          ? { analysisText: input.analysisText ?? null, slots: input.slots ?? null }
+          : {}),
       }),
       signal: ac.signal,
     })

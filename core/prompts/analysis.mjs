@@ -45,7 +45,8 @@ export const ANALYSIS_INSTRUCTION = [
   '每个元件按它自己的受力情况变化点分段，每段一条记录，记录之间空一行：',
   '',
   'element: 元件标识（同一元件多段保持一致）',
-  'type: 该元件的词表 id（如 block / ball / board / spring / conductor_rod / light_rod）；同一元件多段保持一致；拿不准写 unknown',
+  'type: 该元件的词表 id（如 block / ball / board / conductor_rod / light_rod / piston / mercury）；',
+  '      同一元件多段保持一致；**必须是词表 id，不允许 unknown 或自造名**（对不上会被判失败）',
   'segment: 段序号，从 1 开始的自然数',
   't0: 本段起始时刻，以秒为单位',
   't1: 本段结束时刻，以秒为单位',
@@ -53,6 +54,12 @@ export const ANALYSIS_INSTRUCTION = [
   'x: 水平位置关于 t 的函数表达',
   'y: 竖直位置关于 t 的函数表达',
   'note: 本段物理过程说明',
+  '',
+  '【质心口径（硬性要求，B 阶段）】',
+  '· `x / y` 写的是该元件的**质心**，不是接触点/参考点。',
+  '· 质心高度 = 支撑面高度 + `physical.h/2`；球用 `physical.r`（例如物块 physical.h=0.1，放在 y=0 的带面上，则 y0=0.05）。',
+  '· 真实尺寸表在 user 消息里（**只读**）：只用来把质心放对，**不得写进输出**。',
+  '· 不要输出 `w / h / r / pointR / size / physical` 字段（出现会被判失败；尺寸只来自元件卡）。',
   '',
   '【更好的标准建模方式，硬性要求】',
   '1. 坐标系：以核心运动起点或题目自然原点为 (0, 0)，x 向右为正，y 向上为正，单位米。',
@@ -92,9 +99,19 @@ export const ANALYSIS_INSTRUCTION = [
  * ⚠ 用户 2026-10-22 裁决：`breakdown` **不进** analysis。
  *   只给题面、读题几何、解题过程；避免把“教学步骤”误当运动阶段。
  *
- * @param {{ problem: string, readProblem?: string, solution: string }} input
+ * B2：再加一段**只读** `physical` 表（物理米），让模型把质心放到支撑面上方。
+ *
+ * @param {{ problem: string, readProblem?: string, solution: string, physicalTable?: Record<string, {w?:number,h?:number,r?:number}>|null }} input
  */
-export function buildAnalysisUser({ problem, readProblem, solution } = {}) {
+export function buildAnalysisUser({ problem, readProblem, solution, physicalTable } = {}) {
+  const dims = (p) => {
+    const parts = [];
+    if (Number.isFinite(p?.w)) parts.push(`w=${p.w}`);
+    if (Number.isFinite(p?.h)) parts.push(`h=${p.h}`);
+    if (Number.isFinite(p?.r)) parts.push(`r=${p.r}`);
+    return parts.join('、');
+  };
+  const rows = Object.entries(physicalTable ?? {}).filter(([, p]) => dims(p));
   return [
     '【题目】',
     problem ?? '',
@@ -105,6 +122,13 @@ export function buildAnalysisUser({ problem, readProblem, solution } = {}) {
           String(readProblem).trim(),
           '',
           '坐标与摆放以这段几何为准：谁在左/右、哪一端高、绳/杆怎么走。',
+          '',
+        ]
+      : []),
+    ...(rows.length
+      ? [
+          '【元件真实尺寸（只读；单位米；只用来把质心放到支撑面上方，不能写进输出）】',
+          ...rows.map(([type, p]) => `- ${type}：${dims(p)}`),
           '',
         ]
       : []),

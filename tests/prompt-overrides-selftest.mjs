@@ -82,7 +82,7 @@ function endpoint() {
 }
 
 const STAGE_LABELS = [
-  ['读题与判定', 'read_problem'],
+  ['读题', 'read_problem'],
   ['解题', 'solve'],
   ['答案讲解', 'breakdown'],
   ['物理分析', 'analysis'],
@@ -136,17 +136,17 @@ async function main() {
       const dir = freshDir();
       const cat = listPromptCatalog({ dir });
       check('目录可读', cat.ok === true, JSON.stringify(cat.problems));
-      check('共 8 项（读题 v2 / 读题 v1 / 解题 / 分步 / 分析 / 动画 / 耦合 / 修复）', cat.items.length === 8, String(cat.items.length));
+      check('共 7 项（读题 / 解题 / 分步 / 分析 / 动画 / 耦合 / 修复；v1 读题已退役）', cat.items.length === 7, String(cat.items.length));
 
       const byGroup = (g) => cat.items.filter((i) => i.group === g).map((i) => i.id);
-      check('「每道题都会跑」恰好 7 份', byGroup('always').length === 7, byGroup('always').join(','));
-      check('其中含 read_problem 与 read_problem_v2（v2 是默认读题，v1 只留给旧配置）', byGroup('always').includes('read_problem') && byGroup('always').includes('read_problem_v2'));
+      check('「每道题都会跑」恰好 6 份', byGroup('always').length === 6, byGroup('always').join(','));
+      check('其中含 read_problem_v2（v2 是唯一读题；v1 已退役）', byGroup('always').includes('read_problem_v2') && !byGroup('always').includes('read_problem'));
       check('其中含 couple（交付前必跑的模型阶段）', byGroup('always').includes('couple'));
       check('「只在特定情况下跑」恰好 1 份（repair）', byGroup('conditional').join(',') === 'repair');
       check('没有「还没接上主链路」分组（knowledgecard / distill 已删除）', byGroup('not-wired').length === 0, byGroup('not-wired').join(','));
       check('没有「嵌在别的 Prompt 里」分组（答案结构模板已随 ANSWERS 删除）', byGroup('embedded').length === 0, byGroup('embedded').join(','));
 
-      check('read_problem 与 read_problem_v2 都被标为高风险', cat.items.find((i) => i.id === 'read_problem').risk === 'high' && cat.items.find((i) => i.id === 'read_problem_v2').risk === 'high');
+      check('read_problem_v2 被标为高风险', cat.items.find((i) => i.id === 'read_problem_v2').risk === 'high');
       check('solve 是普通风险', cat.items.find((i) => i.id === 'solve').risk === 'normal');
 
       const solve = cat.items.find((i) => i.id === 'solve');
@@ -157,7 +157,7 @@ async function main() {
       // 分组口径从阶段清单派生，但 v6 额外补了 read_problem_v2 与 couple
       check('分组里含 read_problem_v2 / couple / repair', ['read_problem_v2', 'couple', 'repair'].every((id) => PROMPT_SECTORS.always.ids.includes(id) || PROMPT_SECTORS.conditional.ids.includes(id)));
       check('editablePromptIds 没有重复', new Set(editablePromptIds()).size === editablePromptIds().length);
-      check('editablePromptIds 共 8 个', editablePromptIds().length === 8, String(editablePromptIds().length));
+      check('editablePromptIds 共 7 个', editablePromptIds().length === 7, String(editablePromptIds().length));
     }
 
     /* ────────────────────────────── 『B』保存与打开 ────────────────────────────── */
@@ -212,10 +212,9 @@ async function main() {
       check('删掉【判定依据】⇒ 允许保存（只有警告）', r3.ok === true);
       check('★ 但必须回报警告（不许静默）', has(r3.warnings, 'prompt.missing-token'));
 
-      // v1 读题仍保留硬门禁（旧配置下才会跑）
-      const v1 = builtinPromptText('read_problem');
-      const r4 = savePromptOverride({ dir, id: 'read_problem', text: v1.replace('【动画元件】', '') });
-      check('v1 read_problem 删掉【动画元件】⇒ 拒绝保存', r4.ok === false && has(r4.issues, 'prompt.missing-required-token'));
+      // v1 读题已退役：连“保存”入口都不应该存在
+      const r4 = savePromptOverride({ dir, id: 'read_problem', text: builtinPromptText('read_problem') });
+      check('v1 read_problem 已退役 ⇒ 保存入口拒绝（unknown-id）', r4.ok === false && has(r4.issues, 'prompt.unknown-id'));
     }
 
     /* ────────────────────────────── 『D』软警告 ────────────────────────────── */
@@ -335,7 +334,7 @@ async function main() {
       const sysTexts = stream.calls.map((c) => String(c.messages?.[0]?.content ?? ''));
       check('★ 发给模型的 system 消息里出现了我的覆盖正文', sysTexts.some((s) => s.includes(OVERRIDE)));
       check('★ 且仍然带着阶段标签（否则编排认不出阶段）', sysTexts.some((s) => s.includes(OVERRIDE) && s.includes('【本阶段指令：解题】')));
-      check('★ 没有覆盖的阶段仍用内置正文（read_problem）', sysTexts.some((s) => s.includes('现在执行【读题与判定】阶段')));
+      check('★ 没有覆盖的阶段仍用内置正文（read_problem_v2）', sysTexts.some((s) => s.includes('现在执行【读题】阶段')));
 
       // 不传规则快照 ⇒ 与第 6 期之前完全一致
       const stream2 = fakeStream({ scene_code: GOOD_DRAW });

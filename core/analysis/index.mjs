@@ -17,11 +17,16 @@ export {
 export { ANALYSIS_EXAMPLE } from './example.mjs';
 
 export {
-  ELEMENT_GEOMETRY_PATH,
-  loadElementGeometry,
+  PHYSICAL_REQUIRED_TYPES,
+  builtinSizeTable,
+  builtinPhysicalTable,
+  builtinCardEntries,
+  sizeTableFromCards,
+  sizeTableFromEntries,
+  physicalTableFromCards,
+  physicalTableFromEntries,
   geometryFor,
   geometryFields,
-  centerOffset,
 } from './geometry.mjs';
 
 export {

@@ -108,10 +108,6 @@ const STEPS = [
     'tests/repair-selftest.mjs',
   ],
   [
-    '㉒ 知识卡取证（第 5 期 §9.2 六步 / §9.3 治理 / §9.5 导入导出 · W1–W15 + 逐字节一致）',
-    'tests/knowledgecard-selftest.mjs',
-  ],
-  [
     '㉓ 规则工作区取证（第 6 期 §16：SHA256 / 整批失败 / 冲突拒绝 / 写盘回滚 / 热重载快照）',
     'tests/rules-selftest.mjs',
   ],
@@ -166,10 +162,6 @@ const STEPS = [
   [
     '㊳ 发布构建开关取证（第 8 期：`OD_RELEASE=1` 时规则页/蒸馏页在产物里不存在、设置页在；含开发构建负对照与发布产物真跑）',
     'tests/release-switch-selftest.mjs',
-  ],
-  [
-    '㊴ 内置知识层封死取证（第 8 期：只封发行产物 —— 本地仍读可编辑文件 / 打包读编译常量 / 用户层永远是磁盘）',
-    'tests/builtin-seal-selftest.mjs',
   ],
   [
     '㊵ 矢量按类归一取证（第 8 期：同类长度比 == 量级比 / 跨类不混 / 力>速度>加速度 / 极小画点 / 包络同口径）',

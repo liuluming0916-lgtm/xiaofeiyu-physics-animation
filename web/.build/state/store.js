@@ -33,6 +33,9 @@ const EMPTY_RUN = {
     knowledgecard: null,
     error: null,
     elapsedMs: 0,
+    readProblemText: null,
+    analysisText: null,
+    warningAcknowledged: false,
 };
 export const useApp = create((set) => ({
     problemText: '',
@@ -50,7 +53,13 @@ export const useApp = create((set) => ({
     programTitle: '',
     programLabelAvoid: null,
     programStepTimes: null,
+    programDisplayStepTimes: null,
+    programTimeMap: null,
+    programDisplayDuration: null,
     templateReady: false,
+    programVersions: [],
+    programVersionIndex: -1,
+    programEpoch: 0,
     playing: false,
     t: 0,
     duration: 0,
@@ -75,7 +84,7 @@ export const useApp = create((set) => ({
         set({ devMode: on });
     },
     /** ⚠ 第 8 期：没有 setMode 了（数值/符号按条目走，界面上不再有开关） */
-    startRun: (source, entry, model, stages) => set({
+    startRun: (source, entry, model, stages, preserveVersions = false, preserveTiming = false) => set((st) => ({
         run: {
             ...EMPTY_RUN,
             running: true,
@@ -87,10 +96,17 @@ export const useApp = create((set) => ({
         },
         // 新一轮开始就清掉上一轮的动画（避免把旧动画当新结果看）
         programSlots: null,
-        programStepTimes: null,
+        programStepTimes: preserveTiming ? st.programStepTimes : null,
+        programDisplayStepTimes: preserveTiming ? st.programDisplayStepTimes : null,
+        programTimeMap: preserveTiming ? st.programTimeMap : null,
+        programDisplayDuration: preserveTiming ? st.programDisplayDuration : null,
         templateReady: false,
         templateError: null,
-    }),
+        /** 手动打回保留旧版本；正常开新题清空历史 */
+        programVersions: preserveVersions ? st.programVersions : [],
+        programVersionIndex: preserveVersions ? st.programVersionIndex : -1,
+        programEpoch: st.programEpoch + 1,
+    })),
     applyEvent: (e) => set((st) => {
         const run = {
             ...st.run,
@@ -175,6 +191,14 @@ export const useApp = create((set) => ({
                 run.extensions = e.extensions;
                 run.diagnostics = e.diagnostics;
                 /**
+                 * v1.1.17 修：`dry_run` 的完成信号本来就是 `dryrun_done`（协议约定），
+                 * 旧代码却没把 stageStatus 从 running 改掉 ⇒ 校验没过、进入 repair 时，
+                 * 前端仍认为 dry_run 在跑，小肥鱼会永远停在“校验中”（用户实测）。
+                 * 这里在拿到报告后收尾；若已经因组装失败标了 error，不覆盖。
+                 */
+                if (run.stageStatus.dry_run !== 'error')
+                    run.stageStatus.dry_run = 'done';
+                /**
                  * 第 8 期：**开发模式（不拦截）**。
                  * 这里只记"放行了哪几条"；界面必须显著提示（否则就成了看不见的绿灯）。
                  * 同时把整份报告存进 localStorage（用户要求："在本地网页中保存它认为错误的部分"）。
@@ -209,14 +233,43 @@ export const useApp = create((set) => ({
                         for (const [k, v] of Object.entries(slots)) {
                             trimmed[k] = String(v).replace(/^\n+/, '').replace(/\n+$/, '');
                         }
+                        const normalized = trimmed;
+                        /**
+                         * v1.1.18：每份程序（首画 + 每轮修复）都进版本历史。
+                         * 同一份内容重复推送时不重复记（自愈偶尔会 same payload 再推一次）。
+                         */
+                        const last = st.programVersions[st.programVersions.length - 1];
+                        const same = last !== undefined && JSON.stringify(last.slots) === JSON.stringify(normalized);
+                        const versions = same
+                            ? st.programVersions
+                            : [
+                                ...st.programVersions,
+                                {
+                                    id: (last?.id ?? 0) + 1,
+                                    at: new Date().toISOString(),
+                                    slots: normalized,
+                                    mode: payload.mode,
+                                    verdict: e.verdict ?? null,
+                                    checks: (e.checks ?? []).map((c) => ({
+                                        id: c.id,
+                                        status: c.status,
+                                        blocking: c.blocking,
+                                        message: c.message,
+                                    })),
+                                    source: e.round != null ? 'repair' : 'run',
+                                },
+                            ].slice(-8);
                         set({
-                            programSlots: trimmed,
+                            programSlots: normalized,
                             programMode: payload.mode,
                             programTitle: run.entry,
                             /* C2：避让表随 program 一起走；没有就是 null（播放器照常工作） */
                             programLabelAvoid: e.labelAvoid ?? null,
                             templateReady: false,
                             templateError: null,
+                            programVersions: versions,
+                            programVersionIndex: same ? st.programVersionIndex : versions.length - 1,
+                            programEpoch: same ? st.programEpoch : st.programEpoch + 1,
                         });
                     }
                 }
@@ -226,7 +279,12 @@ export const useApp = create((set) => ({
                 run.verdictNote = '已被用户取消';
                 break;
             case 'coupling_done':
-                set({ programStepTimes: Array.isArray(e.stepTimes) ? e.stepTimes : null });
+                set({
+                    programStepTimes: Array.isArray(e.stepTimes) ? e.stepTimes : null,
+                    programDisplayStepTimes: Array.isArray(e.displayStepTimes) ? e.displayStepTimes : null,
+                    programTimeMap: Array.isArray(e.timeMap) ? e.timeMap : null,
+                    programDisplayDuration: typeof e.displayDuration === 'number' && Number.isFinite(e.displayDuration) ? e.displayDuration : null,
+                });
                 if (e.fallback)
                     run.verdictNote = `步骤耦合回退：${e.warning ?? '已按比例分配'}`;
                 break;
@@ -241,14 +299,51 @@ export const useApp = create((set) => ({
                     run.delivery = e.delivery;
                 if (!run.verdict)
                     run.verdict = e.verdict ?? null;
-                if (e.stepTimes)
-                    set({ programStepTimes: e.stepTimes });
+                if (e.readProblemText)
+                    run.readProblemText = e.readProblemText;
+                if (e.analysisText)
+                    run.analysisText = e.analysisText;
+                if (e.stepTimes || e.displayStepTimes || e.timeMap || typeof e.displayDuration === 'number') {
+                    set({
+                        ...(e.stepTimes ? { programStepTimes: e.stepTimes } : {}),
+                        ...(e.displayStepTimes ? { programDisplayStepTimes: e.displayStepTimes } : {}),
+                        ...(e.timeMap ? { programTimeMap: e.timeMap } : {}),
+                        ...(typeof e.displayDuration === 'number' ? { programDisplayDuration: e.displayDuration } : {}),
+                    });
+                }
                 break;
         }
         return { run };
     }),
     failRun: (message) => set((st) => ({ run: { ...st.run, running: false, error: { stage: 'client', kind: 'client', message } } })),
-    loadProgram: (slots, mode, title) => set({ programSlots: slots, programMode: mode, programTitle: title, templateReady: false, templateError: null }),
+    acknowledgeWarning: () => set((st) => ({ run: { ...st.run, warningAcknowledged: true } })),
+    rollbackProgram: (index) => set((st) => {
+        const v = st.programVersions[index];
+        if (!v)
+            return {};
+        return {
+            programSlots: v.slots,
+            programMode: v.mode,
+            programTitle: st.run.entry,
+            programVersionIndex: index,
+            programLabelAvoid: null,
+            templateReady: false,
+            templateError: null,
+            /** 换一份程序就换一个 iframe：模板“第一次注入即锁死”，不能复用旧 iframe */
+            programEpoch: st.programEpoch + 1,
+        };
+    }),
+    loadProgram: (slots, mode, title) => set({
+        programSlots: slots,
+        programMode: mode,
+        programTitle: title,
+        programStepTimes: null,
+        programDisplayStepTimes: null,
+        programTimeMap: null,
+        programDisplayDuration: null,
+        templateReady: false,
+        templateError: null,
+    }),
     setTemplateReady: (v) => set({ templateReady: v }),
     setTemplateError: (e) => set({ templateError: e }),
     setPlaying: (v) => set({ playing: v }),

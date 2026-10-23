@@ -122,6 +122,7 @@ import { EXPORT_DIR, exportPageToDisk, listExports, saveExportBinary } from '../
  * 之前前端有 `serverEventSource()`、服务端却没有 `/api/run` ⇒ 解题页只能跑演示源。
  */
 import { runPipeline } from '../core/orchestrator/pipeline.mjs';
+import { runManualDraw } from '../core/orchestrator/manual-draw.mjs';
 import { makeEvent, toSseFrame } from '../core/orchestrator/events.mjs';
 import { migrateLegacyUserDir } from '../core/knowledgecard/store.mjs';
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
@@ -511,6 +512,29 @@ export function createRulesService({
       console.warn(`[knowledgecard v2] 载入失败，退化为空卡集：${e?.message ?? e}`);
     }
 
+    /**
+     * ── 规则快照：**这一条是“设置页改了会生效”的唯一入口** ──
+     *
+     * `loadRulesWorkspace()` 把当前的提示词覆盖与本地清洗规则读成一份冻结快照。
+     * 流水线只认 `config.rulesSnapshot`；不传它，`getPrompt()` 就永远返回内置正文
+     * （设置页看起来保存成功，跑题时却完全没用上）。
+     *
+     * 为什么要在这里读、而不是让流水线自己读：
+     *   · 快照必须在“开始跑这道题”这一刻钉住；跑动中改配置只影响下一题；
+     *   · 读盘、校验、整批失败的口径都在 `core/rules` 里，编排层不该重复实现。
+     *
+     * 工作区坏了（`ok:false`）时**不硬拦解题**：这次退回内置正文，并在终端说明原因；
+     * 设置页的 `/api/status` 会把具体问题显示给用户。静默用坏规则比用内置更危险。
+     */
+    let rulesSnapshot = null;
+    try {
+      const rules = loadRulesWorkspace({ dir });
+      if (rules.ok && rules.snapshot) rulesSnapshot = rules.snapshot;
+      else if (!rules.ok) console.warn(`[rules] 规则工作区不可用，本题退回内置正文：${(rules.problems ?? []).slice(0, 3).join('；')}`);
+    } catch (e) {
+      console.warn(`[rules] 读取规则快照失败，本题退回内置正文：${e?.message ?? e}`);
+    }
+
     const config = {
       endpoint,
       apiKey,
@@ -519,6 +543,9 @@ export function createRulesService({
       knowledgecardEntries,
       knowledgecardVersion: 2,
       ...(knowledgecardVocab ? { knowledgecardVocab } : {}),
+      /* 每题一份：提示词覆盖 + 本地清洗规则都从这份快照进流水线 */
+      ...(rulesSnapshot ? { rulesSnapshot } : {}),
+      ...(body?.maxRepairRounds != null ? { maxRepairRounds: body.maxRepairRounds } : {}),
       /**
        * 第 8 期：**开发模式（不拦截）**。前端勾上后随 `/api/run` 传 `devMode:true`：
        * 校验照做、报告照写，但 C1–C9 不再拦住交付（也不跑自愈），
@@ -526,6 +553,18 @@ export function createRulesService({
        */
       devMode: body?.devMode === true,
     };
+
+    /* 手动“只重画 drawFrame”：必须带上上一版 8 槽位 + analysis 原文，否则 400 而不是跑一半 */
+    if (body?.startAt === 'draw') {
+      const slots = body?.slots;
+      if (!slots || typeof slots !== 'object' || typeof body?.analysisText !== 'string' || !body.analysisText.trim()) {
+        return sendJson(res, 400, {
+          ok: false,
+          code: 'run.manual-draw-context',
+          message: '只重画需要上一版 slots 与 analysisText；缺少时请改用“从解题重跑”',
+        });
+      }
+    }
 
     res.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
@@ -568,6 +607,9 @@ export function createRulesService({
       model: endpoint.defaultModel ?? null,
       endpoint: endpoint.displayName ?? endpoint.id ?? null,
       devMode: config.devMode === true,
+      /* v1.1.18：图片内嵌进日志（用户明确要求；不含 API Key） */
+      images,
+      referenceImages,
     });
 
     /**
@@ -603,17 +645,32 @@ export function createRulesService({
     };
 
     try {
-      const pipeline = runPipeline({
-        problem: { text: String(problem.text ?? ''), images },
-        images,
-        /* v1.1.16：没填解析就是 null ⇒ 流水线走旧提示词（行为与上一版逐字一致） */
-        ...(reference ? { reference } : {}),
-        config,
-        signal: ac.signal,
-        /* 恒传包过的实现：默认就是真实网关，注入口（测试）也照样被记录 */
-        streamImpl: capture(streamImpl ?? streamChatCompletion),
-        ...(dryRunImpl ? { dryRunImpl } : {}),
-      });
+      const stream = capture(streamImpl ?? streamChatCompletion);
+      const pipeline =
+        body?.startAt === 'draw'
+          ? runManualDraw({
+              problem: { text: String(problem.text ?? '') },
+              readProblem: typeof body?.baseReadProblem === 'string' ? body.baseReadProblem : null,
+              analysisText: String(body?.analysisText ?? ''),
+              slots: body?.slots ?? {},
+              config,
+              signal: ac.signal,
+              streamImpl: stream,
+              ...(dryRunImpl ? { dryRunImpl } : {}),
+            })
+          : runPipeline({
+              problem: { text: String(problem.text ?? ''), images },
+              images,
+              /* v1.1.16：没填解析就是 null ⇒ 流水线走旧提示词（行为与上一版逐字一致） */
+              ...(reference ? { reference } : {}),
+              /* v1.1.18 手动打回：从 solve 重跑时沿用上一版读题（读题不重新调模型） */
+              ...(body?.startAt === 'solve' ? { startAt: 'solve', baseReadProblem: typeof body?.baseReadProblem === 'string' ? body.baseReadProblem : null } : {}),
+              config,
+              signal: ac.signal,
+              /* 恒传包过的实现：默认就是真实网关，注入口（测试）也照样被记录 */
+              streamImpl: stream,
+              ...(dryRunImpl ? { dryRunImpl } : {}),
+            });
       for await (const ev of pipeline) {
         runLog.event(ev);
         write(ev);
