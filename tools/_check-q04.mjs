@@ -1,4 +1,4 @@
-﻿import { dryRun } from '../core/dryrun/dry-run.mjs';
+import { dryRun } from '../core/dryrun/dry-run.mjs';
 const mod = await import('../tests/real-exam/q04.mjs');
 const res = await dryRun({ slots: mod.default.slots, entry: 'q04', meta: { mode: mod.default.mode } });
 const r = res.report;

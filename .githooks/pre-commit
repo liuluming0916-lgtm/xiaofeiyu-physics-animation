@@ -1,0 +1,21 @@
+#!/bin/sh
+# 提交前编码门禁：拦非法 UTF-8 / UTF-16 / BOM / 高密度 GBK 乱码。
+# 启用方式（一次性）：
+#   git config core.hooksPath .githooks
+#
+# 只检查暂存区，不扫全仓库；所以它不会因为未暂存的老文件而挡住提交。
+# 路径通过 stdin 传给 Node，脚本内部不 spawn git —— 避免沙箱/管道的 EPERM。
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: 找不到 node，跳过编码检查（请确认 Node 已安装并在 PATH）" >&2
+  exit 0
+fi
+
+git diff --cached --name-only -z --diff-filter=ACMR | node tools/check-encoding.mjs --stdin
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit: 编码检查未通过，提交已取消。" >&2
+  echo "修复后重新 git add，再提交；不要用 PowerShell 重写源码。" >&2
+  exit 1
+fi

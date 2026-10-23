@@ -1,4 +1,4 @@
-﻿import { readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 const t = readFileSync('tests/regression-15/q02-incline-arc-projectile.mjs', 'utf8');
 const count = (key) => {
   const i = t.indexOf('    ' + key + ': String.raw`');

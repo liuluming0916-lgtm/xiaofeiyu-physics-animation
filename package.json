@@ -31,6 +31,8 @@
     "budget:check": "node tools/budget-check.mjs",
     "overview:build": "node tools/build-overview.mjs",
     "verify": "node tools/verify-all.mjs",
+    "check:encoding": "node tools/check-encoding.mjs",
+    "check:encoding:staged": "node tools/check-encoding.mjs --staged",
     "app:start": "node tools/electron-build.mjs --dev",
     "app:build": "node tools/electron-build.mjs",
     "app:green": "node tools/electron-pack.mjs --zip",
