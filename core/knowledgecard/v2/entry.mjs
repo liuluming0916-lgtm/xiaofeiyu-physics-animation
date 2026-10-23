@@ -87,8 +87,7 @@ export function validateEntryV2(entry, { vocab, where = '词条' } = {}) {
   }
   if ('size' in entry) {
     if (entry.kind !== 'element') p.push(`${where} 是 ${entry.kind} 卡，不应有 size（场景尺寸由模型按题决定）`);
-    const optionalDims = Array.isArray(entry.elements) && entry.elements.includes('board') ? ['w'] : [];
-    p.push(...validateSize(entry.size, `${where}.size`, { optionalDims }));
+    p.push(...validateSize(entry.size, `${where}.size`));
   }
   if ('physical' in entry) {
     if (entry.kind !== 'element') p.push(`${where} 是 ${entry.kind} 卡，不应有 physical`);

@@ -25,22 +25,30 @@ export const STAGE_PADDING = 0.06;
 export function envelopeFromAnalysis(analysis, opts = {}) {
   const samplesPerSegment = Math.max(4, Math.floor(opts.samples ?? 33));
   const margin = Number(opts.margin ?? 0.35);
+  const sizes = opts.sizes ?? null;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
 
   for (const el of analysis?.elements ?? []) {
+    /*
+     * C 方案：包络必须含**元件自身的尺寸**，否则大板/大球会从纸上伸出去。
+     * 用物理米；没有 physical 的元件（符号件）按 0 处理。
+     */
+    const size = sizes?.[el.type] ?? null;
+    const halfW = Number.isFinite(size?.w) ? size.w / 2 : Number.isFinite(size?.r) ? size.r : 0;
+    const halfH = Number.isFinite(size?.h) ? size.h / 2 : Number.isFinite(size?.r) ? size.r : 0;
     for (const seg of el.segments ?? []) {
       for (let i = 0; i <= samplesPerSegment; i += 1) {
         const t = seg.t0 + ((seg.t1 - seg.t0) * i) / samplesPerSegment;
         const x = seg.x?.fn?.(t);
         const y = seg.y?.fn?.(t);
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-        minX = Math.min(minX, x);
-        maxX = Math.max(maxX, x);
-        minY = Math.min(minY, y);
-        maxY = Math.max(maxY, y);
+        minX = Math.min(minX, x - halfW);
+        maxX = Math.max(maxX, x + halfW);
+        minY = Math.min(minY, y - halfH);
+        maxY = Math.max(maxY, y + halfH);
       }
     }
   }
@@ -100,8 +108,8 @@ export function toLayout(frame, x, y) {
  * 否则会出现"棒从电容里长出来"这类压线（q06 实测：模型把导轨从 1.0 起画，
  * 而棒的活动范围是 0.93–9.1）。
  */
-export function layoutRange(analysis, frame) {
-  const env = envelopeFromAnalysis(analysis);
+export function layoutRange(analysis, frame, opts = {}) {
+  const env = envelopeFromAnalysis(analysis, opts);
   if (!env) return null;
   const [u0, v0] = toLayout(frame, env.minX, env.minY);
   const [u1, v1] = toLayout(frame, env.maxX, env.maxY);
@@ -114,9 +122,9 @@ export function layoutRange(analysis, frame) {
 }
 
 /** 一次算好"纸 + 活动范围"，给生成器与 scene_code 提示词共用 */
-export function stageOfAnalysis(analysis) {
-  const env = envelopeFromAnalysis(analysis);
+export function stageOfAnalysis(analysis, opts = {}) {
+  const env = envelopeFromAnalysis(analysis, opts);
   if (!env) return null;
   const frame = computeStageFrame(env);
-  return { frame, range: layoutRange(analysis, frame), env };
+  return { frame, range: layoutRange(analysis, frame, opts), env };
 }

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
+  <rect width="900" height="540" fill="#f7f8fa"/>
+  <rect x="30" y="30" width="840" height="504" fill="#ffffff" stroke="#d8dde5"/>
+  <text x="40" y="22" font-family="sans-serif" font-size="14" fill="#333">板长 100 m · 物块 0.2×0.1 m · s = 0.08782 · 纸面 10×6</text>
+  <polygon points="81.1,258.5 818.9,258.5 818.9,258.4 81.1,258.4" fill="#e8e2d4" stroke="#6b5b3e" stroke-width="1.5"/>
+  <polygon points="80.4,258.4 81.9,258.4 81.9,257.6 80.4,257.6" fill="#cfe0f5" stroke="#2f6fbf" stroke-width="1.5"/>
+  <text x="40" y="524" font-family="sans-serif" font-size="12" fill="#555">物块底 / 板顶接触误差 = 0.00e+0 纸面单位 · 物块纸面 0.018×0.009（物理 0.2×0.1） · 渲染层 minPx 兜底</text>
+</svg>

@@ -148,28 +148,25 @@ console.log('\n『C』条目 v2 校验');
     'element 卡带 scenes 被拒',
   );
 
-  /* B1'：两层尺寸都来自卡 —— size（纸面）、physical（物理米）；场景卡两者都不能有 */
-  const size = { anchor: 'bottom', shape: 'box', w: 0.4, h: 0.3, minPx: 36, rotatable: true };
+  /* C 方案：size 只表达形状；尺寸数字全部在 physical（物理米）里 */
+  const size = { shape: 'box', rotatable: true };
+  const physical = { w: 0.2, h: 0.1 };
   check(
-    validateEntryV2({ ...base, size, physical: { w: 0.2, h: 0.1 } }, { vocab: v2 }).length === 0,
+    validateEntryV2({ ...base, size, physical }, { vocab: v2 }).length === 0,
     'element 卡带合法 size + physical 通过',
-    validateEntryV2({ ...base, size, physical: { w: 0.2, h: 0.1 } }, { vocab: v2 }).join('；'),
+    validateEntryV2({ ...base, size, physical }, { vocab: v2 }).join('；'),
   );
   check(
-    validateEntryV2({ ...base, size: { ...size, shape: 'circle' } }, { vocab: v2 }).some((p) => p.includes('必须给 r')),
-    'circle 缺 r 被拒',
+    validateEntryV2({ ...base, size: { ...size, w: 0.4, h: 0.3 } }, { vocab: v2 }).some((p) => p.includes('尺寸数字请写在 physical')),
+    'size 里再写数字被拒（尺寸只在 physical）',
   );
   check(
-    validateEntryV2({ ...base, size: { ...size, w: 0 } }, { vocab: v2 }).some((p) => p.includes('必须是正有限数')),
-    'w=0 被拒',
+    validateEntryV2({ ...base, size: { rotatable: true } }, { vocab: v2 }).some((p) => p.includes('缺少 shape')),
+    'size 缺 shape 被拒',
   );
   check(
-    validateEntryV2({ ...base, size: { ...size, anchor: 'middle' } }, { vocab: v2 }).some((p) => p.includes('anchor')),
-    'anchor 非枚举被拒',
-  );
-  check(
-    validateEntryV2({ ...base, size: { ...size, rotation: 0.5 } }, { vocab: v2 }).some((p) => p.includes('不认识的字段')),
-    'size 里的未知字段被拒',
+    validateEntryV2({ ...base, size: { ...size, shape: 'nope' } }, { vocab: v2 }).some((p) => p.includes('shape 必须是')),
+    'size 的 shape 非枚举被拒',
   );
   check(
     validateEntryV2({ ...rule, size }, { vocab: v2 }).some((p) => p.includes('anim_rule') && p.includes('size')),
@@ -191,31 +188,31 @@ console.log('\n『C』条目 v2 校验');
     validateEntryV2({ ...base, physical: { w: 0.2, h: -1 } }, { vocab: v2 }).some((p) => p.includes('正有限数')),
     'physical 负数被拒',
   );
-
-  /* board 特例：h 必填、w 可缺省 */
-  const boardBase = { ...base, elements: ['board'] };
-  const boardSize = { anchor: 'bottom', shape: 'box', h: 0.1, minPx: 36, rotatable: true };
   check(
-    validateEntryV2({ ...boardBase, size: boardSize }, { vocab: v2 }).length === 0,
-    'board 的 size.w 可缺省',
-    validateEntryV2({ ...boardBase, size: boardSize }, { vocab: v2 }).join('；'),
+    validateEntryV2({ ...base, physical: { ...physical, minPx: 36 } }, { vocab: v2 }).some((p) => p.includes('不认识的字段')),
+    'physical 里的未知字段被拒',
+  );
+
+  /* board 特例：物理上只给厚度 h，长度按题面 */
+  const boardBase = { ...base, elements: ['board'] };
+  check(
+    validateEntryV2({ ...boardBase, size, physical: { h: 0.02 } }, { vocab: v2 }).length === 0,
+    'board 的 physical 只给 h 通过',
+    validateEntryV2({ ...boardBase, size, physical: { h: 0.02 } }, { vocab: v2 }).join('；'),
   );
   check(
-    validateEntryV2({ ...boardBase, size: { anchor: 'bottom', shape: 'box', minPx: 36 } }, { vocab: v2 }).some((p) =>
-      p.includes('必须给 h'),
-    ),
+    validateEntryV2({ ...boardBase, size, physical: { w: 3 } }, { vocab: v2 }).some((p) => p.includes('至少要给 h 或 r')),
     'board 缺 h 被拒',
   );
 
   /* 存卡要走 editor.clean()；漏掉尺寸就会“UI 点一次保存，尺寸丢了” */
   {
     const dir = mkdtempSync(join(tmpdir(), 'kc-size-'));
-    const physical = { w: 0.2, h: 0.1 };
     const saved = saveV2Entry({ dir, entry: { ...base, id: 'card.size.demo', size, physical }, vocab: v2 });
     const stored = saved.ok ? JSON.parse(readFileSync(join(dir, saved.name), 'utf8')).entries[0] : null;
-    check('保存卡不丢 size', saved.ok && stored?.size?.w === 0.4, saved.issues?.join('；') ?? '');
+    check('保存卡不丢 size（shape/rotatable）', saved.ok && stored?.size?.shape === 'box' && stored?.size?.rotatable === true, saved.issues?.join('；') ?? '');
     check('保存卡不丢 physical', saved.ok && stored?.physical?.h === 0.1, saved.issues?.join('；') ?? '');
-    check('保存后 size 字段完整（含 minPx/rotatable）', JSON.stringify(stored?.size) === JSON.stringify(size), JSON.stringify(stored?.size));
+    check('保存后 size 字段完整', JSON.stringify(stored?.size) === JSON.stringify(size), JSON.stringify(stored?.size));
     rmSync(dir, { recursive: true, force: true });
   }
 }

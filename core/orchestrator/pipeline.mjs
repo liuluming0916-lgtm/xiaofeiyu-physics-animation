@@ -40,7 +40,7 @@ import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledge
 import { buildJudgementVocabV2, parseJudgementV2 } from '../knowledgecard/v2/prompt.mjs';
 import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
 import { parseAnswersSlot, parseStepsSlot } from '../../sdk/runtime/animation-runtime.mjs';
-import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, sizeTableFromEntries, physicalTableFromEntries, stageOfAnalysis } from '../analysis/index.mjs';
+import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, physicalTableFromEntries, stageOfAnalysis } from '../analysis/index.mjs';
 import { parseStepTimes, fallbackStepTimes } from '../couple/index.mjs';
 import { buildDisplayTiming } from '../timing/display-time.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
@@ -230,21 +230,6 @@ export async function* runPipeline(input) {
 
   const snapshot = snapshotConfig(config);
   const started = Date.now();
-  /**
-   * B1：尺寸只来自元件卡。从**本题快照的卡**派生一次尺寸表，
-   * 初次生成 / 只重画 / 修复重跑三处共用（热重载语义：改卡不影响正在跑的题）。
-   * 有问题直接抛 —— 绝不回退 `element-geometry-v2.json`（已删）。
-   */
-  let sizeTableCache = null;
-  const sizesOfSnapshot = () => {
-    if (!sizeTableCache) {
-      sizeTableCache = sizeTableFromEntries(snapshot.knowledgecard.entries);
-      if (sizeTableCache.problems.length) {
-        throw new Error(`元件卡尺寸不可用（卡是唯一来源）：${sizeTableCache.problems.join('；')}`);
-      }
-    }
-    return sizeTableCache.sizes;
-  };
 
   /**
    * B2：analysis 的 type 必须命中元件词表（决定 A：不允许 unknown / 自造名）。
@@ -257,7 +242,7 @@ export async function* runPipeline(input) {
   };
   const parseAnalysis = (text) => parseAnalysisTable(text, { allowedTypes: allowedAnalysisTypes() });
 
-  /** B2：analysis 只读的 physical 表（物理米）。 */
+  /** C 方案：尺寸只来自卡的 physical（物理米）。本题快照派生一次，三处生成共用。 */
   let physicalTableCache = null;
   const physicalOfSnapshot = () => {
     if (!physicalTableCache) {
@@ -460,9 +445,9 @@ export async function* runPipeline(input) {
         /* B1'：把“运动在纸面上的范围”与“板的固定厚度（纸面单位）”作为只读数据给模型。 */
         stageRange: () => {
           if (!analysisParsed) return null;
-          return stageOfAnalysis(analysisParsed)?.range ?? null;
+          return stageOfAnalysis(analysisParsed, { sizes: physicalOfSnapshot() })?.range ?? null;
         },
-        boardThickness: () => sizesOfSnapshot().board?.h ?? null,
+        boardThickness: () => physicalOfSnapshot().board?.h ?? null,
       },
     };
     async function executeStage(stage, index, enqueue) {
@@ -1044,7 +1029,7 @@ export async function* runPipeline(input) {
         problem: problemTextForSlots(problem.text, outputs.read_problem),
         breakdownText: outputs.breakdown,
         drawFrame: outputs.scene_code,
-        sizes: sizesOfSnapshot(),
+        physical: physicalOfSnapshot(),
       });
       const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
       const built = buildProgramFromText(programText, {
@@ -1249,7 +1234,7 @@ export async function* runPipeline(input) {
           problem: problemTextForSlots(problem.text, outputs.read_problem),
           breakdownText: outputs.breakdown,
           drawFrame: outputs.scene_code,
-          sizes: sizesOfSnapshot(),
+          physical: physicalOfSnapshot(),
         });
         const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
         built = buildProgramFromText(programText, {
@@ -1390,7 +1375,7 @@ export async function* runPipeline(input) {
           problem: problemTextForSlots(problem.text, outputs.read_problem),
           breakdownText: outputs.breakdown,
           drawFrame: newDraw,
-          sizes: sizesOfSnapshot(),
+          physical: physicalOfSnapshot(),
         });
         const programText = SLOT_KEY_NAMES.map((k) => `/* @slot:${k} */\n${generated[k]}\n/* @end */`).join('\n\n');
         built = buildProgramFromText(programText, {

@@ -39,35 +39,19 @@
       "default": []
     },
     "size": {
-      "description": "B1'：外观尺寸（10×6 纸面单位，跨题一样大，渲染不乘 s）。只给 element 卡；场景卡不写（尺寸由模型按题决定）。board 的 w 可缺省（长度由模型给）。",
+      "description": "C 方案：只表达形状（教学用），不再存数字尺寸。尺寸唯一来源是 physical（物理米），渲染时乘舞台比例 s。只给 element 卡。",
       "type": "object",
       "additionalProperties": false,
-      "required": ["anchor", "shape"],
+      "required": ["shape"],
       "properties": {
-        "anchor": { "enum": ["bottom", "center", "top"] },
         "shape": {
           "enum": ["box", "circle", "belt", "incline", "line", "point", "trace", "curve", "polygon", "spring"]
         },
-        "w": { "type": "number", "exclusiveMinimum": 0 },
-        "h": { "type": "number", "exclusiveMinimum": 0 },
-        "r": { "type": "number", "exclusiveMinimum": 0 },
-        "pointR": { "type": "number", "minimum": 0 },
-        "minPx": { "type": "number", "minimum": 0, "default": 0 },
         "rotatable": { "type": "boolean", "default": false }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "shape": { "enum": ["box", "belt", "incline", "line"] } }, "required": ["shape"] },
-          "then": { "required": ["w", "h"] }
-        },
-        {
-          "if": { "properties": { "shape": { "const": "circle" } }, "required": ["shape"] },
-          "then": { "required": ["r"] }
-        }
-      ]
+      }
     },
     "physical": {
-      "description": "B1'：真实尺寸（物理米）。只给 element 卡，只用于 analysis 把质心放到支撑面上方；不参与渲染。至少要给 h 或 r。",
+      "description": "C 方案：真实尺寸（物理米），是**唯一尺寸来源**。渲染时乘舞台比例 s；题面没给尺寸时用这张卡的默认值。至少要给 h 或 r；w 可缺省（板长等由模型按题面给）。",
       "type": "object",
       "additionalProperties": false,
       "properties": {

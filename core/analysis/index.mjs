@@ -18,11 +18,8 @@ export { ANALYSIS_EXAMPLE } from './example.mjs';
 
 export {
   PHYSICAL_REQUIRED_TYPES,
-  builtinSizeTable,
   builtinPhysicalTable,
   builtinCardEntries,
-  sizeTableFromCards,
-  sizeTableFromEntries,
   physicalTableFromCards,
   physicalTableFromEntries,
   geometryFor,

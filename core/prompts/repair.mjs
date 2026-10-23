@@ -17,9 +17,8 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【硬性边界】',
   '· 不要改 stateAt、VIEW、readouts、setup、STEPS、ANSWERS —— 它们由程序生成；',
-  '· **位置参数写物理米**：只从 `state.<key>.x / .y` 读；**长度/半径写纸面单位**：用 `state.<key>.w/.h/.r`；',
-  '· 位置与长度不要相加（一个米、一个纸面单位）；',
-  '· 不要写字、不要画 v/a 箭头、不要写像素坐标。',
+  '· **位置和长度/半径都写物理米**：位置用 `state.<key>.x / .y`，长度用 `state.<key>.w/.h/.r`；',
+  '· 不要写像素坐标；不要自己算纸面布局。',
   '',
   '【按失败检查修复】',
   '· C1（语法/白名单）：只修语法，不换画法；',
@@ -55,7 +54,7 @@ export function buildRepairUser({
     '【元件状态字段】',
     ...(stateMap.length
       ? stateMap.map(
-          (m) => `- ${m.key} = ${m.id}：位置用 state.${m.key}.x / .y（物理米），长度用 .w/.h（纸面单位）`,
+          (m) => `- ${m.key} = ${m.id}：位置用 state.${m.key}.x / .y（物理米），长度用 .w/.h（物理米）`,
         )
       : ['（无运动元件）']),
     '',

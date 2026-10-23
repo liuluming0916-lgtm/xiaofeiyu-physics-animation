@@ -13,7 +13,7 @@
  *   · STEPS 只留 title / tex（v6；时间轴由 analysis 负责，C5/C6 改读 analysis）。
  */
 
-import { builtinSizeTable, geometryFields } from './geometry.mjs';
+import { builtinPhysicalTable, geometryFields } from './geometry.mjs';
 import { computeStageFrame, stageOfAnalysis } from '../stage/frame.mjs';
 
 /**
@@ -172,8 +172,8 @@ export function buildStepsText(breakdownText, _analysis, _tPhys, fallbackTitle =
 }
 
 /** 舞台常量（带 `uCenter/vCenter`，供生成代码直接内联） */
-function stageOf(analysis) {
-  const info = stageOfAnalysis(analysis);
+function stageOf(analysis, physical) {
+  const info = stageOfAnalysis(analysis, { sizes: physical });
   const base = info ? info.frame : computeStageFrame({ minX: 0, minY: 0, maxX: 10, maxY: 6 });
   return {
     ...base,
@@ -182,11 +182,11 @@ function stageOf(analysis) {
   };
 }
 export function buildStateAt(analysis, opts = {}) {
-  /* B1：尺寸只来自卡。默认内置卡表；流水线传本题快照的卡表（用户改 w 立即生效）。 */
-  const sizes = opts.sizes ?? builtinSizeTable().sizes;
+  /* C 方案：尺寸只来自卡 physical（物理米）。默认内置卡表；流水线传本题快照的卡表。 */
+  const physical = opts.physical ?? builtinPhysicalTable().physical;
   const lines = ['// 由 analysis 运动表生成；不要手改', 'const state = {};'];
-  /* 舞台：由**物理分析表**估世界框 → 折成 10×6 布局纸（相机之后固定拍这张纸）。 */
-  const stage = stageOf(analysis);
+  /* 舞台：由**物理分析表 + 元件尺寸**估世界框 → 折成 10×6 布局纸。 */
+  const stage = stageOf(analysis, physical);
   const keys = stateKeys(analysis);
   keys.forEach(({ id, key, type }, i) => {
     const el = analysis.elements[i];
@@ -223,7 +223,7 @@ export function buildStateAt(analysis, opts = {}) {
     const vExpr = `${fmt(stage.vCenter)} + (y${i} - ${fmt(stage.cy)}) * ${fmt(stage.s)}`;
     lines.push(`const u${i} = ${uExpr};`);
     lines.push(`const v${i} = ${vExpr};`);
-    const fields = Object.entries(geometryFields(sizes, type))
+    const fields = Object.entries(geometryFields(physical, type))
       .map(([k, v2]) => `${k}: ${fmt(v2)}`)
       .join(', ');
     const extras = extraKeys.map((k) => `${k}: ${k}${i}`).join(', ');
@@ -262,9 +262,10 @@ export function buildReadouts(analysis, tPhys) {
 }
 
 /** 生成 VIEW 槽位正文：时长 + 刚体位置（v/a 箭头由此求导） + 阶段边界 + 舞台框 */
-export function buildView(analysis, tPhys) {
+export function buildView(analysis, tPhys, opts = {}) {
   const keys = stateKeys(analysis);
-  const st = stageOf(analysis);
+  const physical = opts.physical ?? builtinPhysicalTable().physical;
+  const st = stageOf(analysis, physical);
   const stageJson = JSON.stringify({
     u0: st.frame.u0,
     u1: st.frame.u1,
@@ -316,10 +317,10 @@ function stripCodeFence(s) {
  * @param {string} input.problem
  * @param {string} [input.breakdownText]
  * @param {string} input.drawFrame  AI 写的 drawFrame 函数体
- * @param {Record<string, object>} [input.sizes] 本题卡表派生的尺寸（缺省用内置卡表）
+ * @param {Record<string, object>} [input.physical] 本题卡表派生的物理尺寸（缺省用内置卡表）
  * @returns {Record<string,string>}
  */
-export function generateProgramSlots({ analysis, problem, breakdownText, drawFrame, sizes }) {
+export function generateProgramSlots({ analysis, problem, breakdownText, drawFrame, physical }) {
   const tPhys = analysis?.tPhys;
   if (!(typeof tPhys === 'number' && Number.isFinite(tPhys) && tPhys > 0)) {
     throw new Error('analysis 缺少有效的 T_phys，无法生成动画程序');
@@ -330,9 +331,9 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
     STEPS: buildStepsText(breakdownText, analysis, tPhys),
     // C7 / ANSWERS 已删；留空串，程序形状允许（见 checkProgramShape）
     ANSWERS: '',
-    VIEW: buildView(analysis, tPhys),
+    VIEW: buildView(analysis, tPhys, { physical }),
     setup: `const T_PHYS = ${fmt(tPhys)};`,
-    stateAt: buildStateAt(analysis, { sizes }),
+    stateAt: buildStateAt(analysis, { physical }),
     drawFrame: stripCodeFence(drawFrame),
     readouts: buildReadouts(analysis, tPhys),
   };

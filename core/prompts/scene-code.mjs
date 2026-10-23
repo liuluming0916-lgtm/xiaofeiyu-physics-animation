@@ -16,13 +16,13 @@ export const SCENE_CODE_INSTRUCTION = [
   '你只输出 drawFrame 的函数体：不写 `function drawFrame` 头，不写任何槽位标记，不写解释。',
   '',
   '【画布与单位】画布是 **10 × 6 的布局纸**（横向 0–10，纵向 0–6）。',
-  '**位置参数写物理米**（用 state 的 .x/.y）；本地会自动折到纸上，你不用自己算布局坐标。',
-  '**长度/半径参数写纸面单位**（用 state 的 .w/.h/.r；场景尺寸你自己定）；两者不要相加。',
+  '**位置参数和长度/半径参数都写物理米**（用 state 的 .x/.y/.w/.h/.r）；本地会统一乘舞台比例折到纸上。',
+  '题面给了长度（板长、带长、绳长）就按题面写；没给长度用 state 里的值。',
   '',
   '【你拿到的 state】每个运动元件一个对象：',
-  '- `state.<key>.x / .y` = 物理米，**画位置一律用它**；',
-  '- `state.<key>.w / .h / .r` = 纸面单位的尺寸，直接传给 Draw；',
-  '- `state.<key>.cx / .cy` = 旧的纸面坐标，**不要再用**（会在新链路里被二次折算）。',
+  '- `state.<key>.x / .y` = 物理米，**画位置用它**；',
+  '- `state.<key>.w / .h / .r` = 物理米（卡里的默认尺寸），直接传给 Draw；',
+  '- `state.<key>.cx / .cy` = 旧的纸面坐标，**不要再用**。',
   '元件 key 映射写在 user 消息里（例如 e0 = block_A）。',
   '',
   '【规则】',
@@ -32,14 +32,14 @@ export const SCENE_CODE_INSTRUCTION = [
   '3. 画布上**不写任何文字**：不要文字/公式标注、箭头 label、尺寸 text。',
   '4. 不要画 v/a 箭头：VIEW 的 bodies 会由运行时自动求导绘制。',
   '5. 静止物体（地面、斜面、滑轮、绳、导轨、汽缸）由你按读题几何摆：',
-  '   **位置同样写物理米**（地面画在 y=0 或读题给的位置），长度用纸面单位；不要悬空。',
+  '   **位置和长度都写物理米**（地面画在 y=0 或读题给的位置）；不要悬空。',
   '6. 颜色由系统按 category 决定；只给 force / aux，不要写 color。',
-  '7. 一屏画完：主体居中、留边距；长度一律用纸面单位。',
+  '7. 一屏画完：主体居中、留边距。',
   '',
-  '【示例】传送带 + 物块（位置物理米；长度纸面单位）',
+  '【示例】传送带 + 物块（全部物理米）',
   '```js',
   'Draw.ground(-0.2, 3.2, 0);',
-  'Draw.belt([-0.1, 0], [3.1, 0], { ticks: 18, r: 0.1 });',
+  'Draw.belt([-0.1, 0], [3.1, 0], { ticks: 18, r: 0.05 });',
   'Draw.box([state.e0.x, state.e0.y], state.e0.w, state.e0.h);',
   '```',
 ].join('\n');
@@ -67,7 +67,7 @@ export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMa
     ...(stateMap.length
       ? stateMap.map(
           (m) =>
-            `- ${m.key} = ${m.id}${m.type ? `（${m.type}）` : ''}：位置用 state.${m.key}.x / state.${m.key}.y（物理米，本地自动折算），长度用 .w/.h（纸面单位）`,
+            `- ${m.key} = ${m.id}${m.type ? `（${m.type}）` : ''}：位置用 state.${m.key}.x / state.${m.key}.y（物理米），长度用 .w/.h（物理米）`,
         )
       : ['（无运动元件）']),
     '',
@@ -80,7 +80,7 @@ export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMa
         ]
       : []),
     ...(Number.isFinite(boardThickness)
-      ? ['【板厚（只读；纸面单位）】', String(boardThickness), '板仍画 box：长度你按题面给，厚度用这个值。', '']
+      ? ['【板厚（只读；物理米）】', String(boardThickness), '板仍画 box：长度你按题面给（物理米），厚度用这个值。', '']
       : []),
     ...(readProblem && String(readProblem).trim()
       ? ['【读题几何（静止物体的摆放依据）】', String(readProblem).trim(), '']

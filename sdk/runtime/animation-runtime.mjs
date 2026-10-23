@@ -966,6 +966,16 @@ export class Draw {
     return this._p(p.x, p.y);
   }
 
+  /**
+   * 长度/半径：物理米 → 纸面单位（乘 `s`）。
+   * **位置与长度用同一个 `s`**，所以接触/相切关系在折算后保持不变。
+   * 没有舞台的老程序（15 道回归题）按原值使用。
+   */
+  _len(v) {
+    const f = this._stageFrame();
+    return f ? v * f.s : v;
+  }
+
   _push(record) {
     return this.buffer.push(record);
   }
@@ -1011,6 +1021,8 @@ export class Draw {
   arrow(from, vec, opts = {}) {
     const p = this._pos(from, 'Draw.arrow(from)');
     const v = toPoint(vec, 'Draw.arrow(vec)');
+    const vx = this._len(v.x);
+    const vy = this._len(v.y);
     const category = opts.category ?? 'aux';
     if (!(category in VECTOR_COLORS)) {
       throw new RangeError(`Draw.arrow(category) 未登记：${category}（§5.3 至少覆盖 velocity/acceleration/force）`);
@@ -1018,7 +1030,7 @@ export class Draw {
     return this._push({
       op: 'arrow',
       from: [p.x, p.y],
-      vec: [v.x, v.y],
+      vec: [vx, vy],
       mag: opts.mag ?? null,
       unit: opts.unit ?? null,
       scale: opts.scale ?? 1,
@@ -1069,11 +1081,12 @@ export class Draw {
   circle(center, r, style = {}) {
     const c = this._pos(center, 'Draw.circle(center)');
     assertFiniteNumber(r, 'Draw.circle(r)');
+    const rr = this._len(r);
     return this._push({
       op: 'circle',
       cx: c.x,
       cy: c.y,
-      r,
+      r: rr,
       fill: style.fill ?? null,
       stroke: style.stroke ?? null,
       width: style.width ?? 1.4,
@@ -1104,10 +1117,11 @@ export class Draw {
   pulley(center, r, opts = {}) {
     const c = this._pos(center, 'Draw.pulley(center)');
     assertFiniteNumber(r, 'Draw.pulley(r)');
+    const rr = this._len(r);
     return this._push({
       op: 'pulley',
       c: [c.x, c.y],
-      r,
+      r: rr,
       hub: opts.hub ?? true,
       color: opts.color ?? this.theme.body,
       layer: opts.layer ?? 1,
@@ -1118,11 +1132,20 @@ export class Draw {
   belt(a, b, opts = {}) {
     const p = this._pos(a, 'Draw.belt(a)');
     const q = this._pos(b, 'Draw.belt(b)');
+    const rr = this._len(opts.r ?? 0.12);
+    /*
+     * C 方案：带端点 = **带面顶**（物理位置），带体画在端点下方。
+     * 这样“物块底边贴带面顶”在折算后仍然精确；老程序（无 stage）保持原中心线语义。
+     */
+    if (this._stageFrame()) {
+      p.y -= rr;
+      q.y -= rr;
+    }
     return this._push({
       op: 'belt',
       a: [p.x, p.y],
       b: [q.x, q.y],
-      r: opts.r ?? 0.12,
+      r: rr,
       ticks: opts.ticks ?? 0,
       tickPhase: opts.tickPhase ?? 0,
       arrowDir: opts.arrowDir ?? 1,
@@ -1149,12 +1172,12 @@ export class Draw {
       op: 'fieldDots',
       x: o.x,
       y: o.y,
-      w: rect.w,
-      h: rect.h,
+      w: this._len(rect.w),
+      h: this._len(rect.h),
       nx,
       ny,
       symbol,
-      spacing: opts.spacing ?? 0.3,
+      spacing: this._len(opts.spacing ?? 0.3),
       color: opts.color ?? this.theme.field,
       layer: opts.layer ?? 0,
     });
@@ -1197,7 +1220,7 @@ export class Draw {
       y1: c.y,
       x2: c.x,
       y2: c.y,
-      r,
+      r: this._len(r),
       a0Deg: a0,
       a1Deg: a1,
       dash: parseDash(opts.dash, 'Draw.arc(opts)'),
@@ -1218,8 +1241,8 @@ export class Draw {
       op: 'ellipse',
       cx: c.x,
       cy: c.y,
-      rx,
-      ry,
+      rx: this._len(rx),
+      ry: this._len(ry),
       dash: parseDash(opts.dash, 'Draw.ellipse(opts)'),
       width: opts.width ?? 1.4,
       color: opts.color ?? this.theme.guide,
@@ -1289,16 +1312,18 @@ export class Draw {
     const c = this._pos(center, 'Draw.lens(center)');
     assertFiniteNumber(opts.height, 'Draw.lens(height)');
     assertFiniteNumber(opts.focal, 'Draw.lens(focal)');
+    const height = this._len(opts.height);
+    const focal = this._len(opts.focal);
     return this._push({
       op: 'lens',
       x1: c.x,
-      y1: c.y - opts.height / 2,
+      y1: c.y - height / 2,
       x2: c.x,
-      y2: c.y + opts.height / 2,
+      y2: c.y + height / 2,
       cx: c.x,
       cy: c.y,
-      height: opts.height,
-      focal: opts.focal,
+      height,
+      focal,
       curved: opts.curved ?? true,
       color: opts.color ?? this.theme.body,
       layer: opts.layer ?? 1,
@@ -1314,8 +1339,8 @@ export class Draw {
       op: 'axisBox',
       x: o.x,
       y: o.y,
-      xLen,
-      yLen,
+      xLen: this._len(xLen),
+      yLen: this._len(yLen),
       xLabel: opts.xLabel ?? '',
       yLabel: opts.yLabel ?? '',
       xUnit: opts.xUnit ?? '',
@@ -1394,7 +1419,7 @@ export class Draw {
     const a = this._pos(apex, 'Draw.incline(apex)');
     assertFiniteNumber(opts.length, 'Draw.incline(length)');
     assertFiniteNumber(opts.angleDeg, 'Draw.incline(angleDeg)');
-    const L = opts.length;
+    const L = this._len(opts.length);
     const th = Math.abs(opts.angleDeg) * DEG;
     const side = opts.angleDeg < 0 ? -1 : 1;
     const footY = a.y - L * Math.sin(th);
@@ -1415,9 +1440,11 @@ export class Draw {
     const c = this._pos(center, 'Draw.box(center)');
     assertFiniteNumber(w, 'Draw.box(w)');
     assertFiniteNumber(h, 'Draw.box(h)');
+    const W = this._len(w);
+    const H = this._len(h);
     const th = (opts.angleDeg ?? 0) * DEG;
-    const hw = w / 2;
-    const hh = h / 2;
+    const hw = W / 2;
+    const hh = H / 2;
     const corners = [
       [-hw, -hh],
       [hw, -hh],
@@ -2322,6 +2349,36 @@ function drawArrow(ctx, T, rec, vectorMax = null, offset = null) {
  * Canvas 2D 回放器。Dry-Run **不**使用本函数（§7.1：不需要 mock canvas）。
  * @param {CanvasRenderingContext2D} ctx
  */
+/**
+ * 像素下限（CSS px）。C 方案里尺寸按物理比例画，极端大题会小到看不见；
+ * 这里只在“布局 → 像素”之后兜底，纯符号件也靠它。
+ */
+const MIN_PX = 6;
+
+/** 把屏幕坐标的闭合多边形按 bbox 中心放大到至少 minPx 见方（尽量保留长边比例）。 */
+function expandMinPx(pts, minPx) {
+  if (!Array.isArray(pts) || pts.length < 2) return pts;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  const w = maxX - minX;
+  const h = maxY - minY;
+  if (!(w > 0) || !(h > 0)) return pts;
+  if (w >= minPx && h >= minPx) return pts;
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const sx = w < minPx ? minPx / w : 1;
+  const sy = h < minPx ? minPx / h : 1;
+  return pts.map((p) => ({ x: cx + (p.x - cx) * sx, y: cy + (p.y - cy) * sy }));
+}
+
 export function replayToCanvas(ctx, records, transform, opts = {}) {
   const theme = opts.theme ?? DEFAULT_THEME;
   const unit = transform.scale;
@@ -2405,7 +2462,8 @@ export function replayToCanvas(ctx, records, transform, opts = {}) {
         drawArrow(ctx, T, rec, opts.vectorMax ?? null, arrowOffsets.get(rec) ?? null);
         break;
       case 'polygon': {
-        const pts = rec.points.map(([x, y]) => T(x, y));
+        let pts = rec.points.map(([x, y]) => T(x, y));
+        if (rec.closed) pts = expandMinPx(pts, MIN_PX);
         if (rec.fill) {
           ctx.fillStyle = rec.fill;
           ctx.beginPath();
@@ -2426,8 +2484,9 @@ export function replayToCanvas(ctx, records, transform, opts = {}) {
       }
       case 'circle': {
         const c = T(rec.cx, rec.cy);
+        const rPx = Math.max(0.5, Math.max(rec.r * unit, MIN_PX / 2));
         ctx.beginPath();
-        ctx.arc(c.x, c.y, Math.max(0.5, rec.r * unit), 0, TAU);
+        ctx.arc(c.x, c.y, rPx, 0, TAU);
         if (rec.fill) {
           ctx.fillStyle = rec.fill;
           ctx.fill();
@@ -2441,7 +2500,7 @@ export function replayToCanvas(ctx, records, transform, opts = {}) {
           const rad = ((rec.angleDeg - 90) * Math.PI) / 180;
           ctx.beginPath();
           ctx.moveTo(c.x, c.y);
-          ctx.lineTo(c.x + Math.cos(rad) * rec.r * unit, c.y + Math.sin(rad) * rec.r * unit);
+          ctx.lineTo(c.x + Math.cos(rad) * rPx, c.y + Math.sin(rad) * rPx);
           ctx.stroke();
         }
         break;
