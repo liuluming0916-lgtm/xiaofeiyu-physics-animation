@@ -430,7 +430,21 @@ export function parseAnalysisTable(text, opts = {}) {
         const nx = next.x.fn(next.t0);
         const py = prev.y.fn(prev.t1);
         const ny = next.y.fn(next.t0);
-        if (!nearlyEqual(px, nx, 1e-4, 1e-6) || !nearlyEqual(py, ny, 1e-4, 1e-6)) {
+        /**
+         * 段端连续性的容差（2026-10-24 调整，q04 真题实测两次踩坑）：
+         *
+         * 原来是相对 1e-4 / 绝对 1e-6 —— 那等于要求模型**逐字复制**上一段的末位置。
+         * 但模型的小问分段是「段锚点 + 4 位有效数字系数」写出来的：它会重新算一遍边界位置，
+         * 得到 4.001774 而不是 4.000000（差 1.8 mm / 4 m = 0.04%）。实测两次运行分别卡在
+         * 1.8e-3 与 2.2e-4 上，都被判成"段端不连续"而整题中止（analysis.invalid 不重试）。
+         *
+         * 新容差 = max(1 mm, 0.1%)：
+         *   · 4 m 量级 ⇒ 4 mm；0.1 m 量级 ⇒ 1 mm；两者都远低于渲染分辨率（~50 px/m ⇒ 0.05 px）；
+         *   · 真正的"段端跳变"（漏了碰撞、写错锚点）通常是**厘米到米**级，照样会被拦；
+         *   · 负对照在 `tests/analysis-selftest.mjs`：0.01 m 的跳变必须仍然报错。
+         * 画面上的可见跳变另有 C6（按阶段跨度与实测速率给阈值）兜底，所以这里放宽不会静默放过。
+         */
+        if (!nearlyEqual(px, nx, 1e-3, 1e-3) || !nearlyEqual(py, ny, 1e-3, 1e-3)) {
           problems.push(
             problem(
               'segment-discontinuous',

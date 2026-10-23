@@ -137,6 +137,18 @@ console.log('\n『B』解析器拒绝非法输入');
   );
   check('拒绝段端位置跳变', !jump.ok && codes(jump).includes('segment-discontinuous'), codes(jump).join(','));
 
+  /* 容差 2026-10-24 调到 max(1 mm, 0.1%)：q04 真题实测模型写 4.001774 vs 4.000000（1.8 mm）应放行，
+     但"真跳变"必须仍然报错 —— 两条正反例钉住，避免这次放宽变成"什么都放行"。 */
+  const rounding = parseAnalysisTable(
+    [segText({ segment: 1, t0: 0, t1: 1, x: 't', x0: 0 }), '', segText({ segment: 2, t0: 1, t1: 2, x: '1.0005 + 0*t', x0: 1.0005 })].join('\n'),
+  );
+  check('★ 放行 0.5 mm 级的“重新算了一遍”的段端（模型 4 位有效数字的正常误差）', rounding.ok, codes(rounding).join(','));
+
+  const smallJump = parseAnalysisTable(
+    [segText({ segment: 1, t0: 0, t1: 1, x: 't', x0: 0 }), '', segText({ segment: 2, t0: 1, t1: 2, x: '1.01 + 0*t', x0: 1.01 })].join('\n'),
+  );
+  check('★ 仍拒绝 1 cm 的段端跳变（放宽到 1 mm 后不能变成什么都过）', !smallJump.ok && codes(smallJump).includes('segment-discontinuous'), codes(smallJump).join(','));
+
   const overlap = parseAnalysisTable(
     [segText({ segment: 1, t0: 0, t1: 1, x: 't', x0: 0 }), '', segText({ segment: 2, t0: 0.5, t1: 2, x: 't', x0: 0.5 })].join('\n'),
   );
