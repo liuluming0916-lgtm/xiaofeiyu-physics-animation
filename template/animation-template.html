@@ -372,6 +372,13 @@
     font-variant-numeric: tabular-nums;
   }
   .rate .rate-x { font-size: 12px; color: var(--muted); }
+  /* 手动放大画布（v1.1.18 B8）：与倍速同一行的按钮组 */
+  .zoom { display: inline-flex; align-items: center; gap: 4px; }
+  .zoom .btn-icon { min-width: 32px; padding: 4px 6px; font-size: 13px; }
+  .zoom [data-od-id='zoom-label'] { font-size: 12px; color: var(--muted); }
+  .stage.zoomable { cursor: grab; }
+  .stage.zoomed { cursor: grab; }
+  .stage.dragging { cursor: grabbing; }
 
   .tools {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
@@ -527,6 +534,14 @@
           />
           <span class="rate-x" aria-hidden="true">×</span>
         </div>
+
+        <!-- 手动放大画布（v1.1.18 B8）：只改相机倍率，纸面 10×6 与物理比例不动。
+             鼠标滚轮 / Ctrl+滚轮 缩放，按住拖动平移；⤢ 恢复自动取景。 -->
+        <div class="zoom" data-od-id="zoom-controls" role="group" aria-label="画布缩放">
+          <button class="btn btn-icon" data-od-id="btn-zoom-out" type="button" title="缩小画布（滚轮也行）" aria-label="缩小画布">−</button>
+          <button class="btn btn-icon" data-od-id="btn-zoom-reset" type="button" title="恢复自动取景（100%）" aria-label="恢复自动取景"><span data-od-id="zoom-label">100%</span></button>
+          <button class="btn btn-icon" data-od-id="btn-zoom-in" type="button" title="放大画布（滚轮也行）" aria-label="放大画布">＋</button>
+        </div>
       </div>
 
       <div class="tools" data-od-id="vector-tools">
@@ -611,6 +626,12 @@
     timecode: document.querySelector('[data-od-id="timecode"]'),
     rate: document.querySelector('[data-od-id="rate-select"]'),
     rateCustom: document.querySelector('[data-od-id="rate-custom"]'),
+    /* 手动放大画布（v1.1.18 B8） */
+    stage: document.querySelector('[data-od-id="stage"]'),
+    btnZoomIn: document.querySelector('[data-od-id="btn-zoom-in"]'),
+    btnZoomOut: document.querySelector('[data-od-id="btn-zoom-out"]'),
+    btnZoomReset: document.querySelector('[data-od-id="btn-zoom-reset"]'),
+    zoomLabel: document.querySelector('[data-od-id="zoom-label"]'),
     masks: Array.prototype.slice.call(document.querySelectorAll('[data-mask]')),
     /* 联动图表（动画下方整宽横条）：画布、标题、量选择、读数脚注、关闭按钮 */
     chartPanel: document.querySelector('[data-od-id="chart-panel"]'),
@@ -1717,6 +1738,120 @@
    *   内联的那份才是"屏幕上看到的 = 导出的"那份（§13.1）；运行期覆盖会让两者不一致。
    *   此时回一条 error 说明原因，不改动现场。
    */
+  /**
+   * ── 手动放大画布（v1.1.18 B8，2026-10-24 用户裁决）──
+   *
+   * 动机：一道 9.7 m × 20.5 m 的真题，自动取景要把整个包络塞进画布，0.2 m 的物块只剩 4 px。
+   * 用户裁决：**不改物理比例、不改纸面**，只给一个"手动放大画布"的能力。
+   *
+   * 实现口径：
+   *   · 放大 = `player.setView({ zoom })`，只改相机 `transform.scale`；
+   *     `state.u/v`、纸面 10×6、`w/h = physical` 全部不动（放大后量出来的比例仍是真的）。
+   *   · 轴心：滚轮按**光标位置**放大（该点的世界坐标保持不动），按钮按画布中心放大。
+   *   · 平移：放大后按住左键拖动（屏幕像素），`⤢`/100% 按钮一键回到自动取景。
+   *   · 导出页与 live 页共用这个模板 ⇒ 一处实现，两边一致；导出 GIF 走播放器默认视口（zoom=1），
+   *     不受用户手动放大影响（导出的是"真实取景"，不是"你放大到哪"）。
+   */
+  var ZOOM_MIN = 1;
+  var ZOOM_MAX = 12;
+  var ZOOM_STEP = 1.35;
+
+  function currentZoom() {
+    return (player && player.state && player.state.view && player.state.view.zoom) || 1;
+  }
+
+  function paintZoomLabel(z) {
+    if (els.zoomLabel) els.zoomLabel.textContent = Math.round(z * 100) + '%';
+    if (els.stage) {
+      els.stage.classList.add('zoomable');
+      if (z > 1.0001) els.stage.classList.add('zoomed');
+      else els.stage.classList.remove('zoomed');
+    }
+  }
+
+  /** 只改相机；`panX/panY` 省略时保持当前平移 */
+  function applyZoom(z, panX, panY) {
+    if (!player) return;
+    var next = { zoom: z };
+    if (typeof panX === 'number') next.panX = panX;
+    if (typeof panY === 'number') next.panY = panY;
+    var tr = player.setView(next);
+    paintZoomLabel(tr && tr.zoom ? tr.zoom : z);
+    draw();
+  }
+
+  function resetZoom() {
+    if (!player) return;
+    player.setView({ zoom: 1, panX: 0, panY: 0 });
+    paintZoomLabel(1);
+  }
+
+  /** 以画布内某点为轴心缩放：该点的**世界坐标**保持在同一屏幕位置 */
+  function zoomAtPoint(factor, ax, ay) {
+    if (!player) return;
+    var view = player.state.view || { zoom: 1, panX: 0, panY: 0 };
+    var z = view.zoom || 1;
+    var z2 = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z * factor));
+    if (Math.abs(z2 - z) < 1e-9) return;
+    var cw = els.canvas.clientWidth || 1;
+    var ch = els.canvas.clientHeight || 1;
+    var k = z2 / z;
+    var panX = (ax - cw / 2) * (1 - k) + k * (view.panX || 0);
+    var panY = (ay - ch / 2) * (1 - k) + k * (view.panY || 0);
+    applyZoom(z2, panX, panY);
+  }
+
+  function bindZoom() {
+    if (!els.btnZoomIn || !els.canvas || els.canvas.getAttribute('data-zoom-bound') === '1') return;
+    els.canvas.setAttribute('data-zoom-bound', '1');
+    paintZoomLabel(currentZoom());
+
+    els.btnZoomIn.addEventListener('click', function () {
+      applyZoom(Math.min(ZOOM_MAX, currentZoom() * ZOOM_STEP));
+    });
+    els.btnZoomOut.addEventListener('click', function () {
+      applyZoom(Math.max(ZOOM_MIN, currentZoom() / ZOOM_STEP));
+    });
+    els.btnZoomReset.addEventListener('click', function () {
+      applyZoom(1, 0, 0);
+    });
+
+    els.canvas.addEventListener(
+      'wheel',
+      function (event) {
+        if (!player) return;
+        event.preventDefault();
+        var rect = els.canvas.getBoundingClientRect();
+        var ax = event.clientX - rect.left;
+        var ay = event.clientY - rect.top;
+        var factor = event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+        zoomAtPoint(factor, ax, ay);
+      },
+      { passive: false },
+    );
+
+    /* 放大后拖动平移（屏幕像素）。没放大时不拦鼠标，避免和页面的文字选择打架。 */
+    var drag = null;
+    els.canvas.addEventListener('pointerdown', function (event) {
+      if (!player || currentZoom() <= 1.0001 || event.button !== 0) return;
+      drag = { x: event.clientX, y: event.clientY, panX: (player.state.view.panX || 0), panY: (player.state.view.panY || 0) };
+      if (els.stage) els.stage.classList.add('dragging');
+      if (els.canvas.setPointerCapture) els.canvas.setPointerCapture(event.pointerId);
+    });
+    els.canvas.addEventListener('pointermove', function (event) {
+      if (!drag) return;
+      applyZoom(currentZoom(), drag.panX + (event.clientX - drag.x), drag.panY + (event.clientY - drag.y));
+    });
+    function endDrag() {
+      if (!drag) return;
+      drag = null;
+      if (els.stage) els.stage.classList.remove('dragging');
+    }
+    els.canvas.addEventListener('pointerup', endDrag);
+    els.canvas.addEventListener('pointercancel', endDrag);
+    els.canvas.addEventListener('pointerleave', endDrag);
+  }
+
   function applyProgram(msg) {
     if (PROGRAM_DATA && PROGRAM_DATA.slots) {
       postToHost('error', {
@@ -1955,6 +2090,9 @@
     buildProblem();
     buildSteps();
     bindControls();
+    /* 换题/重载一律回到自动取景：上一题的放大倍率留着只会让人以为"这题画歪了" */
+    resetZoom();
+    bindZoom();
     // 注意：`bindHost()` **不在这里**调用 —— 它在脚本初始化处已挂过一次（见文件末尾）。
     // 挂在这里会让空壳模板收不到 `program` 消息（boot 提前 return）。
 

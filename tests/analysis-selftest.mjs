@@ -228,6 +228,11 @@ console.log('\n『C』允许的写法与提示词一致性');
   check('指令里有 assumption 占位行（用户版）', ANALYSIS_INSTRUCTION.includes('assumption: 为没有数值的符号赋值'));
   check('指令里有示例（与 ANALYSIS_EXAMPLE 逐字一致）', ANALYSIS_INSTRUCTION.includes(ANALYSIS_EXAMPLE));
   check('指令里写明段端连续', ANALYSIS_INSTRUCTION.includes('位置 (x, y) 必须相等'));
+  /* 2026-10-24：q04 真题里 B 被拉过滑轮、C 自由落体 12 m 把画面撑大 ⇒ 加一条空间约束（硬性） */
+  check(
+    '指令里写明空间约束（悬挂物不得越过滑轮 / 落地即截断）',
+    ANALYSIS_INSTRUCTION.includes('悬挂物不得高于它上方的滑轮') && ANALYSIS_INSTRUCTION.includes('在该时刻截断'),
+  );
   check(
     '指令里写明用段锚点写增量',
     ANALYSIS_INSTRUCTION.includes('2. 用本段字段名写增量。') && ANALYSIS_INSTRUCTION.includes('x0 + vx0*(t - t0)'),

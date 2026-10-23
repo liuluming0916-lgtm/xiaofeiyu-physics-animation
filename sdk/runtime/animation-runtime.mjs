@@ -3139,6 +3139,14 @@ export function createPlayer(program, opts) {
     stepIndex: 0,
     mask: { velocity: true, acceleration: true, force: true, aux: true, trace: true, grid: true },
     theme: opts.theme ?? DEFAULT_THEME,
+    /**
+     * 手动取景（v1.1.18 B8，2026-10-24 用户裁决）：
+     *   自动取景把整个包络塞进画布 ⇒ 一道 9.7 m × 20 m 的题里，0.2 m 的物块只有 4 px。
+     *   "手动放大画布"只改**相机**：`zoom` 是倍率，`panX/panY` 是屏幕像素平移。
+     *   纸面（10×6）与物理比例**一点不动** —— 否则比例尺就失去意义了。
+     *   `zoom=1 / pan=0` 时与旧行为逐像素一致（`applyView` 直接返回自动取景结果）。
+     */
+    view: { zoom: 1, panX: 0, panY: 0 },
   };
 
   /**
@@ -3194,7 +3202,68 @@ export function createPlayer(program, opts) {
   function setViewport(next) {
     viewport = { width: Math.max(1, next.width), height: Math.max(1, next.height), dpr: next.dpr ?? opts.dpr ?? 1 };
     /* 有舞台时纸张自己已经留了 6% 边距，这里不再叠一层 14% 的取景内缩（否则画面白小一圈）。 */
-    transform = AutoView.fit(fullEnvelope, { width: viewport.width, height: viewport.height }, stageFrame ? { padding: 0.02 } : {});
+    const base = AutoView.fit(fullEnvelope, { width: viewport.width, height: viewport.height }, stageFrame ? { padding: 0.02 } : {});
+    transform = applyView(base, state.view);
+    return transform;
+  }
+
+  /**
+   * 把"手动取景"叠到自动取景上：**只改相机**，不改世界与纸面。
+   *
+   *   屏幕 = (autoScreen - 视口中心) × zoom + 视口中心 + pan
+   *   ⇒ 可视世界范围与 `scale` 同步换算，网格/裁剪/箭头归一都跟着走。
+   *
+   * `zoom=1 && pan=0` 时**原样返回** base（不留浮点误差，老页面逐像素不变）。
+   */
+  function applyView(base, view) {
+    const zoom = Number.isFinite(view?.zoom) && view.zoom > 0 ? view.zoom : 1;
+    const panX = Number.isFinite(view?.panX) ? view.panX : 0;
+    const panY = Number.isFinite(view?.panY) ? view.panY : 0;
+    if (zoom === 1 && panX === 0 && panY === 0) return base;
+    const vw = base.width;
+    const vh = base.height;
+    const s = base.scale * zoom;
+    const cx = vw / 2;
+    const cy = vh / 2;
+    const worldToScreen = (x, y) => {
+      const p = base.worldToScreen(x, y);
+      return { x: (p.x - cx) * zoom + cx + panX, y: (p.y - cy) * zoom + cy + panY };
+    };
+    /* 反解可视世界框（网格与裁剪用）：x = centerX + (sx - cx - panX) / s；y 轴翻向 */
+    const minX = base.centerX + (0 - cx - panX) / s;
+    const maxX = base.centerX + (vw - cx - panX) / s;
+    const maxY = base.centerY + (cy + panY) / s;
+    const minY = base.centerY + (cy + panY - vh) / s;
+    return {
+      ...base,
+      scale: s,
+      zoom,
+      panX,
+      panY,
+      minX,
+      maxX,
+      minY,
+      maxY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+      worldToScreen,
+    };
+  }
+
+  /**
+   * 手动取景入口（`zoom` 倍率 · `panX/panY` 屏幕像素）。
+   * 传 `{ zoom: 1, panX: 0, panY: 0 }` 即"恢复自动取景"。
+   * 不传的字段保持当前值（按钮只改 zoom 时不会把 pan 抹掉）。
+   */
+  function setView(next = {}) {
+    const prev = state.view ?? { zoom: 1, panX: 0, panY: 0 };
+    const merged = {
+      zoom: Number.isFinite(next.zoom) && next.zoom > 0 ? Math.min(50, Math.max(0.2, next.zoom)) : prev.zoom,
+      panX: Number.isFinite(next.panX) ? next.panX : prev.panX,
+      panY: Number.isFinite(next.panY) ? next.panY : prev.panY,
+    };
+    state.view = merged;
+    if (viewport) setViewport(viewport);
     return transform;
   }
 
@@ -3305,6 +3374,8 @@ export function createPlayer(program, opts) {
     framing,
     vectorScale,
     setViewport,
+    /** 手动取景（v1.1.18 B8）：只改相机，纸面/物理比例不动 */
+    setView,
     get transform() {
       return transform;
     },
