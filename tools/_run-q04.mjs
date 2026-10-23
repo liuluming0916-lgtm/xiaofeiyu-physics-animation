@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import http from 'node:http';
 
-const q = JSON.parse(readFileSync('tests/real-exam/pilot.json', 'utf8')).items.find((x) => x.id === 'q04');
+const q = JSON.parse(readFileSync('tests/real-exam/index.json', 'utf8')).items.find((x) => x.id === 'q04');
 const b64 = readFileSync(`tests/real-exam/${q.image}`).toString('base64');
 const body = JSON.stringify({
   problem: {

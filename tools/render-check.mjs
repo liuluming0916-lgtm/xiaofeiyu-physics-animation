@@ -10,21 +10,26 @@
  * 相机若随物体移动而变化，就说明又退回成了"逐帧取景"，固定不动的地面/斜面会跟着晃。
  */
 
-import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import { renderQuestion } from '../tests/harness/canvas-harness.mjs';
+import { loadSuite, parseSuiteArgs } from '../core/dryrun/question-sources.mjs';
 
 const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const QUESTION_DIR = join(PROJECT_ROOT, 'tests', 'regression-15');
 
 export async function main() {
-  const files = readdirSync(QUESTION_DIR).filter((f) => f.endsWith('.mjs')).sort();
+  const { suite, filters } = parseSuiteArgs(process.argv.slice(2));
+  const { items, audit } = await loadSuite(suite, filters);
   let failures = 0;
-  console.log('render-check · mock canvas 播放路径 + 相机不变量');
-  for (const file of files) {
-    const program = (await import(pathToFileURL(join(QUESTION_DIR, file)).href)).default;
+  if (audit?.errors?.length) {
+    console.error(`✗ 真题清单体检未过（${audit.errors.length} 条）：`);
+    for (const e of audit.errors) console.error(`    · [${e.code}] ${e.detail}`);
+    process.exitCode = 1;
+    failures += 1;
+  }
+  console.log(`render-check · mock canvas 播放路径 + 相机不变量（套件 ${suite} · ${items.length} 题）`);
+  for (const { program, suite: s } of items) {
     try {
       const { frames, paintCalls, player, canvas } = renderQuestion(program);
       const empty = frames.filter((f) => f.commands === 0);
@@ -41,7 +46,13 @@ export async function main() {
       );
 
       // "轨迹"开关必须真的改变画面（用户反馈"大部分题轨迹未实装"）：
-      // 同一时刻只切 mask.trace，比较真正回放（painted）的命令数
+      // 同一时刻只切 mask.trace，比较真正回放（painted）的命令数。
+      //
+      // ⚠ 判据按**套件**分档（v1.1.18 B8）：
+      //   · 合成 15 道是手写夹具，用户明确要求"轨迹开关要有效" ⇒ **必须**有差。
+      //   · 真题是模型产出，`scene_code` 提示词里没有"画轨迹"这条要求 ⇒ 只要求
+      //     **"用了 Draw.trace 就必须生效"**；没用就记"无轨迹（不适用）"，不算失败。
+      //     把"必须有轨迹"加给真题，等于改提示词，那是 1.1.19 的事。
       const paintWith = (traceOn) => {
         player.state.mask.trace = traceOn;
         player.state.t = player.duration * 0.6;
@@ -50,6 +61,8 @@ export async function main() {
       const traceOn = paintWith(true);
       const traceOff = paintWith(false);
       const traceDelta = traceOn - traceOff;
+      const usesTrace = /Draw\.trace\b/.test(String(program.slots?.drawFrame ?? ''));
+      const traceOk = s !== 'real-exam' || usesTrace ? traceDelta >= 1 : true;
 
       // 画布文字与读数显示串里不得出现长小数（用户反馈"画面上直接摆十几位小数"）。
       // 注意：readouts 的 **原始值** 保持全精度（C7 要按容差比对），这里查的是**显示串**。
@@ -106,19 +119,20 @@ export async function main() {
         !noReadouts.length &&
         !bad.length &&
         !cameraDrift.length &&
-        traceDelta >= 1 &&
+        traceOk &&
         !longText.length &&
         !symbolicArrows.length;
       if (!ok) failures += 1;
+      const traceText = s === 'real-exam' && !usesTrace ? '无轨迹（真题，不适用）' : `±${traceDelta} 条`;
       console.log(
-        `  ${ok ? '✓' : '✗'} ${String(program.index).padStart(2, '0')} ${program.title.padEnd(16, '　')} ` +
+        `  ${ok ? '✓' : '✗'} [${s === 'real-exam' ? '真题' : '合成'}] ${String(program.index).padStart(2, '0')} ${program.title.padEnd(16, '　')} ` +
           `时长 ${player.duration.toFixed(2)}s · 采样 ${frames.length} 帧 · 命令 ${frames[0].commands}–${Math.max(...frames.map((f) => f.commands))} · ` +
-          `画笔调用 ${paintCalls} · 相机 ${frames[0].transform.toFixed(1)} px/m 锁定 · 轨迹开关 ±${traceDelta} 条 · 长小数 ${longText.length} 处` +
+          `画笔调用 ${paintCalls} · 相机 ${frames[0].transform.toFixed(1)} px/m 锁定 · 轨迹开关 ${traceText} · 长小数 ${longText.length} 处` +
           (program.mode === 'SYMBOLIC' ? ` · 符号标注缺口 ${symbolicArrows.length} 处` : '') +
           (ok
             ? ''
             : ` · 异常：空帧 ${empty.length} / 无读数 ${noReadouts.length} / 非法缩放 ${bad.length} / ` +
-              `相机漂移 ${cameraDrift.length} 帧 / 轨迹开关无效（差 ${traceDelta}）` +
+              `相机漂移 ${cameraDrift.length} 帧 / ${traceOk ? '轨迹开关正常' : `轨迹开关无效（差 ${traceDelta}）`}` +
               (longText.length ? ` / 长小数示例 ${JSON.stringify(longText[0].slice(0, 48))}` : '') +
               (symbolicArrows.length
                 ? ` / SYMBOLIC 箭头缺 latex 示例 t=${symbolicArrows[0].t.toFixed(2)} label=${JSON.stringify(symbolicArrows[0].label)}`
@@ -130,13 +144,14 @@ export async function main() {
       }
     } catch (err) {
       failures += 1;
-      console.log(`  ✗ ${String(program.index).padStart(2, '0')} ${program.title} — ${err.message}`);
+      console.log(`  ✗ [${s === 'real-exam' ? '真题' : '合成'}] ${String(program.index).padStart(2, '0')} ${program.title} — ${err.message}`);
     }
   }
   console.log(
     failures
       ? `\n✗ ${failures} 道题渲染路径异常`
-      : `\n✓ ${files.length} 道题渲染路径全部正常，相机全时段锁定（§4.6），"轨迹"开关均能改变画面`,
+      : `\n✓ ${items.length} 道题渲染路径全部正常（套件 ${suite}），相机全时段锁定（§4.6）；` +
+          `合成题"轨迹"开关均能改变画面，真题若用了 Draw.trace 也必生效`,
   );
   if (failures) process.exitCode = 1;
 }

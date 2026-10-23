@@ -1,7 +1,7 @@
-/** 一次性：骨架不做之后，修正 pilot.json 里“留给骨架”的措辞。 */
+/** 一次性：骨架不做之后，修正 index.json 里“留给骨架”的措辞。 */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const f = 'tests/real-exam/pilot.json';
+const f = 'tests/real-exam/index.json';
 const p = JSON.parse(readFileSync(f, 'utf8'));
 
 const q6 = p.items.find((x) => x.id === 'q06');

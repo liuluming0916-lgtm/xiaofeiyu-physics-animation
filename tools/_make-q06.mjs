@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const q = JSON.parse(readFileSync('tests/real-exam/pilot.json', 'utf8')).items.find((x) => x.id === 'q06');
+const q = JSON.parse(readFileSync('tests/real-exam/index.json', 'utf8')).items.find((x) => x.id === 'q06');
 
 const slots = {
   PROBLEM: q.problem,

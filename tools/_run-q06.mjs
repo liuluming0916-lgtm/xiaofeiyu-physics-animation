@@ -20,8 +20,8 @@ import http from 'node:http';
 
 const ID = 'q06';
 const PORT = Number(process.env.OD_PORT ?? 8123);
-const q = JSON.parse(readFileSync('tests/real-exam/pilot.json', 'utf8')).items.find((x) => x.id === ID);
-if (!q) throw new Error(`pilot.json 里没有 ${ID}`);
+const q = JSON.parse(readFileSync('tests/real-exam/index.json', 'utf8')).items.find((x) => x.id === ID);
+if (!q) throw new Error(`index.json 里没有 ${ID}`);
 
 const b64 = readFileSync(`tests/real-exam/${q.image}`).toString('base64');
 const reference = [

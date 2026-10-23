@@ -74,11 +74,11 @@ const RUNTIME = resolveNodeBin().bin;
 const STEPS = [
   ['① 契约同源校验', 'contracts/verify-contracts.mjs'],
   ['② SDK 签名摘要', 'sdk/generate-signature-summary.mjs'],
-  ['③ Dry-Run C1–C9', 'core/dryrun/run-suite.mjs'],
+  ['③ Dry-Run C1–C9（合成 15 + 真题 8）', 'core/dryrun/run-suite.mjs --suite all'],
   ['④ 负向注入验收（§18 期 2）', 'tests/negative-injection/run-injection.mjs'],
   ['⑤ 埋点与行号映射自检', 'tests/instrument-selftest.mjs'],
   ['⑥ C1 判据取证', 'tests/lint-selftest.mjs'],
-  ['⑦ 渲染路径自检', 'tools/render-check.mjs'],
+  ['⑦ 渲染路径自检（两套题）', 'tools/render-check.mjs --suite all'],
   ['⑧ 公式预渲染（MathJax）', 'tools/build-tex-svg.mjs'],
   ['⑨ 成品页打包', 'template/build-template.mjs'],
   ['⑩ 成品页静态体检', 'tools/layout-lint.mjs'],

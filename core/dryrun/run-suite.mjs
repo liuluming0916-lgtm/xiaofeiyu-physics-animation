@@ -1,25 +1,35 @@
 #!/usr/bin/env node
 /**
- * dryrun —— 跑 §19.5 回归题集，逐题出 DryRunReport 与四件套（本期三件）。
+ * dryrun —— 跑回归题集，逐题出 DryRunReport 与四件套（本期三件）。
  *
  * 用法：
- *   node core/dryrun/run-suite.mjs            # 全部题目
- *   node core/dryrun/run-suite.mjs q01 q07    # 只跑指定前缀的题目
+ *   node core/dryrun/run-suite.mjs                    # 合成回归 15 道（默认，保持老行为）
+ *   node core/dryrun/run-suite.mjs --suite real-exam  # 只跑真题（tests/real-exam/index.json）
+ *   node core/dryrun/run-suite.mjs --suite all        # 两套都跑（门禁 ③ 用这个）
+ *   node core/dryrun/run-suite.mjs q01 q07            # 只跑指定前缀的题目
  */
 
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { dryRun } from './dry-run.mjs';
+import {
+  loadSuite,
+  parseSuiteArgs,
+  deriveTiming,
+  auditSelfControlFailures,
+  REGRESSION_DIR,
+} from './question-sources.mjs';
 import { CHECK_IDS, TEMPLATE_VERSION, SDK_VERSION } from '../../contracts/spec/frozen-keys.mjs';
 import { labelOf } from '../../contracts/evidence.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PROJECT_ROOT = join(HERE, '..', '..');
-const QUESTION_DIR = join(PROJECT_ROOT, 'tests', 'regression-15');
+const QUESTION_DIR = REGRESSION_DIR;
 const REPORT_DIR = join(PROJECT_ROOT, 'tests', 'reports');
 
+/** 合成回归的题单（保持老接口：tests 里的取证脚本与几个 `_` 工具都在 import 它） */
 export function listQuestionFiles() {
   return readdirSync(QUESTION_DIR)
     .filter((f) => f.endsWith('.mjs'))
@@ -36,10 +46,17 @@ export async function loadQuestions(filters = []) {
   return out;
 }
 
-export async function runSuite(filters = []) {
-  const questions = await loadQuestions(filters);
+/**
+ * @param {string[]} filters
+ * @param {'regression-15'|'real-exam'|'all'} suite
+ * @returns {Promise<{reports: object[], audit: object|null}>}
+ */
+export async function runSuite(filters = [], suite = 'regression-15') {
+  const { items, audit } = await loadSuite(suite, filters);
   const reports = [];
-  for (const { file, program } of questions) {
+  for (const { file, program, suite: s } of items) {
+    /* 真题的 program.json 里没有 analysis，C5/C6 要的两个数从程序本身反推（与 _check-real 同口径） */
+    const timing = s === 'real-exam' ? deriveTiming(program.slots) : {};
     const { report } = await dryRun({
       slots: program.slots,
       entry: program.id,
@@ -47,22 +64,40 @@ export async function runSuite(filters = []) {
         index: program.index,
         title: program.title,
         examPoint: program.examPoint,
-        mode: program.mode ?? 'NUMERIC',
-        sourceFile: `tests/regression-15/${basename(file)}`,
+        mode: program.mode ?? (s === 'real-exam' ? 'BOTH' : 'NUMERIC'),
+        sourceFile: file,
         examSelfChecks: program.examSelfChecks ?? 0,
         templateVersion: TEMPLATE_VERSION,
         sdkVersion: SDK_VERSION,
+        suite: s,
+        ...timing,
       },
     });
-    reports.push(report);
+    /* `suite` 只进报告（摘要分表用），不改判据 */
+    reports.push({ ...report, suite: s });
   }
-  return reports;
+  return { reports, audit };
 }
 
 function statusMark(report) {
   if (report.verdict === 'pass') return '✓ 通过';
   if (report.verdict === 'pass-with-warnings') return '⚠ 告警';
   return '✗ 失败';
+}
+
+/** 套件标签（报告里 `suite` 只有真题会带，合成是老报告默认 undefined） */
+function suiteTag(r) {
+  return r.suite === 'real-exam' ? '真题' : '合成';
+}
+function sortBySuite(reports) {
+  const order = { 'regression-15': 0, 'real-exam': 1 };
+  return [...reports].sort(
+    (a, b) => (order[a.suite ?? 'regression-15'] ?? 9) - (order[b.suite ?? 'regression-15'] ?? 9) || a.meta.index - b.meta.index,
+  );
+}
+function suiteCounts(reports) {
+  const reg = reports.filter((r) => (r.suite ?? 'regression-15') === 'regression-15').length;
+  return `合成 ${reg} · 真题 ${reports.length - reg}`;
 }
 
 function renderSummary(reports, { totalMs }) {
@@ -76,11 +111,11 @@ function renderSummary(reports, { totalMs }) {
   lines.push(
     `- 执行后端：${backends.map((b) => (b === 'worker' ? '`worker_threads` + `node:vm` + `resourceLimits` + 硬终止（§6.3）' : `\`${b}\``)).join(' · ')}`,
   );
-  lines.push(`- 题量：${reports.length} · 总耗时：${totalMs} ms`);
+  lines.push(`- 题量：${reports.length}（${suiteCounts(reports)}） · 总耗时：${totalMs} ms`);
   lines.push('');
-  lines.push('| # | 题目 | 模式 | 判定 | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | 终止 | 耗时 ms | 帧数 | 行号诊断 | 关键帧 |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
-  for (const r of reports) {
+  lines.push('| 套件 | # | 题目 | 模式 | 判定 | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | 终止 | 耗时 ms | 帧数 | 行号诊断 | 关键帧 |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+  for (const r of sortBySuite(reports)) {
     const cells = CHECK_IDS.map((id) => {
       const c = r.checks.find((x) => x.id === id);
       if (!c) return '—';
@@ -90,7 +125,7 @@ function renderSummary(reports, { totalMs }) {
     const blankKf = kfs.filter((k) => !(k.commands > 0)).length;
     const kfCell = kfs.length ? `${kfs.length}${blankKf ? `（空 ${blankKf}）` : ''}` : '—';
     lines.push(
-      `| ${r.meta.index} | ${r.meta.title} | ${r.execution.mode} | ${statusMark(r)} | ${cells.join(' | ')} | ${r.execution.termination ?? '—'} | ${r.execution.wallClockMs} | ${r.execution.frameCount} | ${r.observations.diagnosticCount ?? 0} | ${kfCell} |`,
+      `| ${suiteTag(r)} | ${r.meta.index} | ${r.meta.title} | ${r.execution.mode} | ${statusMark(r)} | ${cells.join(' | ')} | ${r.execution.termination ?? '—'} | ${r.execution.wallClockMs} | ${r.execution.frameCount} | ${r.observations.diagnosticCount ?? 0} | ${kfCell} |`,
     );
   }
   lines.push('');
@@ -105,12 +140,12 @@ function renderSummary(reports, { totalMs }) {
   lines.push('');
   lines.push('C10 由 `VIEW.SIM.regions` 自愿声明各阶段的合法区域；未声明的题不算失败（`skip`）。X1/X2 只在报告里提醒，不阻塞。');
   lines.push('');
-  lines.push('| # | 题目 | C10 | X1 | X2 |');
-  lines.push('|---|---|---|---|---|');
+  lines.push('| 套件 | # | 题目 | C10 | X1 | X2 |');
+  lines.push('|---|---|---|---|---|---|');
   const mark = (x) => (x?.status === 'pass' ? '✓' : x?.status === 'fail' ? '✗' : '·');
-  for (const r of reports) {
+  for (const r of sortBySuite(reports)) {
     const get = (id) => r.extensions?.find((x) => x.id === id);
-    lines.push(`| ${r.meta.index} | ${r.meta.title} | ${mark(get('C10'))} | ${mark(get('X1'))} | ${mark(get('X2'))} |`);
+    lines.push(`| ${suiteTag(r)} | ${r.meta.index} | ${r.meta.title} | ${mark(get('C10'))} | ${mark(get('X1'))} | ${mark(get('X2'))} |`);
   }
   lines.push('');
   lines.push('## 观测指标（§19.1 / §22 M22）');
@@ -151,11 +186,43 @@ function renderSummary(reports, { totalMs }) {
 }
 
 export async function main() {
-  const filters = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+  const { suite, filters } = parseSuiteArgs(process.argv.slice(2));
   const started = Date.now();
   mkdirSync(REPORT_DIR, { recursive: true });
-  const reports = await runSuite(filters);
+
+  /* ── ⓪ 真题清单体检（`--suite real-exam|all` 才跑；自带负对照） ──
+     为什么在这里：清单是真题的"题目来源"，它坏了后面全是噪音。
+     负对照（故意写坏的 5 份清单）每次真跑 —— 否则"体检写了但没生效"没人发现。 */
+  if (suite !== 'regression-15') {
+    const missed = auditSelfControlFailures();
+    if (missed.length) {
+      console.error(`✗ 清单体检的负对照没被点名（${missed.length} 条）：`);
+      for (const m of missed) console.error(`    · ${m}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log('  ✓ 清单体检负对照：5 份坏清单全部被点名（缺程序 / 多程序 / 题号不符 / state.e0 / bodies 引用不存在 key）');
+  }
+
+  const { reports, audit } = await runSuite(filters, suite);
   const totalMs = Date.now() - started;
+
+  if (audit) {
+    const { errors, counts, runnable } = audit;
+    if (errors.length) {
+      console.error(`✗ 真题清单体检未过（${errors.length} 条）：`);
+      for (const e of errors) console.error(`    · [${e.code}] ${e.detail}`);
+      process.exitCode = 1;
+    } else {
+      console.log(
+        `  ✓ 真题清单体检：可跑 ${runnable.length} 道 · 待做 ${counts.todo} · 占位 ${counts.placeholder} · 冻结哈希一致`,
+      );
+      if (runnable.length < 3) {
+        console.error(`✗ 真题可跑的只有 ${runnable.length} 道（至少 3 道：q04/q06/q09）`);
+        process.exitCode = 1;
+      }
+    }
+  }
 
   for (const r of reports) {
     writeFileSync(join(REPORT_DIR, `${r.entry}.dryrun.json`), `${JSON.stringify(r, null, 2)}\n`, 'utf8');
@@ -170,11 +237,13 @@ export async function main() {
     },
     {},
   );
-  console.log(`Dry-Run 完成：${reports.length} 题 · ${totalMs} ms`);
+  console.log(`Dry-Run 完成：${reports.length} 题（${suiteCounts(reports)}） · ${totalMs} ms`);
   console.log(`  通过 ${counts.pass ?? 0} · 告警 ${counts['pass-with-warnings'] ?? 0} · 失败 ${counts.fail ?? 0}`);
-  for (const r of reports) {
+  for (const r of sortBySuite(reports)) {
     const bad = r.checks.filter((c) => c.status === 'fail').map((c) => c.id);
-    console.log(`  ${String(r.meta.index).padStart(2, '0')} ${r.meta.title.padEnd(18, '　')} ${statusMark(r)}${bad.length ? ` · 未过 ${bad.join(',')}` : ''}`);
+    console.log(
+      `  [${suiteTag(r)}] ${String(r.meta.index).padStart(2, '0')} ${r.meta.title.padEnd(18, '　')} ${statusMark(r)}${bad.length ? ` · 未过 ${bad.join(',')}` : ''}`,
+    );
   }
   const c10 = reports.map((r) => r.extensions?.find((x) => x.id === 'C10')).filter(Boolean);
   const declared = c10.filter((c) => c.status !== 'skip');

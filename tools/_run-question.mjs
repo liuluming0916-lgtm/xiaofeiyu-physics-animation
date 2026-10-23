@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * _run-question —— 把 `tests/real-exam/pilot.json` 里的任意一道题真跑一遍 v6 链路。
+ * _run-question —— 把 `tests/real-exam/index.json` 里的任意一道题真跑一遍 v6 链路。
  *
  * 为什么有它：`_run-q04.mjs` / `_run-q06.mjs` 都把题号写死了，做 q09 时又得复制一份。
  * 这里按 id 取题面、原图、教师答案，产物统一落到 `tests/reports/<id>-model.*`。
@@ -25,8 +25,8 @@ if (!id) {
   process.exit(2);
 }
 
-const q = JSON.parse(readFileSync('tests/real-exam/pilot.json', 'utf8')).items.find((x) => x.id === id);
-if (!q) throw new Error(`pilot.json 里没有 ${id}`);
+const q = JSON.parse(readFileSync('tests/real-exam/index.json', 'utf8')).items.find((x) => x.id === id);
+if (!q) throw new Error(`index.json 里没有 ${id}`);
 
 const b64 = readFileSync(`tests/real-exam/${q.image}`).toString('base64');
 const reference = useReference

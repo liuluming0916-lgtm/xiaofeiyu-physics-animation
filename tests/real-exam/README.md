@@ -1,45 +1,80 @@
-# 真实高考题试点（q04 / q06 / q09）
+# 真题回归集（8 道可跑 + 3 道占位）
 
-来源：`C:\Users\Liu LuMing\Desktop\测试用题目\测试题目.pdf`（13 页，整卷 + 答案 + 详解）。
-页面截图在 `pages/`（不入发布包）；题面 / 答案 / 程序索引在 `pilot.json`。
+来源：`C:\Users\Liu LuMing\Desktop\测试用题目\测试题目.pdf`（13 页；题面 + 答案 + 详解混排）。
+本卷共 10 题，抽取与逐题判读见 [`docs/plans/B8-真题清单.md`](../../docs/plans/B8-真题清单.md)；
+目录/加载器/验收口径见 [`docs/plans/B8-真题回归方案.md`](../../docs/plans/B8-真题回归方案.md)。
 
-当前只做三道试点，**不删除** `tests/regression-15/q01..q15`（那是确定性夹具）。
+**清单唯一来源是 `index.json`**（v2）。原 `pilot.json` 已退役，内容并入 `index.json`。
 
-| id | 题号 | 类型 | 原卷页 | 状态 |
-|---|---|---|---|---|
-| `q04` | 第 4 题 | 传送带 + 绳 + 滑轮 + 图像 | 4 | **候选**（模型产出后人工修补） |
-| `q06` | 第 6 题 | 导轨 + 电容 + 开关 | 6 | **已验收**（333 帧 / 4 步 / 显示 8 s） |
-| `q09` | 第 9 题 | 卡销汽缸 + 等温/等容 | 9 | **已验收**（481 帧 / 5 步 / 显示 8 s） |
+| id | 原卷页 | 题 | 状态 | 说明 |
+|---|---|---:|---|---|
+| `q01` | 1 | 斜面弹簧连接体的两次共速（多选） | todo | 题面已抽，等模型产出 |
+| `q02` | 2 | 蹦床 F–t 图像与变力冲量（多选） | placeholder | 词表没有"蹦床/可形变面" |
+| `q03` | 3 | U 形管双气瓶的等容升温（填空·热学） | placeholder | 热学本轮不做 |
+| `q04` | 4 | 传送带—绳—滑轮多过程（3 问） | candidate | 模型产出后人工修补过；旧形态（`state.e0`），待迁语义 key |
+| `q05` | 6 | 救护车的加速—匀速与鸣笛追及（2 问，无图） | todo | 题面已抽，等模型产出 |
+| `q06` | 6 | 导轨—电容—开关的电磁感应（2 问） | accepted | 333 帧 / 4 步 / 显示 8 s |
+| `q07` | 8 | 方波电场与方波磁场中的带电粒子（3 问） | todo | 题面已抽，等模型产出 |
+| `q08` | 10 | 直流电路 + 平行板类平抛 + 磁场圆周（3 问） | todo | **B8 端到端试点** |
+| `q09` | 11 | 卡销汽缸的等温压缩与等容升温（2 问） | accepted | 481 帧 / 5 步 / 显示 8 s |
+| `q10` | 12 | 四分之一圆玻璃柱的全反射临界（光学） | placeholder | 光学本轮不做 |
 
-每题包含：
+状态含义（`index.json` 的 `status`）：
 
-- `problem`：题面（人工校对过）；
-- `answer`：试卷答案摘要；
-- `image`：原题截图；
-- `knowledge`：知识点标签；
-- `program` / `preview`：归一化后的程序与单文件页（`q04.program.json` / `q04.html` 等）。
+- `placeholder`：只占位，本轮不做（必须有 `placeholderReason`）；
+- `todo`：题面/答案/裁图已抽，程序还没产出；
+- `candidate`：模型产出、待人工验收；
+- `accepted`：人工验收通过（`acceptedAt` + `acceptNote`）。
+
+`todo`/`placeholder` 不许带 `program`；`candidate`/`accepted` **必须**带 `program` + `preview` + `frozen`。
+体检在门禁 ③ 里跑（`core/dryrun/question-sources.mjs`），带 5 份坏清单做负对照。
+
+## 文件
+
+```text
+index.json            清单（唯一来源）
+pages/qNN.png         原题裁图（144 dpi 渲图后裁题面区，不含【答案】）
+qNN.program.json      冻结程序（8 个槽位）
+qNN.html              冻结单文件预览
+q04.mjs / q06.mjs     历史 JSON 再导出包装（老检查脚本用，保留）
+q06.handwritten.*     手写反例，保留作对照
+```
+
+## 常用命令
+
+```bash
+# 单题 Dry-Run（v6 口径，T_phys/边界从 setup 与 VIEW 反推）
+node tools/_check-real.mjs q08
+
+# 清单体检（+ 负对照）
+node tools/_check-real-exam.mjs
+
+# 门禁里的两站（合成 15 + 真题 8）
+node core/dryrun/run-suite.mjs --suite all
+node tools/render-check.mjs --suite all
+
+# 真跑一道题（本机规则服务在跑：node tools/rules-service.mjs --port 8123）
+node tools/_run-question.mjs q08
+
+# 冻结：先出公式 SVG，再打单文件页
+node tools/_tex-for.mjs tests/real-exam/q08.program.json --id q08
+node tools/_build-page.mjs tests/real-exam/q08.program.json --id q08 --out tests/real-exam/q08.html
+```
 
 ## 验收口径
 
-- **金标准 = 模型产出 + 人工验收通过**（手写不算），详见 [`docs/plans/金标准候选验收单-v1.md`](../../docs/plans/金标准候选验收单-v1.md)。
-- q06 的手写版已降为反例：`q06.handwritten.program.json` / `q06.handwritten.html`。
-- 这三道题**不在** `tools/verify-all.mjs` 里跑；`tests/real-exam` 被覆盖自检豁免。
-- 检查命令：`node tools/_check-real.mjs q06`（v6 口径，自动从 `T_PHYS` / `phases` 取 meta）。
+金标准 = **模型产出 + 人工验收**（手写不算），详见
+[`docs/plans/金标准候选验收单-v1.md`](../../docs/plans/金标准候选验收单-v1.md)。
+机检在门禁 ③⑦：C1–C9、关键帧体检、渲染路径不变量、程序形态（语义 key / 物理尺寸 / 无 `cx/cy` / `bodies` 自洽）。
 
-## 为什么先不替换 Q01–Q15
+## 为什么不删 Q01–Q15
 
-`tests/regression-15/q01..q15` 是**可执行动画程序**（有 `stateAt / drawFrame / readouts`），
-是门禁的确定性夹具；直接替换会让门禁失去可执行用例。
+`tests/regression-15/q01..q15` 是**可执行动画程序**（手写夹具），是门禁的确定性基线；
+真题是模型产出，两者测的东西不一样。**至少 6 道真题稳定前不动旧集**（现在还要留它当对照）。
 
-替换顺序：
+## 已知不足
 
-1. 真实试点稳定（≥3 道 accepted，q04 重跑升级）；
-2. 通过 C1–C9 / 渲染 / 图表门禁；
-3. 把旧 `q01..q15` 移到 `tests/regression-legacy/`；
-4. 新题集按题号接管 `q01..` 编号。
-
-## 已知不足（记录在 `pilot.json`）
-
-- q04：模型原始输出有 `cos` 未限定、答案为空、第 (3) 问算错；现为人工修补版，仍是旧固定画布。
-- q06：S 与 C 画在同一左支路（串联）、开关符号无开合切换 —— 属场景卡内容不足，判为可过。
-- q09：卡销位置与活塞行程对不齐（词表没有“卡销”）、汽缸比例偏细、外力箭头用手画。
+- `q04`：模型产出后人工修补；仍是旧形态（`state.e0` + `cx/cy` + 纸面尺寸），迁移排在 B8 第 4 步。
+- `q06`：S 与 C 画在同一左支路（串联）、开关符号无开合切换 —— 场景卡内容不足，判为可过。
+- `q09`：卡销位置与活塞行程对不齐（词表没有"卡销"）、汽缸比例偏细、外力箭头手画。
+- 真题不实现"轨迹开关"（`Draw.trace`）：提示词里没有这条要求，门禁因此只要求"用了就必须生效"。

@@ -1,48 +1,33 @@
 #!/usr/bin/env node
 /**
- * 真实高考题题库自检（试点三道）。
- * 用法：node tools/check-real-exam.mjs
+ * _check-real-exam —— 真题清单（`tests/real-exam/index.json`）自检的 **CLI 入口**。
+ *
+ * 判据本身在 `core/dryrun/question-sources.mjs` 的 `auditManifest()` 里，与门禁 ③ 共用一份：
+ * 这里只负责把结论打印出来，不重复实现一遍规则（两处实现必然漂移）。
+ *
+ * 用法：
+ *   node tools/_check-real-exam.mjs          # 体检 + 负对照
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+
+import { auditManifest, auditSelfControlFailures, defaultIo, REAL_EXAM_DIR } from '../core/dryrun/question-sources.mjs';
 import { join } from 'node:path';
 
-const ROOT = join(import.meta.dirname, '..');
-const DIR = join(ROOT, 'tests', 'real-exam');
-const data = JSON.parse(readFileSync(join(DIR, 'pilot.json'), 'utf8'));
-let pass = 0;
-const fail = [];
-const check = (name, ok, detail = '') => {
-  if (ok) {
-    pass += 1;
-    console.log(`  ✓ ${name}`);
-  } else {
-    fail.push({ name, detail });
-    console.log(`  ✗ ${name}${detail ? `（${detail}）` : ''}`);
-  }
-};
+const manifest = JSON.parse(readFileSync(join(REAL_EXAM_DIR, 'index.json'), 'utf8'));
+const { errors, counts, runnable } = auditManifest(manifest, defaultIo(REAL_EXAM_DIR));
 
-console.log('real-exam 题库自检 · 试点三道');
-check('题库格式正确', data.format === 'od-real-exam' && data.version === 1);
-check('试点正好三道', data.items.length === 3, String(data.items.length));
-check('题号唯一', new Set(data.items.map((x) => x.id)).size === data.items.length);
-for (const q of data.items) {
-  check(`${q.id} 有题面`, typeof q.problem === 'string' && q.problem.length > 100, `${q.problem?.length ?? 0} 字`);
-  check(`${q.id} 有答案`, Array.isArray(q.answer) && q.answer.length > 0);
-  check(`${q.id} 有知识点`, Array.isArray(q.knowledge) && q.knowledge.length > 0);
-  check(`${q.id} 有原卷页码`, Number.isInteger(q.pdfPage) && q.pdfPage > 0);
-  check(`${q.id} 有题图`, existsSync(join(DIR, q.image)), q.image);
-  check(`${q.id} 状态合法`, ['pilot', 'candidate', 'accepted', 'rejected'].includes(q.status));
-  /* 已通过的题必须留痕：谁产的、什么时候、程序在不在 */
-  if (q.status === 'accepted') {
-    check(`${q.id} accepted 有 source`, q.source === 'model' || q.source === 'handwritten', String(q.source ?? '缺'));
-    check(`${q.id} accepted 有 acceptedAt`, /^\d{4}-\d{2}-\d{2}$/.test(String(q.acceptedAt ?? '')), String(q.acceptedAt ?? '缺'));
-    check(`${q.id} accepted 程序存在`, q.program && existsSync(join(DIR, q.program)), String(q.program ?? '缺'));
-    check(`${q.id} accepted 预览存在`, q.preview && existsSync(join(DIR, q.preview)), String(q.preview ?? '缺'));
-  }
-}
+console.log(`real-exam 清单自检 · ${manifest.items?.length ?? 0} 条（format=${manifest.format} version=${manifest.version}）`);
+console.log(
+  `  可跑 ${runnable.length} 道（${runnable.map((x) => x.id).join(' ')}） · 待做 ${counts.todo} · 占位 ${counts.placeholder} · ` +
+    `candidate ${counts.candidate} · accepted ${counts.accepted}`,
+);
+for (const e of errors) console.log(`  ✗ [${e.code}] ${e.item ?? ''} ${e.detail}`);
 
-console.log(`\n${fail.length ? '✗' : '✓'} 通过 ${pass}，失败 ${fail.length}`);
-if (fail.length) {
-  for (const f of fail) console.log(`  ✗ ${f.name}\n      ${f.detail}`);
-  process.exit(1);
-}
+const missed = auditSelfControlFailures();
+console.log(
+  missed.length
+    ? `  ✗ 负对照没被点名（${missed.length} 条）：\n${missed.map((m) => `      ${m}`).join('\n')}`
+    : '  ✓ 负对照：5 份故意写坏的清单全部被点名',
+);
+console.log(`\n${errors.length || missed.length ? '✗ 未通过' : '✓ 通过'}`);
+if (errors.length || missed.length) process.exitCode = 1;
