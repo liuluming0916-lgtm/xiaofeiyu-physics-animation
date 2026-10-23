@@ -29,7 +29,7 @@ import { makeMockCanvas } from '../tests/harness/canvas-harness.mjs';
 const TAU = Math.PI * 2;
 
 function parseArgs(argv) {
-  const out = { program: null, n: 6, times: null, out: null, w: 880, h: 388 };
+  const out = { program: null, n: 6, times: null, out: null, w: 880, h: 388, zoom: 1, pan: [0, 0], focus: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--n') out.n = Number(argv[++i]);
@@ -37,6 +37,9 @@ function parseArgs(argv) {
     else if (a === '--out') out.out = argv[++i];
     else if (a === '--w') out.w = Number(argv[++i]);
     else if (a === '--h') out.h = Number(argv[++i]);
+    else if (a === '--zoom') out.zoom = Number(argv[++i]);
+    else if (a === '--pan') out.pan = String(argv[++i]).split(',').map(Number);
+    else if (a === '--focus') out.focus = String(argv[++i]).split(',').map(Number);
     else if (!a.startsWith('--')) out.program = a;
   }
   return out;
@@ -300,6 +303,28 @@ const assembly = assembleProgramSource(program.slots, { mode: program.mode ?? 'N
 // eslint-disable-next-line no-new-func
 const factory = new Function('runtime', `${assembly}\nreturn buildProgram;`)(sandboxBundle());
 const player = createPlayerFromFactory(factory, { canvas, dpr: 1 });
+/* 手动放大（v1.1.18 B8）：取证"放大之后到底看得清不清"。
+   `--zoom 4 --focus 4,-1.2` = 放大 4×，并把世界点 (4, -1.2) 放到画布中心。 */
+if (args.zoom && args.zoom !== 1) {
+  if (args.focus) {
+    player.state.t = 0;
+    const auto = player.render().transform;
+    /* `--focus` 给的是**物理米**（与 drawFrame 里写的一致）；舞台题要先折成纸面 u/v 再定位 */
+    let fx = args.focus[0];
+    let fy = args.focus[1];
+    const stg = player.program?.SIM?.stage;
+    if (stg && Number.isFinite(stg.s)) {
+      fx = (stg.u1 ?? 10) / 2 + (fx - stg.cx) * stg.s;
+      fy = (stg.v1 ?? 6) / 2 + (fy - stg.cy) * stg.s;
+    }
+    const sx = auto.worldToScreen(fx, fy);
+    const panX = -(sx.x - args.w / 2) * args.zoom;
+    const panY = -(sx.y - args.h / 2) * args.zoom;
+    player.setView({ zoom: args.zoom, panX, panY });
+  } else {
+    player.setView({ zoom: args.zoom, panX: args.pan?.[0] ?? 0, panY: args.pan?.[1] ?? 0 });
+  }
+}
 const duration = player.duration;
 const times = args.times?.length
   ? args.times
