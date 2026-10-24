@@ -690,6 +690,17 @@ export async function* runPipeline(input) {
        */
       const steps = parseStepsSlot(buildStepsText(outputs.breakdown ?? '', analysisParsed, analysisParsed.tPhys));
       const tPhys = analysisParsed.tPhys;
+      const coupleBranchTimes = analysisParsed?.elements
+        ? [
+            ...new Set(
+              analysisParsed.elements.flatMap((el) =>
+                el.segments.filter((s) => s.branch === true).map((s) => s.t0),
+              ),
+            ),
+          ]
+            .filter((v) => Number.isFinite(v) && v >= 0)
+            .sort((a, b) => a - b)
+        : [];
       let feedback = [];
       let lastText = '';
       let parsedOk = false;
@@ -703,6 +714,8 @@ export async function* runPipeline(input) {
             text: couplePrompt.buildUser({
               problem: problem.text,
               analysisText: formatAnalysis(analysisParsed),
+              readProblem: outputs.read_problem,
+              branchTimes: coupleBranchTimes,
               steps,
               tPhys,
               feedback,

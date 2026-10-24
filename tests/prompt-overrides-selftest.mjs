@@ -207,7 +207,7 @@ async function main() {
       check('（对照）v2 正文三个记号都在就能保存', savePromptOverride({ dir, id: 'read_problem_v2', text: valid }).ok === true);
 
       // 软的那条：删了允许保存，但必须**回报警告**
-      const noWhy = valid.replace('【判定依据】', '');
+      const noWhy = valid.replaceAll('【判定依据】', '');
       const r3 = savePromptOverride({ dir, id: 'read_problem_v2', text: noWhy });
       check('删掉【判定依据】⇒ 允许保存（只有警告）', r3.ok === true);
       check('★ 但必须回报警告（不许静默）', has(r3.warnings, 'prompt.missing-token'));

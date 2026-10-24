@@ -73,16 +73,20 @@ check('repair user 带失败检查', repairUser.includes('C1：语法'));
 check('repair user 带上一轮 drawFrame', repairUser.includes('上一轮 drawFrame'));
 
 const couple = getPrompt('couple');
-check('couple 只输出 step/t0/t1', couple.system.includes('step / t0 / t1') || couple.system.includes('step: 1'));
+check('couple 只输出 step/sub/t0/t1', couple.system.includes('step / sub / t0 / t1') || couple.system.includes('step: 1'));
 const coupleUser = couple.buildUser({
   problem: 'p',
   analysisText: '=== 元件运动表 (MOTIONS) ===',
+  readProblem: '【小问切分】1\n组1：覆盖小问 1；初始条件：不变；',
+  branchTimes: [3.82645],
   steps: [{ title: '第 1 步', tex: '加速' }],
   tPhys: 3,
 });
 check('couple user 带分析表', coupleUser.includes('物理分析表'));
 check('couple user 带步骤', coupleUser.includes('第 1 步'));
 check('couple user 带 T_phys', coupleUser.includes('3'));
+check('couple user 带小问切分', coupleUser.includes('覆盖小问 1'));
+check('couple user 带分支时刻', coupleUser.includes('3.82645'));
 
 const preAnalysis = buildStagePrefix('analysis');
 const preScene = buildStagePrefix('scene_code');

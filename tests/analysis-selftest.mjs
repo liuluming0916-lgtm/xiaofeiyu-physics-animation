@@ -309,7 +309,7 @@ console.log('\n『C』允许的写法与提示词一致性');
   check('compileT 支持 ^ 且求值正确（1 + 8 = 9）', math.ok && Math.abs(math.fn(0) - 9) < 1e-12, String(math.ok ? math.fn(0) : math.error));
 
   check('角色段不再提“关键事件”', !ANALYSIS_ROLE.includes('关键事件'));
-  check('角色段说明“不写最终答案、不写绘图代码”', ANALYSIS_ROLE.includes('不写最终答案') && ANALYSIS_ROLE.includes('不写绘图代码'));
+  check('角色段说明“不写答案、不写绘图代码”', ANALYSIS_ROLE.includes('不写答案') && ANALYSIS_ROLE.includes('不写绘图代码'));
   check('指令里只有 MOTIONS 区块', ANALYSIS_INSTRUCTION.includes('=== 元件运动表 (MOTIONS) ==='));
   check('指令里没有 EVENTS', !ANALYSIS_INSTRUCTION.includes('EVENTS') && !ANALYSIS_INSTRUCTION.includes('关键事件表'));
   check('指令里没有 ANSWERS', !ANALYSIS_INSTRUCTION.includes('ANSWERS') && !ANALYSIS_INSTRUCTION.includes('结论表'));
@@ -317,7 +317,7 @@ console.log('\n『C』允许的写法与提示词一致性');
   check('指令里有 6 个初态字段', ANALYSIS_INSTRUCTION.includes('x0 / y0 / vx0 / vy0 / ax / ay'));
   check('指令里有 ^ 与 ** 两种幂', ANALYSIS_INSTRUCTION.includes('幂 ^') && ANALYSIS_INSTRUCTION.includes('**'));
   check('指令里有 assumption 占位行（用户版）', ANALYSIS_INSTRUCTION.includes('assumption: 为没有数值的符号赋值'));
-  check('指令里有示例（与 ANALYSIS_EXAMPLE 逐字一致）', ANALYSIS_INSTRUCTION.includes(ANALYSIS_EXAMPLE));
+  check('指令里有三段式示例', ANALYSIS_INSTRUCTION.includes('【优秀示例：三段式') && ANALYSIS_INSTRUCTION.includes('branch: true'));
   check('指令里写明段端连续', ANALYSIS_INSTRUCTION.includes('位置 (x, y) 必须相等'));
   /* 2026-10-24：q04 真题里 B 被拉过滑轮、C 自由落体 12 m 把画面撑大 ⇒ 加一条空间约束（硬性） */
   check(
@@ -325,24 +325,25 @@ console.log('\n『C』允许的写法与提示词一致性');
     ANALYSIS_INSTRUCTION.includes('悬挂物不得高于它上方的滑轮') && ANALYSIS_INSTRUCTION.includes('在该时刻截断'),
   );
   check(
-    '指令里写明用段锚点写增量',
-    ANALYSIS_INSTRUCTION.includes('2. 用本段字段名写增量。') && ANALYSIS_INSTRUCTION.includes('x0 + vx0*(t - t0)'),
+    '指令里写明用段字段写增量',
+    ANALYSIS_INSTRUCTION.includes('用本段字段名写增量') && ANALYSIS_INSTRUCTION.includes('x0 + vx0*(t - t0)'),
   );
   check('指令里写明锚点名字可用', ANALYSIS_INSTRUCTION.includes('`t0`、`x0`、`y0`、`vx0`、`vy0`'));
 
   const user = buildAnalysisUser({
     problem: '一物块从斜面滑下。',
-    readProblem: '【物体】物块、斜面',
+    readProblem: '【物体】物块、斜面\n【小问切分】1\n组1：覆盖小问 1；初始条件：不变；',
     solution: 'a = g sinθ',
   });
   check('user 有题目段', user.includes('【题目】') && user.includes('一物块从斜面滑下。'));
-  check('user 有几何段（注入读题）', user.includes('【题目图与几何（读题转写的结构）】') && user.includes('【物体】物块、斜面'));
+  check('user 有读题段（注入读题）', user.includes('【读题（几何 + 小问切分 + 动画元件）】') && user.includes('【物体】物块、斜面'));
+  check('user 带小问切分', user.includes('【小问切分】1') && user.includes('覆盖小问 1'));
   check('user 有解题过程', user.includes('【解题过程】') && user.includes('a = g sinθ'));
   check('user 不再包含分步讲解', !user.includes('分步讲解') && !user.includes('breakdown'));
   check('user 不含题目横幅（由 assemblePrompt 统一加）', !user.includes('════ 题目 ════'));
 
   const noRead = buildAnalysisUser({ problem: 'p', solution: 's' });
-  check('没有读题输出时不出现几何段', !noRead.includes('【题目图与几何'));
+  check('没有读题输出时不出现读题段', !noRead.includes('【读题（几何 + 小问切分 + 动画元件）】'));
 
   /* v1.1.18：补充描述 / 已知条件 / 参考答案必须进 analysis，且参考答案优先 */
   const enriched = buildAnalysisUser({
