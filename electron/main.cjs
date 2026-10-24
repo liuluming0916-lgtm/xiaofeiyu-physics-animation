@@ -144,16 +144,9 @@ async function startService() {
   process.env.OD_HISTORY_PATH = path.join(dataDir, 'history.db');
   process.env.OD_OBS_DIR = path.join(dataDir, 'observability');
   /**
-   * v1.1.16 探针版：导出链路逐步写 `%TEMP%\od-export-probe.log`（同步写，进程崩了也在）。
-   * 定位"写盘成功 → 响应前"的原生崩溃（0xC0000005）用；定位完就删掉这一行。
+   * v1.1.19：Electron 33 → 35.7.5（Node 22 / Node-API 10），better-sqlite3 13 可以正常加载。
+   * v1.1.16 的两个临时探针（导出探针 / 打包形态关审计）已删除，账本与审计恢复为正式路径。
    */
-  process.env.OD_EXPORT_PROBE = '1';
-  /**
-   * v1.1.16 探针版：**打包形态暂时关掉审计**。
-   * 证据：导出探针停在 `export:page-written`，`export:audit-written` 没出现；而打包版 `history.db` 从未生成。
-   * 关掉它再导出，用来判定崩溃是否由审计（better-sqlite3）引起；开发版不受影响。
-   */
-  process.env.OD_DISABLE_AUDIT = '1';
   /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\物理解题动画\导出」，用户找得到 */
   process.env.OD_EXPORT_DIR = exportDir();
   /**
@@ -475,7 +468,7 @@ if (!gotLock) {
         console.log('[selftest] 账本可用        =', historyOk, historyNote);
         console.log('[selftest] Worker 可用     =', workerOk, workerNote);
         console.log('[selftest] 载荷形态        =', APP_ROOT.endsWith('.asar') ? 'app.asar' : 'resources/app（散开）');
-        console.log('[selftest] electron        =', process.versions.electron, '· node', process.versions.node);
+        console.log('[selftest] electron        =', process.versions.electron, '· node', process.versions.node, '· napi', process.versions.napi);
         try {
           /**
            * 自检结果落一份文件，给"没有控制台的打包机"读。
@@ -495,25 +488,25 @@ if (!gotLock) {
               `workerNote=${workerNote}`,
               `electron=${process.versions.electron}`,
               `node=${process.versions.node}`,
+              `napi=${process.versions.napi}`,
             ].join('\n'),
             'utf8',
           );
         } catch {}
         /**
-         * v1.1.17 修复：Electron 33 是 Node-API 9，better-sqlite3 13 要求 10。
-         * 账本降级（history.driver-missing）是**已知且可接受**的；
-         * 不能因此把整个自检判失败，否则冒烟永远红、发布被卡死。
-         * 其它账本错误（打不开、表结构坏）仍然算失败。
+         * v1.1.19：账本恢复后，自检**必须** `history=true`。
+         * 以前 Electron 33 是 Node-API 9，better-sqlite3 13 要求 10，只能接受降级；
+         * 现在运行时升到 Electron 35（Node 22 / Node-API 10），再把降级当"可接受"就等于
+         * 把问题藏起来。其它账本错误（打不开、表结构坏）同样算失败。
          */
-        const historyDegraded = /history\.driver-missing/.test(historyNote);
         const ok = Boolean(
           health &&
             health.ok !== false &&
             indexHtml.includes('<div id="root"') &&
-            (historyOk || historyDegraded) &&
+            historyOk &&
             workerOk,
         );
-        if (historyDegraded) logLine('selftest: 账本降级（Node-API < 10），不影响导出');
+        if (!historyOk) logLine(`selftest: 账本不可用 —— ${historyNote}`);
         await service.close();
         service = null;
         app.exit(ok ? 0 : 1);

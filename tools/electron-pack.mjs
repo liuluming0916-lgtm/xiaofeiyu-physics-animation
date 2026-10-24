@@ -37,7 +37,8 @@ import {
   verifyPackagedAsar,
 } from './pack-payload.mjs';
 
-const ZIP = join(PROJECT_ROOT, '.cache-electron', 'electron-v33.0.0-win32-x64.zip');
+const ELECTRON_VERSION = process.env.OD_ELECTRON_VERSION ?? '35.7.5';
+const ZIP = join(PROJECT_ROOT, '.cache-electron', `electron-v${ELECTRON_VERSION}-win32-x64.zip`);
 const OUT_ROOT = join(PROJECT_ROOT, 'release');
 const APP_DIR = join(OUT_ROOT, '物理解题动画');
 const RES = join(APP_DIR, 'resources');
@@ -72,7 +73,7 @@ function dirSize(dir) {
 
 function main() {
   if (!existsSync(ZIP)) {
-    throw new Error(`没有 Electron 运行时：${ZIP}\n先跑：node tools/_fetch-electron.mjs 33.0.0`);
+    throw new Error(`没有 Electron 运行时：${ZIP}\n先跑：node tools/_fetch-electron.mjs ${ELECTRON_VERSION}`);
   }
 
   /* ① 发布形态前端。打包脚本不能假设调用者刚刚好构建过正确形态（v1.0 实测教训）。 */

@@ -54,6 +54,26 @@ async function main() {
   check('禁止页面导航到非本机地址', /will-navigate/.test(mainSrc));
   check('单实例锁（防双开抢同一个 SQLite 账本）', /requestSingleInstanceLock/.test(mainSrc));
   /**
+   * v1.1.19：账本恢复的两条硬口径。
+   * ① 运行时必须是 Electron 35+（Node 22 / Node-API 10），否则 better-sqlite3 13 加载不了；
+   * ② 两个临时探针不能带进正式版；自检必须把账本当硬要求，不能再接受降级。
+   */
+  check(
+    '★ v1.1.19：打包运行时默认 Electron 35.7.5',
+    /35\.7\.5/.test(read('tools/electron-pack.mjs')) && /35\.7\.5/.test(read('tools/_fetch-electron.mjs')),
+  );
+  check(
+    '★ 调试探针已删除（不把后门带进正式版）',
+    !/process\.env\.OD_EXPORT_PROBE/.test(mainSrc) &&
+      !/process\.env\.OD_DISABLE_AUDIT/.test(mainSrc) &&
+      !/process\.env\.OD_EXPORT_PROBE/.test(read('tools/rules-service.mjs')) &&
+      !/process\.env\.OD_DISABLE_AUDIT/.test(read('tools/rules-service.mjs')),
+  );
+  check(
+    '★ 自检把账本当硬要求（不再接受 history.driver-missing 降级）',
+    /historyOk\s*&&/.test(mainSrc) && !/historyDegraded/.test(mainSrc),
+  );
+  /**
    * ── 第 9 期：这条断言**换口径**了，而且换得更严 ──
    *
    * 原来钉的是"预加载**不给任何函数**"（那时它什么都不做，只暴露三个字符串）。

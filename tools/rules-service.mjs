@@ -21,26 +21,13 @@
  */
 
 import { createServer } from 'node:http';
-import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 
 /**
- * ── v1.1.16 导出崩溃探针（临时）──
- *
- * 打包版"导出成功写盘 → 响应前"主进程原生崩溃（0xC0000005），日志拿不到。
- * 这里在导出链路上按顺序同步写几行到临时文件（同步写 = 进程立刻死也不会丢），
- * 事后看最后一行就知道死在哪一步。`OD_EXPORT_PROBE=1` 时启用（本版由 main.cjs 打开）。
+ * v1.1.19：v1.1.16 的导出崩溃探针（`OD_EXPORT_PROBE`）已删除。
+ * 账本恢复后，导出链路的问题由审计记录 + 开源日志覆盖，不再保留调试后门。
  */
-function probe(step, extra) {
-  if (process.env.OD_EXPORT_PROBE !== '1') return;
-  try {
-    const line = `${new Date().toISOString()} ${process.pid} ${step}${extra === undefined ? '' : ' ' + JSON.stringify(extra)}\n`;
-    appendFileSync(join(tmpdir(), 'od-export-probe.log'), line, 'utf8');
-  } catch {
-    /* 探针自己不许影响导出 */
-  }
-}
 
 import { PROJECT_ROOT } from './paths.mjs';
 import { PIPELINE_STAGES } from '../contracts/spec/frozen-keys.mjs';
@@ -897,9 +884,7 @@ export function createRulesService({
       }
 
       if (req.method === 'POST' && path === '/api/export/page') {
-        probe('export:request');
         const body = await readJson(req);
-        probe('export:body-parsed', { slots: Object.keys(body.slots ?? {}).length });
         const result = await exportPageToDisk({
           slots: body.slots,
           id: body.id,
@@ -921,34 +906,22 @@ export function createRulesService({
           advisory: body.advisory === true,
           gatesBypassed: Array.isArray(body.gatesBypassed) ? body.gatesBypassed : [],
         });
-        probe('export:page-written', { bytes: result.bytes, name: result.name });
         if (!result.ok) return bad(res, [{ code: result.code, path: 'body', message: result.message }]);
         /**
-         * ── v1.1.16 探针版：审计暂时可以关掉 ──
+         * 审计失败绝不影响导出（它本来也只是留痕）。
          *
-         * 探针证明崩溃发生在"页面已写盘 → 审计落库"之间；而打包版里 `history.db`
-         * 从来没被创建过。把审计摘掉再导出，就能判定"是不是它"。
-         * 打包形态由 main.cjs 设 `OD_DISABLE_AUDIT=1`；开发版不受影响。
+         * ⚠ v1.1.19：Electron 35 起 better-sqlite3 能正常加载，**不再有"打包形态跳过审计"的分支**；
+         * 这里保留 try/catch，只防"磁盘满 / 库被占用"这类运行时错误。
          */
-        if (process.env.OD_DISABLE_AUDIT === '1') {
-          probe('export:audit-skipped');
-        } else {
-          try {
-            const secrets = collectSecrets({ dir });
-            probe('export:secrets-collected');
-            recordAudit(
-              { kind: 'export.page', detail: { name: result.name, bytes: result.bytes, model: body.model ?? null } },
-              { path: HISTORY_PATH, secrets },
-            );
-            probe('export:audit-written');
-          } catch (e) {
-            /* 审计失败绝不影响导出（它本来也只是留痕） */
-            probe('export:audit-failed', { message: String(e?.message ?? e) });
-          }
+        try {
+          const secrets = collectSecrets({ dir });
+          recordAudit(
+            { kind: 'export.page', detail: { name: result.name, bytes: result.bytes, model: body.model ?? null } },
+            { path: HISTORY_PATH, secrets },
+          );
+        } catch {
+          /* 审计失败不阻断导出；recordAudit 内部已经会 console.warn */
         }
-        res.on('close', () => probe('export:response-close'));
-        res.on('finish', () => probe('export:response-finish'));
-        probe('export:before-respond');
         return ok(res, {
           file: result.file,
           name: result.name,

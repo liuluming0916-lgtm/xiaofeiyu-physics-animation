@@ -20,7 +20,7 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import https from 'node:https';
 
-const VERSION = process.argv[2] ?? '33.0.0';
+const VERSION = process.argv[2] ?? '35.7.5';
 const OUT_DIR = process.argv[3] ?? join(process.cwd(), '.cache-electron');
 const FILE = `electron-v${VERSION}-win32-x64.zip`;
 const DEST = join(OUT_DIR, FILE);
@@ -101,6 +101,6 @@ async function main() {
 
 main().catch((err) => {
   console.error(`\n✗ ${err.message}`);
-  console.error('如果你在自己机器上：直接 `npm install --save-dev electron@33.0.0` 最简单（那边没有本沙箱的子进程限制）。');
+  console.error('如果你在自己机器上：直接 `npm install --save-dev electron@35.7.5` 最简单（那边没有本沙箱的子进程限制）。');
   process.exitCode = 1;
 });

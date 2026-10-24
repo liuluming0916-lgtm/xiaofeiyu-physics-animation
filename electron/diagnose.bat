@@ -4,7 +4,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo ==========================================
-echo  Physical Animation v1.0 - Diagnose
+echo  Physical Animation v1.1.19 - Diagnose
 echo ==========================================
 echo.
 echo This script only CHECKS things. Please send me ALL output below.
@@ -35,10 +35,20 @@ echo.
 
 echo [2/4] headless selftest (starts local service, writes log, up to 90s)
 set OD_SELFTEST=1
+set OD_SELFTEST_OUT=%TEMP%\od-selftest.txt
 if exist "%TEMP%\od-shell.log" del "%TEMP%\od-shell.log" >nul 2>nul
+if exist "%TEMP%\od-selftest.txt" del "%TEMP%\od-selftest.txt" >nul 2>nul
 start "" /wait "%EXE%"
 set OD_SELFTEST=
+set OD_SELFTEST_OUT=
 echo   exit code = %ERRORLEVEL%
+echo.
+echo   -- selftest: %TEMP%\od-selftest.txt --
+if exist "%TEMP%\od-selftest.txt" (
+  type "%TEMP%\od-selftest.txt"
+) else (
+  echo   (no selftest result = the app did not reach the selftest)
+)
 echo.
 echo   -- shell log: %TEMP%\od-shell.log --
 if exist "%TEMP%\od-shell.log" (
