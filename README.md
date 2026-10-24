@@ -105,4 +105,4 @@ node tools\verify-all.mjs
 ## 联系
 
 - 一般问题 / bug：〔待填：仓库地址〕 的 Issues
-- 商业授权：〔待填：联系邮箱〕
+- 商业授权：1241640869@qq.com
