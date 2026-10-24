@@ -23,8 +23,9 @@ const LABEL_TO_FIELD = (() => {
   return m;
 })();
 
-const EMPTY_TOKENS = new Set(['无', '無', '无。', '無。', 'none', 'null', '-', '—', '–', 'n/a', 'na', '空']);
-const SPLIT_RE = /[,，、;；/|]+/;
+const EMPTY_TOKENS = new Set(['无', '無', '无。', '無。', '（无）', '（無）', '(无)', '(無)', 'none', 'null', '-', '—', '–', 'n/a', 'na', '空']);
+/** 逗号/顿号/分号/斜杠/竖线/**空白**都算分隔：模型按一行一个 id 写时也能收全。 */
+const SPLIT_RE = /[,，、;；/|\s]+/;
 
 /** 渲染 `read_problem` 用的两张词表 */
 export function buildJudgementVocabV2(vocab) {
@@ -83,8 +84,15 @@ export function parseJudgementV2(text, { vocab, index = null } = {}) {
     if (pending) {
       const body = line.trim();
       if (body) {
-        raw[pending] = raw[pending] ? `${raw[pending]} ${body}` : body;
-        pending = null;
+        /**
+         * v1.1.18：**连续多行都归当前段**。
+         *
+         * 旧实现收到第一行非空内容就把 `pending` 清空，模型按“一行一个 id”写时，
+         * `block` 后面的 `ball`、`ground` 会被静默丢掉（q04 实测只判出一个元件）。
+         * 这里不清空，直到遇到下一个标签；行首的 `- * •` 列表符号在入库前剥掉。
+         */
+        const cleaned = body.replace(/^[-*•·]\s*/, '');
+        raw[pending] = raw[pending] ? `${raw[pending]} ${cleaned}` : cleaned;
       }
     }
   }
@@ -96,7 +104,7 @@ export function parseJudgementV2(text, { vocab, index = null } = {}) {
   const splitList = (s) =>
     String(s ?? '')
       .split(SPLIT_RE)
-      .map((x) => normalizeWord(x))
+      .map((x) => normalizeWord(x).replace(/^[-*•·]+\s*/, ''))
       .filter((x) => x && !EMPTY_TOKENS.has(x.normalize('NFKC').toLowerCase()));
 
   const elements = [];

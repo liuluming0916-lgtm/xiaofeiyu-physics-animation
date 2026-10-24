@@ -61,7 +61,14 @@ export function toJsExpr(src, varName = 't', anchor = null) {
      不会出现 `Math.Math.exp`，也不会漏掉模型偶然写的 `Math.cos`。 */
   out = out.replace(/\bMath\s*\.\s*/g, '');
   out = out.replace(new RegExp(`\\b(${MATH_FUNCTIONS.join('|')})\\b(?=\\s*\\()`, 'g'), 'Math.$1');
-  out = out.replace(/\bPI\b(?!\s*\()/g, 'Math.PI');
+  /**
+   * `PI` 与 `pi` 都收敛到 `Math.PI`。
+   *
+   * 解析器（`expr.mjs`）两种写法都认，提示词也写"常量 pi"，但生成器以前只替换大写
+   * `PI` —— `2*pi*t` 会留下裸 `pi`，C1 报 `unknown-global`、C2 运行期崩，
+   * 确定性复现，物理修复重跑两轮也修不掉。
+   */
+  out = out.replace(/\b(?:PI|pi)\b(?!\s*\()/g, 'Math.PI');
   return out;
 }
 

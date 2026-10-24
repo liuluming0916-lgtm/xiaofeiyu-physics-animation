@@ -110,6 +110,10 @@ if (c6?.status !== 'fail') {
     ['Math.cos(1.5*t)', 'Math.cos(1.5*tt0)'],
     ['0.5*sin(t)+pow(t,2)', '0.5*Math.sin(tt0)+Math.pow(tt0,2)'],
     ['t^2/2', 'tt0**2/2'],
+    /* P1-3：解析器认 `pi`，生成器也必须认；大小写两种都收敛到 Math.PI */
+    ['2*pi*t', '2*Math.PI*tt0'],
+    ['sin(pi*t)', 'Math.sin(Math.PI*tt0)'],
+    ['2*PI*t', '2*Math.PI*tt0'],
   ];
   for (const [src, want] of cases) {
     const got = toJsExpr(src, 'tt0');
@@ -148,6 +152,40 @@ if (c6?.status !== 'fail') {
     }
   } catch (err) {
     console.log('FAIL 生成的 stateAt 无法执行：', err.message);
+    failed += 1;
+  }
+
+  /* P1-3 端到端：`2*pi*t` 生成出来的 stateAt 必须能跑，且不能留裸 pi */
+  const piAnalysis = {
+    tPhys: 2,
+    elements: [
+      {
+        id: 'ball_A',
+        type: 'ball',
+        segments: [{ t0: 0, t1: 2, x: { src: '2*pi*t' }, y: { src: '0' }, extra: {} }],
+      },
+    ],
+  };
+  const piSlots = generateProgramSlots({
+    analysis: piAnalysis,
+    problem: 'p',
+    breakdownText: '',
+    drawFrame: 'Draw.line([0,0],[1,0]);',
+  });
+  if (/(?<![.\w])pi\b/.test(piSlots.stateAt)) {
+    console.log('FAIL 生成的 stateAt 里仍有裸 pi：', piSlots.stateAt.split('\n').find((l) => /(?<![.\w])pi\b/.test(l)));
+    failed += 1;
+  }
+  try {
+    // eslint-disable-next-line no-new-func
+    const f = new Function('t', `${piSlots.stateAt}`);
+    const st = f(1);
+    if (!(Number.isFinite(st?.ball_A?.x) && Math.abs(st.ball_A.x - 2 * Math.PI) < 1e-9)) {
+      console.log('FAIL 2*pi*t 生成的 stateAt 跑不出 2π：', JSON.stringify(st));
+      failed += 1;
+    }
+  } catch (err) {
+    console.log('FAIL 2*pi*t 生成的 stateAt 无法执行：', err.message);
     failed += 1;
   }
 }

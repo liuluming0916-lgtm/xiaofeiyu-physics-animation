@@ -328,6 +328,21 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
   check(parsed.scenes.join(',') === 'belt', '解析出 belt', parsed.scenes.join(','));
   check(parsed.problems.length === 0, '完整判定无问题', parsed.problems.map((p) => p.code).join(','));
 
+  /* P1-4：标签下面一行一个 id（含 - 列表）时，不能只收第一个 */
+  const multi = parseJudgementV2(
+    '【动画元件】\nblock\nball\n【场景】\nbelt\nground\n【判定依据】多选',
+    { vocab: lib.vocab },
+  );
+  check('★ 多行判定：block + ball 都收到', multi.elements.join(',') === 'block,ball', multi.elements.join(','));
+  check('★ 多行判定：belt + ground 都收到', multi.scenes.join(',') === 'belt,ground', multi.scenes.join(','));
+  check('★ 多行判定：没有把第二行当表外词', !multi.problems.some((p) => p.code.startsWith('unknown-')), multi.problems.map((p) => p.code).join(','));
+
+  const bullets = parseJudgementV2(
+    '【动画元件】\n- block\n- ball\n【场景】\n- belt\n- ground\n【判定依据】多选',
+    { vocab: lib.vocab },
+  );
+  check('★ 列表符号（-）不影响多选', bullets.elements.join(',') === 'block,ball' && bullets.scenes.join(',') === 'belt,ground', `${bullets.elements.join(',')} / ${bullets.scenes.join(',')}`);
+
   const sceneCard = {
     id: 'scene.conveyor-demo',
     title: '场景·传送带+物块（演示）',
