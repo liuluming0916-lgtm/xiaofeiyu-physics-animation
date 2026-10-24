@@ -62,7 +62,7 @@ import {
   orderSlots,
   repairModeOf,
 } from '../repair/index.mjs';
-import { PHASE5_STAGES, MODEL_STAGES, makeEvent } from './events.mjs';
+import { PHASE5_STAGES, PROMPT_STAGES, makeEvent } from './events.mjs';
 import { parseDiagramBox, cropPngNormalized } from '../images/png-crop.mjs';
 
 /**
@@ -124,7 +124,7 @@ export function snapshotConfig(config) {
   return Object.freeze({
     // Prompt 集合：只快照 id 列表与版本信息，正文从模块读（正文是代码，不是运行时数据）
     // ⚠ 第 5.7 期起默认链条含 `read_problem`（第 0 步，读题与判定）；**所有题都跑它**（含纯文字题，见 runPipeline）
-    promptIds: Object.freeze([...(config.promptIds ?? MODEL_STAGES)]),
+    promptIds: Object.freeze([...(config.promptIds ?? PROMPT_STAGES)]),
     endpoint: Object.freeze({ ...endpoint }),
     apiKey: apiKey ?? null,
     regexRules: Object.freeze([...(rulesCleaning ?? regexRules ?? [])]),
@@ -546,7 +546,7 @@ export async function* runPipeline(input) {
         return { ok: false, fatal: true };
       }
 
-      enqueue(emit('stage_start', { stage, index, total: snapshot.promptIds.length }));
+      enqueue(emit('stage_start', { stage, index, total: PHASE5_STAGES.length }));
       const stageStarted = Date.now();
       let text = '';
       const chunks = [];
@@ -790,8 +790,8 @@ export async function* runPipeline(input) {
         const results = [];
         for await (const ev of runConcurrent(
           [
-            { stage: 'breakdown', index: snapshot.promptIds.indexOf('breakdown') },
-            { stage: 'analysis', index: snapshot.promptIds.indexOf('analysis') },
+            { stage: 'breakdown', index: PHASE5_STAGES.indexOf('breakdown') },
+            { stage: 'analysis', index: PHASE5_STAGES.indexOf('analysis') },
           ],
           results,
         )) {
@@ -885,7 +885,7 @@ export async function* runPipeline(input) {
         return;
       }
 
-      yield emit('stage_start', { stage, index: i, total: snapshot.promptIds.length });
+      yield emit('stage_start', { stage, index: PHASE5_STAGES.indexOf(stage), total: PHASE5_STAGES.length });
 
       const stageStarted = Date.now();
       let text = '';
@@ -1345,7 +1345,7 @@ export async function* runPipeline(input) {
       const previousReport = report;
       const silent = [];
       const enq = (ev) => silent.push(ev);
-      const stageIndex = (s) => snapshot.promptIds.indexOf(s);
+      const stageIndex = (s) => PHASE5_STAGES.indexOf(s);
 
       const rp = await executeStage('read_problem', stageIndex('read_problem'), enq);
       yield* takeStageErrors(silent);

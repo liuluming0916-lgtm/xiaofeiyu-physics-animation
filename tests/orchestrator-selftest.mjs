@@ -18,7 +18,7 @@ import { dryRun } from '../core/dryrun/dry-run.mjs';
 import { parseAnalysisTable } from '../core/analysis/parse.mjs';
 import { ANALYSIS_EXAMPLE } from '../core/analysis/example.mjs';
 import { normalizeDataSlot } from '../sdk/runtime/animation-runtime.mjs';
-import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
+import { PHASE3_STAGES, PHASE5_STAGES, MODEL_STAGES, PROMPT_STAGES, EVENT_TYPES, makeEvent, toSseFrame, isValidStage } from '../core/orchestrator/events.mjs';
 import { ModelError, buildUserMessage } from '../core/gateway/index.mjs';
 import { startFakeEndpoint } from './fake-endpoint/server.mjs';
 import vocab from '../contracts/knowledgecard-vocab-v2.json' with { type: 'json' };
@@ -174,11 +174,20 @@ console.log('『A』事件序列与阶段链');
   }  check(
     '阶段链顺序正确（read_problem→solve→breakdown→analysis→**couple**→scene_code→dry_run）',
     /* 2026-10-24：couple 前置到 scene_code 之前（画图要用步骤边界）。
-       它不在 `MODEL_STAGES` 里（那个列表驱动主循环，couple 由 `runCoupleStage` 单独跑），
-       所以这里按实际顺序写死一张表。 */
+       `MODEL_STAGES` 现在包含 couple（6 个模型阶段）；主循环用 `PROMPT_STAGES`（5 个），
+       couple 由 `runCoupleStage` 单独跑。这里按实际顺序写死一张表。 */
     started.join(',') === 'read_problem,solve,breakdown,analysis,couple,scene_code,dry_run',
     started.join(','),
   );
+  check('★ MODEL_STAGES 含 couple（6 个模型阶段）', MODEL_STAGES.length === 6 && MODEL_STAGES.includes('couple'), MODEL_STAGES.join(','));
+  check('★ PROMPT_STAGES 不含 couple（主循环 5 个）', PROMPT_STAGES.length === 5 && !PROMPT_STAGES.includes('couple'), PROMPT_STAGES.join(','));
+  {
+    const starts = events.filter((e) => e.type === 'stage_start');
+    const bad = starts.filter((e) => e.total !== PHASE5_STAGES.length);
+    check('★ 所有 stage_start.total 都是完整链条长度（不再 5/8 跳变）', bad.length === 0, bad.map((e) => `${e.stage}:${e.total}`).join(','));
+    const scene = starts.find((e) => e.stage === 'scene_code');
+    check('★ scene_code 的 index 与完整链条一致', scene?.index === PHASE5_STAGES.indexOf('scene_code'), JSON.stringify(scene));
+  }
   check('新链路不再有 answers 阶段', !started.includes('answers'), started.join(','));
   /**
    * ⚠ `dry_run` **不发** `stage_done` —— 它是本地沙箱，完成由 `dryrun_done` 单独报

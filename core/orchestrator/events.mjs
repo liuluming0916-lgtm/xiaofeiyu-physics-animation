@@ -46,14 +46,19 @@ import { PIPELINE_STAGES } from '../../contracts/spec/frozen-keys.mjs';
 export const PHASE5_STAGES = Object.freeze(['read_problem', 'solve', 'breakdown', 'analysis', 'couple', 'scene_code', 'dry_run', 'repair']);
 
 /**
- * **需要调用模型、且要跑 Prompt 的阶段**（= 执行链去掉本地阶段）。
+ * **需要调用模型的阶段**（= 执行链去掉两个本地阶段）。
  *
- * `dry_run` 是本地沙箱（不调模型）；`repair` 由自愈循环单独驱动（不在这个列表里，
- * 因为它不是"每道题都跑一遍"的阶段，而是"未通过才跑"的循环）。
- *
- * ⚠ `snapshotConfig()` 的默认 `promptIds` 取的就是它 —— 改了这里就等于改了默认要跑哪些阶段。
+ * 2026-10-24：`couple` 也是模型阶段（每道题都跑），所以它在 `MODEL_STAGES` 里；
+ * 但它由 `runCoupleStage()` 在 `scene_code` 之前单独驱动，**不在主循环的 `promptIds` 里**。
+ * 主循环要跑哪些阶段用 `PROMPT_STAGES`。
  */
-export const MODEL_STAGES = Object.freeze(PHASE5_STAGES.filter((s) => s !== 'dry_run' && s !== 'repair' && s !== 'couple'));
+export const MODEL_STAGES = Object.freeze(PHASE5_STAGES.filter((s) => s !== 'dry_run' && s !== 'repair'));
+
+/**
+ * **主循环实际逐段执行的阶段**（5 个）：`couple` 由单独函数驱动，所以不在里面。
+ * `snapshotConfig()` 的默认 `promptIds` 取的是它。
+ */
+export const PROMPT_STAGES = Object.freeze(MODEL_STAGES.filter((s) => s !== 'couple'));
 
 /**
  * 第 4 期的执行链（**留档**）：不含第 0 步（那时它叫 read_image，还没引入）。
