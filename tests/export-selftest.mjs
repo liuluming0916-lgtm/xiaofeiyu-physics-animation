@@ -232,6 +232,18 @@ export async function main() {
     check('产物 URL 走本机服务（/exports/…）', /^\/exports\/.+\.html$/.test(saved.url), saved.url);
     check('清单里能查到刚导出的那一份', exportMod.listExports().some((x) => x.name === saved.name));
 
+    /* ── P2-7：文件名 = 题目标题_YYYYMMDD-HHmmss（中文保留） ── */
+    {
+      const cnInput = { slots: q01.slots, id: q01.id, title: '斜面弹簧连接物块', model: 'handwritten' };
+      const cn1 = await exportMod.exportPageToDisk(cnInput);
+      check('★ P2-7 文件名保留中文标题', cn1.ok === true && /^斜面弹簧连接物块_\d{8}-\d{6}\.html$/.test(cn1.name), cn1.name);
+      check('★ P2-7 文件名没有空格/斜杠/非法字符', !/[\\/:*?"<>|\s]/.test(cn1.name), cn1.name);
+      const cn2 = await exportMod.exportPageToDisk(cnInput);
+      check('★ P2-7 同一秒两次导出不覆盖', cn2.name !== cn1.name && existsSync(cn2.file), `${cn1.name} / ${cn2.name}`);
+      const noTitle = await exportMod.exportPageToDisk({ slots: q01.slots, id: q01.id, title: '', model: 'handwritten' });
+      check('★ P2-7 没有标题就用“未命名题目”', /^未命名题目_\d{8}-\d{6}\.html$/.test(noTitle.name), noTitle.name);
+    }
+
     /* ── B GIF ── */
     console.log('\n『B』GIF：帧数 / 末帧 / 帧间隔 / 尺寸（默认 25 fps · 960×540）');
     const gif = await import(pathToFileURL(join(PROJECT_ROOT, 'web', 'src', 'lib', 'gif-encode.js')).href);

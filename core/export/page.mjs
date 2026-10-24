@@ -16,7 +16,7 @@
  * 落盘边界（§16 / §11.2）：只写本机 `exports/`，不联网、不上传、不写 `ai-rules/`。
  */
 
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -99,24 +99,57 @@ function assertSlots(slots) {
   return null;
 }
 
-/** 文件名安全化：只留字母数字与连字符 */
+/** 文件名安全化：只留字母数字与连字符（给程序内部 id 用） */
 function safeName(input, fallback) {
   const cleaned = String(input ?? '').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
   return cleaned || fallback;
 }
 
 /**
- * 时间戳后缀（到毫秒）。
- * ⚠ 只到"秒"的话，同一秒里导出两次会**同名覆盖**（门禁里"清单随导出增长"那条踩过）：
- *   用户点两下就悄悄少一份产物，比报错更难发现。
+ * 给人看的文件名（P2-7 用户裁决 A）：保留中文，去掉 Windows 不允许的字符。
+ *
+ * 格式：`题目标题_YYYYMMDD-HHmmss.html`
+ *   · 空格、斜杠、冒号等会替换成 `-`；
+ *   · 标题为空 ⇒ `未命名题目`；
+ *   · 太长截到 80 个字符。
+ */
+function fileBaseName(input, fallback = '未命名题目') {
+  let s = String(input ?? '')
+    .normalize('NFKC')
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .trim();
+  if (!s) s = fallback;
+  const chars = [...s];
+  if (chars.length > 80) s = chars.slice(0, 80).join('').trim();
+  return s || fallback;
+}
+
+/**
+ * 同一秒里连续导出两次也不能同名覆盖：
+ * 先给 `标题_20261023-203600.html`，撞了再加 `-2`、`-3`。
+ */
+function uniqueName(base, ext) {
+  const s = stamp();
+  let name = `${base}_${s}${ext}`;
+  let n = 2;
+  while (existsSync(join(EXPORT_DIR, name))) {
+    name = `${base}_${s}-${n}${ext}`;
+    n += 1;
+  }
+  return name;
+}
+
+/**
+ * 时间戳后缀（到秒，P2-7 用户裁决 A）。
+ *
+ * ⚠ 只到"秒"会撞名；由 `uniqueName()` 加 `-2/-3` 兜底，不靠毫秒。
  */
 function stamp() {
   const d = new Date();
   const p = (n, w = 2) => String(n).padStart(w, '0');
-  return (
-    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-` +
-    `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${p(d.getMilliseconds(), 3)}`
-  );
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 /**
@@ -223,6 +256,8 @@ export async function buildExportPage(input = {}) {
     renderer: texSvg.renderer,
     provenance,
     id: program.id,
+    /* P2-7：文件名用「题目标题」而不是内部 id；中文保留 */
+    fileBase: fileBaseName(input.title || '未命名题目'),
   };
 }
 
@@ -231,7 +266,7 @@ export async function exportPageToDisk(input = {}) {
   const built = await buildExportPage(input);
   if (!built.ok) return built;
   mkdirSync(EXPORT_DIR, { recursive: true });
-  const name = `${built.id}-${stamp()}.html`;
+  const name = uniqueName(built.fileBase, '.html');
   const file = join(EXPORT_DIR, name);
   writeFileSync(file, built.html, 'utf8');
   return {
@@ -251,7 +286,9 @@ export function saveExportBinary(name, buffer) {
   if (!buffer || !buffer.length) return { ok: false, code: 'export.empty', message: '产物为空' };
   if (buffer.length > 64 * 1024 * 1024) return { ok: false, code: 'export.too-big', message: '产物超过 64 MB' };
   mkdirSync(EXPORT_DIR, { recursive: true });
-  const safe = `${safeName(name, 'export')}-${stamp()}${/\.gif$/i.test(name) ? '.gif' : '.bin'}`;
+  const base = fileBaseName(String(name ?? '').replace(/\.(gif|bin)$/i, ''), 'animation');
+  const ext = /\.gif$/i.test(String(name ?? '')) ? '.gif' : '.bin';
+  const safe = uniqueName(base, ext);
   const file = join(EXPORT_DIR, safe);
   writeFileSync(file, buffer);
   return { ok: true, file, name: safe, bytes: buffer.length, url: `/exports/${safe}` };
