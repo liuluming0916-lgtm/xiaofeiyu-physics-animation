@@ -1,0 +1,55 @@
+{
+  "id": "q05",
+  "index": 5,
+  "title": "救护车的加速—匀速与鸣笛追及",
+  "mode": "BOTH",
+  "slots": {
+    "PROBLEM": "为抢救病人，一辆救护车紧急出发，鸣着笛沿水平直路从 t=0 时由静止开始做匀加速运动，加速度大小 a=2 m/s²，在 t₁=10 s 时停止加速开始做匀速运动，之后某时刻救护车停止鸣笛，t₂=41 s 时在救护车出发处的人听到救护车发出的最后的鸣笛声。已知声速 v₀=340 m/s，求：\n(1) 救护车匀速运动时的速度大小；\n(2) 在停止鸣笛时救护车距出发处的距离。",
+    "STEPS": "title: 匀加速到匀速，求速度\ntex: 救护车从静止开始做匀加速直线运动，到 \\(t_1=10\\ \\mathrm{s}\\) 时停止加速，此后做匀速运动，所以匀速速度就是 \\(t_1\\) 时刻的速度。用速度公式 $$v=at_1$$ 代入 \\(a=2\\ \\mathrm{m/s^2}\\)、\\(t_1=10\\ \\mathrm{s}\\)，得 $$v=2\\times 10=20\\ \\mathrm{m/s}$$ 这就是第(1)问的结论。\n\ntitle: 算加速阶段走了多远\ntex: 前 \\(10\\ \\mathrm{s}\\) 内救护车一直在加速，这一段可以先求出位移。用匀加速直线运动位移公式 $$x_1=\\frac12 at_1^2$$ 代入数据得 $$x_1=\\frac12\\times 2\\times 10^2=100\\ \\mathrm{m}$$ 匀加速阶段结束时，救护车已经距出发点 \\(100\\ \\mathrm{m}\\)，后面的匀速运动要在这里接着算。\n\ntitle: 用停止鸣笛时刻表示此时的位置\ntex: 设救护车在 \\(t_3\\) 时刻停止鸣笛。此时已经过了加速阶段，所以先走完加速阶段的 \\(100\\ \\mathrm{m}\\)，再以 \\(20\\ \\mathrm{m/s}\\) 匀速运动 \\(t_3-10\\) 秒。匀速阶段位移为 $$20(t_3-10)$$ 因此停止鸣笛时救护车距出发点的距离为 $$x=100+20(t_3-10)=20t_3-100$$ 这个距离也是最后一声鸣笛声传播到出发点所需要经过的距离。\n\ntitle: 最后一声鸣笛声的传播时间关系\ntex: 救护车在 \\(t_3\\) 时刻停止鸣笛，最后一声笛声从距离出发点 \\(x\\) 的位置发出，以声速 \\(v_0=340\\ \\mathrm{m/s}\\) 向前传播。它传到出发点需要的时间是 $$\\frac{x}{340}$$ 出发处的人在 \\(t_2=41\\ \\mathrm{s}\\) 听到这最后一声，因此有 $$t_3+\\frac{x}{340}=41$$ 把 \\(x=20t_3-100\\) 代入，得到 $$t_3+\\frac{20t_3-100}{340}=41$$ 这一步把“停车位置”和“听到声音的时刻”联系起来了。\n\ntitle: 解出停止鸣笛时刻和距离\ntex: 对上面的方程两边乘以 \\(340\\)： $$340t_3+20t_3-100=13940$$ 整理得 $$360t_3=14040$$ 所以 $$t_3=39\\ \\mathrm{s}$$ 再代回位置表达式： $$x=20t_3-100=20\\times 39-100=680\\ \\mathrm{m}$$ 因此停止鸣笛时救护车距出发点 \\(680\\ \\mathrm{m}\\)，这就是第(2)问的答案。",
+    "ANSWERS": "",
+    "VIEW": "SIM = {\n  duration: 41,\n  bodies: [\n    { id: \"ambulance\", at: function (s) { const b = s.ambulance; return [b.x, b.y]; } }\n  ],\n  phases: [{ t0: 0, t1: 10 }, { t0: 10, t1: 41 }],\n};",
+    "setup": "const T_PHYS = 41;",
+    "stateAt": "// 由 analysis 运动表生成；不要手改\nconst state = {};\nlet tt0 = t;\nif (tt0 < 0) tt0 = 0;\nif (tt0 > 41) tt0 = 41;\nlet x0, y0;\nif (tt0 <= 10) { x0 = 0 + 0*(tt0 - 0) + 0.5*2*(tt0 - 0)**2; y0 = 0.05; }\nelse if (tt0 <= 41) { x0 = 100 + 20*(tt0 - 10); y0 = 0.05; }\nelse { x0 = 100 + 20*(tt0 - 10); y0 = 0.05; }\nstate.ambulance = { x: x0, y: y0, type: \"block\" };\nreturn state;",
+    "drawFrame": "const amb = state.ambulance;\n\n// 水平直路与出发点\nDraw.ground(-80, 820, 0);\n\n// 出发处的人（听者），立于出发点 x = 0\nDraw.line([0, 0], [0, 16], { width: 3 });\nDraw.circle([0, 20], 4);\n\n// 阶段边界（t=10 s 时加速结束，固定世界坐标 x = 100 m）\nDraw.line([100, 0], [100, 60], { width: 1, dash: true });\n\n// 救护车：质心位置完全来自 state\nDraw.box([amb.x, amb.y + 10], 40, 20);\nDraw.circle([amb.x - 12, amb.y], 2);\nDraw.circle([amb.x + 12, amb.y], 2);\n\n// 鸣笛声向出发点传播（示意，随车移动）\nDraw.arc([amb.x, amb.y + 12], 30, 100, 260);\nDraw.arc([amb.x, amb.y + 12], 44, 100, 260);\nDraw.line([amb.x - 22, amb.y + 22], [0, amb.y + 22], { width: 1, dash: true });",
+    "readouts": "// 由 analysis 运动表生成；曲线图直接读这里\nconst out = [];\nconst h = 1e-4;\nconst tA = Math.max(0, t - h);\nconst tB = Math.min(41, t + h);\nconst a = stateAt(tA);\nconst b = stateAt(tB);\nconst dt = (tB - tA) || 1;\nout.push({ key: \"ambulance.x\", label: \"ambulance 水平位置\", value: state.ambulance.x, unit: 'm' });\nout.push({ key: \"ambulance.y\", label: \"ambulance 竖直位置\", value: state.ambulance.y, unit: 'm' });\nout.push({ key: \"ambulance.vx\", label: \"ambulance 水平速度\", value: (b.ambulance.x - a.ambulance.x) / dt, unit: 'm/s' });\nout.push({ key: \"ambulance.vy\", label: \"ambulance 竖直速度\", value: (b.ambulance.y - a.ambulance.y) / dt, unit: 'm/s' });\nreturn out;"
+  },
+  "stepTimes": [
+    {
+      "step": 1,
+      "t0": 0,
+      "t1": 9.5,
+      "sub": 1
+    },
+    {
+      "step": 2,
+      "t0": 9.5,
+      "t1": 10,
+      "sub": 2
+    },
+    {
+      "step": 3,
+      "t0": 10,
+      "t1": 39,
+      "sub": 2
+    },
+    {
+      "step": 4,
+      "t0": 39,
+      "t1": 40.5,
+      "sub": 2
+    },
+    {
+      "step": 5,
+      "t0": 40.5,
+      "t1": 41,
+      "sub": 2
+    }
+  ],
+  "provenance": {
+    "model": "deepseek-flash",
+    "promptHash": "7acd1d82a25c638c6f79965907965f9ced0a5a8d250243db50509de75ed6c62b",
+    "knowledgecardHash": "ff834e4a41fb7be4b3aed15014a667ef13a7a09da04484e5296d54aad31b30f3",
+    "generatedAt": "2026-10-24T09:43:25.022Z"
+  },
+  "source": "model"
+}

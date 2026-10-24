@@ -1,4 +1,4 @@
-# 真题回归集（重建中：4 道待跑）
+# 真题回归集（2 道 accepted + 5 道待跑）
 
 来源：`C:\Users\Liu LuMing\Desktop\测试用题目\测试题目.pdf`（13 页；题面 + 答案 + 详解混排）。
 抽取与逐题判读见 [`docs/plans/B8-真题清单.md`](../../docs/plans/B8-真题清单.md)；
@@ -9,16 +9,16 @@
 > **2026-10-24 重启**：上个版本链路跑出来的三道产物（`q04`/`q06`/`q09` 的程序、预览、候选笔记）已全部删除，
 > 按当前口径（语义 key + 物理尺寸 + 带参考答案）重跑。旧笔记留在 git 历史：
 > `git show 30fab7c^:tests/real-exam/pilot.json`。
-> 重建期间 `index.json` 带 `restart: true` + `restartNote`，门禁允许"0 道可跑"，但会打警告；
-> q04 跑通后把 `restart` 去掉。
+> 重建期间 `index.json` 带 `restart: true` + `restartNote`，门禁允许"可跑 < 3 道"，但会打警告；
+> q04/q05 已跑通并 accepted，等 q06/q09 回来后再去掉 `restart`。
 
 | id | 原卷页 | 题 | 状态 | 说明 |
 |---|---|---:|---|---|
 | `q01` | 1 | 斜面弹簧连接体的两次共速（多选 AD） | todo | 题面已抽 |
 | `q02` | 2 | 蹦床 F–t 图像与变力冲量（多选 BD） | placeholder | 词表没有"蹦床/可形变面" |
 | `q03` | 3 | U 形管双气瓶的等容升温（填空·热学） | placeholder | 热学本轮不做 |
-| `q04` | 4 | 传送带—绳—滑轮多过程（3 问） | todo | **先跑这道**（带参考答案） |
-| `q05` | 6 | 救护车的加速—匀速与鸣笛追及（2 问，无图） | todo | 题面已抽 |
+| `q04` | 4 | 传送带—绳—滑轮多过程（3 问） | accepted | 方案二重跑；用户验收通过 |
+| `q05` | 6 | 救护车的加速—匀速与鸣笛追及（2 问，无图） | accepted | 模型 1 轮画图修复；用户验收：方块示意/尺度/声波追及未画均可接受；声波弧方向不修 |
 | `q06` | 6 | 导轨—电容—开关的电磁感应（2 问） | todo | 待重跑 |
 | `q07` | 8 | 方波电场与方波磁场中的带电粒子（3 问） | todo | 题面已抽 |
 | `q08` | 10 | 直流电路 + 平行板类平抛 + 磁场圆周（3 问） | todo | 原定试点，现排到 q04 之后 |
@@ -39,7 +39,7 @@
 
 ```text
 index.json            清单（唯一来源）
-pages/qNN.png         原题裁图（不含【答案】；q04/q06/q09 是上一版留的基准图，q01/q05/q07/q08 待裁）
+pages/qNN.png         原题裁图（不含【答案】；q04/q05/q06/q09 已有，q01/q07/q08 待裁）
 qNN.program.json      冻结程序（8 个槽位，模型产出后归一）
 qNN.html              冻结单文件预览
 ```
@@ -48,7 +48,7 @@ qNN.html              冻结单文件预览
 
 ```bash
 # 真跑一道题（带参考答案；本机规则服务在跑：node tools/rules-service.mjs --port 8123）
-node tools/_run-question.mjs q04
+node tools/_run-question.mjs q05
 
 # 单题 Dry-Run（v6 口径，T_phys/边界从 setup 与 VIEW 反推）
 node tools/_check-real.mjs q04
