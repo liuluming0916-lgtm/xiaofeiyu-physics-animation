@@ -53,6 +53,7 @@ export const useApp = create((set) => ({
     programMode: 'BOTH',
     programTitle: '',
     programLabelAvoid: null,
+    programProvenance: null,
     programStepTimes: null,
     programDisplayStepTimes: null,
     programTimeMap: null,
@@ -107,6 +108,7 @@ export const useApp = create((set) => ({
         /** 手动打回保留旧版本；正常开新题清空历史 */
         programVersions: preserveVersions ? st.programVersions : [],
         programVersionIndex: preserveVersions ? st.programVersionIndex : -1,
+        programProvenance: preserveVersions ? st.programProvenance : null,
         programEpoch: st.programEpoch + 1,
     })),
     applyEvent: (e) => set((st) => {
@@ -267,6 +269,8 @@ export const useApp = create((set) => ({
                             programTitle: run.entry,
                             /* C2：避让表随 program 一起走；没有就是 null（播放器照常工作） */
                             programLabelAvoid: e.labelAvoid ?? null,
+                            /* v1.1.19：本次程序溯源（导出页烧录真实 promptHash / 知识卡哈希） */
+                            programProvenance: e.program?.provenance ?? st.programProvenance,
                             templateReady: false,
                             templateError: null,
                             programVersions: versions,
@@ -329,6 +333,8 @@ export const useApp = create((set) => ({
             programTitle: st.run.entry,
             programVersionIndex: index,
             programLabelAvoid: null,
+            /* 回退到旧版本时，当前 run 的溯源不一定对应这一份程序；宁可写“未记录” */
+            programProvenance: null,
             templateReady: false,
             templateError: null,
             /** 换一份程序就换一个 iframe：模板“第一次注入即锁死”，不能复用旧 iframe */
@@ -339,6 +345,7 @@ export const useApp = create((set) => ({
         programSlots: slots,
         programMode: mode,
         programTitle: title,
+        programProvenance: null,
         programStepTimes: null,
         programDisplayStepTimes: null,
         programTimeMap: null,

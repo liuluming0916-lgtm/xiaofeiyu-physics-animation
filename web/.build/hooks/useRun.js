@@ -55,7 +55,7 @@ export function useRun() {
         };
         const handle = opts.source === 'demo' ? demoEventSource() : serverEventSource(opts.baseURL ?? '', input);
         handleRef.current = handle;
-        st.startRun(handle.source, input.problem.text.slice(0, 40) || '(未命名题目)', null, [
+        st.startRun(handle.source, input.problem.text.trim().slice(0, 40) || '(题目见图片)', null, [
             // 第 5.7 期：阶段链最前面是 read_problem（读题与判定，第 0 步；**所有题都跑**，含纯文字题），
             // 末尾是 repair（只在 Dry-Run 未通过时真正执行）。
             // 与 `core/orchestrator/events.mjs` 的 PHASE5_STAGES 一致 —— 构建期有一条判据钉住这一点。

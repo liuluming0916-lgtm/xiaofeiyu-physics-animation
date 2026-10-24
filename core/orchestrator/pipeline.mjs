@@ -1058,7 +1058,13 @@ export async function* runPipeline(input) {
        * 一个"文字从无到有"的时点。
        */
       if (stage === 'read_problem') {
-        const title = parseProblemTitle(text);
+        /**
+         * v1.1.19：模型有时不写【题目】，但会写出一整段可读的转写正文。
+         * 标题取不到时用 `deriveEntryLabel()` 从正文第一句有内容的话兜底，
+         * 避免纯图片题一路显示“未命名题目”。
+         */
+        const parsedTitle = parseProblemTitle(text);
+        const title = parsedTitle === '未命名题目' ? deriveEntryLabel(text) ?? parsedTitle : parsedTitle;
         if (title && title !== entry) yield emit('run_label', { entry: title, source: 'read_problem' });
       }
 
@@ -2223,7 +2229,14 @@ export function problemTextForSlots(problemText, readProblemText) {
   const direct = String(problemText ?? '').trim();
   if (direct) return direct;
   const title = parseProblemTitle(readProblemText);
-  return title === '未命名题目' ? '（题目见图片）' : title;
+  if (title !== '未命名题目') return title;
+  /**
+   * v1.1.19：模型没写【题目】时，标题也可以从转写正文里取第一句有内容的话。
+   * 这和 `run_label` 的兜底是同一套规则；两处必须同源，否则动画页标题和
+   * PROBLEM 槽会各说各话。
+   */
+  const derived = deriveEntryLabel(readProblemText);
+  return derived ?? '（题目见图片）';
 }
 
 /**

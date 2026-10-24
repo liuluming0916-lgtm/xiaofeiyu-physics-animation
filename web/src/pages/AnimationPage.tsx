@@ -74,6 +74,15 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
   /** iframe 每次 onLoad 递增，用来重发 program（切页回来 / 模板重载都走这里） */
   const [reloadSeq, setReloadSeq] = useState(0)
   /**
+   * v1.1.19：当前题的公式预渲染。
+   * 以前固定用演示题 q01 的 `TEX_SVG`，真实题只能走 ODTex 兜底，和导出页不一致。
+   * 现在从 `/api/tex/preview` 按当前 slots 取一份；取不到就退回演示源（仍能播）。
+   */
+  const [liveTexSvg, setLiveTexSvg] = useState<typeof TEX_SVG | null>(null)
+  const [texState, setTexState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle')
+  /** 这份公式表对应哪一次程序（programEpoch）；换程序后必须重新取，不能拿旧的注入新程序 */
+  const [texEpoch, setTexEpoch] = useState(-1)
+  /**
    * ── 第 8 期：**本次启动编号**（用户裁决"每次打开都要干净"）──
    *
    * 从 `/api/health` 拿一次，随 `program` 消息下发给模板；
@@ -246,7 +255,7 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
     return {
       slots: st.programSlots,
       mode: st.programMode,
-      texSvg: TEX_SVG,
+      texSvg: liveTexSvg ?? TEX_SVG,
       id: st.programTitle,
       title: st.programTitle,
       /* C2：标注避让表（Dry-Run 算的）。模板收到后会交给播放器按表挪字 + 画引线 */
@@ -269,11 +278,76 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
     st.programStepTimes,
     st.programTimeMap,
     st.programDisplayDuration,
+    liveTexSvg,
     launchId,
   ])
 
+  /**
+   * 真实跑题时，公式还没取回来（或已经失败）之前，先不注入。
+   * 演示源没有 model，直接注入演示公式表。
+   */
+  const texPending =
+    Boolean(st.run.model) &&
+    (texEpoch !== st.programEpoch || (texState !== 'ready' && texState !== 'failed'))
+
+  /**
+   * v1.1.19：按当前 slots 取公式预渲染。
+   *
+   * 为什么必须**等它结束再注入**：模板“第一次注入即锁死”，如果先用演示题的
+   * `TEX_SVG` 注入，真实公式晚到也进不去。这里宁可让动画页多等 200–500 ms，
+   * 也不要把错误的公式表烧进这一页；取不到（超时/旧服务）就退回 OLD 行为。
+   */
+  useEffect(() => {
+    if (!st.programSlots || !st.run.model) {
+      setLiveTexSvg(null)
+      setTexState('idle')
+      setTexEpoch(-1)
+      return
+    }
+    const epoch = st.programEpoch
+    let alive = true
+    const ctl = new AbortController()
+    const timer = window.setTimeout(() => ctl.abort(), 2500)
+    setTexState('loading')
+    fetch('/api/tex/preview', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ slots: st.programSlots }),
+      signal: ctl.signal,
+    })
+      .then((r) => r.json())
+      .then((data: { ok?: boolean; texSvg?: typeof TEX_SVG }) => {
+        if (!alive) return
+        if (data?.ok === true && data.texSvg?.formulas) {
+          setLiveTexSvg(data.texSvg)
+          setTexState('ready')
+          setTexEpoch(epoch)
+        } else {
+          setTexState('failed')
+          setTexEpoch(epoch)
+        }
+      })
+      .catch(() => {
+        /* 取不到就继续用 TEX_SVG 兜底；动画本身不受影响 */
+        if (alive) {
+          setTexState('failed')
+          setTexEpoch(epoch)
+        }
+      })
+      .finally(() => {
+        window.clearTimeout(timer)
+      })
+    return () => {
+      alive = false
+      ctl.abort()
+      window.clearTimeout(timer)
+    }
+  }, [st.programSlots, st.run.model, st.programEpoch])
+
   useEffect(() => {
     if (!programPayload) return
+    /* 公式还在取就先别注入：模板首次注入即锁死，不能先塞演示题的公式表 */
+    if (texPending) return
     const bad = validateProgramPayload(programPayload)
     if (bad) {
       useApp.getState().setTemplateError({ code: 'bad-program', message: bad })
@@ -296,7 +370,7 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
     send()
     const timers = [400, 1200, 2500, 5000].map((ms) => window.setTimeout(send, ms))
     return () => timers.forEach((t) => window.clearTimeout(t))
-  }, [programPayload, reloadSeq, post])
+  }, [programPayload, reloadSeq, texPending, post])
 
   /**
    * `ready` 到达后**立刻**再注入一次（不等重试定时器）。
@@ -307,9 +381,10 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
    */
   useEffect(() => {
     if (!ready || !programPayload) return
+    if (texPending) return
     post('program', programPayload)
     useApp.getState().setTemplateReady(true)
-  }, [ready, programPayload, post])
+  }, [ready, programPayload, texPending, post])
 
   /* ── 开关与倍速的同步（与注入解耦，避免上面那类自触发循环） ── */
   useEffect(() => {
@@ -376,8 +451,13 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
     setBusy({ kind: 'page', done: 0, total: 1 })
     setResult(null)
     try {
-      // 演示源是手写的，Provenance 就照实写 handwritten；真实跑题才可能带真哈希
-      const handwritten = !st0.run.model
+      /**
+       * v1.1.19：真实跑也有溯源了。
+       * 以前只传 `handwritten`，真实跑时两个哈希都是 undefined，导出页只能写“未记录”；
+       * 现在优先用本次程序的 provenance（scene_done 带下来），再退回 run 的 promptHash。
+       */
+      const prov = st0.programProvenance
+      const handwritten = !prov && !st0.run.model
       const res = await fetch('/api/export/page', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -387,9 +467,10 @@ export function AnimationPage({ onManualRetry }: { onManualRetry: (mode: 'solve'
           /* 第 9 期：带上 id ⇒ 文件名是「题目-时间戳.html」，不再是一串 export-xxx */
           id: slug(st0.programTitle, 'export'),
           title: st0.programTitle,
-          model: st0.run.model ?? 'handwritten',
-          promptHash: handwritten ? 'handwritten' : undefined,
-          knowledgecardHash: handwritten ? 'handwritten' : undefined,
+          model: prov?.model ?? st0.run.model ?? 'handwritten',
+          promptHash: prov?.promptHash ?? st0.run.promptHash ?? (handwritten ? 'handwritten' : undefined),
+          knowledgecardHash:
+            prov?.knowledgecardHash ?? st0.run.knowledgecard?.hash ?? (handwritten ? 'handwritten' : undefined),
           /* C2：把避让表一起烧进导出的网页（没表就是 null ⇒ 与第 7 期一样） */
           labelAvoid: st0.programLabelAvoid ?? null,
           /* v6：步骤时间一起烧进导出页，联动不依赖宿主 */

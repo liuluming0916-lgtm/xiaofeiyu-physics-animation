@@ -60,6 +60,7 @@ import {
   writeOpenLog,
 } from '../core/observability/index.mjs';
 import { collectSecrets } from '../core/security/index.mjs';
+import { buildTexAssets, collectTex } from '../core/export/page.mjs';
 import {
   driverStatus,
   getRun as historyGetRun,
@@ -877,6 +878,22 @@ export function createRulesService({
          缺了就写"未记录"（宁可承认没记，也不编一个看起来像真的）。 */
       if (req.method === 'GET' && path === '/api/exports') {
         return ok(res, { dir: EXPORT_DIR, items: listExports() });
+      }
+
+      /**
+       * v1.1.19：live 动画页的公式预渲染。
+       *
+       * 以前 AnimationPage 固定注入演示题 q01 的 `TEX_SVG`，真实题只能走 ODTex 兜底，
+       * 和导出页（按当前 slots 现场 MathJax）不一致。这里按当前 slots 现算一份，
+       * 前端拿到后随 program 一起注入模板；失败时前端仍退回 ODTex，不影响播放。
+       */
+      if (req.method === 'POST' && path === '/api/tex/preview') {
+        const body = await readJson(req);
+        if (!body || typeof body.slots !== 'object' || body.slots === null) {
+          return bad(res, [{ code: 'tex.bad-slots', path: 'body', message: 'slots 必须是对象' }]);
+        }
+        const texSvg = await buildTexAssets(collectTex(body.slots));
+        return ok(res, { texSvg, formulas: Object.keys(texSvg.formulas ?? {}).length });
       }
 
       if (req.method === 'POST' && path === '/api/export/page') {

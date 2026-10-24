@@ -348,6 +348,21 @@ export async function main() {
         `status=${pageGet.status} ct=${pageGet.headers.get('content-type')} len=${pageText.length}`,
       );
 
+      /**
+       * v1.1.19：live 动画页也要按“当前题”预渲染公式，不能固定用演示题 q01 的表。
+       * 这里只验接口：同一份 q01 slots 能按需算出 formulas；前端拿不到时仍走 ODTex 兜底。
+       */
+      const texRes = await postJson('/api/tex/preview', { slots: q01.slots });
+      const texData = await texRes.json();
+      check(
+        '★ POST /api/tex/preview 按当前 slots 返回公式表',
+        texData.ok === true &&
+          texData.texSvg &&
+          Object.keys(texData.texSvg.formulas ?? {}).length > 0 &&
+          texData.formulas === Object.keys(texData.texSvg.formulas).length,
+        JSON.stringify({ ok: texData.ok, formulas: texData.formulas, issues: texData.issues }),
+      );
+
       const gifRes = await fetch(`${base}/api/export/gif?name=animation.gif`, {
         method: 'POST',
         headers: { 'content-type': 'application/octet-stream', origin: base },

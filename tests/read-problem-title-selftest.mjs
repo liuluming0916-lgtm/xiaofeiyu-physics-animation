@@ -33,7 +33,15 @@ check('★ 「【题目】\\n…」换行写法也能解析', parseProblemTitle(
 /* v1.1.19：纯图片题的 PROBLEM 不能空（v6 起 PROBLEM 由程序生成） */
 check('★ 纯图片题 PROBLEM 用读题标题兜底', problemTextForSlots('', READ_TITLE_BLOCK) === '斜面弹簧连接物块');
 check('★ 有题面文字时优先用题面', problemTextForSlots('用户手打的题面', READ_TITLE_BLOCK) === '用户手打的题面');
-check('★ 标题也取不到时用占位文案', problemTextForSlots('', '没有标题') === '（题目见图片）');
+check('★ 标题也取不到时用占位文案', problemTextForSlots('', '') === '（题目见图片）');
+check(
+  '★ 没有标题时用读题正文第一句兜底',
+  problemTextForSlots('', '【题面复述】\n水平传送带以速率 u 运行。\n【物体与姿态】…') === '水平传送带以速率 u 运行。',
+);
+check(
+  '★ 只有小标题时仍回退到占位文案',
+  problemTextForSlots('', '【题面复述】\n【物体与姿态】') === '（题目见图片）',
+);
 
 for (const id of ['read_problem_v2']) {
   const p = getPrompt(id);
@@ -89,6 +97,31 @@ const events = await collectEvents({
 const label = events.find((e) => e.type === 'run_label');
 check('★ 非空题面也采用模型标题（不被题面首行覆盖）', label?.entry === LONG, JSON.stringify(label));
 check('run_start 的初始 entry 仍来自题面（标题到达前）', events.find((e) => e.type === 'run_start')?.entry === '用户手打的题面');
+
+/**
+ * v1.1.19：纯图片题（题面为空）+ 模型没写【题目】时，
+ * run_label 也要从转写正文里取第一句，而不是一直显示“未命名题目”。
+ */
+const imageStream = async (opts) => {
+  const text =
+    opts.stage === 'read_problem'
+      ? '【题面复述】\n水平传送带以速率 u 运行。\n【物体与姿态】物块 A 放在带上。'
+      : (REPLIES[opts.stage] ?? '（占位）');
+  opts.onDelta?.(text);
+  return { text, reasoning: '', usage: null, model: 'stub', deltas: [text] };
+};
+const imageEvents = await collectEvents({
+  problem: { text: '' },
+  config: { endpoint, apiKey: 'sk-test', regexRules: [], knowledgecardEntries: [], knowledgecardVersion: 2 },
+  streamImpl: imageStream,
+  dryRunImpl: async () => ({ report: pass, run: null, lint: null }),
+});
+const imageLabel = imageEvents.find((e) => e.type === 'run_label');
+check(
+  '★ 纯图片题没写【题目】时，用转写正文第一句当标题',
+  imageLabel?.entry === '水平传送带以速率 u 运行。',
+  JSON.stringify(imageLabel),
+);
 
 console.log(`\n${failures.length ? '✗' : '✓'} 读题标题取证：通过 ${passed} 条，失败 ${failures.length} 条`);
 if (failures.length) {

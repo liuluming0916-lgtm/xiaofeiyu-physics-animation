@@ -12,7 +12,7 @@ import { create } from 'zustand'
 import type { StageNotes } from '../lib/stage-notes'
 
 import { DEFAULT_MASK, type AnimationSlots, type ProgramMode, type VectorMask } from '../lib/host-protocol'
-import type { EventSourceKind, RepairBanner, RepairCheckSnapshot, RunEvent, KnowledgecardEvidence } from '../lib/run-stream'
+import type { EventSourceKind, RepairBanner, RepairCheckSnapshot, RunEvent, KnowledgecardEvidence, ProgramProvenance } from '../lib/run-stream'
 
 /** 一轮自愈修复的留档（B6：修复过程对用户可见） */
 export interface RepairRound {
@@ -118,6 +118,11 @@ export interface AppState {
    * 没有表时播放器行为与第 7 期一致 —— 它是增强项，不是前提。
    */
   programLabelAvoid: Record<string, unknown> | null
+  /**
+   * v1.1.19：本次程序的真实溯源（模型 / promptHash / knowledgecardHash）。
+   * 导出网页时烧进 Provenance；以前真实跑没把它传下去，只能写“未记录”。
+   */
+  programProvenance: ProgramProvenance | null
   /** v6：步骤 ↔ 动画时间（couple 阶段产出；原始物理秒，导出用） */
   programStepTimes: Array<{ step: number; t0: number; t1: number }> | null
   /** v1.1.17：换算到显示秒的步骤时间 + 时间映射（live 动画页用；每小问 4 s） */
@@ -226,6 +231,7 @@ export const useApp = create<AppState>((set) => ({
   programMode: 'BOTH',
   programTitle: '',
   programLabelAvoid: null,
+  programProvenance: null,
   programStepTimes: null,
   programDisplayStepTimes: null,
   programTimeMap: null,
@@ -282,6 +288,7 @@ export const useApp = create<AppState>((set) => ({
       /** 手动打回保留旧版本；正常开新题清空历史 */
       programVersions: preserveVersions ? st.programVersions : [],
       programVersionIndex: preserveVersions ? st.programVersionIndex : -1,
+      programProvenance: preserveVersions ? st.programProvenance : null,
       programEpoch: st.programEpoch + 1,
     })),
 
@@ -441,6 +448,8 @@ export const useApp = create<AppState>((set) => ({
                 programTitle: run.entry,
                 /* C2：避让表随 program 一起走；没有就是 null（播放器照常工作） */
                 programLabelAvoid: e.labelAvoid ?? null,
+                /* v1.1.19：本次程序溯源（导出页烧录真实 promptHash / 知识卡哈希） */
+                programProvenance: e.program?.provenance ?? st.programProvenance,
                 templateReady: false,
                 templateError: null,
                 programVersions: versions,
@@ -502,6 +511,8 @@ export const useApp = create<AppState>((set) => ({
         programTitle: st.run.entry,
         programVersionIndex: index,
         programLabelAvoid: null,
+        /* 回退到旧版本时，当前 run 的溯源不一定对应这一份程序；宁可写“未记录” */
+        programProvenance: null,
         templateReady: false,
         templateError: null,
         /** 换一份程序就换一个 iframe：模板“第一次注入即锁死”，不能复用旧 iframe */
@@ -514,6 +525,7 @@ export const useApp = create<AppState>((set) => ({
       programSlots: slots,
       programMode: mode,
       programTitle: title,
+      programProvenance: null,
       programStepTimes: null,
       programDisplayStepTimes: null,
       programTimeMap: null,

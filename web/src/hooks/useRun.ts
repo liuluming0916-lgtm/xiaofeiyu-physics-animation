@@ -77,7 +77,7 @@ export function useRun() {
 
     st.startRun(
       handle.source,
-      input.problem.text.slice(0, 40) || '(未命名题目)',
+      input.problem.text.trim().slice(0, 40) || '(题目见图片)',
       null,
       [
         // 第 5.7 期：阶段链最前面是 read_problem（读题与判定，第 0 步；**所有题都跑**，含纯文字题），
