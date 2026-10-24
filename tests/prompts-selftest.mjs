@@ -66,15 +66,19 @@ check('scene_code user 带分支时刻', sceneUser.includes('3.82645'));
 const repair = getPrompt('repair');
 check('repair 只修 drawFrame', repair.system.includes('新的 drawFrame 函数体') || repair.system.includes('只修 drawFrame 的函数体'));
 check('repair 禁止改 stateAt/VIEW/readouts', repair.system.includes('stateAt、VIEW、readouts'));
+check('repair 去掉 cx/cy 负向提示', !repair.system.includes('cx/cy'));
+check('repair 带分支规则', repair.system.includes('分支时刻') && repair.system.includes('Draw.trace'));
 const repairUser = repair.buildUser({
   problem: 'p',
   analysisText: 'A',
+  branchTimes: [3.82645],
   stateMap: [{ id: 'block_A', key: 'block_A' }],
   failures: ['C1：语法'],
   previousDrawFrame: 'Draw.ground(0, 1, 0);',
 });
 check('repair user 带失败检查', repairUser.includes('C1：语法'));
 check('repair user 带上一轮 drawFrame', repairUser.includes('上一轮 drawFrame'));
+check('repair user 带分支时刻', repairUser.includes('3.82645'));
 
 const couple = getPrompt('couple');
 check('couple 只输出 step/sub/t0/t1', couple.system.includes('step / sub / t0 / t1') || couple.system.includes('step: 1'));

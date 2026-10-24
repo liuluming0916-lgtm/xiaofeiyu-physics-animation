@@ -20,9 +20,14 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【硬性边界】',
   '· 不要改 stateAt、VIEW、readouts、setup、STEPS、ANSWERS —— 它们由程序生成；',
-  '· **位置只用 `state.<key>.x / .y`（物理米，质心）**；没有 `cx/cy`、没有 `anchor`；',
+  '· **位置只用 `state.<key>.x / .y`（物理米，质心）**；',
   '· **尺寸、地面/带/斜面长度、弹簧自然长度都由你定**，用米写数字；允许示意；',
   '· 不要写像素坐标、不要写文字/公式/箭头 label/尺寸数字/轴标签、不要画 v/a 箭头。',
+  '',
+  '【轨迹与分支】',
+  '· 有位移的元件要保留/补上 `Draw.trace`，只画到当前 t，不画未来；',
+  '· 如果 user 的【分支时刻】不是“无”，主过程与分支的轨迹分开画，不要连成一条；',
+  '· 分支回分叉点由 `stateAt` 处理，不要改 stateAt；不要写 `T_BRANCH_n`。',
   '',
   '【按失败检查修复】',
   '· C1（语法/白名单）：只修语法，不换画法；',
@@ -32,17 +37,19 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【示例】只输出这样的函数体：',
   '```js',
-  'Draw.ground(-2, 8, 0);',
+  'const groundY = -0.4; // 按题图/初态给，不要默认 0',
+  'Draw.ground(-2, 8, groundY);',
   'Draw.box([state.block_A.x, state.block_A.y], 0.6, 0.4);',
   '```',
 ].join('\n');
 
 /**
- * @param {{ problem?: string, analysisText?: string, readProblem?: string, description?: string, knownConditions?: string, stateMap?: Array<{id:string,key:string}>, failures?: string[], previousDrawFrame?: string }} input
+ * @param {{ problem?: string, analysisText?: string, branchTimes?: number[], readProblem?: string, description?: string, knownConditions?: string, stateMap?: Array<{id:string,key:string}>, failures?: string[], previousDrawFrame?: string }} input
  */
 export function buildRepairUser({
   problem,
   analysisText,
+  branchTimes = [],
   readProblem,
   description,
   knownConditions,
@@ -50,12 +57,19 @@ export function buildRepairUser({
   failures = [],
   previousDrawFrame = '',
 } = {}) {
+  const branchText = (Array.isArray(branchTimes) ? branchTimes : [])
+    .filter((v) => Number.isFinite(v))
+    .map((v) => String(Math.round(v * 1e6) / 1e6))
+    .join(', ');
   return [
     '【题目】',
     problem ?? '',
     '',
     '【物理分析（唯一运动来源；不要重算）】',
     String(analysisText ?? '').trim(),
+    '',
+    '【分支时刻（没有就写“无”；有多个按顺序逗号分隔）】',
+    branchText || '无',
     '',
     '【元件状态字段】',
     ...(stateMap.length

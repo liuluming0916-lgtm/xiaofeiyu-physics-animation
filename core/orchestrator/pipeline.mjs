@@ -1575,11 +1575,23 @@ export async function* runPipeline(input) {
       });
       const stageStarted = Date.now();
       const repairPrompt = getPrompt('repair', snapshot.rules);
+      const repairBranchTimes = analysisParsed?.elements
+        ? [
+            ...new Set(
+              analysisParsed.elements.flatMap((el) =>
+                el.segments.filter((s) => s.branch === true).map((s) => s.t0),
+              ),
+            ),
+          ]
+            .filter((v) => Number.isFinite(v) && v >= 0)
+            .sort((a, b) => a - b)
+        : [];
       const assembled = assemblePrompt({
         problem: {
           text: repairPrompt.buildUser({
             problem: problem.text,
             analysisText: formatAnalysis(analysisParsed),
+            branchTimes: repairBranchTimes,
             readProblem: outputs.read_problem,
             ...(descriptionFor('repair') ? { description: descriptionFor('repair') } : {}),
             ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
