@@ -12,7 +12,7 @@
       "domain": "mechanics",
       "pdfPage": 1,
       "image": "pages/q01.png",
-      "status": "todo",
+      "status": "accepted",
       "semantics": "v6",
       "problem": "如图，一倾角 θ=30° 的足够长斜面固定在水平面上，斜面上放置两个由轻质弹簧连接的物块 M 和 N。M、N 的质量分别为 0.5 kg 和 1 kg，M 与斜面的接触面光滑，N 与斜面间的动摩擦因数为 √3/2。初始时，弹簧处于原长状态，M、N 由静止释放。弹簧始终在弹性限度内，最大静摩擦力等于滑动摩擦力。则（　　）\nA．N 开始运动的瞬间，M 的加速度为 0\nB．N 的速度达到最大时，M 的速度为 0\nC．N 开始运动后，M、N 的总动能与弹簧弹性势能之和保持不变\nD．M、N 第一次共速时的弹簧弹性势能和第二次共速时的不同",
       "knowledge": [
@@ -25,9 +25,22 @@
         "AD"
       ],
       "answerNote": "多选题；四个选项都落在同一套运动里（同一组参数），按“一个物理过程”计 1 段。",
-      "program": null,
-      "preview": null,
-      "source": "model"
+      "program": "q01.program.json",
+      "preview": "q01.html",
+      "source": "model",
+      "frozen": {
+        "sha256": "b9a7e5516be9c88a0ee881eb2c0295417e48ea65b07a58c7bcd873be3753da3c",
+        "frozenAt": "2026-10-25",
+        "note": "用户验收：同一连续过程，步骤时间首尾相接、无跳变；物块/斜面按示意接受"
+      },
+      "acceptNote": "2026-10-25 重跑（couple 连续过程引导）：verdict=pass / 291 帧 / 4 步 / 1.212 s；stepTimes 0–0.3512–0.65–0.9–1.2116 连续，无 0.351→0.9 空档。用户 accept。",
+      "knownGaps": [
+        "物块画成旋转 30° 的方块，像菱形；用户接受这是示意",
+        "斜面主要是一条斜线，没有实体三角形/阴影；用户接受",
+        "轨迹较淡；用户接受",
+        "程序为方案二：无 SIM.stage / cx/cy / anchor；state 为物理米、质心"
+      ],
+      "acceptedAt": "2026-10-25"
     },
     {
       "id": "q02",
@@ -194,7 +207,7 @@
       "domain": "electromagnetism",
       "pdfPage": 8,
       "image": "pages/q07.png",
-      "status": "todo",
+      "status": "accepted",
       "semantics": "v6",
       "problem": "如图（a），两块足够大的平行金属板水平放置，板间加有大小随时间 t 变化的匀强电场和匀强磁场，变化规律分别如图（b）和（c）所示，电场强度幅值为 E₀，方向竖直向下，磁感应强度幅值为 √3E₀/(3v₀)，方向平行板面且垂直纸面向里。t=0 时，一带正电的粒子以速率 v₀ 从 M 点沿两金属板中轴线 MN 向右射入；t=t₀ 时，粒子速度方向与 MN 夹角为 60°。运动过程中粒子始终不与板相碰，重力不计，忽略电场、磁场突变瞬间对粒子速度的影响。\n(1) 求粒子比荷；\n(2) 求 t₀~3t₀ 内粒子的速度大小和运动轨道半径；\n(3) 现调节 0~8t₀ 内磁感应强度幅值，使粒子在 t=8t₀ 时运动到中轴线，此时速度大小为 v₀、方向水平向右，且在 t₀~3t₀ 内粒子速度方向的偏转角小于 360°，则幅值应调为多少？",
       "knowledge": [
@@ -208,9 +221,21 @@
         "(3) B = √3πE₀/(9v₀) 或 √3πE₀/(6v₀)"
       ],
       "answerNote": "第(3)问两解对应粒子速度方向在磁场中分别偏转 120° 与 180°。",
-      "program": null,
-      "preview": null,
-      "source": "model"
+      "program": "q07.program.json",
+      "preview": "q07.html",
+      "source": "model",
+      "frozen": {
+        "sha256": "b913398a808366949d96c9a00b81f22127d66ce4d4b0b1deae11607fe9ae2ef2",
+        "frozenAt": "2026-10-25",
+        "note": "用户验收：零时刻场景切换生效；主场景 + 两种 B 解都能对着讲"
+      },
+      "acceptNote": "2026-10-25 零时刻场景切换重跑：verdict=pass / 2401 帧 / 19 s；T_BRANCH_1=3（第 1 种 B 解）、T_BRANCH_2=11（第 2 种 B 解）；C6 在两个分支时刻放行；0 轮修复。用户 accept。",
+      "knownGaps": [
+        "只有 4 个步骤，第 2 种 B 解 11–19 s 没有对应步骤，只能拖时间轴看；用户接受",
+        "轨迹按 3/11 s 分段画；第 2 段解与第 1 段解在同一画面里会同时留下旧轨迹",
+        "程序为方案二：无 SIM.stage / cx/cy / anchor；state 为物理米、质心"
+      ],
+      "acceptedAt": "2026-10-25"
     },
     {
       "id": "q08",

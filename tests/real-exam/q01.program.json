@@ -1,0 +1,49 @@
+{
+  "id": "q01",
+  "index": 1,
+  "title": "斜面弹簧连接体的两次共速",
+  "mode": "BOTH",
+  "slots": {
+    "PROBLEM": "如图，一倾角 θ=30° 的足够长斜面固定在水平面上，斜面上放置两个由轻质弹簧连接的物块 M 和 N。M、N 的质量分别为 0.5 kg 和 1 kg，M 与斜面的接触面光滑，N 与斜面间的动摩擦因数为 √3/2。初始时，弹簧处于原长状态，M、N 由静止释放。弹簧始终在弹性限度内，最大静摩擦力等于滑动摩擦力。则（　　）\nA．N 开始运动的瞬间，M 的加速度为 0\nB．N 的速度达到最大时，M 的速度为 0\nC．N 开始运动后，M、N 的总动能与弹簧弹性势能之和保持不变\nD．M、N 第一次共速时的弹簧弹性势能和第二次共速时的不同",
+    "STEPS": "title: N 开始运动瞬间：先找临界弹力，再看 M 的加速度\ntex: M 先沿斜面向下滑动并压缩弹簧，而 N 受到静摩擦力暂时不动。随着弹簧被压缩，弹簧对 N 沿斜面向下的弹力逐渐增大；当这个弹力与 N 的重力分力之和达到最大静摩擦力时，N 即将开始运动。 N 的重力分力为 $$m_N g\\sin30^\\circ=1\\times10\\times\\frac12=5\\ \\mathrm{N}$$ 最大静摩擦力为 $$f_m=\\mu m_N g\\cos30^\\circ=\\frac{\\sqrt3}{2}\\times1\\times10\\times\\frac{\\sqrt3}{2}=7.5\\ \\mathrm{N}$$ 所以 N 刚要运动时弹簧弹力满足 $$F+5=7.5\\quad\\Rightarrow\\quad F=2.5\\ \\mathrm{N}$$ 此时对 M 沿斜面方向列牛顿第二定律： $$m_M g\\sin30^\\circ-F=0.5\\times10\\times\\frac12-2.5=2.5-2.5=0$$ 因此 M 的加速度为 0。A 项正确。\n\ntitle: N 速度最大时：N 加速度为零，但 M 的速度不一定为零\ntex: N 开始运动后，它沿斜面向下运动，受到沿斜面向上的滑动摩擦力。N 的速度达到最大时，并不是受力平衡的“终点”，而是它的加速度恰好为零。 对 N 沿斜面方向列式： $$m_N g\\sin30^\\circ+F-f=0$$ 其中滑动摩擦力 $$f=\\mu m_N g\\cos30^\\circ=7.5\\ \\mathrm{N}$$ 代入得 $$5+F-7.5=0\\quad\\Rightarrow\\quad F=2.5\\ \\mathrm{N}$$ 此时对 M 有 $$m_M g\\sin30^\\circ-F=2.5-2.5=0$$ 所以 M 的加速度也为 0，但“加速度为 0”不等于“速度为 0”。M 在此之前已经获得了速度，因此 N 速度最大时 M 的速度一般不为 0。B 项错误。\n\ntitle: N 开始运动后：有滑动摩擦做功，能量不再守恒\ntex: N 开始运动后，N 与斜面之间发生相对滑动，滑动摩擦力对 N 做负功，系统的机械能不断减少。更重要的是，题目说的“总动能与弹簧弹性势能之和”还不包括重力势能；而 M、N 沿斜面运动时重力会做功，重力势能会转化为动能和弹性势能。 因此，N 开始运动后，M、N 的总动能与弹簧弹性势能之和并不是保持不变的。C 项错误。\n\ntitle: 两次共速对应弹簧两次形变极值，摩擦耗能使弹性势能不同\ntex: M、N 共速时，二者相对速度为零，弹簧的形变量达到极值。 第一次共速前，M 的速度大于 N 的速度，弹簧继续被压缩，所以第一次共速时弹簧压缩量最大，弹性势能达到一个峰值。之后 N 的速度会超过 M，弹簧开始恢复；越过原长后继续伸长，直到第二次共速时，弹簧伸长量达到另一个极值。 由于 N 与斜面间存在滑动摩擦，系统机械能不断损失，所以第二次共速对应的弹簧形变量与第一次不同，弹性势能也就不同。D 项正确。 综上，正确选项为 A、D。",
+    "ANSWERS": "",
+    "VIEW": "SIM = {\n  duration: 1.21160132,\n  bodies: [\n    { id: \"M\", at: function (s) { const b = s.M; return [b.x, b.y]; } },\n    { id: \"N\", at: function (s) { const b = s.N; return [b.x, b.y]; } }\n  ],\n  phases: [{ t0: 0, t1: 0.35124074 }, { t0: 0.35124074, t1: 1.21160132 }],\n};",
+    "setup": "const T_PHYS = 1.21160132;",
+    "stateAt": "// 由 analysis 运动表生成；不要手改\nconst state = {};\nlet tt0 = t;\nif (tt0 < 0) tt0 = 0;\nif (tt0 > 1.21160132) tt0 = 1.21160132;\nlet x0, y0;\nif (tt0 <= 0.35124074) { x0 = 0.866025404 - 0.8660254038*(0.25*(1 - Math.cos(4.472135955*(tt0 - 0)))); y0 = 0.5 - 0.5*(0.25*(1 - Math.cos(4.472135955*(tt0 - 0)))); }\nelse if (tt0 <= 1.21160132) { x0 = 0.649519053 - 0.8660254038*(0.3726779963*((tt0 - 0.35124074) + 0.3651483717*Math.sin(5.477225575*(tt0 - 0.35124074)))); y0 = 0.375 - 0.5*(0.3726779963*((tt0 - 0.35124074) + 0.3651483717*Math.sin(5.477225575*(tt0 - 0.35124074)))); }\nelse { x0 = 0.649519053 - 0.8660254038*(0.3726779963*((tt0 - 0.35124074) + 0.3651483717*Math.sin(5.477225575*(tt0 - 0.35124074)))); y0 = 0.375 - 0.5*(0.3726779963*((tt0 - 0.35124074) + 0.3651483717*Math.sin(5.477225575*(tt0 - 0.35124074)))); }\nstate.M = { x: x0, y: y0, type: \"block\" };\nlet tt1 = t;\nif (tt1 < 0) tt1 = 0;\nif (tt1 > 1.21160132) tt1 = 1.21160132;\nlet x1, y1;\nif (tt1 <= 0.35124074) { x1 = 0; y1 = 0; }\nelse if (tt1 <= 1.21160132) { x1 = 0 - 0.8660254038*(0.3726779963*((tt1 - 0.35124074) - 0.1825741858*Math.sin(5.477225575*(tt1 - 0.35124074)))); y1 = 0 - 0.5*(0.3726779963*((tt1 - 0.35124074) - 0.1825741858*Math.sin(5.477225575*(tt1 - 0.35124074)))); }\nelse { x1 = 0 - 0.8660254038*(0.3726779963*((tt1 - 0.35124074) - 0.1825741858*Math.sin(5.477225575*(tt1 - 0.35124074)))); y1 = 0 - 0.5*(0.3726779963*((tt1 - 0.35124074) - 0.1825741858*Math.sin(5.477225575*(tt1 - 0.35124074)))); }\nstate.N = { x: x1, y: y1, type: \"block\" };\nreturn state;",
+    "drawFrame": "const th = Math.PI / 6;\nconst ux = Math.cos(th), uy = Math.sin(th);\nconst halfW = 0.2;   // 物块沿斜面方向半宽\n\n// ── 静止场景：斜面（顶点在右上，坡脚在左下）+ 水平地面 ──\nDraw.incline([1.7, 0.8], { angleDeg: -30, length: 3.4 });\nDraw.ground(-2.7, -1.2, -0.9);\n\n// ── 已走过轨迹 ──\nconst ptsM = [];\nconst ptsN = [];\nfor (let tt = 0; tt <= t; tt += 0.03) {\n  const s = context.at(tt);\n  ptsM.push([s.M.x, s.M.y]);\n  ptsN.push([s.N.x, s.N.y]);\n}\nif (ptsM.length > 1) Draw.trace(ptsM);\n\n// N 先静止后才运动，去掉原地重复点\nconst nTrace = [];\nfor (let i = 0; i < ptsN.length; i++) {\n  if (nTrace.length === 0) {\n    nTrace.push(ptsN[i]);\n  } else {\n    const p = nTrace[nTrace.length - 1];\n    const dx = ptsN[i][0] - p[0], dy = ptsN[i][1] - p[1];\n    if (dx * dx + dy * dy > 1e-4) nTrace.push(ptsN[i]);\n  }\n}\nif (nTrace.length > 1) Draw.trace(nTrace);\n\n// ── 弹簧：两端分别贴到 M、N 相向的端面 ──\nconst mC = [state.M.x, state.M.y];\nconst nC = [state.N.x, state.N.y];\nDraw.spring(\n  [mC[0] - halfW * ux, mC[1] - halfW * uy],\n  [nC[0] + halfW * ux, nC[1] + halfW * uy],\n  { coils: 10 }\n);\n\n// ── 物块（沿斜面倾斜 30°） ──\nDraw.box(nC, 0.4, 0.3, { angleDeg: 30 });\nDraw.box(mC, 0.4, 0.3, { angleDeg: 30 });",
+    "readouts": "// 由 analysis 运动表生成；曲线图直接读这里\nconst out = [];\nconst h = 1e-4;\nconst tA = Math.max(0, t - h);\nconst tB = Math.min(1.21160132, t + h);\nconst a = stateAt(tA);\nconst b = stateAt(tB);\nconst dt = (tB - tA) || 1;\nout.push({ key: \"M.x\", label: \"M 水平位置\", value: state.M.x, unit: 'm' });\nout.push({ key: \"M.y\", label: \"M 竖直位置\", value: state.M.y, unit: 'm' });\nout.push({ key: \"M.vx\", label: \"M 水平速度\", value: (b.M.x - a.M.x) / dt, unit: 'm/s' });\nout.push({ key: \"M.vy\", label: \"M 竖直速度\", value: (b.M.y - a.M.y) / dt, unit: 'm/s' });\nout.push({ key: \"N.x\", label: \"N 水平位置\", value: state.N.x, unit: 'm' });\nout.push({ key: \"N.y\", label: \"N 竖直位置\", value: state.N.y, unit: 'm' });\nout.push({ key: \"N.vx\", label: \"N 水平速度\", value: (b.N.x - a.N.x) / dt, unit: 'm/s' });\nout.push({ key: \"N.vy\", label: \"N 竖直速度\", value: (b.N.y - a.N.y) / dt, unit: 'm/s' });\nreturn out;"
+  },
+  "stepTimes": [
+    {
+      "step": 1,
+      "t0": 0,
+      "t1": 0.35124074,
+      "sub": 1
+    },
+    {
+      "step": 2,
+      "t0": 0.35124074,
+      "t1": 0.65,
+      "sub": 2
+    },
+    {
+      "step": 3,
+      "t0": 0.65,
+      "t1": 0.9,
+      "sub": 3
+    },
+    {
+      "step": 4,
+      "t0": 0.9,
+      "t1": 1.21160132,
+      "sub": 4
+    }
+  ],
+  "provenance": {
+    "model": "deepseek-flash",
+    "promptHash": "cae93ce1caa4ac716f8b136d5722ffa815b8475bbae1783da413ead16faf112a",
+    "knowledgecardHash": "351bff6c61c9645463190d50bd2433d45275c5524fccdb6f0e58603b1260a06a",
+    "generatedAt": "2026-10-24T15:48:32.570Z"
+  },
+  "source": "model"
+}

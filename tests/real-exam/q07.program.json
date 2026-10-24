@@ -1,0 +1,49 @@
+{
+  "id": "q07",
+  "index": 7,
+  "title": "方波电场与方波磁场中的带电粒子",
+  "mode": "BOTH",
+  "slots": {
+    "PROBLEM": "如图（a），两块足够大的平行金属板水平放置，板间加有大小随时间 t 变化的匀强电场和匀强磁场，变化规律分别如图（b）和（c）所示，电场强度幅值为 E₀，方向竖直向下，磁感应强度幅值为 √3E₀/(3v₀)，方向平行板面且垂直纸面向里。t=0 时，一带正电的粒子以速率 v₀ 从 M 点沿两金属板中轴线 MN 向右射入；t=t₀ 时，粒子速度方向与 MN 夹角为 60°。运动过程中粒子始终不与板相碰，重力不计，忽略电场、磁场突变瞬间对粒子速度的影响。\n(1) 求粒子比荷；\n(2) 求 t₀~3t₀ 内粒子的速度大小和运动轨道半径；\n(3) 现调节 0~8t₀ 内磁感应强度幅值，使粒子在 t=8t₀ 时运动到中轴线，此时速度大小为 v₀、方向水平向右，且在 t₀~3t₀ 内粒子速度方向的偏转角小于 360°，则幅值应调为多少？",
+    "STEPS": "title: 电场中加速，求比荷\ntex: 粒子从 $t=0$ 到 $t=t_0$ 只在竖直向下的电场中运动。正粒子受到向下的电场力，水平分速度保持 $v_0$ 不变，竖直分速度从零开始增大；到 $t=t_0$ 时速度方向与 $MN$ 夹角为 $60^\\circ$，所以竖直分速度为 $$v_y=v_0\\tan 60^\\circ=\\sqrt3 v_0.$$ 由电场力产生的竖直加速度 $$a=\\frac{qE_0}{m},$$ 有 $$v_y=at_0=\\frac{qE_0}{m}t_0.$$ 因此 $$\\frac{q}{m}=\\frac{\\sqrt3 v_0}{E_0t_0}.$$\n\ntitle: $t_0\\sim 3t_0$ 内做匀速圆周运动，求速度大小和半径\ntex: 在 $t=t_0$ 时，粒子的速度由水平速度 $v_0$ 和竖直速度 $\\sqrt3v_0$ 合成： $$v=\\sqrt{v_0^2+(\\sqrt3v_0)^2}=2v_0.$$ 进入磁场后，洛伦兹力始终垂直于速度，所以粒子做匀速圆周运动，速度大小保持 $$v=2v_0.$$ 由洛伦兹力提供向心力 $$qvB=\\frac{mv^2}{r},$$ 得 $$r=\\frac{mv}{qB}.$$ 代入 $$B=\\frac{\\sqrt3E_0}{3v_0},\\qquad \\frac{q}{m}=\\frac{\\sqrt3v_0}{E_0t_0},$$ 可得 $$r=2v_0t_0.$$\n\ntitle: 用速度方向偏转角联系磁感应强度\ntex: 第 (3) 问中，调节磁感应强度后，粒子在磁场中仍做匀速圆周运动。设速度方向偏转角为 $\\theta$，则角速度为 $$\\omega=\\frac{qB}{m},$$ 偏转角满足 $$\\theta=\\omega \\Delta t=\\frac{qB}{m}\\Delta t.$$ 在 $t_0\\sim 3t_0$ 这段磁场作用时间为 $$\\Delta t=3t_0-t_0=2t_0.$$ 根据粒子在 $t=8t_0$ 时回到中轴线、速度大小为 $v_0$ 且方向水平向右，再结合圆周运动的几何关系，可得这段速度方向偏转角有两种可能： $$\\theta=120^\\circ=\\frac{2\\pi}{3},$$ 或 $$\\theta=180^\\circ=\\pi.$$ 题目又说明该段时间内偏转角小于 $360^\\circ$，所以这两种情况都要保留。\n\ntitle: 代入偏转角，求调节后的磁感应强度\ntex: 由 $$\\theta=\\frac{qB}{m}\\Delta t$$ 得 $$B=\\frac{m}{q}\\frac{\\theta}{\\Delta t}.$$ 代入 $$\\frac{q}{m}=\\frac{\\sqrt3v_0}{E_0t_0},\\qquad \\Delta t=2t_0.$$ 当 $\\theta=120^\\circ=\\dfrac{2\\pi}{3}$ 时， $$B=\\frac{E_0t_0}{\\sqrt3v_0}\\cdot\\frac{2\\pi/3}{2t_0} =\\frac{\\pi E_0}{3\\sqrt3v_0} =\\frac{\\sqrt3\\pi E_0}{9v_0}.$$ 当 $\\theta=180^\\circ=\\pi$ 时， $$B=\\frac{E_0t_0}{\\sqrt3v_0}\\cdot\\frac{\\pi}{2t_0} =\\frac{\\pi E_0}{2\\sqrt3v_0} =\\frac{\\sqrt3\\pi E_0}{6v_0}.$$ 所以磁感应强度幅值应调为 $$B=\\frac{\\sqrt3\\pi E_0}{9v_0}$$ 或 $$B=\\frac{\\sqrt3\\pi E_0}{6v_0}.$$",
+    "ANSWERS": "",
+    "VIEW": "SIM = {\n  duration: 19,\n  bodies: [\n    { id: \"ball\", at: function (s) { const b = s.ball; return [b.x, b.y]; } }\n  ],\n  phases: [{ t0: 0, t1: 1 }, { t0: 1, t1: 3 }, { t0: 3, t1: 4, branch: true }, { t0: 4, t1: 6 }, { t0: 6, t1: 8 }, { t0: 8, t1: 10 }, { t0: 10, t1: 11 }, { t0: 11, t1: 12, branch: true }, { t0: 12, t1: 14 }, { t0: 14, t1: 16 }, { t0: 16, t1: 18 }, { t0: 18, t1: 19 }],\n};",
+    "setup": "const T_PHYS = 19;\nconst T_BRANCH_1 = 3;\nconst T_BRANCH_2 = 11;",
+    "stateAt": "// 由 analysis 运动表生成；不要手改\nconst state = {};\nlet tt0 = t;\nif (tt0 < 0) tt0 = 0;\nif (tt0 > 19) tt0 = 19;\nlet x0, y0;\nif (tt0 <= 1) { x0 = 0 + 1*(tt0 - 0); y0 = 0 + 0*(tt0 - 0) - 0.8660254*(tt0 - 0)**2; }\nelse if (tt0 <= 3) { x0 = 1 + 1.0*1*Math.sin(1.0*(tt0 - 1)) - 1.0*-1.7320508*(1 - Math.cos(1.0*(tt0 - 1))); y0 = -0.8660254 + 1.0*1*(1 - Math.cos(1.0*(tt0 - 1))) + 1.0*-1.7320508*Math.sin(1.0*(tt0 - 1)); }\nelse if (tt0 <= 4) { x0 = 0 + 1*(tt0 - 3); y0 = 0 + 0*(tt0 - 3) - 0.8660254*(tt0 - 3)**2; }\nelse if (tt0 <= 6) { x0 = 1 + 0.9549297*1*Math.sin(1.0471976*(tt0 - 4)) - 0.9549297*-1.7320508*(1 - Math.cos(1.0471976*(tt0 - 4))); y0 = -0.8660254 + 0.9549297*1*(1 - Math.cos(1.0471976*(tt0 - 4))) + 0.9549297*-1.7320508*Math.sin(1.0471976*(tt0 - 4)); }\nelse if (tt0 <= 8) { x0 = 4.3079734 + 1*(tt0 - 6); y0 = -0.8660254 + 1.7320508*(tt0 - 6) - 0.8660254*(tt0 - 6)**2; }\nelse if (tt0 <= 10) { x0 = 6.3079734 + 0.9549297*1*Math.sin(1.0471976*(tt0 - 8)) - 0.9549297*-1.7320508*(1 - Math.cos(1.0471976*(tt0 - 8))); y0 = -0.8660254 + 0.9549297*1*(1 - Math.cos(1.0471976*(tt0 - 8))) + 0.9549297*-1.7320508*Math.sin(1.0471976*(tt0 - 8)); }\nelse if (tt0 <= 11) { x0 = 9.6159469 + 1*(tt0 - 10); y0 = -0.8660254 + 1.7320508*(tt0 - 10) - 0.8660254*(tt0 - 10)**2; }\nelse if (tt0 <= 12) { x0 = 0 + 1*(tt0 - 11); y0 = 0 + 0*(tt0 - 11) - 0.8660254*(tt0 - 11)**2; }\nelse if (tt0 <= 14) { x0 = 1 + 0.6366198*1*Math.sin(1.5707963*(tt0 - 12)) - 0.6366198*-1.7320508*(1 - Math.cos(1.5707963*(tt0 - 12))); y0 = -0.8660254 + 0.6366198*1*(1 - Math.cos(1.5707963*(tt0 - 12))) + 0.6366198*-1.7320508*Math.sin(1.5707963*(tt0 - 12)); }\nelse if (tt0 <= 16) { x0 = 3.2053156 + -1*(tt0 - 14); y0 = 0.4072141 + 1.7320508*(tt0 - 14) - 0.8660254*(tt0 - 14)**2; }\nelse if (tt0 <= 18) { x0 = 1.2053156 + 0.6366198*-1*Math.sin(1.5707963*(tt0 - 16)) - 0.6366198*-1.7320508*(1 - Math.cos(1.5707963*(tt0 - 16))); y0 = 0.4072141 + 0.6366198*-1*(1 - Math.cos(1.5707963*(tt0 - 16))) + 0.6366198*-1.7320508*Math.sin(1.5707963*(tt0 - 16)); }\nelse if (tt0 <= 19) { x0 = 3.4106312 + 1*(tt0 - 18); y0 = -0.8660254 + 1.7320508*(tt0 - 18) - 0.8660254*(tt0 - 18)**2; }\nelse { x0 = 3.4106312 + 1*(tt0 - 18); y0 = -0.8660254 + 1.7320508*(tt0 - 18) - 0.8660254*(tt0 - 18)**2; }\nstate.ball = { x: x0, y: y0, type: \"ball\" };\nreturn state;",
+    "drawFrame": "const BRANCH_1 = 3;\nconst BRANCH_2 = 11;\nconst plateTop = 3.3;\nconst plateBot = -3.3;\nconst xL = -1.2;\nconst xR = 11.5;\n\n// 平行金属板（上、下）\nDraw.line([xL, plateTop], [xR, plateTop], { width: 4 });\nDraw.line([xL, plateBot], [xR, plateBot], { width: 4 });\n\n// 中轴线 MN\nDraw.line([xL, 0], [xR, 0], { width: 1, dash: true });\n\n// 板间匀强磁场（垂直纸面向里）与匀强电场（竖直向下，aux 箭头）\nDraw.fieldDots(\n  { x: xL + 0.25, y: plateBot + 0.3, w: xR - xL - 0.5, h: plateTop - plateBot - 0.6 },\n  { symbol: 'cross', nx: 14, ny: 8 }\n);\nDraw.arrow([-0.7, 2.4], [0, -0.7], { category: 'aux', mag: 1 });\nDraw.arrow([11.0, 2.4], [0, -0.7], { category: 'aux', mag: 1 });\n\n// 已走过的轨迹（分段画，分支处断开）\nconst eps = 0.005;\n\nconst ptsA = [];\nfor (let tt = 0; tt < Math.min(t, BRANCH_1 - eps); tt += 0.03) {\n  const s = context.at(tt);\n  ptsA.push([s.ball.x, s.ball.y]);\n}\nif (ptsA.length > 1) Draw.trace(ptsA);\n\nif (t > BRANCH_1) {\n  const ptsB = [];\n  for (let tt = BRANCH_1 + eps; tt < Math.min(t, BRANCH_2 - eps); tt += 0.03) {\n    const s = context.at(tt);\n    ptsB.push([s.ball.x, s.ball.y]);\n  }\n  if (ptsB.length > 1) Draw.trace(ptsB);\n}\n\nif (t > BRANCH_2) {\n  const ptsC = [];\n  for (let tt = BRANCH_2 + eps; tt <= t; tt += 0.03) {\n    const s = context.at(tt);\n    ptsC.push([s.ball.x, s.ball.y]);\n  }\n  if (ptsC.length > 1) Draw.trace(ptsC);\n}\n\n// 带电粒子\nDraw.circle([state.ball.x, state.ball.y], 0.15);",
+    "readouts": "// 由 analysis 运动表生成；曲线图直接读这里\nconst out = [];\nconst h = 1e-4;\nconst tA = Math.max(0, t - h);\nconst tB = Math.min(19, t + h);\nconst a = stateAt(tA);\nconst b = stateAt(tB);\nconst dt = (tB - tA) || 1;\nout.push({ key: \"ball.x\", label: \"ball 水平位置\", value: state.ball.x, unit: 'm' });\nout.push({ key: \"ball.y\", label: \"ball 竖直位置\", value: state.ball.y, unit: 'm' });\nout.push({ key: \"ball.vx\", label: \"ball 水平速度\", value: (b.ball.x - a.ball.x) / dt, unit: 'm/s' });\nout.push({ key: \"ball.vy\", label: \"ball 竖直速度\", value: (b.ball.y - a.ball.y) / dt, unit: 'm/s' });\nreturn out;"
+  },
+  "stepTimes": [
+    {
+      "step": 1,
+      "t0": 0,
+      "t1": 1,
+      "sub": 1
+    },
+    {
+      "step": 2,
+      "t0": 1,
+      "t1": 3,
+      "sub": 2
+    },
+    {
+      "step": 3,
+      "t0": 3,
+      "t1": 4,
+      "sub": 3
+    },
+    {
+      "step": 4,
+      "t0": 4,
+      "t1": 6,
+      "sub": 3
+    }
+  ],
+  "provenance": {
+    "model": "deepseek-flash",
+    "promptHash": "cae93ce1caa4ac716f8b136d5722ffa815b8475bbae1783da413ead16faf112a",
+    "knowledgecardHash": "351bff6c61c9645463190d50bd2433d45275c5524fccdb6f0e58603b1260a06a",
+    "generatedAt": "2026-10-24T15:53:07.433Z"
+  },
+  "source": "model"
+}
