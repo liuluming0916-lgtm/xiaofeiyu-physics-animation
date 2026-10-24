@@ -158,6 +158,19 @@ export function buildPayload(destDir, opts = {}) {
   walkCopy(webDist, join(dest, 'web', 'dist'), (n) => skipNoise(n));
   log('  ✓ web/dist/（发布形态）');
 
+  /**
+   * ④-1 许可与声明：**必须随包分发**。
+   *   AGPL-3.0 要求随程序提供许可全文；NOTICE 第八节也写明了"发布包里没有这三个文件就不合规"。
+   *   这些文件不在 PAYLOAD_DIRS 里（它们在仓库根），所以必须显式拷，缺了直接报错而不是静默少带。
+   */
+  const LEGAL_FILES = ['LICENSE', 'NOTICE', 'LICENSE-DOCS'];
+  for (const name of LEGAL_FILES) {
+    const src = join(PROJECT_ROOT, name);
+    if (!existsSync(src)) throw new Error(`发布包缺许可文件：${name}`);
+    cpSync(src, join(dest, name));
+  }
+  log(`  ✓ 许可文件（${LEGAL_FILES.join(' / ')}）`);
+
   /* ⑤ 运行期依赖（从仓库 node_modules 拷；缺一个就明确报，不带病打包） */
   const nmDest = join(dest, 'node_modules');
   mkdirSync(nmDest, { recursive: true });

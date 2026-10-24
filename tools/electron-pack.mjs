@@ -111,6 +111,16 @@ function main() {
     renameSync(srcExe, dstExe);
   }
 
+  /**
+   * ④-1 许可文件放到 exe 旁边。
+   *   asar 里也有一份（pack-payload 会拷），但用户装完要能在文件夹里直接看到——
+   *   AGPL 要求随程序提供许可全文，藏在 asar 里等于没给。
+   */
+  for (const name of ['LICENSE', 'NOTICE', 'LICENSE-DOCS']) {
+    copyFileSync(join(PROJECT_ROOT, name), join(APP_DIR, name));
+  }
+  console.log('  ✓ 许可文件已放在 exe 旁边');
+
   /* ⑤ 冒烟：先 `--version`，再真跑一遍自检（服务 / 首页 / 账本 / Worker） */
   console.log('\n──────── ④ 冒烟 ────────');
   const ver = spawnSync(dstExe, ['--version'], { stdio: 'inherit', timeout: 60_000 });
@@ -177,6 +187,9 @@ function main() {
     'resources/app.asar.unpacked/node_modules/better-sqlite3/prebuilds/win32-x64.node',
     '小肥鱼物理解题动画.exe',
     '启动并诊断.bat',
+    'LICENSE',
+    'NOTICE',
+    'LICENSE-DOCS',
   ];
   let missing = 0;
   for (const rel of must) {

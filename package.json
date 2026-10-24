@@ -60,7 +60,15 @@
       "tools/**/*",
       "template/build/**/*",
       "web/dist/**/*",
-      "package.json"
+      "package.json",
+      "LICENSE",
+      "NOTICE",
+      "LICENSE-DOCS"
+    ],
+    "extraResources": [
+      "LICENSE",
+      "NOTICE",
+      "LICENSE-DOCS"
     ],
     "asar": true,
     "asarUnpack": [
