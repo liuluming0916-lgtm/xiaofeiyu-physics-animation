@@ -82,7 +82,24 @@ export function deriveTiming(slots = {}) {
   ]
     .filter((v) => Number.isFinite(v) && v >= 0)
     .sort((a, b) => a - b);
-  return { ...(Number.isFinite(tPhys) ? { tPhys } : {}), ...(boundaries.length ? { boundaries } : {}) };
+  /**
+   * v1.1.19：场景分支边界（`phases` 里 `branch: true`）。
+   * C6 在这些边界上**不判位置连续**——分支允许从 c 回到 b 重新开始。
+   */
+  const branchBoundaries = [
+    ...new Set(
+      [...(slots.VIEW ?? '').matchAll(/t0\s*:\s*([0-9.eE+-]+)\s*,\s*t1\s*:\s*[0-9.eE+-]+\s*,\s*branch\s*:\s*true/g)].map(
+        (m) => num(m[1]),
+      ),
+    ),
+  ]
+    .filter((v) => Number.isFinite(v) && v >= 0)
+    .sort((a, b) => a - b);
+  return {
+    ...(Number.isFinite(tPhys) ? { tPhys } : {}),
+    ...(boundaries.length ? { boundaries } : {}),
+    ...(branchBoundaries.length ? { branchBoundaries } : {}),
+  };
 }
 
 /* ────────────────────────── 清单体检 ────────────────────────── */

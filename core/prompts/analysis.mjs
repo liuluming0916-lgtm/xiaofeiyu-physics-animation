@@ -89,6 +89,12 @@ export const ANALYSIS_INSTRUCTION = [
   '   x0 / y0 / vx0 / vy0（本段初态）与 ax / ay（微分方程右端，可用 t,x,y,vx,vy）；',
   '   note 写清物理过程。本版程序会明确报“不支持数值积分”，由人工决定是否升级。',
   '6. 不同元件的阶段是独立的，无需对齐。',
+  '6.5 **条件变更 / 另一情形（场景分支）**：如果某一小问是“若…… / 再加…… / 改变条件 / 另一种情况”，',
+  '   它不是同一过程的延续，不要把它接到原元件后面当普通段。请给**同一个元件**加一个**分支段**：',
+  '   `branch: true`，`t0` = **主过程结束的时刻**（不是第一次到达分叉点的时刻），`x0/y0` = 分叉点，',
+  '   `t1` 之后按新情形运动；主过程段在同一个时刻结束。分支段的位置**允许**与上一段末位置不同（从 c 回到 b）。',
+  '   两段 t0/t1 仍然相接、不能重叠；分支内连续，分支之间不要求连续。',
+  '   （例：q08 第 1、2 问是纯磁场圆周，主过程到 c 结束；第 3 问从 b 重新开始正交电磁场，第三段写 `branch: true`。）',
   '7. 题面没给的数不要编。题面符号无数值时用 assumption 声明示意值，整表共用同一组数。',
   '8. 空间约束（**硬性**，2026-10-24 用户裁决）：任何元件在**全部时段**内都不得穿过挡着它的东西 ——',
   '   悬挂物不得高于它上方的滑轮/支点，不得穿过地面/斜面/极板；落到地面或被挡住之后，',
@@ -98,6 +104,9 @@ export const ANALYSIS_INSTRUCTION = [
   '   要留行程就把悬挂物放得更低（例如 B 从 -9 m 起），而不是把整个架子架到天上。',
   '   （反例：A 还要向左再走 7.7 m，而 B 只挂在滑轮下 6.5 m ⇒ B 会被拉过滑轮，整题作废。）',
   '   也不要用“让某个物体一直掉出画面”的方式表达自由落体：落地即截断，画面不该被它撑大。',
+  '9. **小问覆盖自检（硬性）**：题面出现 (1)(2)(3) 等小问时，每一问都必须有对应的运动段；',
+  '   条件变更的小问（“若…… / 再加…… / 改变条件 / 另一种情况”）必须写成 `branch: true` 的分支段，',
+  '   **不能写“本表只按主过程，不含第(3)问”**。输出前数一遍：小问数 = 覆盖到的小问数。',
   '',
   '【示例】',
   ANALYSIS_EXAMPLE,
@@ -131,6 +140,7 @@ export function buildAnalysisUser({ problem, readProblem, solution, physicalTabl
     return parts.join('、');
   };
   const rows = Object.entries(physicalTable ?? {}).filter(([, p]) => dims(p));
+  const subNumbers = [...new Set([...String(problem ?? '').matchAll(/[（(]\s*([1-9])\s*[）)]/g)].map((m) => m[1]))].sort();
   const supplement = [
     ...(String(description ?? '').trim()
       ? ['【用户补充描述（可信度高于对图片的猜测；数值以此为准）】', String(description).trim(), '']
@@ -164,6 +174,15 @@ export function buildAnalysisUser({ problem, readProblem, solution, physicalTabl
       ? [
           '【老师提供的参考答案 / 解析（最高权威；数值最终以此为准）】',
           String(referenceText).trim(),
+          '',
+        ]
+      : []),
+    ...(subNumbers.length >= 2
+      ? [
+          '【小问覆盖（硬性）】',
+          `题面有 ${subNumbers.length} 个小问（${subNumbers.map((n) => `(${n})`).join(' ')}）。运动表必须覆盖每一个小问；`,
+          '出现“若… / 再加… / 改变条件 / 另一种情况”的小问，写成 `branch: true` 的分支段（同一元件）；',
+          '不能写“本表只按主过程，不含第(3)问”。',
           '',
         ]
       : []),

@@ -15,9 +15,11 @@ import {
   formatAnalysis,
   positionAt,
   compileT,
+  generateProgramSlots,
   ANALYSIS_EXAMPLE,
 } from '../core/analysis/index.mjs';
 import { ANALYSIS_INSTRUCTION, ANALYSIS_ROLE, buildAnalysisUser } from '../core/prompts/analysis.mjs';
+import { deriveTiming } from '../core/dryrun/question-sources.mjs';
 
 let passed = 0;
 const failures = [];
@@ -90,6 +92,57 @@ console.log('『A』一页示例');
   check('往返后 tPhys 不变', round.tPhys === r.tPhys);
   check('往返后仍是 2 段', round.elements[0]?.segments.length === 2);
   check('★ formatAnalysis 保留 type', formatAnalysis(r).includes('type: block'));
+
+  /**
+   * v1.1.19：条件变更的分支段（方案 A）。
+   * `branch: true` 允许位置在分叉点重置（q08 从 c 回到 b），
+   * 但主过程与分支段仍必须在同一时刻相接、不能重叠。
+   */
+  const BRANCH = `element: ball
+type: ball
+segment: 1
+t0: 0
+t1: 1
+x0: 0
+y0: 0
+vx0: 1
+vy0: 0
+ax: 0
+ay: 0
+x: x0 + vx0*(t - t0)
+y: y0
+note: 主过程
+
+element: ball
+type: ball
+segment: 2
+branch: true
+t0: 1
+t1: 2
+x0: 5
+y0: 0
+vx0: 1
+vy0: 0
+ax: 0
+ay: 0
+x: x0 + vx0*(t - t0)
+y: y0
+note: 第(3)问分支，回到分叉点重新开始`;
+  const br = parseAnalysisTable(BRANCH);
+  check('★ branch 段解析通过（位置允许跳回分叉点）', br.ok, br.problems.map((p) => p.message).join(' / '));
+  check('branch 段被标记', br.elements[0]?.segments[1]?.branch === true);
+  check('formatAnalysis 保留 branch', formatAnalysis(br).includes('branch: true'));
+  const slots = generateProgramSlots({
+    analysis: br,
+    problem: '测试题',
+    breakdownText: 'title: 主过程\ntex: 主过程\n\ntitle: 第 3 问\ntex: 分支',
+    drawFrame: 'Draw.circle([state.ball.x, state.ball.y], 0.1);',
+  });
+  check('setup 暴露 T_BRANCH_1', /T_BRANCH_1\s*=\s*1/.test(slots.setup), slots.setup);
+  check('VIEW.phases 标记 branch', /branch:\s*true/.test(slots.VIEW), slots.VIEW);
+  const timing = deriveTiming(slots);
+  check('deriveTiming 给出 branchBoundaries（C6 用它跳过分支边界）', timing.branchBoundaries?.includes(1), JSON.stringify(timing));
+  check('stateAt 同时包含两段', /tt0 <= 1/.test(slots.stateAt) && /tt0 <= 2/.test(slots.stateAt));
 }
 
 /* ────────────────────────────── 『B』拒绝 ────────────────────────────── */

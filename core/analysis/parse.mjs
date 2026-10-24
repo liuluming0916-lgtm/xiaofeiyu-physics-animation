@@ -45,6 +45,7 @@ const MOTION_FIELDS = new Set([
   'type',
   'segment',
   'kind',
+  'branch',
   't0',
   't1',
   'x0',
@@ -380,6 +381,7 @@ export function parseAnalysisTable(text, opts = {}) {
         type,
         segment: segRes.value,
         kind,
+        branch: ['true', '1', 'yes'].includes(String(fields.get('branch') ?? '').trim().toLowerCase()),
         t0: t0Res.value,
         t1: t1Res.value,
         anchor,
@@ -426,6 +428,12 @@ export function parseAnalysisTable(text, opts = {}) {
       const prev = list[i - 1];
       const next = list[i];
       if (nearlyEqual(prev.t1, next.t0, 1e-9, 1e-9)) {
+        /**
+         * v1.1.19：`branch: true` 是**场景分支**，允许位置在分叉点重置
+         * （例如 q08 从 c 回到 b 再做第 3 问）。分支内仍要连续，
+         * 分支之间不要求连续；C6 会按 VIEW.phases 的 branch 标记跳过该边界。
+         */
+        if (next.branch === true) continue;
         const px = prev.x.fn(prev.t1);
         const nx = next.x.fn(next.t0);
         const py = prev.y.fn(prev.t1);
@@ -493,6 +501,7 @@ export function formatAnalysis(analysis) {
         `element: ${el.id}`,
         ...(el.type && el.type !== 'unknown' ? [`type: ${el.type}`] : []),
         `segment: ${s.segment}`,
+        ...(s.branch === true ? ['branch: true'] : []),
         `t0: ${s.t0}`,
         `t1: ${s.t1}`,
         `x0: ${s.anchor.x0}`,

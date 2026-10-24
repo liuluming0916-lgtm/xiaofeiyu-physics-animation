@@ -208,6 +208,26 @@ export function buildStepsText(breakdownText, _analysis, _tPhys, fallbackTitle =
     .join('\n\n');
 }
 
+/** 场景分支时刻（analysis 里 `branch: true` 的段起点；升序、去重） */
+function branchTimesOf(analysis) {
+  return [
+    ...new Set(
+      (analysis?.elements ?? [])
+        .flatMap((e) => e.segments ?? [])
+        .filter((s) => s.branch === true)
+        .map((s) => s.t0)
+        .filter((v) => Number.isFinite(v)),
+    ),
+  ].sort((a, b) => a - b);
+}
+
+/** 生成 setup：T_PHYS + 每个分支时刻一个 T_BRANCH_n（drawFrame 可直接读） */
+function buildSetupText(analysis, tPhys) {
+  const lines = [`const T_PHYS = ${fmt(tPhys)};`];
+  branchTimesOf(analysis).forEach((t, i) => lines.push(`const T_BRANCH_${i + 1} = ${fmt(t)};`));
+  return lines.join('\n');
+}
+
 /**
  * 生成 `stateAt`：每个运动元件一个对象。
  *
@@ -298,8 +318,13 @@ export function buildView(analysis, tPhys) {
   const bounds = [...new Set((analysis.elements ?? []).flatMap((e) => e.segments.flatMap((s) => [s.t0, s.t1])))]
     .filter((v) => Number.isFinite(v))
     .sort((a, b) => a - b);
+  const branchTimes = new Set(branchTimesOf(analysis));
   const phases = [];
-  for (let i = 0; i + 1 < bounds.length; i += 1) phases.push(`{ t0: ${fmt(bounds[i])}, t1: ${fmt(bounds[i + 1])} }`);
+  for (let i = 0; i + 1 < bounds.length; i += 1) {
+    phases.push(
+      `{ t0: ${fmt(bounds[i])}, t1: ${fmt(bounds[i + 1])}${branchTimes.has(bounds[i]) ? ', branch: true' : ''} }`,
+    );
+  }
   return [
     'SIM = {',
     `  duration: ${fmt(tPhys)},`,
@@ -343,7 +368,7 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
     // C7 / ANSWERS 已删；留空串，程序形状允许（见 checkProgramShape）
     ANSWERS: '',
     VIEW: buildView(analysis, tPhys),
-    setup: `const T_PHYS = ${fmt(tPhys)};`,
+    setup: buildSetupText(analysis, tPhys),
     stateAt: buildStateAt(analysis),
     drawFrame: stripCodeFence(drawFrame),
     readouts: buildReadouts(analysis, tPhys),

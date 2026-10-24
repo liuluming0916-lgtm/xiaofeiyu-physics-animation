@@ -1023,7 +1023,10 @@ function checkBoundaryContinuity(run, opts = {}) {
   const offenders = [];
   const checkedKeys = new Set();
   const rates = keyRates(run);
+  const branchBoundaries = new Set((opts.branchBoundaries ?? []).filter((v) => Number.isFinite(v)));
   for (const tb of boundaries) {
+    /* 场景分支：允许位置从 c 回到 b 重新开始，不做“瞬移”误判 */
+    if (branchBoundaries.has(tb)) continue;
     const bIdx = boundaries.indexOf(tb);
     const prevT = bIdx > 0 ? boundaries[bIdx - 1] : 0;
     const nextT = bIdx < boundaries.length - 1 ? boundaries[bIdx + 1] : run.duration;
