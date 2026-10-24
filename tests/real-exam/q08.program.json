@@ -1,0 +1,43 @@
+{
+  "id": "q08",
+  "index": 8,
+  "title": "直流电路 + 平行板类平抛 + 磁场圆周",
+  "mode": "BOTH",
+  "slots": {
+    "PROBLEM": "如图。直流电源的电动势为 E₀，内阻为 r₀，滑动变阻器 R 的最大阻值为 2r₀，平行板电容器两极板水平放置，板间距离为 d，板长为 √3d，平行板电容器的右侧存在方向垂直纸面向里的匀强磁场。闭合开关 S，当滑片处于滑动变阻器中点时，质量为 m 的带正电粒子以初速度 v₀ 水平向右从电容器左侧中点 a 进入电容器，恰好从电容器下极板右侧边缘 b 点进入磁场，随后又从电容器上极板右侧边缘 c 点进入电容器，忽略粒子重力和空气阻力。\n(1) 求粒子所带电荷量 q；\n(2) 求磁感应强度 B 的大小；\n(3) 若粒子离开 b 点时，在平行板电容器的右侧再加一个方向水平向右的匀强电场，场强大小为 4√3E₀/(3d)，求粒子相对于电容器右侧的最远水平距离 xₘ。",
+    "STEPS": "title: 先确定电容器两板间电压\ntex: 滑片在中点时，滑动变阻器接入电路的电阻为 \\(r_0\\)。由分压关系可知，电容器两板间电压为 $$U=\\frac{r_0}{r_0+2r_0}E_0=\\frac{E_0}{3}.$$ 因此板间匀强电场的场强大小为 \\(E_c=U/d=E_0/(3d)\\)。这一段先为后面的类平抛运动准备好电场条件。\n\ntitle: 用类平抛运动求电荷量和进入磁场时的速度\ntex: 粒子在电容器内水平方向不受力，做匀速直线运动： $$t_1=\\frac{\\sqrt{3}d}{v_0}.$$ 竖直方向受电场力做初速度为零的匀加速运动，竖直位移为 \\(d/2\\)，所以 $$\\frac d2=\\frac12\\frac{qU}{md}t_1^2.$$ 代入 \\(U=E_0/3\\)、\\(t_1=\\sqrt3d/v_0\\)，得到电荷量 $$q=\\frac{m v_0^2}{E_0}.$$ 同时竖直分速度为 $$v_y=\\frac{qU}{md}t_1=\\frac{v_0}{\\sqrt3}.$$ 于是粒子到达 \\(b\\) 点时的速度为 $$v_b=\\sqrt{v_0^2+v_y^2}=\\frac{2v_0}{\\sqrt3},$$ 方向与水平方向成 \\(30^\\circ\\) 向下。\n\ntitle: 由磁场中的圆周运动几何求磁感应强度\ntex: 粒子从下极板右边缘 \\(b\\) 进入磁场，又从同一竖直边界上的上极板右边缘 \\(c\\) 出来，因此 \\(b,c\\) 是圆周轨迹上两点，弦长为 \\(d\\)。粒子在 \\(b\\) 点的速度方向与水平方向成 \\(30^\\circ\\) 向下，所以圆心到 \\(b\\) 点半径方向与水平方向成 \\(60^\\circ\\)。由几何关系 $$R\\sin60^\\circ=\\frac d2,$$ 得轨迹半径 $$R=\\frac{d}{\\sqrt3}.$$ 洛伦兹力提供向心力： $$qv_bB=m\\frac{v_b^2}{R}.$$ 代入 \\(q=m v_0^2/E_0\\)、\\(v_b=2v_0/\\sqrt3\\)、\\(R=d/\\sqrt3\\)，得到 $$B=\\frac{m v_b}{qR}=\\frac{2E_0}{d v_0}.$$\n\ntitle: 在电场和磁场共同作用下分解运动求最远水平距离\ntex: 粒子从 \\(b\\) 点进入右侧复合场，初速度仍为 $$v_b=\\frac{2v_0}{\\sqrt3},$$ 方向右下，与水平方向成 \\(30^\\circ\\)。新增电场水平向右，大小为 $$E'=\\frac{4\\sqrt3E_0}{3d}.$$ 由 \\(B=\\dfrac{2E_0}{dv_0}\\)，可算出该复合场中的漂移速度 $$V=\\frac{E'}{B}=\\frac{2v_0}{\\sqrt3},$$ 方向竖直向上；回旋角速度为 $$\\omega=\\frac{qB}{m}=\\frac{2v_0}{d}.$$ 把粒子速度看成“竖直向上的匀速漂移”与“匀速圆周运动”的叠加。初速度分解为 $$v_x=v_0,\\qquad v_y=-\\frac{v_0}{\\sqrt3}.$$ 相对圆心的速度大小为 \\(2v_0\\)，所以回旋半径为 $$\\rho=\\frac{2v_0}{\\omega}=d.$$ 水平方向位移可写成 $$x=d\\left[\\sin\\left(\\omega t-\\frac{\\pi}{3}\\right)+\\frac{\\sqrt3}{2}\\right].$$ 当正弦项取最大值 \\(1\\) 时，水平距离最大： $$x_m=d\\left(1+\\frac{\\sqrt3}{2}\\right) =\\frac{(2+\\sqrt3)d}{2}.$$",
+    "ANSWERS": "",
+    "VIEW": "SIM = {\n  duration: 5.13545,\n  bodies: [\n    { id: \"ball\", at: function (s) { const b = s.ball; return [b.x, b.y]; } }\n  ],\n  phases: [{ t0: 0, t1: 1.73205 }, { t0: 1.73205, t1: 3.82645 }, { t0: 3.82645, t1: 5.13545, branch: true }],\n};",
+    "setup": "const T_PHYS = 5.13545;\nconst T_BRANCH_1 = 3.82645;",
+    "stateAt": "// 由 analysis 运动表生成；不要手改\nconst state = {};\nlet tt0 = t;\nif (tt0 < 0) tt0 = 0;\nif (tt0 > 5.13545) tt0 = 5.13545;\nlet x0, y0;\nif (tt0 <= 1.73205) { x0 = 0 + 1*(tt0 - 0); y0 = 0 + 0*(tt0 - 0) - 0.1666667*(tt0 - 0)**2; }\nelse if (tt0 <= 3.82645) { x0 = 1.73205 + 0.50000*1*Math.sin(2.0000*(tt0 - 1.73205)) + 0.50000*-0.57735*(Math.cos(2.0000*(tt0 - 1.73205)) - 1); y0 = -0.5 + 0.50000*1*(1 - Math.cos(2.0000*(tt0 - 1.73205))) + 0.50000*-0.57735*Math.sin(2.0000*(tt0 - 1.73205)); }\nelse if (tt0 <= 5.13545) { x0 = 1.73205 + 0.50000*Math.sin(2.0000*(tt0 - 3.82645)) + 0.86603*(1 - Math.cos(2.0000*(tt0 - 3.82645))); y0 = -0.5 + 1.15470*(tt0 - 3.82645) + 0.50000*(1 - Math.cos(2.0000*(tt0 - 3.82645))) - 0.86603*Math.sin(2.0000*(tt0 - 3.82645)); }\nelse { x0 = 1.73205 + 0.50000*Math.sin(2.0000*(tt0 - 3.82645)) + 0.86603*(1 - Math.cos(2.0000*(tt0 - 3.82645))); y0 = -0.5 + 1.15470*(tt0 - 3.82645) + 0.50000*(1 - Math.cos(2.0000*(tt0 - 3.82645))) - 0.86603*Math.sin(2.0000*(tt0 - 3.82645)); }\nstate.ball = { x: x0, y: y0, type: \"ball\" };\nreturn state;",
+    "drawFrame": "// 磁场区域（叉号：垂直纸面向里）\nDraw.fieldDots({ x: 1.732, y: -1.7, w: 2.0, h: 3.4 }, { symbol: 'cross', nx: 9, ny: 11 });\n\n// 平行板电容器两极板（板间距示意 1 m，板长 √3 d）\nDraw.line([0, 0.5], [1.732, 0.5], { width: 3 });\nDraw.line([0, -0.5], [1.732, -0.5], { width: 3 });\n\n// 上极板引线 → 顶部走线 → 左侧\nDraw.line([0, 0.5], [0, 1.7]);\nDraw.line([0, 1.7], [-3.0, 1.7]);\nDraw.line([-3.0, 1.7], [-3.0, -0.2]);\n\n// 开关 S（闭合）\nDraw.circle([-3.0, -0.2], 0.05);\nDraw.line([-3.0, -0.8], [-2.92, -0.2]);\nDraw.circle([-3.0, -0.8], 0.05);\nDraw.line([-3.0, -0.8], [-3.0, -1.9]);\n\n// 直流电源 E0, r0\nDraw.line([-3.0, -1.9], [-2.05, -1.9]);\nDraw.line([-2.05, -1.65], [-2.05, -2.15]);\nDraw.line([-1.9, -1.78], [-1.9, -2.02]);\nDraw.line([-1.9, -1.9], [-1.2, -1.9]);\nDraw.line([-1.2, -1.9], [-1.2, -0.9]);\n\n// 滑动变阻器 R\nDraw.box([-1.2, 0], 0.28, 1.8);\n\n// 滑片（位于中点）\nDraw.line([-1.7, 0], [-1.5, 0]);\nDraw.polygon([[-1.5, 0.1], [-1.5, -0.1], [-1.34, 0]], { closed: true, fill: true });\n\n// 下极板引线 → 滑片（电容器接在变阻器下半段两端）\nDraw.line([0, -0.5], [-1.7, -0.5]);\nDraw.line([-1.7, -0.5], [-1.7, 0]);\n\n// 带电粒子\nDraw.circle([state.ball.x, state.ball.y], 0.07);",
+    "readouts": "// 由 analysis 运动表生成；曲线图直接读这里\nconst out = [];\nconst h = 1e-4;\nconst tA = Math.max(0, t - h);\nconst tB = Math.min(5.13545, t + h);\nconst a = stateAt(tA);\nconst b = stateAt(tB);\nconst dt = (tB - tA) || 1;\nout.push({ key: \"ball.x\", label: \"ball 水平位置\", value: state.ball.x, unit: 'm' });\nout.push({ key: \"ball.y\", label: \"ball 竖直位置\", value: state.ball.y, unit: 'm' });\nout.push({ key: \"ball.vx\", label: \"ball 水平速度\", value: (b.ball.x - a.ball.x) / dt, unit: 'm/s' });\nout.push({ key: \"ball.vy\", label: \"ball 竖直速度\", value: (b.ball.y - a.ball.y) / dt, unit: 'm/s' });\nreturn out;"
+  },
+  "stepTimes": [
+    {
+      "step": 2,
+      "t0": 0,
+      "t1": 1.73205,
+      "sub": 1
+    },
+    {
+      "step": 3,
+      "t0": 1.73205,
+      "t1": 3.82645,
+      "sub": 2
+    },
+    {
+      "step": 4,
+      "t0": 3.82645,
+      "t1": 5.13545,
+      "sub": 3
+    }
+  ],
+  "provenance": {
+    "model": "deepseek-flash",
+    "promptHash": "7acd1d82a25c638c6f79965907965f9ced0a5a8d250243db50509de75ed6c62b",
+    "knowledgecardHash": "ff834e4a41fb7be4b3aed15014a667ef13a7a09da04484e5296d54aad31b30f3",
+    "generatedAt": "2026-10-24T10:52:25.361Z"
+  },
+  "source": "model"
+}

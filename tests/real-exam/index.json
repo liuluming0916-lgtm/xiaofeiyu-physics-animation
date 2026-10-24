@@ -219,7 +219,7 @@
       "domain": "electromagnetism",
       "pdfPage": 10,
       "image": "pages/q08.png",
-      "status": "todo",
+      "status": "accepted",
       "semantics": "v6",
       "problem": "如图。直流电源的电动势为 E₀，内阻为 r₀，滑动变阻器 R 的最大阻值为 2r₀，平行板电容器两极板水平放置，板间距离为 d，板长为 √3d，平行板电容器的右侧存在方向垂直纸面向里的匀强磁场。闭合开关 S，当滑片处于滑动变阻器中点时，质量为 m 的带正电粒子以初速度 v₀ 水平向右从电容器左侧中点 a 进入电容器，恰好从电容器下极板右侧边缘 b 点进入磁场，随后又从电容器上极板右侧边缘 c 点进入电容器，忽略粒子重力和空气阻力。\n(1) 求粒子所带电荷量 q；\n(2) 求磁感应强度 B 的大小；\n(3) 若粒子离开 b 点时，在平行板电容器的右侧再加一个方向水平向右的匀强电场，场强大小为 4√3E₀/(3d)，求粒子相对于电容器右侧的最远水平距离 xₘ。",
       "knowledge": [
@@ -234,9 +234,23 @@
         "(3) xₘ = (2+√3)d/2"
       ],
       "answerNote": "滑片在中点 ⇒ U = r₀/(r₀+2r₀)·E₀ = E₀/3；类平抛竖直位移 d/2 ⇒ v_y = √3v₀/3。",
-      "program": null,
-      "preview": null,
-      "source": "model"
+      "program": "q08.program.json",
+      "preview": "q08.html",
+      "source": "model",
+      "frozen": {
+        "sha256": "d50f2263afeef63faef9596a59f368f5247d8c1712e9d0f14e7350791a286449",
+        "frozenAt": "2026-10-24",
+        "note": "用户验收后冻结；程序 sha256 d50f2263…；预览 q08.html sha256 fe9ef019…（396.0 KB，stepTimes=3）"
+      },
+      "acceptNote": "用户验收（2026-10-24）：accept。方案 A（branch）重跑 pass，1233 帧，1 元件 / 3 段：板间→纯磁场圆周 b→c→branch 回到 b 做第 3 问；轨迹虚线与附加电场箭头用户明确忽略；couple 的 T_BRANCH 笔误留 1.1.19 后期 prompt / 卡面工程。",
+      "knownGaps": [
+        "drawFrame 没有画轨迹虚线；第 3 问的附加水平电场也没有箭头——用户明确忽略，不补",
+        "电路仍是示意图（电源/开关/变阻器/极板），不追求标准符号；开关已画闭合",
+        "couple 提示词引用了不存在的 T_BRANCH（实际是 T_BRANCH_1）；记录在案，后期 prompt 工程再改",
+        "C6 分支放行按时刻全局跳过；用户确认切换场景全局瞬移是正常的",
+        "程序为方案二：branch 段在分叉点重置；无 SIM.stage / cx/cy / anchor"
+      ],
+      "acceptedAt": "2026-10-24"
     },
     {
       "id": "q09",

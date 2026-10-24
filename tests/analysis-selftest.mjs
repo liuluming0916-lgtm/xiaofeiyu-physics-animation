@@ -20,6 +20,7 @@ import {
 } from '../core/analysis/index.mjs';
 import { ANALYSIS_INSTRUCTION, ANALYSIS_ROLE, buildAnalysisUser } from '../core/prompts/analysis.mjs';
 import { deriveTiming } from '../core/dryrun/question-sources.mjs';
+import { dryRun } from '../core/dryrun/dry-run.mjs';
 
 let passed = 0;
 const failures = [];
@@ -62,6 +63,7 @@ console.log('物理分析产出格式自检（v6 · MOTIONS）\n');
 
 /* ────────────────────────────── 『A』示例 ────────────────────────────── */
 console.log('『A』一页示例');
+let branchFixture = null;
 {
   const r = parseAnalysisTable(ANALYSIS_EXAMPLE);
   check('示例解析通过', r.ok, r.problems.map((p) => p.message).join(' / '));
@@ -143,6 +145,42 @@ note: 第(3)问分支，回到分叉点重新开始`;
   const timing = deriveTiming(slots);
   check('deriveTiming 给出 branchBoundaries（C6 用它跳过分支边界）', timing.branchBoundaries?.includes(1), JSON.stringify(timing));
   check('stateAt 同时包含两段', /tt0 <= 1/.test(slots.stateAt) && /tt0 <= 2/.test(slots.stateAt));
+  branchFixture = { slots, tPhys: br.tPhys, timing };
+}
+
+/**
+ * v1.1.19：C6 的**分支放行**回归。
+ * 同一个 stateAt 在 t=1 从 x=1 跳到 x=5：
+ *   · 带 branchBoundaries ⇒ C6 放行（场景切换，合理）；
+ *   · 去掉 VIEW 的 branch 标记、不传 branchBoundaries ⇒ C6 必须拦下（真瞬移）。
+ */
+if (branchFixture) {
+  const { slots, tPhys, timing } = branchFixture;
+  const withBranch = await dryRun({
+    slots,
+    entry: 'branch-test',
+    meta: { tPhys, boundaries: timing.boundaries, branchBoundaries: timing.branchBoundaries },
+  });
+  const c6With = withBranch.report.checks.find((c) => c.id === 'C6');
+  check(
+    '★ C6 在 branch 边界放行（回到分叉点不算瞬移）',
+    c6With?.status === 'pass',
+    JSON.stringify(c6With?.offenders ?? c6With?.message ?? ''),
+  );
+
+  const unmarked = { ...slots, VIEW: slots.VIEW.replace(/,\s*branch:\s*true/g, '') };
+  const unmarkedTiming = deriveTiming(unmarked);
+  const withoutBranch = await dryRun({
+    slots: unmarked,
+    entry: 'branch-test-unmarked',
+    meta: { tPhys, boundaries: unmarkedTiming.boundaries },
+  });
+  const c6Without = withoutBranch.report.checks.find((c) => c.id === 'C6');
+  check(
+    '★ 未标 branch 的同样跳变仍被 C6 拦下（负对照）',
+    c6Without?.status === 'fail',
+    JSON.stringify(c6Without?.message ?? ''),
+  );
 }
 
 /* ────────────────────────────── 『B』拒绝 ────────────────────────────── */

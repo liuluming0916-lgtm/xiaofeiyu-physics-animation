@@ -1025,7 +1025,11 @@ function checkBoundaryContinuity(run, opts = {}) {
   const rates = keyRates(run);
   const branchBoundaries = new Set((opts.branchBoundaries ?? []).filter((v) => Number.isFinite(v)));
   for (const tb of boundaries) {
-    /* 场景分支：允许位置从 c 回到 b 重新开始，不做“瞬移”误判 */
+    /**
+     * 场景分支：允许位置从 c 回到 b 重新开始，不做“瞬移”误判。
+     * ⚠ 这是**题目级场景切换**：切换时所有元件都可能重新定位，所以按时刻全局跳过，
+     *   不再按元件/键区分（用户 2026-10-24 裁决：切换题目全局瞬移是正常的）。
+     */
     if (branchBoundaries.has(tb)) continue;
     const bIdx = boundaries.indexOf(tb);
     const prevT = bIdx > 0 ? boundaries[bIdx - 1] : 0;

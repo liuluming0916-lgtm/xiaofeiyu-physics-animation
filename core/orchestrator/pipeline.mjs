@@ -829,21 +829,11 @@ export async function* runPipeline(input) {
           yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis', analysisProblems: analysisParsed.problems });
           return;
         }
-        {
-          const issue = scenarioCoverageIssue(problem.text, analysisParsed);
-          if (issue) {
-            yield emit('stage_error', {
-              stage: 'analysis',
-              error: {
-                kind: 'analysis.scenario-missing',
-                message: issue,
-                hint: '条件变更的小问要写成同一个元件的 `branch: true` 分支段：t0=主过程结束时刻，x0/y0=分叉点；主过程在该时刻截断，两段不能重叠。',
-              },
-            });
-            yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis', scenarioCoverage: 'missing' });
-            return;
-          }
-        }
+        /**
+         * v1.1.19：**不再用题面关键词猜“条件变更”**。
+         * 题面不一定写“再加 / 若…”，关键词硬拦会误伤；分支由 analysis 的
+         * `branch: true` 显式表达，再由 Dry-Run C6（分支边界放行）和人工验收兜底。
+         */
         /* 第一轮校验（在画图之前）：步骤时间表必须先成立。 */
         yield* runCoupleStage();
         continue;
@@ -1042,21 +1032,6 @@ export async function* runPipeline(input) {
           });
           yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage, analysisProblems: analysisParsed.problems });
           return;
-        }
-        {
-          const issue = scenarioCoverageIssue(problem.text, analysisParsed);
-          if (issue) {
-            yield emit('stage_error', {
-              stage,
-              error: {
-                kind: 'analysis.scenario-missing',
-                message: issue,
-                hint: '条件变更的小问要写成同一个元件的 `branch: true` 分支段：t0=主过程结束时刻，x0/y0=分叉点；主过程在该时刻截断，两段不能重叠。',
-              },
-            });
-            yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage, scenarioCoverage: 'missing' });
-            return;
-          }
         }
       }
 
@@ -1457,21 +1432,6 @@ export async function* runPipeline(input) {
         });
         yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis' });
         return;
-      }
-      {
-        const issue = scenarioCoverageIssue(problem.text, analysisParsed);
-        if (issue) {
-          yield emit('stage_error', {
-            stage: 'analysis',
-            error: {
-              kind: 'analysis.scenario-missing',
-              message: issue,
-              hint: '条件变更的小问要写成同一个元件的 `branch: true` 分支段：t0=主过程结束时刻，x0/y0=分叉点；主过程在该时刻截断，两段不能重叠。',
-            },
-          });
-          yield emit('run_done', { verdict: 'error', ms: Date.now() - started, stage: 'analysis', scenarioCoverage: 'missing' });
-          return;
-        }
       }
       /* couple 已在主链路里、scene_code 之前跑过（见 runCoupleStage）；修复轮不重跑，
          否则同一题会出现两个版本的步骤边界。 */
@@ -2294,22 +2254,6 @@ export function problemTextForSlots(problemText, readProblemText) {
    */
   const derived = deriveEntryLabel(readProblemText);
   return derived ?? '（题目见图片）';
-}
-
-/** 题面里“条件变更”小问的覆盖自检（v1.1.19 · q08 事故；方案 A：branch 段） */
-function scenarioCoverageIssue(problemText, analysis) {
-  const text = String(problemText ?? '');
-  const subs = new Set([...text.matchAll(/[（(]\s*([1-9])\s*[）)]/g)].map((m) => m[1]));
-  if (subs.size < 2) return null;
-  if (!/(再加|改变条件|另一种情况|换成|改用)/.test(text)) return null;
-  const hasBranch = (analysis?.elements ?? []).some((el) =>
-    (el.segments ?? []).some((s) => s.branch === true),
-  );
-  if (hasBranch) return null;
-  return (
-    `题面有 ${subs.size} 个小问，且含“再加/改变条件/另一种情况”，` +
-    '但运动表没有 `branch: true` 的分支段；条件变更的小问没有被表达出来（q08 的第 3 问就是这样丢的）'
-  );
 }
 
 /**
