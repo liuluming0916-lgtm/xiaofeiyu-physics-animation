@@ -1,0 +1,49 @@
+{
+  "id": "q06",
+  "index": 6,
+  "title": "导轨—电容—开关的电磁感应",
+  "mode": "BOTH",
+  "slots": {
+    "PROBLEM": "如图，金属导轨平行且水平放置，导轨间距为 L，导轨光滑无摩擦。定值电阻大小为 R，其余电阻忽略不计，电容大小为 C。在运动过程中，金属棒始终与导轨保持垂直。整个装置处于竖直方向且磁感应强度为 B 的匀强磁场中。\n(1) 开关 S 闭合时，对金属棒施加水平向右的恒力，金属棒能达到的最大速度为 v0。当外力功率为定值电阻功率的两倍时，求金属棒速度 v 的大小。\n(2) 当金属棒速度为 v 时，断开开关 S，改变水平外力并使金属棒匀速运动。当外力功率为定值电阻功率的两倍时，求电容器两端的电压以及从开关断开到此刻外力所做的功。",
+    "STEPS": "title: 闭合开关后金属棒的受力和最大速度\ntex: 开关 $S$ 闭合时，金属棒切割磁感线产生感应电动势 $E=BLv$，回路中电流为 $I=\\dfrac{BLv}{R}$，金属棒受到向左的安培力 $$F_A=BIL=\\frac{B^2L^2v}{R}.$$ 金属棒达到最大速度 $v_0$ 时，加速度为零，恒力与安培力平衡，因此恒力大小为 $$F=\\frac{B^2L^2v_0}{R}.$$ 这一步给出了恒力 $F$ 与最大速度 $v_0$ 的关系。\n\ntitle: 利用功率关系求闭合开关时的速度\ntex: 闭合开关时，外力功率为 $P_F=Fv$，定值电阻的功率为 $P_R=I^2R=\\dfrac{B^2L^2v^2}{R}$。题目要求外力功率为定值电阻功率的两倍，即 $$Fv=2P_R.$$ 代入 $F=\\dfrac{B^2L^2v_0}{R}$ 得 $$\\frac{B^2L^2v_0}{R}v=2\\frac{B^2L^2v^2}{R}.$$ 化简得 $v_0v=2v^2$，由于 $v\\neq 0$，所以 $$v=\\frac{v_0}{2}.$$\n\ntitle: 断开开关后电容充电，利用功率条件求电容电压\ntex: 断开开关 $S$ 后，定值电阻与电容串联，电容开始充电。刚断开时电容被短路，电压为零。设此后金属棒保持第（1）问求得的速度 $v=\\dfrac{v_0}{2}$ 匀速运动，则感应电动势为 $E=BLv$。 设回路中充电电流为 $i$，则外力功率为 $P_F=BILv=iBLv$，定值电阻功率为 $P_R=i^2R$。由 $$iBLv=2i^2R$$ 得 $$i=\\frac{BLv}{2R}.$$ 电阻上的电压为 $iR=\\dfrac{BLv}{2}$，所以电容两端电压为 $$U_C=BLv-iR=BLv-\\frac{BLv}{2}=\\frac{BLv}{2}.$$ 再代入 $v=\\dfrac{v_0}{2}$，得到 $$U_C=\\frac{BLv_0}{4}.$$\n\ntitle: 用充电过程求外力做的功\ntex: 在电容充电过程中，电流与电容电压满足 $$i=C\\frac{dU_C}{dt}.$$ 外力克服安培力做功，转化为电阻中的焦耳热和电容器的电场能。外力做功可写成 $$W=\\int F\\,dx=\\int BiLv\\,dt=BLv\\int i\\,dt.$$ 而 $\\int i\\,dt$ 就是从断开开关到此刻充入电容器的电荷量，即 $$\\int i\\,dt=CU_C.$$ 因此 $$W=BLv\\cdot CU_C.$$ 代入 $U_C=\\dfrac{BLv}{2}$，得 $$W=CBLv\\cdot\\frac{BLv}{2}=\\frac{CB^2L^2v^2}{2}.$$ 再代入 $v=\\dfrac{v_0}{2}$，最终 $$W=\\frac{CB^2L^2v_0^2}{8}.$$",
+    "ANSWERS": "",
+    "VIEW": "SIM = {\n  duration: 1.3863,\n  bodies: [\n    { id: \"conductor_rod\", at: function (s) { const b = s.conductor_rod; return [b.x, b.y]; } }\n  ],\n  phases: [{ t0: 0, t1: 0.6931 }, { t0: 0.6931, t1: 1.3863 }],\n};",
+    "setup": "const T_PHYS = 1.3863;",
+    "stateAt": "// 由 analysis 运动表生成；不要手改\nconst state = {};\nlet tt0 = t;\nif (tt0 < 0) tt0 = 0;\nif (tt0 > 1.3863) tt0 = 1.3863;\nlet x0, y0;\nif (tt0 <= 0.6931) { x0 = 0 + 2.0000*(tt0 - 0) - 2.0000*(1.0000 - Math.exp(-1.0000*(tt0 - 0))); y0 = 0.01; }\nelse if (tt0 <= 1.3863) { x0 = 0.3863 + 1*(tt0 - 0.6931); y0 = 0.01; }\nelse { x0 = 0.3863 + 1*(tt0 - 0.6931); y0 = 0.01; }\nstate.conductor_rod = { x: x0, y: y0, type: \"conductor_rod\" };\nreturn state;",
+    "drawFrame": "const xL = -1.2;          // 左侧支路（电容 + 开关）\nconst xR = 2.2;           // 导轨右端\nconst yTop = 0.41;        // 上导轨\nconst yBot = -0.39;       // 下导轨\nconst rx = state.conductor_rod.x;\nconst ry = state.conductor_rod.y;\n\n// ── 竖直匀强磁场（垂直纸面向里）──\nDraw.fieldDots({ x: -1.15, y: -0.36, w: 3.3, h: 0.74 }, { symbol: 'cross', nx: 12, ny: 5 });\n\n// ── 平行导轨（静态基准）──\nDraw.line([xL, yTop], [-0.78, yTop], { width: 3 });\nDraw.line([-0.42, yTop], [xR, yTop], { width: 3 });\nDraw.line([xL, yBot], [xR, yBot], { width: 3 });\n\n// 上导轨上的定值电阻 R\nDraw.box([-0.6, yTop], 0.36, 0.16);\n\n// 导轨端点接线柱\nDraw.circle([xL, yTop], 0.025);\nDraw.circle([xL, yBot], 0.025);\n\n// ── 左侧支路：电容 C ──\nDraw.line([xL, yTop], [xL, 0.23], { width: 2 });\nDraw.line([xL - 0.18, 0.23], [xL + 0.18, 0.23], { width: 3 });\nDraw.line([xL - 0.18, 0.14], [xL + 0.18, 0.14], { width: 3 });\nDraw.line([xL, 0.14], [xL, 0.0], { width: 2 });\n\n// ── 左侧支路：开关 S ──\nDraw.circle([xL, -0.2], 0.028);\nif (t < 0.6931) {\n  Draw.line([xL, -0.2], [xL, 0.0], { width: 2 });          // 闭合\n} else {\n  Draw.line([xL, -0.2], [xL + 0.14, -0.05], { width: 2 });  // 断开\n}\nDraw.line([xL, -0.2], [xL, yBot], { width: 2 });\n\n// ── 导体棒（始终垂直、两端落在导轨上）──\nDraw.line([rx, ry - 0.4], [rx, ry + 0.4], { width: 5 });\nDraw.circle([rx, ry], 0.03);\n\n// ── 水平外力（闭合阶段向右恒力）──\nif (t < 0.6931) {\n  Draw.arrow([rx, ry], [1, 0], { category: 'force', mag: 2 });\n}",
+    "readouts": "// 由 analysis 运动表生成；曲线图直接读这里\nconst out = [];\nconst h = 1e-4;\nconst tA = Math.max(0, t - h);\nconst tB = Math.min(1.3863, t + h);\nconst a = stateAt(tA);\nconst b = stateAt(tB);\nconst dt = (tB - tA) || 1;\nout.push({ key: \"conductor_rod.x\", label: \"conductor_rod 水平位置\", value: state.conductor_rod.x, unit: 'm' });\nout.push({ key: \"conductor_rod.y\", label: \"conductor_rod 竖直位置\", value: state.conductor_rod.y, unit: 'm' });\nout.push({ key: \"conductor_rod.vx\", label: \"conductor_rod 水平速度\", value: (b.conductor_rod.x - a.conductor_rod.x) / dt, unit: 'm/s' });\nout.push({ key: \"conductor_rod.vy\", label: \"conductor_rod 竖直速度\", value: (b.conductor_rod.y - a.conductor_rod.y) / dt, unit: 'm/s' });\nreturn out;"
+  },
+  "stepTimes": [
+    {
+      "step": 1,
+      "t0": 0,
+      "t1": 0.3466,
+      "sub": 1
+    },
+    {
+      "step": 2,
+      "t0": 0.3466,
+      "t1": 0.6931,
+      "sub": 1
+    },
+    {
+      "step": 3,
+      "t0": 0.6931,
+      "t1": 1.0397,
+      "sub": 2
+    },
+    {
+      "step": 4,
+      "t0": 1.0397,
+      "t1": 1.3863,
+      "sub": 2
+    }
+  ],
+  "provenance": {
+    "model": "deepseek-flash",
+    "promptHash": "7acd1d82a25c638c6f79965907965f9ced0a5a8d250243db50509de75ed6c62b",
+    "knowledgecardHash": "ff834e4a41fb7be4b3aed15014a667ef13a7a09da04484e5296d54aad31b30f3",
+    "generatedAt": "2026-10-24T10:00:01.437Z"
+  },
+  "source": "model"
+}
