@@ -343,7 +343,7 @@ console.log('\n『A-3』第 5.7 期：读题与判定（read_problem）—— �
     check('图片题里模型被调用 6 次（读题判定 + 解题 + 分步 + 分析 + 动画 + couple）', streamYes.calls.length === 6, String(streamYes.calls.length));
     const rpCall = streamYes.calls.find((c) => detectStage(c.messages) === 'read_problem');
     check('读题阶段的请求里**确实带了图片**', Boolean(rpCall) && Array.isArray(rpCall.messages.find((m) => m.role === 'user')?.content));
-    check('读题阶段明确"不写数值"（v2 只看结构）', String(rpCall?.messages?.[0]?.content ?? '').includes('不要写任何数值'));
+    check('读题阶段只抄明确标注的数值（没标注不写、不猜）', String(rpCall?.messages?.[0]?.content ?? '').includes('只抄题面或图中') && String(rpCall?.messages?.[0]?.content ?? '').includes('没标注的不要写'));
     check('读题阶段明确"不要解题"（它只转写与判定）', String(rpCall?.messages?.[0]?.content ?? '').includes('不要解题'));
     check(
       '★ 第 9 期：读题阶段的**用户消息里只注入元件词表**（考点表 / 题型表已下线，它们没有消费者）',

@@ -300,6 +300,32 @@ async function main() {
           check('★ 参考答案原文进了 analysis 的 user（数值最高权威）', byStage('analysis').includes(REF), byStage('analysis').slice(0, 200));
         }
 
+        /* v1.1.18：补充描述按阶段注入（真实 HTTP） */
+        {
+          const RP = '【只读题探针-a1】斜面朝右';
+          const SV = '【只解题探针-b2】m=2 kg';
+          const SC = '【只画图探针-c3】地面在物块下方';
+          seenSystems.length = 0;
+          const notesRes = await fetch(`${base}/api/run`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              problem: {
+                text: '水平传送带上放一个物块。',
+                stageNotes: { read_problem: RP, solve: SV, scene_code: SC },
+              },
+              images: [],
+              mode: 'BOTH',
+            }),
+          });
+          const notesText = await notesRes.text();
+          check('★ 按阶段补充描述：/api/run 起得来', notesRes.status === 200 && notesText.includes('event:'), `${notesRes.status} ${notesText.slice(0, 120)}`);
+          const byStage2 = (s) => seenSystems.find((x) => x.stage === s)?.user ?? '';
+          check('★ 读题只拿到自己的补充', byStage2('read_problem').includes(RP) && !byStage2('read_problem').includes(SC), byStage2('read_problem').slice(0, 160));
+          check('★ 解题只拿到自己的补充', byStage2('solve').includes(SV) && !byStage2('solve').includes(RP) && !byStage2('solve').includes(SC), byStage2('solve').slice(0, 160));
+          check('★ 画图拿到自己的补充', byStage2('scene_code').includes(SC) && !byStage2('scene_code').includes(RP), byStage2('scene_code').slice(0, 160));
+        }
+
         /* v1.1.18 手动打回：真实 HTTP 也要能把 startAt=solve 传进流水线 */
         seenSystems.length = 0;
         const retryRes = await fetch(`${base}/api/run`, {

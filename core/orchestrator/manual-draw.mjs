@@ -71,7 +71,10 @@ export async function* runManualDraw({
 
   /* B2：与主链同一套 type 校验（词表缺省时不校验，避免把“没配置”误判成“模型写错”） */
   const allowedTypes = Array.isArray(config?.knowledgecardVocab?.elements)
-    ? config.knowledgecardVocab.elements.map((e) => (typeof e === 'string' ? e : e?.id)).filter(Boolean)
+    ? config.knowledgecardVocab.elements
+        .filter((e) => typeof e === 'string' || e?.enabled !== false)
+        .map((e) => (typeof e === 'string' ? e : e?.id))
+        .filter(Boolean)
     : null;
   const analysis = parseAnalysisTable(String(analysisText ?? ''), { allowedTypes });
   if (!analysis.ok) {
@@ -190,6 +193,8 @@ export async function* runManualDraw({
           problem: String(problem?.text ?? ''),
           analysisText: formatAnalysis(analysis),
           readProblem,
+          ...(problem?.description ? { description: String(problem.description) } : {}),
+          ...(problem?.knownConditions ? { knownConditions: String(problem.knownConditions) } : {}),
           stateMap: stateKeyMap(analysis),
           failures,
           previousDrawFrame: program.slots.drawFrame,

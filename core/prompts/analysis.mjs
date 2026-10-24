@@ -52,7 +52,7 @@ export const ANALYSIS_INSTRUCTION = [
   '每个元件按它自己的受力情况变化点分段，每段一条记录，记录之间空一行：',
   '',
   'element: 元件标识（同一元件多段保持一致）',
-  'type: 该元件的词表 id（如 block / ball / board / conductor_rod / light_rod / piston / mercury）；',
+  'type: 该元件的词表 id（如 block / ball / board / conductor_rod / light_rod / piston）；',
   '      同一元件多段保持一致；**必须是词表 id，不允许 unknown 或自造名**（对不上会被判失败）',
   'segment: 段序号，从 1 开始的自然数',
   't0: 本段起始时刻，以秒为单位',

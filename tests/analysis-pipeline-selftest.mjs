@@ -62,7 +62,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const streamImpl = async (opts) => {
   const t0 = Date.now();
   calls.push(opts.stage);
-  captured.push({ stage: opts.stage, system: String(opts.messages?.[0]?.content ?? '') });
+  captured.push({
+    stage: opts.stage,
+    system: String(opts.messages?.[0]?.content ?? ''),
+    user: String(opts.messages?.[1]?.content ?? ''),
+  });
   // 故意让 analysis 比 breakdown 慢：如果串行，总时长 >= 两者之和
   if (opts.stage === 'breakdown') await sleep(80);
   if (opts.stage === 'analysis') await sleep(140);
@@ -74,7 +78,10 @@ const streamImpl = async (opts) => {
 
 const events = [];
 for await (const e of runPipeline({
-  problem: { text: '水平传送带以 u=2 m/s 向右匀速运行。把质量 m=1 kg 的物块从静止轻放在带面左端，μ=0.2，g=10。求 t* 与 Δx。' },
+  problem: {
+    text: '水平传送带以 u=2 m/s 向右匀速运行。把质量 m=1 kg 的物块从静止轻放在带面左端，μ=0.2，g=10。求 t* 与 Δx。',
+    stageNotes: { read_problem: 'RP_ONLY_NOTE', scene_code: 'SCENE_ONLY_NOTE' },
+  },
   config: {
     endpoint: {
       id: 'stub',
@@ -121,7 +128,15 @@ check(
 );
 
 const doneStages = events.filter((e) => e.type === 'stage_done').map((e) => e.stage);
-check('六个模型阶段都完成（含 couple）', doneStages.join(',') === 'read_problem,solve,breakdown,analysis,couple,scene_code', doneStages.join(','));
+check('★ 六个模型阶段都完成（含 couple）', doneStages.join(',') === 'read_problem,solve,breakdown,analysis,couple,scene_code', doneStages.join(','));
+check(
+  '★ 补充描述按阶段注入：读题拿到自己的，画图拿到自己的，解题不串台',
+  captured.find((c) => c.stage === 'read_problem')?.user.includes('RP_ONLY_NOTE') &&
+    captured.find((c) => c.stage === 'scene_code')?.user.includes('SCENE_ONLY_NOTE') &&
+    !captured.find((c) => c.stage === 'solve')?.user.includes('RP_ONLY_NOTE') &&
+    !captured.find((c) => c.stage === 'solve')?.user.includes('SCENE_ONLY_NOTE'),
+  JSON.stringify(captured.map((c) => c.stage + ':' + (c.user.includes('RP_ONLY_NOTE') ? 'RP' : '') + (c.user.includes('SCENE_ONLY_NOTE') ? 'SC' : ''))),
+);
 
 const dry = events.find((e) => e.type === 'dryrun_done');
 check('Dry-Run 通过', dry?.verdict === 'pass', dry?.verdict);

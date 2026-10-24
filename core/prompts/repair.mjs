@@ -22,11 +22,11 @@ export const REPAIR_INSTRUCTION = [
   '· 不要改 stateAt、VIEW、readouts、setup、STEPS、ANSWERS —— 它们由程序生成；',
   '· **位置只用 `state.<key>.x / .y`（物理米，质心）**；没有 `cx/cy`、没有 `anchor`；',
   '· **尺寸、地面/带/斜面长度、弹簧自然长度都由你定**，用米写数字；允许示意；',
-  '· 不要写像素坐标、不要写文字、不要画 v/a 箭头。',
+  '· 不要写像素坐标、不要写文字/公式/箭头 label/尺寸数字/轴标签、不要画 v/a 箭头。',
   '',
   '【按失败检查修复】',
   '· C1（语法/白名单）：只修语法，不换画法；',
-  '· C6（边界位置跳变）：先查静止物体是否对齐了 state 的轨迹（地面画在脚下、斜面穿过 t=0 位置、绳/杆连到 state）；',
+  '· C6（边界位置跳变）：先查静止物体是否对齐了 state 的轨迹（地面/支撑面按读题几何摆、斜面画到物块下方、绳/杆连到 state）；',
   '· C4（帧间突变）：多半是静态物体位置写死或漏了随 state 更新；',
   '· C8（readouts 键/单位变化）：readouts 不由你写，不要动它；把问题留给程序。',
   '',
@@ -38,12 +38,14 @@ export const REPAIR_INSTRUCTION = [
 ].join('\n');
 
 /**
- * @param {{ problem?: string, analysisText?: string, readProblem?: string, stateMap?: Array<{id:string,key:string}>, failures?: string[], previousDrawFrame?: string }} input
+ * @param {{ problem?: string, analysisText?: string, readProblem?: string, description?: string, knownConditions?: string, stateMap?: Array<{id:string,key:string}>, failures?: string[], previousDrawFrame?: string }} input
  */
 export function buildRepairUser({
   problem,
   analysisText,
   readProblem,
+  description,
+  knownConditions,
   stateMap = [],
   failures = [],
   previousDrawFrame = '',
@@ -64,6 +66,12 @@ export function buildRepairUser({
     '',
     ...(readProblem && String(readProblem).trim()
       ? ['【读题几何（静止物体的摆放依据）】', String(readProblem).trim(), '']
+      : []),
+    ...(description && String(description).trim()
+      ? ['【补充描述（按阶段注入；重画时以它为准）】', String(description).trim(), '']
+      : []),
+    ...(knownConditions && String(knownConditions).trim()
+      ? ['【已知条件（按阶段注入）】', String(knownConditions).trim(), '']
       : []),
     '【上一轮为什么没过】',
     ...(failures.length ? failures.map((f) => `· ${f}`) : ['· （报告没有给出可定位的失败项）']),

@@ -265,7 +265,10 @@ export async function* runPipeline(input) {
   const allowedAnalysisTypes = () => {
     const els = snapshot.knowledgecard.vocab?.elements;
     if (!Array.isArray(els)) return null;
-    return els.map((e) => (typeof e === 'string' ? e : e?.id)).filter(Boolean);
+    return els
+      .filter((e) => typeof e === 'string' || e?.enabled !== false)
+      .map((e) => (typeof e === 'string' ? e : e?.id))
+      .filter(Boolean);
   };
   const parseAnalysis = (text) => parseAnalysisTable(text, { allowedTypes: allowedAnalysisTypes() });
 
@@ -445,11 +448,25 @@ export async function* runPipeline(input) {
     /** 时间表是否**通过校验**（兜底均分不算）—— 只有通过的才喂给 scene_code。 */
     let stepTimesValid = false;
     let coupling = null;
+    /**
+     * v1.1.18：补充描述可以**按阶段**注入。
+     * `problem.stageNotes[stage]` 优先；没有该阶段的条目时退回旧的全局 `description`。
+     * 旧字段继续保留，老调用方/旧页面不受影响。
+     */
+    const stageNoteFor = (stage) => {
+      const notes = problem.stageNotes;
+      if (notes && typeof notes === 'object') {
+        const v = notes[stage];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+      return '';
+    };
+    const descriptionFor = (stage) => stageNoteFor(stage) || problem.description || '';
     const stageInputs = {
       // 第 0 步：题面文字 + 用户手打的描述/已知条件 + **判定词表**（图片由 `withImages` 附在消息里）
       read_problem: {
         problem: problem.text,
-        ...(problem.description ? { description: problem.description } : {}),
+        ...(descriptionFor('read_problem') ? { description: descriptionFor('read_problem') } : {}),
         ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
         vocab:
           snapshot.knowledgecard.version === 2 && snapshot.knowledgecard.vocab
@@ -459,7 +476,7 @@ export async function* runPipeline(input) {
       solve: {
         problem: problem.text,
         /* v1.1.18：老师手打的补充描述/已知条件必须进解题；以前只进过读题 */
-        ...(problem.description ? { description: problem.description } : {}),
+        ...(descriptionFor('solve') ? { description: descriptionFor('solve') } : {}),
         ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
         ...(reference ? { reference } : {}),
       },
@@ -473,7 +490,7 @@ export async function* runPipeline(input) {
         solution: () => outputs.solve,
         readProblem: () => outputs.read_problem,
         /* v1.1.18：补充描述/已知条件也进分析；参考答案文本是数值的最高权威 */
-        ...(problem.description ? { description: problem.description } : {}),
+        ...(descriptionFor('analysis') ? { description: descriptionFor('analysis') } : {}),
         ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
         ...(reference?.text ? { referenceText: reference.text } : {}),
         /* B2：只读 physical 表（物理米），让模型把质心放到支撑面上方。 */
@@ -490,6 +507,8 @@ export async function* runPipeline(input) {
         problem: problem.text,
         analysisText: () => (analysisParsed ? formatAnalysis(analysisParsed) : ''),
         readProblem: () => outputs.read_problem,
+        ...(descriptionFor('scene_code') ? { description: descriptionFor('scene_code') } : {}),
+        ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
         stateMap: () => (analysisParsed ? stateKeyMap(analysisParsed) : []),
         /* couple 的表：只有**通过校验**的表才喂给画图；兜底均分不进提示词。 */
         steps: () =>
@@ -1514,6 +1533,8 @@ export async function* runPipeline(input) {
             problem: problem.text,
             analysisText: formatAnalysis(analysisParsed),
             readProblem: outputs.read_problem,
+            ...(descriptionFor('repair') ? { description: descriptionFor('repair') } : {}),
+            ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
             stateMap: stateKeyMap(analysisParsed),
             failures,
             previousDrawFrame: program.slots.drawFrame,

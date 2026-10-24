@@ -36,10 +36,10 @@ export const SCENE_CODE_INSTRUCTION = [
   '【规则】',
   '1. 位置一律从 `state` 读；**不要**在 drawFrame 里重算运动、时间或速度。',
   '2. 只调 `Draw.*`；不要用 ctx、DOM、canvas、像素坐标。',
-  '3. 画布上**不写任何文字**：不要文字/公式标注、箭头 label、尺寸 text。',
+  '3. 画布上**不写任何文字**：不要文字/公式标注、箭头 label、尺寸数字、坐标轴标签/单位；说明放画布外。',
   '4. 不要画 v/a 箭头：运行时按 `SIM.bodies` 自动求导绘制；`force` / `aux` 箭头可以用，必须给 `category` 与 `mag`。',
-  '5. 静止物体（地面、斜面、传送带、滑轮、绳、导轨、容器）按读题几何自己摆，也用米：',
-  '   地面画在运动元件的脚下；带面/板面尽量穿过元件在 t=0 的接触点；绳连到真实锚点；不要悬空。',
+  '5. 静止物体（地面、斜面、传送带、滑轮、绳、导轨、容器）按读题几何或题图自己摆，也用米：',
+  '   地面/支撑面画在运动元件附近（平抛/悬挂时可以离地面很远，不要硬贴 y=0）；带面/板面尽量穿过元件在 t=0 附近的位置；绳连到实际端点；不要悬空。',
   '   这是“示意”，不要求和题面尺寸逐字一致。',
   '6. 颜色由系统按 category 决定；不要写 `color`。',
   '7. 一屏画完：主体居中、留边距。',
@@ -63,11 +63,21 @@ const num = (n) => (Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '?'
  *   problem?: string,
  *   analysisText?: string,
  *   readProblem?: string,
+ *   description?: string,
+ *   knownConditions?: string,
  *   stateMap?: Array<{id:string,key:string,type?:string}>,
  *   steps?: Array<{title?:string, t0?:number, t1?:number}>,
  * }} input
  */
-export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMap = [], steps = [] } = {}) {
+export function buildSceneCodeUser({
+  problem,
+  analysisText,
+  readProblem,
+  description,
+  knownConditions,
+  stateMap = [],
+  steps = [],
+} = {}) {
   const timed = (Array.isArray(steps) ? steps : []).filter(
     (s) => Number.isFinite(s?.t0) && Number.isFinite(s?.t1),
   );
@@ -98,6 +108,12 @@ export function buildSceneCodeUser({ problem, analysisText, readProblem, stateMa
     '',
     ...(readProblem && String(readProblem).trim()
       ? ['【读题几何（静止物体的摆放依据）】', String(readProblem).trim(), '']
+      : []),
+    ...(description && String(description).trim()
+      ? ['【补充描述（按阶段注入；初始几何/布景以它为准）】', String(description).trim(), '']
+      : []),
+    ...(knownConditions && String(knownConditions).trim()
+      ? ['【已知条件（按阶段注入）】', String(knownConditions).trim(), '']
       : []),
     '只输出 drawFrame 的函数体代码。',
   ].join('\n');

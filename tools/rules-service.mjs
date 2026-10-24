@@ -407,6 +407,29 @@ export function createRulesService({
     const description = typeof problem?.description === 'string' ? problem.description.trim() : '';
     const knownConditions = typeof problem?.knownConditions === 'string' ? problem.knownConditions.trim() : '';
     /**
+     * v1.1.18：**按阶段补充描述**。
+     * 前端弹窗可以为 read_problem/solve/analysis/scene_code/repair 分别填一段；
+     * 空串/未填的阶段不注入。旧 description 仍保留，作为所有阶段的兜底。
+     */
+    const STAGE_NOTE_KEYS = new Set([
+      'read_problem',
+      'solve',
+      'breakdown',
+      'analysis',
+      'couple',
+      'scene_code',
+      'repair',
+    ]);
+    const stageNotes = {};
+    if (problem?.stageNotes && typeof problem.stageNotes === 'object') {
+      for (const [stage, value] of Object.entries(problem.stageNotes)) {
+        if (!STAGE_NOTE_KEYS.has(stage)) continue;
+        if (typeof value !== 'string') continue;
+        const text = value.trim().slice(0, 4000);
+        if (text) stageNotes[stage] = text;
+      }
+    }
+    /**
      * ⚠ **图片要在这一层解码**（第 8 期实测踩的坑）：
      *   前端 `serverEventSource()` 发的是 `{ mime, dataUrl }`（data: URI 字符串），
      *   而流水线/网关要的是 `{ mime, data: Buffer }`。
@@ -619,6 +642,7 @@ export function createRulesService({
         /* v1.1.18：日志里也留一份，否则"是不是补了描述"永远查不出来 */
         ...(description ? { description } : {}),
         ...(knownConditions ? { knownConditions } : {}),
+        ...(Object.keys(stageNotes).length ? { stageNotes } : {}),
       },
       model: endpoint.defaultModel ?? null,
       endpoint: endpoint.displayName ?? endpoint.id ?? null,
@@ -665,7 +689,15 @@ export function createRulesService({
       const pipeline =
         body?.startAt === 'draw'
           ? runManualDraw({
-              problem: { text: String(problem.text ?? '') },
+              problem: {
+                text: String(problem.text ?? ''),
+                ...(stageNotes.repair
+                  ? { description: stageNotes.repair }
+                  : description
+                    ? { description }
+                    : {}),
+                ...(knownConditions ? { knownConditions } : {}),
+              },
               readProblem: typeof body?.baseReadProblem === 'string' ? body.baseReadProblem : null,
               analysisText: String(body?.analysisText ?? ''),
               slots: body?.slots ?? {},
@@ -681,6 +713,7 @@ export function createRulesService({
                 /* v1.1.18：这两段必须一路带到读题/解题/分析；以前在这里被丢掉 */
                 ...(description ? { description } : {}),
                 ...(knownConditions ? { knownConditions } : {}),
+                ...(Object.keys(stageNotes).length ? { stageNotes } : {}),
               },
               images,
               /* v1.1.16：没填解析就是 null ⇒ 流水线走旧提示词（行为与上一版逐字一致） */

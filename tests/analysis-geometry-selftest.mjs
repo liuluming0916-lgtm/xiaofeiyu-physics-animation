@@ -7,7 +7,7 @@
  *   · **物理**：`physical`（物理米）只喂 `analysis` 算质心高度，不再进 state。
  *
  * 验：
- *   · 内置卡 physical 表：7 类运动元件齐全；
+ *   · 内置卡 physical 表：6 类运动元件齐全（水银柱已封存，不再要求）；
  *   · `state` 没有 `w/h/r`，也没有 `cx/cy` 与 `anchor`；
  *   · 删掉卡的 physical ⇒ 明确报错，不回退隐藏表；
  *   · 用户卡覆盖 physical ⇒ **不影响 state**（只影响 analysis）。
@@ -61,7 +61,7 @@ console.log('元件锚点与尺寸归属自检（绘制=模型定尺寸）\n');
 console.log('『A』内置卡 → physical 表');
 {
   check('physical 表无问题', table.problems.length === 0, table.problems.join(' | '));
-  check('7 类运动元件齐了', PHYSICAL_REQUIRED_TYPES.every((t) => table.physical[t]), Object.keys(table.physical).join(','));
+  check('6 类运动元件齐了（水银柱封存）', PHYSICAL_REQUIRED_TYPES.every((t) => table.physical[t]), Object.keys(table.physical).join(','));
   check('block = 0.2×0.1 米', table.physical.block.w === 0.2 && table.physical.block.h === 0.1, JSON.stringify(table.physical.block));
   check('ball = r 0.05（另有 0.1×0.1 包围盒）', table.physical.ball.r === 0.05 && table.physical.ball.w === 0.1, JSON.stringify(table.physical.ball));
   check('board 只有厚度 h=0.02（板长按题面）', table.physical.board.h === 0.02 && table.physical.board.w === undefined, JSON.stringify(table.physical.board));

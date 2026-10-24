@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConnectionDialog } from '../components/ConnectionDialog'
 import { OpenLogNotice } from '../components/OpenLogNotice'
+import { StageNotesDialog } from '../components/StageNotesDialog'
 import { DEMO_QUESTION_LIST } from '../lib/demo-questions'
 import { STAGE_CHAIN, precisionLabel, type RepairBanner } from '../lib/run-stream'
 import { api } from '../lib/rules-api'
@@ -46,6 +47,8 @@ export function SolvePage({
   const refFileRef = useRef<HTMLInputElement>(null)
   /** 第 8 期 A2：连接设置小窗（发布版没有设置页，只能从这里填地址与 Key） */
   const [connOpen, setConnOpen] = useState(false)
+  /** v1.1.18：补充描述改成“按阶段”弹窗 */
+  const [notesOpen, setNotesOpen] = useState(false)
 
   /**
    * §11.3 视觉门控（**第 8 期修正：不再写死**）。
@@ -312,16 +315,45 @@ export function SolvePage({
             )}
           </div>
 
-          <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="desc">
-            配图补充描述（可选：图看不清时手打一段）
-          </label>
-          <textarea
-            id="desc"
-            rows={2}
-            className="mt-1 w-full rounded-md border border-slate-300 p-2 text-sm"
-            value={st.description}
-            onChange={(e) => st.setDescription(e.target.value)}
-            placeholder="例：图中有倾角 30° 的斜面，底端接一段水平面，物块从斜面顶端开始下滑"
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium text-slate-700">补充信息（按阶段）</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  可以只给读题、只给画图，或各段写不同内容；空着 = 不注入。
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => setNotesOpen(true)}
+              >
+                打开补充信息
+                {Object.values(st.stageNotes).filter((v) => v?.trim()).length > 0
+                  ? `（已填 ${Object.values(st.stageNotes).filter((v) => v?.trim()).length} 段）`
+                  : ''}
+              </button>
+            </div>
+            {Object.entries(st.stageNotes).filter(([, v]) => v?.trim()).length > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                已填：{Object.entries(st.stageNotes)
+                  .filter(([, v]) => v?.trim())
+                  .map(([k]) => k)
+                  .join(' / ')}
+              </p>
+            )}
+          </div>
+
+          <StageNotesDialog
+            open={notesOpen}
+            value={st.stageNotes}
+            legacyDescription={st.description}
+            onClose={() => setNotesOpen(false)}
+            onSave={(notes) => {
+              st.setStageNotes(notes)
+              /* 旧版单框内容已经迁移进 stageNotes；清掉旧字段，避免重复注入 */
+              if (st.description) st.setDescription('')
+            }}
           />
 
           {/*

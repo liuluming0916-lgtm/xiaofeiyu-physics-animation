@@ -25,7 +25,11 @@ export function useRun() {
         const input = {
             problem: {
                 text: st.problemText,
-                ...(st.description ? { description: st.description } : {}),
+                ...(Object.keys(st.stageNotes).length
+                    ? { stageNotes: st.stageNotes }
+                    : st.description
+                        ? { description: st.description }
+                        : {}),
                 ...(st.knownConditions ? { knownConditions: st.knownConditions } : {}),
             },
             images: st.images,

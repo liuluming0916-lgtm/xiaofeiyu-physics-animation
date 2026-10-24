@@ -24,7 +24,8 @@ let builtinCache = null;
 let builtinEntriesCache = null;
 
 /**
- * 这 7 类会进 `analysis` 的 MOTIONS 表，必须给 `physical`（否则质心高度算不出来）。
+ * 这 6 类会进 `analysis` 的 MOTIONS 表，必须给 `physical`（否则质心高度算不出来）。
+ * 水银柱（mercury）已封存：卡片与词表都停用，不再要求 physical。
  * 只列**类型 id**，不含任何数字；数值只在卡里。
  */
 export const PHYSICAL_REQUIRED_TYPES = Object.freeze([
@@ -34,7 +35,6 @@ export const PHYSICAL_REQUIRED_TYPES = Object.freeze([
   'conductor_rod',
   'light_rod',
   'piston',
-  'mercury',
 ]);
 
 function sameJson(a, b) {

@@ -174,7 +174,8 @@
         "汞柱",
         "水银"
       ],
-      "primitive": "Draw.polygon"
+      "primitive": "Draw.polygon",
+      "enabled": false
     }
   ],
   "scenes": [

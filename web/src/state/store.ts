@@ -9,6 +9,8 @@
 
 import { create } from 'zustand'
 
+import type { StageNotes } from '../lib/stage-notes'
+
 import { DEFAULT_MASK, type AnimationSlots, type ProgramMode, type VectorMask } from '../lib/host-protocol'
 import type { EventSourceKind, RepairBanner, RepairCheckSnapshot, RunEvent, KnowledgecardEvidence } from '../lib/run-stream'
 
@@ -85,6 +87,8 @@ export interface AppState {
   problemText: string
   description: string
   knownConditions: string
+  /** v1.1.18：按阶段补充描述（空串/未填 = 该阶段不注入） */
+  stageNotes: StageNotes
   images: Array<{ mime: string; dataUrl: string; name?: string }>
   /**
    * v1.1.16：**老师提供的参考答案 / 解析**（可选）。
@@ -138,6 +142,7 @@ export interface AppState {
   setProblemText: (s: string) => void
   setDescription: (s: string) => void
   setKnownConditions: (s: string) => void
+  setStageNotes: (notes: StageNotes) => void
   addImage: (i: { mime: string; dataUrl: string; name?: string }) => void
   removeImage: (index: number) => void
   /** v1.1.16：参考答案（文字 / 图片）；与题目图片分开存，互不覆盖 */
@@ -208,6 +213,7 @@ export const useApp = create<AppState>((set) => ({
   problemText: '',
   description: '',
   knownConditions: '',
+  stageNotes: {},
   images: [],
   referenceText: '',
   referenceImages: [],
@@ -238,6 +244,7 @@ export const useApp = create<AppState>((set) => ({
   setProblemText: (s) => set({ problemText: s }),
   setDescription: (s) => set({ description: s }),
   setKnownConditions: (s) => set({ knownConditions: s }),
+  setStageNotes: (notes) => set({ stageNotes: notes }),
   addImage: (i) => set((st) => ({ images: [...st.images, i] })),
   removeImage: (index) => set((st) => ({ images: st.images.filter((_, i) => i !== index) })),
   setReferenceText: (s) => set({ referenceText: s }),

@@ -47,7 +47,7 @@ const DRAW_DOCS = {
   pulley: ['pulley(center, r, opts?)', '滑轮：圆心 + 半径 + 轮轴'],
   belt: ['belt(a, b, opts?)', '传送带/履带：两端滚轮 + 上下带面；opts.ticks 表面刻度数'],
   fieldDots: ['fieldDots(rect, opts?)', '均匀场点/叉阵列。rect={x,y,w,h}；opts.symbol ∈ dot|cross，opts.nx/ny 网格数'],
-  dimension: ['dimension(from, to, opts?)', '尺寸/角度标注。opts.kind ∈ linear|angle，opts.text 标注文本'],
+  dimension: ['dimension(from, to, opts?)', '尺寸/角度标记。opts.kind ∈ linear|angle；**不写文字/数字**（画布上不写字）'],
   arc: ['arc(center, r, a0, a1, opts?)', '弧线：轨迹、圆周、角度弧；角度制，逆时针为正'],
   ellipse: ['ellipse(center, rx, ry, opts?)', '椭圆：天体轨道、示意椭圆；rx/ry 是半轴（几何量）'],
   trace: ['trace(points, opts?)', '轨迹虚线（curve 的实参默认值封装；默认就是虚线，不用再给 dash）'],
@@ -58,7 +58,7 @@ const DRAW_DOCS = {
   ghosts: ['ghosts(positions, opts?)', '残影快照：一组位置画成同形轮廓'],
   ray: ['ray(from, to, opts?)', '光线路，带箭头'],
   lens: ['lens(center, opts?)', '透镜：opts.height 口径、opts.focal 焦距（几何量）'],
-  axisBox: ['axisBox(origin, xLen, yLen, opts?)', '坐标轴框（p–V / v–t 等），opts.xLabel/yLabel/xUnit/yUnit'],
+  axisBox: ['axisBox(origin, xLen, yLen, opts?)', '坐标轴框（p–V / v–t 等）；**不写轴标签/单位**（说明放画布外）'],
   chart: ['chart(samples, opts?)', '联动图表数据编码。samples=[[x,y],…]；opts.fill 填充（面积即物理量），opts.baseline'],
   raw: ['raw(fn, opts?)', '逃生门（§5.4）：实时渲染给真 ctx；Dry-Run 只跳过该条指令的包络计算且计入使用率'],
   ground: ['ground(x0, x1, y?, opts?)', '斜线阴影地面（组合原语，仍是几何量）'],
@@ -74,9 +74,9 @@ const CONVENTION_DOCS = [
   ['只写 drawFrame 的函数体', '位置只从 `state.<key>.x / .y` 读；不要重算运动、时间、速度。不要写函数头、槽位标记或解释。'],
   ['不要写这些槽位', '`stateAt / VIEW / setup / readouts / STEPS / ANSWERS` 由程序生成；你只负责“怎么画”。'],
   ['世界坐标', 'x 向右、y 向上、单位米；不要写像素、相机比例或 canvas 尺寸。'],
-  ['画布上不写字', '文字/公式标注、箭头 label、尺寸 text 都不显示；说明放画布外图例。'],
+  ['画布上不写字', '文字/公式标注、箭头 label、尺寸 text、坐标轴标签/单位都不显示；说明放画布外图例。'],
   ['颜色与箭头', '颜色由 `category` 决定，不要写 `color`。不要画 v/a 箭头；`force / aux` 箭头必须给 `category` 与 `mag`。'],
-  ['静止几何', '地面画在 y=0；斜面/轨道穿过运动元件在 t=0 的位置；绳/杆连到实际锚点；不要悬空。'],
+  ['静止几何', '地面/支撑面按读题几何或题图摆；尽量穿过运动元件在 t=0 附近的位置；绳/杆连到实际端点；允许示意，不要悬空。'],
 ];
 
 function buildSummary() {

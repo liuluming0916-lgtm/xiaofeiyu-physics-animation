@@ -258,7 +258,13 @@ export interface RepairBanner {
 export type EventSourceKind = 'demo' | 'server'
 
 export interface RunInput {
-  problem: { text: string; description?: string; knownConditions?: string }
+  problem: {
+    text: string
+    description?: string
+    knownConditions?: string
+    /** v1.1.18：按阶段补充描述；空串/缺省 = 该阶段不注入 */
+    stageNotes?: Partial<Record<string, string>>
+  }
   images: Array<{ mime: string; dataUrl: string; name?: string }>
   /**
    * v1.1.16：**老师提供的参考答案 / 解析**（可选）。
