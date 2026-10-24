@@ -522,10 +522,10 @@ async function main() {
     {
       const v2 = await call('GET', '/api/knowledgecard/v2');
       check(
-        '★ GET /api/knowledgecard/v2 → 200，31 张内置 + 11 元件 + 18 场景',
+        '★ GET /api/knowledgecard/v2 → 200，30 张内置 + 10 元件 + 18 场景',
         v2.status === 200 &&
-          v2.json.entries?.length === 31 &&
-          v2.json.vocab?.elements?.length === 11 &&
+          v2.json.entries?.length === 30 &&
+          v2.json.vocab?.elements?.length === 10 &&
           v2.json.vocab?.scenes?.length === 18,
         `${v2.status} ${JSON.stringify(v2.json).slice(0, 300)}`,
       );
@@ -546,8 +546,8 @@ async function main() {
 
       const again = await call('GET', '/api/knowledgecard/v2');
       check(
-        '重新读取能看到用户卡（31 内置 + 1 用户）',
-        again.json.entries?.length === 32 && again.json.entries.some((e) => e.id === 'test.v2' && e.origin === 'user'),
+        '重新读取能看到用户卡（30 内置 + 1 用户）',
+        again.json.entries?.length === 31 && again.json.entries.some((e) => e.id === 'test.v2' && e.origin === 'user'),
         JSON.stringify(again.json.entries?.map((e) => `${e.id}:${e.origin}`)),
       );
 
@@ -581,12 +581,12 @@ async function main() {
       });
       check('★ 新增用户元件 → 200', add.status === 200 && add.json.ok === true, `${add.status} ${JSON.stringify(add.json)}`);
       const afterAdd = await call('GET', '/api/knowledgecard/v2');
-      check('新增后元件 12 个，且 test_widget 在', afterAdd.json.vocab?.elements?.length === 12 && afterAdd.json.vocab.elements.some((e) => e.id === 'test_widget'));
+      check('新增后元件 11 个，且 test_widget 在', afterAdd.json.vocab?.elements?.length === 11 && afterAdd.json.vocab.elements.some((e) => e.id === 'test_widget'));
 
       const del = await call('DELETE', '/api/knowledgecard/v2/vocab-entry', { kind: 'element', id: 'test_widget' });
       check('★ 删除用户元件 → 200', del.status === 200 && del.json.ok === true, `${del.status} ${JSON.stringify(del.json)}`);
       const afterDel = await call('GET', '/api/knowledgecard/v2');
-      check('删除后回到 11 个', afterDel.json.vocab?.elements?.length === 11);
+      check('删除后回到 10 个', afterDel.json.vocab?.elements?.length === 10);
     }
 
     /* ── 知识卡 v2：导出/导入/删除卡/恢复内置（Phase 3C-3） ── */

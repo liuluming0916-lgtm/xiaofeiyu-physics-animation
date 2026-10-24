@@ -52,7 +52,7 @@ console.log('『A』词表 v2 自身');
   const r = validateVocab(v2, { primitiveNames });
   check(r.ok, '词表通过校验', r.problems.join('；'));
   check(v2.format === VOCAB_FORMAT && v2.version === VOCAB_VERSION, 'format/version 正确', `${v2.format}/${v2.version}`);
-  check(v2.elements.length === 11, '元件 11 个（含封存 graph_wave）', String(v2.elements.length));
+  check(v2.elements.length === 10, '元件 10 个（含封存 graph_wave）', String(v2.elements.length));
   check(v2.scenes.length >= 1, '至少 1 个种子场景', String(v2.scenes.length));
   check(
     v2.elements.every((e) => primitiveNames.includes(e.primitive)),
@@ -74,7 +74,7 @@ console.log('\n『B』内置 + 用户词表合并');
   };
   const m = mergeVocab(v2, user, { primitiveNames });
   check(m.problems.length === 0, '新增用户元件不报错', m.problems.join('；'));
-  check(m.vocab.elements.length === 12, '合并后元件 12 个', String(m.vocab.elements.length));
+  check(m.vocab.elements.length === 11, '合并后元件 11 个', String(m.vocab.elements.length));
   check(m.vocab.elements.some((e) => e.id === 'maglev_car'), '新元件进了合并词表');
 
   const override = clone(user);
@@ -236,7 +236,7 @@ console.log('\n『D』v1 → v2 迁移');
       if ('keys' in r.entry) problems.push(`${e.id}: 迁移后仍带 keys`);
     }
   }
-  check(converted === 10 && disabled === 23, '10 张内置卡迁移成功、23 张旧卡停用', `converted=${converted} disabled=${disabled}`);
+  check(converted === 9 && disabled === 24, '9 张内置卡迁移成功、24 张旧卡停用', `converted=${converted} disabled=${disabled}`);
   check(problems.length === 0, '迁移成功的卡都通过 v2 校验', problems.slice(0, 5).join('；'));
 
   const keysOnly = {
@@ -270,8 +270,8 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
 {
   const lib = loadV2Library();
   check(lib.ok, 'v2 运行时库加载无问题', lib.problems.join('；'));
-  check(lib.entries.length === 31, '内置 31 张 v2 卡', String(lib.entries.length));
-  check(lib.vocab.elements.length === 11 && lib.vocab.scenes.length === 18, '词表 11 元件 + 18 场景');
+  check(lib.entries.length === 30, '内置 30 张 v2 卡', String(lib.entries.length));
+  check(lib.vocab.elements.length === 10 && lib.vocab.scenes.length === 18, '词表 10 元件 + 18 场景');
 
   /**
    * P1-13（2026-10-24 用户裁决）：封包封 v2，且不影响用户在软件端编辑。
@@ -306,7 +306,7 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
       );
       process.env.OD_BUILTIN_BUNDLE = '1';
       const packed = loadV2Library({ userDir: tmp });
-      check(packed.ok && packed.builtin.length === 31, '★ 打包形态从 v2 编译包读内置卡', packed.problems.join('；'));
+      check(packed.ok && packed.builtin.length === 30, '★ 打包形态从 v2 编译包读内置卡', packed.problems.join('；'));
       check(
         packed.user.length === 1 && packed.entries.some((e) => e.id === 'user.bundle_test'),
         '★ 封包不影响用户编辑：用户卡仍加载并覆盖/追加',
@@ -364,7 +364,7 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
         shapeProblems.push(`${e.id}: 常驻卡缺 ## 自检`);
       }
     }
-    check(shapeProblems.length === 0, '31 张卡的小节/示例形状符合 v6（判据·画法·自检；示例裸代码）', shapeProblems.slice(0, 4).join('；'));
+    check(shapeProblems.length === 0, '30 张卡的小节/示例形状符合 v6（判据·画法·自检；示例裸代码）', shapeProblems.slice(0, 4).join('；'));
     check(exampleProblems.length === 0, '所有 v2 code_examples 都按 drawFrame 过 C1', exampleProblems.slice(0, 4).join('；'));
 
     /* 方案二（2026-10-24）：启用中的卡不许再教旧的布局纸/cx/cy/anchor */
@@ -468,7 +468,7 @@ console.log('\n『F』v1 用户卡在 v2 库里的迁移');
     writeFileSync(join(tmp, 'pack.json'), JSON.stringify(v1Pack, null, 2), 'utf8');
     const lib = loadV2Library({ userDir: tmp, userVocabPath: join(tmp, 'no-vocab.json') });
     check(lib.ok, '带 v1 用户卡的库加载无硬错误', lib.problems.join('；'));
-    check(lib.entries.length === 32, '内置 31 + 迁移成功的 1 张用户卡', String(lib.entries.length));
+    check(lib.entries.length === 31, '内置 30 + 迁移成功的 1 张用户卡', String(lib.entries.length));
     check(lib.user.some((e) => e.id === 'user.ball' && e.elements?.[0] === 'ball'), '有 elements 的 v1 用户卡迁移成功');
     check(lib.migration.some((m) => m.id === 'user.keys-only' && m.action === 'disable'), '只有 keys 的用户卡被停用+报告');
   } finally {
