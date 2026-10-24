@@ -764,11 +764,28 @@
     return false;
   }
 
+  /**
+   * 把模型常用的公式定界符统一成 `$…$`：`\(…\)` / `\[…\]` / `$$…$$`。
+   * q09 的 STEPS 全用 `\(...\)`；旧逻辑只认 `$`，整段中文会被当成一条公式，
+   * 左侧步骤面板会挤成一行并出现红色报错。这里只做排版归一，不改公式内容。
+   */
+  function normalizeTexDelimiters(text) {
+    return String(text || '')
+      .replace(/\\\[([\s\S]*?)\\\]/g, function (_m, body) {
+        return '$' + body + '$';
+      })
+      .replace(/\\\(([\s\S]*?)\\\)/g, function (_m, body) {
+        return '$' + body + '$';
+      })
+      .split('$$')
+      .join('$');
+  }
+
   function texMixed(text, host) {
     var target = host || document.createElement('span');
     var raw = String(text || '').trim();
     if (!raw) return target;
-    var normalized = raw.split('$$').join('$');
+    var normalized = normalizeTexDelimiters(raw);
     var re = /\$([^$\n]+)\$/g;
     var last = 0;
     var m;
@@ -812,6 +829,7 @@
     // 之前写成 PROGRAM_DATA.PROBLEM 会让左栏整栏空白。
     var text = String((PROGRAM_DATA.slots && PROGRAM_DATA.slots.PROBLEM) || '');
     els.problemBody.innerHTML = '';
+    text = normalizeTexDelimiters(text);
     text.split(/\n{2,}/).forEach(function (paragraph) {
       var p = document.createElement('p');
       var parts = paragraph.split(/(\$[^$]+\$)/g);

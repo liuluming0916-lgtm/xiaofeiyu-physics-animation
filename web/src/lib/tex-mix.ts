@@ -49,6 +49,23 @@ export function looksLikeProse(body: string): boolean {
 }
 
 /**
+ * 把模型常用的三种公式定界符统一成 `$…$`：
+ *   · `\(…\)`（行内公式）
+ *   · `\[…\]`（行间公式）
+ *   · `$$…$$`（历史写法，归一成 `$…$`）
+ *
+ * 为什么需要：q09 real-exam 的 `STEPS.tex` 全部用 `\(...\)` / `\[...\]`；
+ * 旧实现只认 `$`，于是整段中文被当成一条公式送进 MathJax，左侧步骤面板会
+ * 挤成一行并出现红色报错。这里在切分前统一，属于**排版归一化**，不改公式内容。
+ */
+function normalizeTexDelimiters(text: string): string {
+  return String(text ?? '')
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_m, body) => '$' + body + '$')
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_m, body) => '$' + body + '$')
+    .replace(/\$\$/g, '$')
+}
+
+/**
  * 把一段"公式或混排"文本切成 **文字段 / 公式段**。
  *
  * 规则：
@@ -64,7 +81,7 @@ export function looksLikeProse(body: string): boolean {
 export function splitTexMix(tex: string): TexPart[] {
   const raw = String(tex ?? '').trim()
   if (!raw) return []
-  const normalized = raw.replace(/\$\$/g, '$')
+  const normalized = normalizeTexDelimiters(raw)
   const parts: TexPart[] = []
   const re = /\$([^$\n]+)\$/g
   let last = 0

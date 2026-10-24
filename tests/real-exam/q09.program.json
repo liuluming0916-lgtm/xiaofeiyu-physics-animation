@@ -1,0 +1,55 @@
+{
+  "id": "q09",
+  "index": 9,
+  "title": "卡销汽缸的等温压缩与等容升温",
+  "mode": "BOTH",
+  "slots": {
+    "PROBLEM": "如图，一竖直放置的汽缸内密封有一定量的气体，一不计厚度的轻质活塞可在汽缸内无摩擦滑动，移动范围被限制在卡销 a、b 之间，b 与汽缸底部的距离 bc = 10ab，活塞的面积为 1.0×10⁻² m²。初始时，活塞在卡销 a 处，汽缸内气体的压强、温度与活塞外大气的压强、温度相同，分别为 1.0×10⁵ Pa 和 300K。在活塞上施加竖直向下的外力，逐渐增大外力使活塞缓慢到达卡销 b 处（过程中气体温度视为不变），外力增加到 200N 并保持不变。\n(1) 求外力增加到 200N 时，卡销 b 对活塞支持力的大小；\n(2) 再将汽缸内气体加热使气体温度缓慢升高，求当活塞刚好能离开卡销 b 时气体的温度。",
+    "STEPS": "title: 明确体积与状态\ntex: 设 \\(ab=L\\)，活塞面积为 \\(A=1.0\\times10^{-2}\\ \\mathrm{m^2}\\)。初始活塞在 \\(a\\) 处，气体体积为底到 \\(a\\) 的容积；因为 \\(bc=10ab=10L\\)，所以 \\[ V_a=(ab+bc)A=(L+10L)A=11AL. \\] 活塞到达 \\(b\\) 处时，气体体积为 \\[ V_b=bc\\cdot A=10AL. \\] 这一段说明：初态体积较大，到 \\(b\\) 处气体被等温压缩。\n\ntitle: 等温压缩求 \\(b\\) 处气体压强\ntex: 从 \\(a\\) 到 \\(b\\) 的过程中气体温度视为不变，满足玻意耳定律 \\[ p_aV_a=p_bV_b. \\] 初始压强 \\(p_a=p_0=1.0\\times10^5\\ \\mathrm{Pa}\\)，所以 \\[ p_b=p_0\\frac{V_a}{V_b} =1.0\\times10^5\\times\\frac{11AL}{10AL} =1.1\\times10^5\\ \\mathrm{Pa}. \\] 于是到达卡销 \\(b\\) 处时，汽缸内气体向上的压强为 \\(1.1\\times10^5\\ \\mathrm{Pa}\\)。\n\ntitle: 对活塞受力平衡求支持力\ntex: 活塞在 \\(b\\) 处时，向下的力有大气压力 \\(p_0A\\) 和外力 \\(F=200\\ \\mathrm{N}\\)，向上的力有缸内气体压力 \\(p_bA\\) 以及卡销 \\(b\\) 对活塞的支持力 \\(N_b\\)。活塞轻质，重力不计，因此 \\[ p_0A+F=p_bA+N_b. \\] 代入 \\[ p_0A=1.0\\times10^5\\times1.0\\times10^{-2}=1000\\ \\mathrm{N}, \\] \\[ p_bA=1.1\\times10^5\\times1.0\\times10^{-2}=1100\\ \\mathrm{N}, \\] 得 \\[ N_b=p_0A+F-p_bA=1000+200-1100=100\\ \\mathrm{N}. \\] 所以卡销 \\(b\\) 对活塞支持力大小为 \\(100\\ \\mathrm{N}\\)，方向向上。\n\ntitle: 加热等容升压，判断刚好离开 \\(b\\) 的条件\ntex: 加热时活塞仍被卡销 \\(b\\) 挡住，所以气体体积保持 \\(V_b\\) 不变，这是等容升温过程。温度升高时，气体压强逐渐增大；当卡销对活塞的支持力刚好减小到 \\(N_b=0\\) 时，活塞即将离开卡销 \\(b\\)。 此时活塞平衡条件变为 \\[ p_2A=p_0A+F. \\] 因此 \\[ p_2=p_0+\\frac{F}{A} =1.0\\times10^5+\\frac{200}{1.0\\times10^{-2}} =1.2\\times10^5\\ \\mathrm{Pa}. \\] 也就是说，气体压强达到 \\(1.2\\times10^5\\ \\mathrm{Pa}\\) 时，活塞刚好能离开卡销 \\(b\\)。\n\ntitle: 用等容规律求最终温度\ntex: 在卡销 \\(b\\) 处时，气体温度为 \\(T_b=300\\ \\mathrm{K}\\)，压强为 \\(p_b=1.1\\times10^5\\ \\mathrm{Pa}\\)。之后体积不变，发生等容变化，满足 \\[ \\frac{p_b}{T_b}=\\frac{p_2}{T_2}. \\] 所以 \\[ T_2=T_b\\frac{p_2}{p_b} =300\\times\\frac{1.2\\times10^5}{1.1\\times10^5} =\\frac{3600}{11}\\ \\mathrm{K} \\approx327\\ \\mathrm{K}. \\] 因此活塞刚好能离开卡销 \\(b\\) 时，气体温度约为 \\(327\\ \\mathrm{K}\\)。",
+    "ANSWERS": "",
+    "VIEW": "SIM = {\n  duration: 3,\n  bodies: [\n    { id: \"piston\", at: function (s) { const b = s.piston; return [b.x, b.y]; } }\n  ],\n  phases: [{ t0: 0, t1: 1 }, { t0: 1, t1: 2 }, { t0: 2, t1: 3 }],\n};",
+    "setup": "const T_PHYS = 3;",
+    "stateAt": "// 由 analysis 运动表生成；不要手改\nconst state = {};\nlet tt0 = t;\nif (tt0 < 0) tt0 = 0;\nif (tt0 > 3) tt0 = 3;\nlet x0, y0;\nif (tt0 <= 1) { x0 = 0 + 0*(tt0 - 0); y0 = 1.11 + -0.1*(tt0 - 0); }\nelse if (tt0 <= 2) { x0 = 0; y0 = 1.01; }\nelse if (tt0 <= 3) { x0 = 0; y0 = 1.01; }\nelse { x0 = 0; y0 = 1.01; }\nstate.piston = { x: x0, y: y0, type: \"piston\" };\nreturn state;",
+    "drawFrame": "const px = state.piston.x;\nconst py = state.piston.y;\nconst hw = 0.25;      // 汽缸内半宽\nconst topY = 1.55;    // 缸口高度\n\n// 汽缸（静态容器）：两侧缸壁 + 缸底 c\nDraw.line([-hw, 0], [-hw, topY], { width: 3 });\nDraw.line([hw, 0], [hw, topY], { width: 3 });\nDraw.line([-hw, 0], [hw, 0], { width: 3 });\n\n// 卡销 a（上）与卡销 b（下），固定在缸壁上\nDraw.box([-hw + 0.03, 1.09], 0.06, 0.02);\nDraw.box([hw - 0.03, 1.09], 0.06, 0.02);\nDraw.box([-hw + 0.03, 0.99], 0.06, 0.02);\nDraw.box([hw - 0.03, 0.99], 0.06, 0.02);\n\n// 轻质活塞：水平置于缸内，随 state 上下移动\nDraw.box([px, py], 2 * hw - 0.02, 0.02);\n\n// 竖直向下的外力\nDraw.arrow([px, py + 0.30], [0, -0.14], { category: \"force\", mag: 200 });",
+    "readouts": "// 由 analysis 运动表生成；曲线图直接读这里\nconst out = [];\nconst h = 1e-4;\nconst tA = Math.max(0, t - h);\nconst tB = Math.min(3, t + h);\nconst a = stateAt(tA);\nconst b = stateAt(tB);\nconst dt = (tB - tA) || 1;\nout.push({ key: \"piston.x\", label: \"piston 水平位置\", value: state.piston.x, unit: 'm' });\nout.push({ key: \"piston.y\", label: \"piston 竖直位置\", value: state.piston.y, unit: 'm' });\nout.push({ key: \"piston.vx\", label: \"piston 水平速度\", value: (b.piston.x - a.piston.x) / dt, unit: 'm/s' });\nout.push({ key: \"piston.vy\", label: \"piston 竖直速度\", value: (b.piston.y - a.piston.y) / dt, unit: 'm/s' });\nreturn out;"
+  },
+  "stepTimes": [
+    {
+      "step": 1,
+      "t0": 0,
+      "t1": 0.4,
+      "sub": 1
+    },
+    {
+      "step": 2,
+      "t0": 0.4,
+      "t1": 1,
+      "sub": 1
+    },
+    {
+      "step": 3,
+      "t0": 1,
+      "t1": 2,
+      "sub": 1
+    },
+    {
+      "step": 4,
+      "t0": 2,
+      "t1": 2.5,
+      "sub": 2
+    },
+    {
+      "step": 5,
+      "t0": 2.5,
+      "t1": 3,
+      "sub": 2
+    }
+  ],
+  "provenance": {
+    "model": "deepseek-flash",
+    "promptHash": "7acd1d82a25c638c6f79965907965f9ced0a5a8d250243db50509de75ed6c62b",
+    "knowledgecardHash": "ff834e4a41fb7be4b3aed15014a667ef13a7a09da04484e5296d54aad31b30f3",
+    "generatedAt": "2026-10-24T10:08:09.240Z"
+  },
+  "source": "model"
+}
