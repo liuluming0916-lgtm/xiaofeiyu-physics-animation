@@ -101,8 +101,8 @@ async function main() {
     check('★ 显式调用 svc.listen() 拿真实端口', /await svc\.listen\(\)/.test(mainSrc));
     check('规则根目录指向用户数据目录（Program Files 只读）', /root:\s*path\.join\(dataDir,\s*'ai-rules'\)/.test(mainSrc));
     check(
-      '★ 打包形态不再封死知识卡（v1.1.18 删除 OD_BUILTIN_BUNDLE=1）',
-      !/OD_BUILTIN_BUNDLE\s*=\s*'1'/.test(mainSrc),
+      '★ 打包形态封的是 v2：app.isPackaged 时设 OD_BUILTIN_BUNDLE=1',
+      /if \(app\.isPackaged\) process\.env\.OD_BUILTIN_BUNDLE = '1'/.test(mainSrc),
     );
     check(
       '账本/观测落用户数据目录、导出落「文档」（第 9 期改）',

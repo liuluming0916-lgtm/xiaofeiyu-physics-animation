@@ -132,8 +132,15 @@ if (process.env.OD_DISABLE_CRASH_REPORTER === '1') {
 async function startService() {
   const dataDir = userDataDir();
 
-  // v1.1.18：知识卡不再“封死”进代码；v1 编译常量只留在 archive/v1，运行时不再设置 OD_BUILTIN_BUNDLE。
-  // v2 内置卡读 data-v2/*.json；用户卡仍走 ai-rules。
+  /**
+   * v1.1.18（P1-13 用户裁决）：**封包封 v2**，且不影响用户在软件端编辑。
+   *
+   * · 打包形态：`OD_BUILTIN_BUNDLE=1` ⇒ v2 内置卡从编译进代码的常量读（只读底座）；
+   * · 开发形态：不设该变量 ⇒ 读 `data-v2/*.json`，方便本地改卡；
+   * · 用户卡始终从 `ai-rules/knowledgecard/` 读，覆盖/追加内置卡 —— 封包不锁编辑。
+   */
+  if (app.isPackaged) process.env.OD_BUILTIN_BUNDLE = '1';
+  else delete process.env.OD_BUILTIN_BUNDLE;
   process.env.OD_HISTORY_PATH = path.join(dataDir, 'history.db');
   process.env.OD_OBS_DIR = path.join(dataDir, 'observability');
   /**

@@ -231,7 +231,7 @@ const MUST_HAVE = [
   'electron/main.cjs',
   'electron/preload.cjs',
   'core/orchestrator/pipeline.mjs',
-  'core/knowledgecard/builtin-bundle.generated.mjs',
+  'core/knowledgecard/v2/builtin-bundle.generated.mjs',
   'contracts/manifest.json',
   'sdk/runtime/animation-runtime.mjs',
   'web/dist/index.html',

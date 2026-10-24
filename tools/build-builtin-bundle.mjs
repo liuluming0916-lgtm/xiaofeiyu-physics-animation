@@ -24,23 +24,32 @@ import { join } from 'node:path';
 
 import { PROJECT_ROOT } from './paths.mjs';
 
-const BUILTIN_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data');
-const OUT_FILE = join(PROJECT_ROOT, 'core', 'knowledgecard', 'builtin-bundle.generated.mjs');
+const V1_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data');
+const V1_OUT = join(PROJECT_ROOT, 'core', 'knowledgecard', 'builtin-bundle.generated.mjs');
+const V2_DIR = join(PROJECT_ROOT, 'core', 'knowledgecard', 'data-v2');
+const V2_OUT = join(PROJECT_ROOT, 'core', 'knowledgecard', 'v2', 'builtin-bundle.generated.mjs');
 export const BUNDLE_FORMAT = 'od-builtin-bundle';
+export const BUNDLE_FORMAT_V2 = 'od-builtin-bundle-v2';
 export const BUNDLE_VERSION = 1;
 
 const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 /**
  * 算出"应该写成什么样"（纯函数 ⇒ 门禁可以直接比对，不必真的写盘）。
+ * @param {{ version?: 1|2 }} [opts] 默认 1（历史 v1 编译包）；v2 = 打包内置的 v2 卡
  * @returns {{ content: string, hash: string, files: {name: string, sha256: string, bytes: number}[] }}
  */
-export function buildBundleSource() {
-  const files = readdirSync(BUILTIN_DIR)
+export function buildBundleSource({ version = 1 } = {}) {
+  const isV2 = version === 2;
+  const dir = isV2 ? V2_DIR : V1_DIR;
+  const format = isV2 ? BUNDLE_FORMAT_V2 : BUNDLE_FORMAT;
+  const generatedFrom = isV2 ? 'core/knowledgecard/data-v2' : 'core/knowledgecard/data';
+
+  const files = readdirSync(dir)
     .filter((f) => f.toLowerCase().endsWith('.json'))
     .sort()
     .map((name) => {
-      const text = readFileSync(join(BUILTIN_DIR, name), 'utf8');
+      const text = readFileSync(join(dir, name), 'utf8');
       return { name, sha256: sha256(text), text };
     });
 
@@ -48,9 +57,9 @@ export function buildBundleSource() {
   const overall = sha256(files.map((f) => `${f.name}:${f.sha256}`).join('\n'));
 
   const payload = {
-    format: BUNDLE_FORMAT,
-    version: BUNDLE_VERSION,
-    generatedFrom: 'core/knowledgecard/data',
+    format,
+    version: isV2 ? 2 : BUNDLE_VERSION,
+    generatedFrom,
     /** 内置层版本号（第 8 期风险 2 的答复：改了内容它就变，能对得上导出页的溯源） */
     hash: overall,
     files: files.map((f) => ({ name: f.name, sha256: f.sha256, text: f.text })),
@@ -59,36 +68,44 @@ export function buildBundleSource() {
   const content = [
     '/*',
     ' * ⚠ 自动生成，请勿手改。',
-    ' *   生成命令：node tools/build-builtin-bundle.mjs',
-    ' *   门禁 ㊴ 会断言"这份内容 == 从 data/ 重新生成的结果"，所以手改一定会红。',
+    ` *   生成命令：node tools/build-builtin-bundle.mjs${isV2 ? ' --v2' : ''}`,
+    ` *   门禁会断言"这份内容 == 从 ${generatedFrom}/ 重新生成的结果"，所以手改一定会红。`,
     ' */',
-    `export const BUILTIN_BUNDLE = ${JSON.stringify(payload)};`,
+    `export const ${isV2 ? 'BUILTIN_V2_BUNDLE' : 'BUILTIN_BUNDLE'} = ${JSON.stringify(payload)};`,
     '',
   ].join('\n');
 
   return { content, hash: overall, files: files.map(({ name, sha256: h, text }) => ({ name, sha256: h, bytes: Buffer.byteLength(text, 'utf8') })) };
 }
 
+/** v2 编译包：打包时内置 v2 卡从这份常量读（用户编辑仍走 ai-rules 用户层） */
+export function buildV2BundleSource() {
+  return buildBundleSource({ version: 2 });
+}
+
 function main() {
   const check = process.argv.includes('--check');
-  const { content, hash, files } = buildBundleSource();
+  const isV2 = process.argv.includes('--v2');
+  const { content, hash, files } = isV2 ? buildV2BundleSource() : buildBundleSource();
+  const outFile = isV2 ? V2_OUT : V1_OUT;
+  const dirLabel = isV2 ? 'data-v2/' : 'data/';
 
   if (check) {
-    const current = existsSync(OUT_FILE) ? readFileSync(OUT_FILE, 'utf8') : '';
+    const current = existsSync(outFile) ? readFileSync(outFile, 'utf8') : '';
     if (current !== content) {
-      console.error('✗ 内置词条编译包与 data/ 不一致：请运行 node tools/build-builtin-bundle.mjs');
+      console.error(`✗ 内置词条编译包与 ${dirLabel} 不一致：请运行 node tools/build-builtin-bundle.mjs${isV2 ? ' --v2' : ''}`);
       process.exitCode = 1;
       return;
     }
-    console.log(`✓ 编译包与 data/ 一致（${files.length} 个文件 · hash ${hash.slice(0, 12)}…）`);
+    console.log(`✓ 编译包与 ${dirLabel} 一致（${files.length} 个文件 · hash ${hash.slice(0, 12)}…）`);
     return;
   }
 
-  writeFileSync(OUT_FILE, content, 'utf8');
+  writeFileSync(outFile, content, 'utf8');
   const kb = (Buffer.byteLength(content, 'utf8') / 1024).toFixed(1);
   console.log(`✓ 内置词条编译包已生成：${files.length} 个文件 · ${kb} KB · hash ${hash.slice(0, 12)}…`);
-  console.log(`  → ${OUT_FILE}`);
-  console.log('  发布形态（OD_BUILTIN_BUNDLE=1）读这份常量；本地开发仍读 data/ 下的可编辑文件。');
+  console.log(`  → ${outFile}`);
+  console.log('  发布形态（OD_BUILTIN_BUNDLE=1）读这份常量；本地开发仍读数据目录下的可编辑文件。');
 }
 
 if (import.meta.url === new URL(`file://${process.argv[1]?.replace(/\\/g, '/')}`).href) main();

@@ -20,6 +20,8 @@ import {
 import { migrateEntryV1toV2, validateEntryV2 } from '../core/knowledgecard/v2/entry.mjs';
 import { saveV2Entry } from '../core/knowledgecard/v2/editor.mjs';
 import { loadV2Library } from '../core/knowledgecard/v2/store.mjs';
+import { BUILTIN_V2_BUNDLE } from '../core/knowledgecard/v2/builtin-bundle.generated.mjs';
+import { buildV2BundleSource } from '../tools/build-builtin-bundle.mjs';
 import { buildJudgementVocabV2, parseJudgementV2 } from '../core/knowledgecard/v2/prompt.mjs';
 import { triggerKnowledgecardV2 } from '../core/knowledgecard/v2/runtime.mjs';
 import { v2ToV1RuntimeEntry } from '../core/knowledgecard/v2/adapter.mjs';
@@ -270,6 +272,52 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
   check(lib.ok, 'v2 运行时库加载无问题', lib.problems.join('；'));
   check(lib.entries.length === 31, '内置 31 张 v2 卡', String(lib.entries.length));
   check(lib.vocab.elements.length === 11 && lib.vocab.scenes.length === 18, '词表 11 元件 + 18 场景');
+
+  /**
+   * P1-13（2026-10-24 用户裁决）：封包封 v2，且不影响用户在软件端编辑。
+   *   · 编译包必须与 data-v2 逐字一致（改了卡不重新生成 ⇒ 门禁红）；
+   *   · 打包形态（OD_BUILTIN_BUNDLE=1）从编译包读内置卡；
+   *   · 用户卡仍从 ai-rules 读，覆盖/追加内置卡。
+   */
+  {
+    const disk = readFileSync(join(ROOT, 'core', 'knowledgecard', 'v2', 'builtin-bundle.generated.mjs'), 'utf8');
+    const gen = buildV2BundleSource();
+    check(disk === gen.content, '★ v2 编译包 == 从 data-v2 重新生成的结果', '跑 node tools/build-builtin-bundle.mjs --v2');
+    check(
+      BUILTIN_V2_BUNDLE.files.length === 2 && BUILTIN_V2_BUNDLE.files.every((f) => f.name.endsWith('.json')),
+      'v2 编译包覆盖 92/93 两个文件',
+      BUILTIN_V2_BUNDLE.files.map((f) => f.name).join(','),
+    );
+
+    const old = process.env.OD_BUILTIN_BUNDLE;
+    const tmp = mkdtempSync(join(tmpdir(), 'kc-v2-bundle-'));
+    try {
+      const sample = {
+        ...lib.builtin.find((e) => e.kind === 'element'),
+        id: 'user.bundle_test',
+        title: '用户·封包测试',
+        origin: 'user',
+        elements: ['block'],
+      };
+      writeFileSync(
+        join(tmp, 'user.json'),
+        JSON.stringify({ format: 'od-knowledgecard-v2', version: 2, entries: [sample] }),
+        'utf8',
+      );
+      process.env.OD_BUILTIN_BUNDLE = '1';
+      const packed = loadV2Library({ userDir: tmp });
+      check(packed.ok && packed.builtin.length === 31, '★ 打包形态从 v2 编译包读内置卡', packed.problems.join('；'));
+      check(
+        packed.user.length === 1 && packed.entries.some((e) => e.id === 'user.bundle_test'),
+        '★ 封包不影响用户编辑：用户卡仍加载并覆盖/追加',
+        `${packed.user.length} / ${packed.entries.length}`,
+      );
+    } finally {
+      if (old === undefined) delete process.env.OD_BUILTIN_BUNDLE;
+      else process.env.OD_BUILTIN_BUNDLE = old;
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }
 
   /* ── 1:1 治理：启用的词表项 ↔ 启用的卡片，无孤儿 ── */
   {
