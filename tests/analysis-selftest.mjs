@@ -252,6 +252,25 @@ console.log('\n『C』允许的写法与提示词一致性');
 
   const noRead = buildAnalysisUser({ problem: 'p', solution: 's' });
   check('没有读题输出时不出现几何段', !noRead.includes('【题目图与几何'));
+
+  /* v1.1.18：补充描述 / 已知条件 / 参考答案必须进 analysis，且参考答案优先 */
+  const enriched = buildAnalysisUser({
+    problem: 'p',
+    readProblem: '【物体】物块',
+    solution: 'a = 2 m/s²，t = 1 s',
+    description: '图(b)过 (0,0)，x=1 时 F=-20 N',
+    knownConditions: 'm_A=2 kg',
+    referenceText: '(1) W_F=-10 J；(2) μ=0.75',
+  });
+  check('★ user 注入用户补充描述', enriched.includes('【用户补充描述') && enriched.includes('F=-20 N'));
+  check('★ user 注入用户已知条件', enriched.includes('【用户填写的已知条件') && enriched.includes('m_A=2 kg'));
+  check('★ user 注入参考答案原文（最高权威）', enriched.includes('【老师提供的参考答案 / 解析（最高权威') && enriched.includes('W_F=-10 J'));
+  check(
+    '★ 参考答案排在【解题过程】之前（先对齐解析，再写运动表）',
+    enriched.indexOf('【老师提供的参考答案') < enriched.indexOf('【解题过程'),
+  );
+  check('★ 指令里写明数值权威顺序', ANALYSIS_INSTRUCTION.includes('参考答案 > 解题过程 > 题图'));
+  check('★ 指令里禁止从题图重新读数', ANALYSIS_INSTRUCTION.includes('不要从题图重新读数'));
 }
 
 console.log(`\n通过 ${passed}，失败 ${failures.length}`);

@@ -106,15 +106,34 @@ export const STAGE_ROLES = Object.freeze({
  * 在这里说"覆盖前面'写出完整解题过程'的要求"最直接；system 保持通用，
  * 不影响没勾解析的旧路径。
  */
-function buildSolveUserMessage(problem, reference) {
+function buildSolveUserMessage(problem, reference, description, knownConditions) {
   const hasReference = Boolean(reference) && (Boolean(String(reference?.text ?? '').trim()) || (reference?.images?.length ?? 0) > 0);
-  if (!hasReference) return problem;
+  /**
+   * v1.1.18：用户手打的补充信息。
+   *
+   * 来源是「配图补充描述」与「已知条件」两个输入框，性质是**用户提供的事实**，
+   * 可信度高于模型对图片的猜测。以前 `/api/run` 把这两段丢了（真 bug），
+   * 于是同一道题连续几次会读出 F-x 图的不同符号/截距 —— 现在必须在解题阶段就见到。
+   */
+  const supplement = [
+    ...(String(description ?? '').trim()
+      ? ['【用户补充描述（可信度高于对图片的猜测；数值以此为准）】', String(description).trim(), '']
+      : []),
+    ...(String(knownConditions ?? '').trim()
+      ? ['【用户填写的已知条件（可信）】', String(knownConditions).trim(), '']
+      : []),
+  ];
+
+  if (!hasReference) {
+    return supplement.length ? [String(problem ?? ''), '', ...supplement].join('\n') : problem;
+  }
 
   const text = String(reference.text ?? '').trim();
   return [
     '【老师提供的参考答案 / 解析（以此为准）】',
     text || '（解析内容以随本消息附上的图片为准）',
     '',
+    ...supplement,
     '【原题（只用于对齐问法、符号与题号）】',
     problem ?? '',
     '',
@@ -175,7 +194,8 @@ export const PROMPTS = Object.freeze({
       '',
       '数值与单位照解析写全；解析只给符号的，就只写符号，不要自己补数。',
     ].join('\n'),
-    buildUser: ({ problem, reference }) => buildSolveUserMessage(problem, reference),
+    buildUser: ({ problem, reference, description, knownConditions }) =>
+      buildSolveUserMessage(problem, reference, description, knownConditions),
   },
 
   breakdown: {

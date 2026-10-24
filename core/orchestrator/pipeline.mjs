@@ -34,6 +34,9 @@ import {
   buildUserMessage,
 } from '../gateway/index.mjs';
 import { getPrompt, assemblePrompt, buildJudgementVocab } from '../prompts/index.mjs';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { knowledgecardHashOf } from '../knowledgecard/hash.mjs';
 import { triggerKnowledgecardV2, knowledgecardV2Evidence } from '../knowledgecard/v2/runtime.mjs';
 import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledgecard/concepts.mjs';
@@ -201,6 +204,30 @@ export function snapshotConfig(config) {
  * @yields {object} 事件（形状见 `events.mjs`）
  * @returns {Promise<void>} generator 结束时无返回值；结果通过事件给出
  */
+/**
+ * 调试出口：`DSH_DUMP_PROMPT=<stage>`（或 `all`）时，把这一阶段**真正发出去**的消息
+ * 落到 `tests/reports/<stage>-prompt.txt`。
+ *
+ * 为什么需要它：调提示词时唯一可靠的依据是"模型看到的原文"——
+ * 前缀、注入的卡片、user 里的本题数据，任何一处猜错都会得出错误结论。
+ */
+function dumpPrompt(stage, messages) {
+  const want = process.env.DSH_DUMP_PROMPT;
+  if (!want || (want !== 'all' && want !== stage)) return;
+  try {
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+    const dir = join(root, 'tests', 'reports');
+    mkdirSync(dir, { recursive: true });
+    const blocks = messages.map((m, i) => {
+      const body = typeof m?.content === 'string' ? m.content : JSON.stringify(m?.content ?? '', null, 2);
+      return `======== #${i + 1} ${m?.role ?? '?'} · ${body.length} 字 ========\n${body}`;
+    });
+    writeFileSync(join(dir, `${stage}-prompt.txt`), blocks.join('\n\n'), 'utf8');
+  } catch {
+    /* 调试出口失败不影响主链路 */
+  }
+}
+
 export async function* runPipeline(input) {
   const {
     problem,
@@ -429,7 +456,13 @@ export async function* runPipeline(input) {
             ? buildJudgementVocabV2(snapshot.knowledgecard.vocab)
             : judgementVocab,
       },
-      solve: { problem: problem.text, ...(reference ? { reference } : {}) },
+      solve: {
+        problem: problem.text,
+        /* v1.1.18：老师手打的补充描述/已知条件必须进解题；以前只进过读题 */
+        ...(problem.description ? { description: problem.description } : {}),
+        ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
+        ...(reference ? { reference } : {}),
+      },
       breakdown: { problem: problem.text, solution: () => outputs.solve },
       /**
        * 新链路第 4 段：analysis 只吃题面、读题几何、solve（**不吃 breakdown**）。
@@ -439,6 +472,10 @@ export async function* runPipeline(input) {
         problem: problem.text,
         solution: () => outputs.solve,
         readProblem: () => outputs.read_problem,
+        /* v1.1.18：补充描述/已知条件也进分析；参考答案文本是数值的最高权威 */
+        ...(problem.description ? { description: problem.description } : {}),
+        ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
+        ...(reference?.text ? { referenceText: reference.text } : {}),
         /* B2：只读 physical 表（物理米），让模型把质心放到支撑面上方。 */
         physicalTable: () => physicalOfSnapshot(),
       },
@@ -538,6 +575,7 @@ export async function* runPipeline(input) {
           ? buildUserMessage({ text: assembled.messages[1].content, images: withImages })
           : assembled.messages[1];
         const messages = [assembled.messages[0], userMessage];
+        dumpPrompt(stage, messages);
         if (!promptHashReported) {
           promptHashReported = true;
           promptHashSeen = assembled.promptHash;
@@ -894,6 +932,7 @@ export async function* runPipeline(input) {
           ? buildUserMessage({ text: assembled.messages[1].content, images: withImages })
           : assembled.messages[1];
         const messages = [assembled.messages[0], userMessage];
+        dumpPrompt(stage, messages);
 
         // 首次组装时把 promptHash 报给前端（它是固定前缀的属性，与阶段无关）
         if (!promptHashReported) {

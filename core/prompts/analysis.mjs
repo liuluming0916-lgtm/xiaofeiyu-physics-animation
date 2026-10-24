@@ -25,6 +25,13 @@ export const ANALYSIS_ROLE = [
 
 /** 本阶段指令（接线后作为 prompt.system 进条件段） */
 export const ANALYSIS_INSTRUCTION = [
+  '【数值权威（硬性）】',
+  '解题过程（有参考答案时还包括参考答案）是本题数值与符号的来源：出现过的量一律照抄，',
+  '包括正负号与单位，不要重新推导、不要从题图重新读数。',
+  '题图只用来看几何关系（谁在左/右、哪端高、绳怎么走），不要拿它覆盖解题过程。',
+  '权威顺序：参考答案 > 解题过程 > 题图。冲突时按这个顺序，并在 note 里说明采用了哪一个。',
+  '只有解题过程没给、而推导又必需的量，才自行补，并保持与已给量一致。',
+  '',
   '如果题面与解题过程里有“没有数值的符号”，先写一行：',
   'assumption: 为没有数值的符号赋值',
   '（题面给了全部数值就省略这一行）',
@@ -109,9 +116,13 @@ export const ANALYSIS_INSTRUCTION = [
  *
  * B2：再加一段**只读** `physical` 表（物理米），让模型把质心放到支撑面上方。
  *
- * @param {{ problem: string, readProblem?: string, solution: string, physicalTable?: Record<string, {w?:number,h?:number,r?:number}>|null }} input
+ * v1.1.18：补进**用户手打的补充描述 / 已知条件**，并在有参考答案时把解析原文放在
+ * `【解题过程】` 之前 —— 它们是数值的最高权威。以前 `/api/run` 把补充描述丢掉，
+ * 同一道题连续几次会读出不同的 F-x 符号，analysis 再跟着错。
+ *
+ * @param {{ problem: string, readProblem?: string, solution: string, physicalTable?: Record<string, {w?:number,h?:number,r?:number}>|null, description?: string, knownConditions?: string, referenceText?: string }} input
  */
-export function buildAnalysisUser({ problem, readProblem, solution, physicalTable } = {}) {
+export function buildAnalysisUser({ problem, readProblem, solution, physicalTable, description, knownConditions, referenceText } = {}) {
   const dims = (p) => {
     const parts = [];
     if (Number.isFinite(p?.w)) parts.push(`w=${p.w}`);
@@ -120,10 +131,19 @@ export function buildAnalysisUser({ problem, readProblem, solution, physicalTabl
     return parts.join('、');
   };
   const rows = Object.entries(physicalTable ?? {}).filter(([, p]) => dims(p));
+  const supplement = [
+    ...(String(description ?? '').trim()
+      ? ['【用户补充描述（可信度高于对图片的猜测；数值以此为准）】', String(description).trim(), '']
+      : []),
+    ...(String(knownConditions ?? '').trim()
+      ? ['【用户填写的已知条件（可信）】', String(knownConditions).trim(), '']
+      : []),
+  ];
   return [
     '【题目】',
     problem ?? '',
     '',
+    ...supplement,
     ...(readProblem && String(readProblem).trim()
       ? [
           '【题目图与几何（读题转写的结构）】',
@@ -140,6 +160,16 @@ export function buildAnalysisUser({ problem, readProblem, solution, physicalTabl
           '',
         ]
       : []),
+    ...(String(referenceText ?? '').trim()
+      ? [
+          '【老师提供的参考答案 / 解析（最高权威；数值最终以此为准）】',
+          String(referenceText).trim(),
+          '',
+        ]
+      : []),
+    '【数值口径】下面的解题过程（有参考答案时先对齐参考答案）是本题数值的来源：',
+    '出现过的量一律照抄（含正负号/单位），不要重算、不要从题图重新读数。',
+    '',
     '【解题过程】',
     solution ?? '',
   ].join('\n');

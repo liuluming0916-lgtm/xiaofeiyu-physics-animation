@@ -51,7 +51,9 @@ const KEY = 'sk-SERVICE0123456789abcdef';
 const seenSystems = [];
 const fakeRunStream = async (opts) => {
   const system = String(opts.messages?.[0]?.content ?? '');
-  seenSystems.push({ stage: opts.stage, system });
+  const rawUser = opts.messages?.[1]?.content;
+  const user = typeof rawUser === 'string' ? rawUser : JSON.stringify(rawUser ?? '');
+  seenSystems.push({ stage: opts.stage, system, user });
   const replies = {
     read_problem: '【题目】传送带与物块\n【动画元件】block\n【场景】belt\n【判定依据】题面出现物块与传送带',
     solve: '取向右为正。a = 2 m/s²，t* = 1.0 s，Δx = 1.0 m，结论带单位。',
@@ -263,6 +265,40 @@ async function main() {
           Boolean(solveTurn) && solveTurn.system.includes(marker),
           solveTurn ? solveTurn.system.slice(0, 200) : '没有 solve 调用',
         );
+
+        /**
+         * v1.1.18：**补充描述 / 已知条件 / 参考答案**必须真的进到下游阶段。
+         *
+         * 这是一个真实存在过的接线漏洞：前端 `useRun.ts` 一直在发
+         * `problem.description` / `problem.knownConditions`，但 `/api/run`
+         * 只取 `problem.text`，两段被静默丢掉 —— 图看不清时老师补的关键数据
+         * 从来没到过 solve / analysis。q04 连续几次读出不同的 F-x 符号就是这个原因。
+         */
+        {
+          const DESC = '【补充描述探针-9f3a】图(b)过 (0,0)，x=1 时 F=-20 N';
+          const KNOWN = '【已知条件探针-7c1b】m_A=2 kg';
+          const REF = '【参考答案探针-5e2d】(1) W_F = -10 J';
+          seenSystems.length = 0;
+          const probeRes = await fetch(`${base}/api/run`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              problem: { text: '水平传送带上放一个物块。', description: DESC, knownConditions: KNOWN },
+              reference: { text: REF },
+              images: [],
+              mode: 'BOTH',
+            }),
+          });
+          const probeText = await probeRes.text();
+          check('★ 补充信息探针：/api/run 起得来', probeRes.status === 200 && probeText.includes('event:'), `${probeRes.status} ${probeText.slice(0, 120)}`);
+          const byStage = (s) => seenSystems.find((x) => x.stage === s)?.user ?? '';
+          check('★ 补充描述进了 read_problem 的 user', byStage('read_problem').includes(DESC), byStage('read_problem').slice(0, 200));
+          check('★ 补充描述进了 solve 的 user（以前在这里被丢）', byStage('solve').includes(DESC), byStage('solve').slice(0, 200));
+          check('★ 已知条件进了 solve 的 user', byStage('solve').includes(KNOWN), byStage('solve').slice(0, 200));
+          check('★ 补充描述进了 analysis 的 user', byStage('analysis').includes(DESC), byStage('analysis').slice(0, 200));
+          check('★ 已知条件进了 analysis 的 user', byStage('analysis').includes(KNOWN), byStage('analysis').slice(0, 200));
+          check('★ 参考答案原文进了 analysis 的 user（数值最高权威）', byStage('analysis').includes(REF), byStage('analysis').slice(0, 200));
+        }
 
         /* v1.1.18 手动打回：真实 HTTP 也要能把 startAt=solve 传进流水线 */
         seenSystems.length = 0;

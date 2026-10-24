@@ -397,6 +397,16 @@ export function createRulesService({
 
     const problem = body?.problem ?? { text: '' };
     /**
+     * v1.1.18：**用户手打的补充信息**（配图补充描述 / 已知条件）。
+     *
+     * 前端一直在发（`useRun.ts` 的 `problem.description` / `problem.knownConditions`），
+     * 但 `/api/run` 以前只取 `problem.text`，这两段**从来没进过流水线** ——
+     * 图看不清时老师补的关键数据（例如 F-x 图的关键点、正负号）被静默丢掉，
+     * solve 只能重新读图，analysis 再跟着错。这条是真 bug，不是提示词问题。
+     */
+    const description = typeof problem?.description === 'string' ? problem.description.trim() : '';
+    const knownConditions = typeof problem?.knownConditions === 'string' ? problem.knownConditions.trim() : '';
+    /**
      * ⚠ **图片要在这一层解码**（第 8 期实测踩的坑）：
      *   前端 `serverEventSource()` 发的是 `{ mime, dataUrl }`（data: URI 字符串），
      *   而流水线/网关要的是 `{ mime, data: Buffer }`。
@@ -603,7 +613,13 @@ export function createRulesService({
      */
     const runLog = createRunLog({
       appVersion: appVersion(),
-      problem: { text: String(problem.text ?? ''), imageCount: images.length },
+      problem: {
+        text: String(problem.text ?? ''),
+        imageCount: images.length,
+        /* v1.1.18：日志里也留一份，否则"是不是补了描述"永远查不出来 */
+        ...(description ? { description } : {}),
+        ...(knownConditions ? { knownConditions } : {}),
+      },
       model: endpoint.defaultModel ?? null,
       endpoint: endpoint.displayName ?? endpoint.id ?? null,
       devMode: config.devMode === true,
@@ -659,7 +675,13 @@ export function createRulesService({
               ...(dryRunImpl ? { dryRunImpl } : {}),
             })
           : runPipeline({
-              problem: { text: String(problem.text ?? ''), images },
+              problem: {
+                text: String(problem.text ?? ''),
+                images,
+                /* v1.1.18：这两段必须一路带到读题/解题/分析；以前在这里被丢掉 */
+                ...(description ? { description } : {}),
+                ...(knownConditions ? { knownConditions } : {}),
+              },
               images,
               /* v1.1.16：没填解析就是 null ⇒ 流水线走旧提示词（行为与上一版逐字一致） */
               ...(reference ? { reference } : {}),
