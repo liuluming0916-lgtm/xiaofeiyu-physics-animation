@@ -2,7 +2,7 @@
  * 解题页（§15 第一页）。
  *
  * 本期的范围（见 README 12.17 / 13.1）：
- *   题面文字输入 · **题目图片输入（选择/拖入 + 缩略图 + 移除）** · **配图补充描述** ·
+ *   题面文字输入 · **题目图片输入（选择/拖入 + 缩略图 + 移除）** · **按阶段补充信息** ·
  *   **§11.3 视觉门控禁用态与原因提示** · 阶段进度 · 流式解题过程 · 校验报告面板
  *
  * ⚠ 两处必须显式告知用户、不能含糊的地方：
@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConnectionDialog } from '../components/ConnectionDialog'
 import { OpenLogNotice } from '../components/OpenLogNotice'
 import { StageNotesDialog } from '../components/StageNotesDialog'
+import { STAGE_NOTE_META } from '../lib/stage-notes'
 import { DEMO_QUESTION_LIST } from '../lib/demo-questions'
 import { STAGE_CHAIN, precisionLabel, type RepairBanner } from '../lib/run-stream'
 import { api } from '../lib/rules-api'
@@ -209,6 +210,10 @@ export function SolvePage({
 
   const running = st.run.running
   const skipped = selectIsSkipped(st)
+  const filledStageNotes = Object.entries(st.stageNotes).filter(([, v]) => v?.trim())
+  const filledStageLabels = filledStageNotes.map(
+    ([k]) => STAGE_NOTE_META.find((s) => s.key === k)?.label ?? k,
+  )
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
@@ -281,7 +286,7 @@ export function SolvePage({
                   <p className="font-medium text-amber-900">图片入口已禁用</p>
                   <p className="mt-1 text-xs text-amber-800">{visionReason}</p>
                   <p className="mt-1 text-xs text-amber-800">
-                    可以改用下面的「配图补充描述」，用文字把图中的关键几何关系写清楚。
+                    可以改用下面的「补充信息（按阶段）」，把图中的关键几何关系写清楚。
                   </p>
                 </div>
               )}
@@ -325,22 +330,19 @@ export function SolvePage({
               </div>
               <button
                 type="button"
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                className={
+                  filledStageNotes.length
+                    ? 'rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100'
+                    : 'rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50'
+                }
                 onClick={() => setNotesOpen(true)}
               >
-                打开补充信息
-                {Object.values(st.stageNotes).filter((v) => v?.trim()).length > 0
-                  ? `（已填 ${Object.values(st.stageNotes).filter((v) => v?.trim()).length} 段）`
-                  : ''}
+                补充信息（按阶段）
+                {filledStageNotes.length > 0 ? ` · 已填 ${filledStageNotes.length} 段` : ''}
               </button>
             </div>
-            {Object.entries(st.stageNotes).filter(([, v]) => v?.trim()).length > 0 && (
-              <p className="mt-2 text-xs text-slate-500">
-                已填：{Object.entries(st.stageNotes)
-                  .filter(([, v]) => v?.trim())
-                  .map(([k]) => k)
-                  .join(' / ')}
-              </p>
+            {filledStageLabels.length > 0 && (
+              <p className="mt-2 text-xs text-slate-500">已填：{filledStageLabels.join(' / ')}</p>
             )}
           </div>
 

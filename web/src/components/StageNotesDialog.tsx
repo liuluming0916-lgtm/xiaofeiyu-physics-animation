@@ -18,6 +18,15 @@ export function StageNotesDialog({ open, value, legacyDescription = '', onClose,
 
   useEffect(() => {
     if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
     if (Object.keys(value).length) {
       setDraft({ ...value })
       return

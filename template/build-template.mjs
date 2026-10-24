@@ -175,12 +175,14 @@ export function buildQuestionHtml(program, templateText, runtimeText, texText, p
 }
 
 export function provenanceLine(program, contractHash, texSvg) {
+  const p = program?.provenance ?? {};
+  const hashLabel = (v, fallback) => (typeof v === 'string' && v && v !== 'handwritten' ? v.slice(0, 12) : fallback);
   return [
     `模板 v${TEMPLATE_VERSION}`,
     `SDK v${SDK_VERSION}`,
-    'model: handwritten',
-    'prompt: handwritten',
-    'knowledgecard: handwritten',
+    `model: ${typeof p.model === 'string' && p.model ? p.model : 'handwritten'}`,
+    `prompt: ${hashLabel(p.promptHash, 'handwritten')}`,
+    `knowledgecard: ${hashLabel(p.knowledgecardHash, 'handwritten')}`,
     texSvg?.renderer ? `math: ${texSvg.renderer}` : 'math: odtex-fallback',
     `contract: ${contractHash.slice(0, 12)}`,
     program.id,
