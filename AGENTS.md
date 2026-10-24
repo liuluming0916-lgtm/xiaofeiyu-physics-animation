@@ -167,7 +167,7 @@ node tools/verify-all.mjs
 ## 7. 仓库里不要做的事（摘自项目文档）
 
 - 不要给每道题新建舞台模板；
-- 不要模型写画幅/比例尺/运动/`stateAt`；
+- 不要模型写画幅/相机/像素/运动/`stateAt`；**尺寸与示意比例归模型（方案二）**；
 - 不要把 `Draw.text/latex` 或 `Phys.interp/roots/format` 引回来；
 - 不要把单题返修意见写进链路提示词（要生效就做成闸门）；
 - 不要用 PowerShell 的 `Get-Content` / `Set-Content` 改源码。
