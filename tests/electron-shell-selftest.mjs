@@ -212,7 +212,7 @@ async function main() {
    */
   const appJsOf = (dir) => join(PROJECT_ROOT, 'release', dir, 'resources', 'app', 'web', 'dist', 'assets', 'app.js');
   const candidates = readdirSync(join(PROJECT_ROOT, 'release'))
-    .filter((d) => d.startsWith('小肥鱼物理动画') || d.startsWith('物理解题动画'))
+    .filter((d) => d.startsWith('小肥鱼物理解题动画') || d.startsWith('小肥鱼物理动画') || d.startsWith('物理解题动画'))
     .sort((a, b) => b.localeCompare(a, 'zh'));
   const packedDir = candidates.find((d) => existsSync(appJsOf(d)));
   const packaged = packedDir ? appJsOf(packedDir) : null;

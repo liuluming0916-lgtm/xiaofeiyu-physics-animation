@@ -126,7 +126,7 @@ export async function main() {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>小肥鱼物理动画 · 第 2 期交付总览</title>
+<title>小肥鱼物理解题动画 · 第 2 期交付总览</title>
 <style>
   :root {
     --bg: oklch(98.2% 0.004 250); --surface: oklch(100% 0 0); --fg: oklch(25.5% 0.021 250);
@@ -187,7 +187,7 @@ export async function main() {
 <body>
 <header>
   <div class="wrap">
-    <h1>小肥鱼物理动画 · 第 2 期交付总览</h1>
+    <h1>小肥鱼物理解题动画 · 第 2 期交付总览</h1>
     <p class="sub">第 1 期（模板页 + 命令缓冲渲染器 + 教具 SDK Layer 1 + AutoView + §19.5 手写回归题集）＋ 第 2 期（<strong>Worker 沙箱硬终止</strong> · C1 静态预检 · C2–C6 强化 · <strong>行号级诊断</strong> · M27 校验报告）。判定全部来自真实 Dry-Run（§7.2 C1–C9；C10/X1/X2 为扩展检查，标注 <sup>ext</sup>），随 <code>core/dryrun/run-suite.mjs</code> 结果更新。</p>
     <div class="kpis">
       <div class="kpi pass"><div class="n">${pass}</div><div class="l">全通过（C1–C9）</div></div>

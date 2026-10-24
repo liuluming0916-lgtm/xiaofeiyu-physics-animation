@@ -5,7 +5,7 @@
 > **哪个路径适用哪份协议，只看本文件**，不要从文件名猜。
 > 中文说明仅供参考；与许可证原文冲突时，以原文为准。
 
-小肥鱼物理动画（xiaofeiyu-physics-animation）
+小肥鱼物理解题动画（xiaofeiyu-physics-animation）
 Copyright (C) 2026 〔待填：著作权人〕
 
 ---
@@ -17,7 +17,7 @@ Copyright (C) 2026 〔待填：著作权人〕
 | **程序源码** | `core/`、`contracts/`、`sdk/`、`web/src/`、`electron/`、`tools/`、`tests/`、`template/`、`package.json`、根目录 `*.bat` | **AGPL-3.0-only**（[LICENSE](LICENSE)） | 能，但必须开源回流（见 §三） |
 | **文档** | `docs/`、`README.md`、`项目现状与路线.md`、`AGENTS.md` | **CC BY-NC-SA 4.0**（[LICENSE-DOCS](LICENSE-DOCS)） | **不能** |
 | **知识卡 / 提示词 / 词表** | `core/knowledgecard/data-v2/`、`core/prompts/`、`contracts/knowledgecard-vocab-v2.json` | **CC BY-NC-SA 4.0** | **不能** |
-| **名称与标识** | “小肥鱼物理动画”、Logo、应用图标 | 保留（[TRADEMARK.md](TRADEMARK.md)） | 需授权 |
+| **名称与标识** | “小肥鱼物理解题动画”、Logo、应用图标 | 保留（[TRADEMARK.md](TRADEMARK.md)） | 需授权 |
 | **你导出的东西** | 用本软件生成的网页 / GIF / 视频 / 截图 | **归你**，不受本文件限制（见 §四） | 能 |
 | **第三方组件** | `node_modules/`、Electron、Chromium | 各自协议（见 §五） | 各自协议 |
 

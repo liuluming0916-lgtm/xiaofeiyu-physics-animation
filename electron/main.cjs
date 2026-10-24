@@ -63,11 +63,11 @@ for (const [envName, kind] of [
  * 位置本身没错（程序目录只读），但**深且隐藏**：界面上既没写导出到哪，也没有"打开文件夹"的入口，
  * 用户点完导出等于把文件扔进了黑洞。
  *
- * 现在放到 **`文档\小肥鱼物理动画\导出\`**：双击就能找到，与"账本/观测/蒸馏"（那些是内部数据）
+ * 现在放到 **`文档\小肥鱼物理解题动画\导出\`**：双击就能找到，与"账本/观测/蒸馏"（那些是内部数据）
  * 分开对待 —— **给人看的东西放文档，给自己看的东西放 AppData**。
  */
 function exportDir() {
-  const dir = path.join(app.getPath('documents'), '小肥鱼物理动画', '导出');
+  const dir = path.join(app.getPath('documents'), '小肥鱼物理解题动画', '导出');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -147,7 +147,7 @@ async function startService() {
    * v1.1.19：Electron 33 → 35.7.5（Node 22 / Node-API 10），better-sqlite3 13 可以正常加载。
    * v1.1.16 的两个临时探针（导出探针 / 打包形态关审计）已删除，账本与审计恢复为正式路径。
    */
-  /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\小肥鱼物理动画\导出」，用户找得到 */
+  /* ⚠ 第 9 期：导出物**不再**丢在 userData 里 —— 放「文档\小肥鱼物理解题动画\导出」，用户找得到 */
   process.env.OD_EXPORT_DIR = exportDir();
   /**
    * ── v1.1.7「开源日志」的落点 = **程序目录**（用户点名要求）──
@@ -215,7 +215,7 @@ async function createWindow(port) {
     minWidth: 1100,
     minHeight: 700,
     backgroundColor: '#f8fafc',
-    title: '小肥鱼物理动画',
+    title: '小肥鱼物理解题动画',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -354,7 +354,7 @@ function buildMenu() {
             dialog.showMessageBox({
               type: 'info',
               title: '关于',
-              message: `小肥鱼物理动画 v${PKG.version}`,
+              message: `小肥鱼物理解题动画 v${PKG.version}`,
               detail:
                 '解题 → 动画 → 导出；设置页可改知识卡 / 提示词卡 / 本地规则卡（AI 帮写暂未开放）。\n' +
                 '画布不写数值，矢量靠颜色与长度表达（绿=速度 / 蓝=加速度 / 红=受力）。\n' +
@@ -552,7 +552,7 @@ if (!gotLock) {
    * ── 第 9 期：让界面能"打开导出物" ──
    *
    * 只是把两个动作暴露给渲染进程，**限定在导出目录之内**：
-   * 渲染进程传来的路径必须落在 `文档\小肥鱼物理动画\导出\` 下，否则一律拒绝 ——
+   * 渲染进程传来的路径必须落在 `文档\小肥鱼物理解题动画\导出\` 下，否则一律拒绝 ——
    * 不给它一个"能打开任意路径"的把手（那等于把壳子的文件能力漏给网页）。
    */
   const insideExportDir = (p) => {

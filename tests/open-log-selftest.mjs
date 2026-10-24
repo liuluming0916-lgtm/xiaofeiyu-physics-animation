@@ -145,7 +145,7 @@ async function main() {
     check('★ 题面里的尖括号被转义（不会变成注入点）', html.includes('&lt;script&gt;') && !html.includes('<script>alert'));
     check('门禁小节在（人一眼能看到 C5 为什么拦）', html.includes('C5') && html.includes('门禁'));
     check('动画代码小节在', html.includes('drawFrame'));
-    check('中文不多不少：标题写明是哪个软件的日志', html.includes('小肥鱼物理动画'));
+    check('中文不多不少：标题写明是哪个软件的日志', html.includes('小肥鱼物理解题动画'));
   }
 
   /* ───────────────── 落盘：目录、成对、脱敏 ───────────────── */

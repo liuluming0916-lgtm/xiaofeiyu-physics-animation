@@ -54,7 +54,7 @@ function builderCli() {
 }
 
 function main() {
-  console.log('小肥鱼物理动画 · 打包（v1.1）');
+  console.log('小肥鱼物理解题动画 · 打包（v1.1）');
   console.log(`模式：${mode === 'dev' ? '直接运行（开发）' : mode === 'dir' ? '绿色版文件夹' : '安装包（NSIS）'}`);
 
   if (mode === 'dev') {
@@ -117,7 +117,7 @@ function report() {
     }
   };
   walk(out);
-  console.log('\n双击上面 .exe：安装包（或绿色版里的 小肥鱼物理动画.exe）即可运行。');
+  console.log('\n双击上面 .exe：安装包（或绿色版里的 小肥鱼物理解题动画.exe）即可运行。');
   console.log('首次运行若被 Windows 拦截：点「更多信息 → 仍要运行」（未做代码签名，属于正常提示）。');
 }
 

@@ -101,7 +101,7 @@ export function App() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-3">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-lg font-semibold text-slate-900">小肥鱼物理动画</h1>
+            <h1 className="text-lg font-semibold text-slate-900">小肥鱼物理解题动画</h1>
             {/* 第 9 期：版本号**不再写死** —— 构建期从 package.json 注入（见 rollup replace） */}
             <span className="text-xs text-slate-500">v{__OD_APP_VERSION__}</span>
             <span className="text-xs font-medium text-slate-600">开源的物理动画平台</span>
