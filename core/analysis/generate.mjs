@@ -13,6 +13,7 @@
  *   · STEPS 只留 title / tex（v6；时间轴由 analysis 负责，C5/C6 改读 analysis）。
  */
 
+import { branchFilmTimes, scenariosOfElement } from './scenario.mjs';
 
 /**
  * 数学函数白名单（与 `core/analysis/expr.mjs` 的 `FUNCTIONS` 一一对应）。
@@ -208,17 +209,9 @@ export function buildStepsText(breakdownText, _analysis, _tPhys, fallbackTitle =
     .join('\n\n');
 }
 
-/** 场景分支时刻（analysis 里 `branch: true` 的段起点；升序、去重） */
+/** 场景分支时刻（动画时间轴；零时刻场景切换会落在前一场景末尾） */
 function branchTimesOf(analysis) {
-  return [
-    ...new Set(
-      (analysis?.elements ?? [])
-        .flatMap((e) => e.segments ?? [])
-        .filter((s) => s.branch === true)
-        .map((s) => s.t0)
-        .filter((v) => Number.isFinite(v)),
-    ),
-  ].sort((a, b) => a - b);
+  return branchFilmTimes(analysis);
 }
 
 /** 生成 setup：T_PHYS + 每个分支时刻一个 T_BRANCH_n（drawFrame 可直接读） */
@@ -242,30 +235,48 @@ export function buildStateAt(analysis) {
   keys.forEach(({ id, key, type }, i) => {
     const el = analysis.elements[i];
     if (!el || !el.segments.length) return;
-    const first = el.segments[0];
-    const last = el.segments[el.segments.length - 1];
-    lines.push(`let tt${i} = t;`);
-    lines.push(`if (tt${i} < ${fmt(first.t0)}) tt${i} = ${fmt(first.t0)};`);
-    lines.push(`if (tt${i} > ${fmt(last.t1)}) tt${i} = ${fmt(last.t1)};`);
+    const layout = scenariosOfElement(el);
+    lines.push(`let tf${i} = t;`);
+    lines.push(`if (tf${i} < 0) tf${i} = 0;`);
+    lines.push(`if (tf${i} > ${fmt(layout.filmDuration)}) tf${i} = ${fmt(layout.filmDuration)};`);
+    lines.push(`let tt${i} = 0;`);
     lines.push(`let x${i}, y${i};`);
     const extraKeys = [...new Set(el.segments.flatMap((s) => Object.keys(s.extra ?? {})))];
-    for (const key of extraKeys) lines.push(`let ${key}${i};`);
-    el.segments.forEach((s, j) => {
-      const kw = j === 0 ? 'if' : 'else if';
-      const a = anchorOf(s);
-      const x = toJsExpr(s.x.src, `tt${i}`, a);
-      const y = toJsExpr(s.y.src, `tt${i}`, a);
-      const extra = Object.entries(s.extra ?? {})
-        .map(([k, v]) => ` ${k}${i} = ${toJsExpr(v.src, `tt${i}`, a)};`)
+    for (const k of extraKeys) lines.push(`let ${k}${i};`);
+
+    const emitScenario = (sc, indent) => {
+      const pad = '  '.repeat(indent);
+      lines.push(`${pad}tt${i} = tf${i} - ${fmt(sc.filmStart)} + ${fmt(sc.localT0)};`);
+      sc.segments.forEach((s, j) => {
+        const kw = j === 0 ? 'if' : 'else if';
+        const a = anchorOf(s);
+        const x = toJsExpr(s.x.src, `tt${i}`, a);
+        const y = toJsExpr(s.y.src, `tt${i}`, a);
+        const extra = Object.entries(s.extra ?? {})
+          .map(([k, v]) => ` ${k}${i} = ${toJsExpr(v.src, `tt${i}`, a)};`)
+          .join('');
+        lines.push(`${pad}${kw} (tt${i} <= ${fmt(s.t1)}) { x${i} = ${x}; y${i} = ${y};${extra} }`);
+      });
+      const segLast = sc.segments[sc.segments.length - 1];
+      const lx = toJsExpr(segLast.x.src, `tt${i}`, anchorOf(segLast));
+      const ly = toJsExpr(segLast.y.src, `tt${i}`, anchorOf(segLast));
+      const lastExtra = Object.entries(segLast.extra ?? {})
+        .map(([k, v]) => ` ${k}${i} = ${toJsExpr(v.src, `tt${i}`, anchorOf(segLast))};`)
         .join('');
-      lines.push(`${kw} (tt${i} <= ${fmt(s.t1)}) { x${i} = ${x}; y${i} = ${y};${extra} }`);
+      lines.push(`${pad}else { x${i} = ${lx}; y${i} = ${ly};${lastExtra} }`);
+    };
+
+    layout.scenarios.forEach((sc, si) => {
+      if (si === 0) lines.push(`if (tf${i} <= ${fmt(sc.filmEnd)}) {`);
+      else if (si < layout.scenarios.length - 1) lines.push(`else if (tf${i} <= ${fmt(sc.filmEnd)}) {`);
+      else lines.push('else {');
+      emitScenario(sc, 1);
+      lines.push('}');
     });
-    const lx = toJsExpr(last.x.src, `tt${i}`, anchorOf(last));
-    const ly = toJsExpr(last.y.src, `tt${i}`, anchorOf(last));
-    const lastExtra = Object.entries(last.extra ?? {})
-      .map(([k, v]) => ` ${k}${i} = ${toJsExpr(v.src, `tt${i}`, anchorOf(last))};`)
-      .join('');
-    lines.push(`else { x${i} = ${lx}; y${i} = ${ly};${lastExtra} }`);
+    if (!layout.scenarios.length) {
+      // 理论上不会发生；兜底让变量有值
+      lines.push(`x${i} = 0; y${i} = 0;`);
+    }
 
     const extras = extraKeys.map((k) => `${k}: ${k}${i}`).join(', ');
     lines.push(
@@ -315,7 +326,17 @@ export function buildView(analysis, tPhys) {
         `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.x, b.y]; } }`,
     )
     .join(',\n');
-  const bounds = [...new Set((analysis.elements ?? []).flatMap((e) => e.segments.flatMap((s) => [s.t0, s.t1])))]
+  const bounds = [...new Set(
+    (analysis.elements ?? []).flatMap((el) => {
+      const layout = scenariosOfElement(el);
+      return layout.scenarios.flatMap((sc) =>
+        sc.segments.flatMap((s) => [
+          sc.filmStart + (Number(s.t0) - sc.localT0),
+          sc.filmStart + (Number(s.t1) - sc.localT0),
+        ]),
+      );
+    }),
+  )]
     .filter((v) => Number.isFinite(v))
     .sort((a, b) => a - b);
   const branchTimes = new Set(branchTimesOf(analysis));

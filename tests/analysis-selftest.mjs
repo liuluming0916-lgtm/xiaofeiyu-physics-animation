@@ -21,6 +21,7 @@ import {
 import { ANALYSIS_INSTRUCTION, ANALYSIS_ROLE, buildAnalysisUser } from '../core/prompts/analysis.mjs';
 import { deriveTiming } from '../core/dryrun/question-sources.mjs';
 import { dryRun } from '../core/dryrun/dry-run.mjs';
+import { branchFilmTimes } from '../core/analysis/scenario.mjs';
 
 let passed = 0;
 const failures = [];
@@ -146,6 +147,57 @@ note: 第(3)问分支，回到分叉点重新开始`;
   check('deriveTiming 给出 branchBoundaries（C6 用它跳过分支边界）', timing.branchBoundaries?.includes(1), JSON.stringify(timing));
   check('stateAt 同时包含两段', /tt0 <= 1/.test(slots.stateAt) && /tt0 <= 2/.test(slots.stateAt));
   branchFixture = { slots, tPhys: br.tPhys, timing };
+}
+
+/**
+ * 零时刻场景切换（q07）：主场景 0–1，然后从 0 开始的另一套场景 0–2。
+ * 动画时间轴应首尾相接为 3 s；切换时刻在 1 s。
+ */
+{
+  const RESET = `element: ball
+type: ball
+segment: 1
+t0: 0
+t1: 1
+x0: 0
+y0: 0
+vx0: 1
+vy0: 0
+ax: 0
+ay: 0
+x: x0 + vx0*(t - t0)
+y: y0
+note: 主场景
+
+element: ball
+type: ball
+segment: 2
+branch: true
+t0: 0
+t1: 2
+x0: 5
+y0: 0
+vx0: 1
+vy0: 0
+ax: 0
+ay: 0
+x: x0 + vx0*(t - t0)
+y: y0
+note: 零时刻场景切换`;
+  const zr = parseAnalysisTable(RESET);
+  check('★ 零时刻场景切换解析通过', zr.ok, zr.problems.map((p) => p.message).join(' / '));
+  check('★ 零时刻场景切换后 T_phys = 1 + 2 = 3', zr.tPhys === 3, String(zr.tPhys));
+  check('★ 分支时刻落在主场景末尾 1 s', branchFilmTimes(zr).join(',') === '1', JSON.stringify(branchFilmTimes(zr)));
+  const zs = generateProgramSlots({
+    analysis: zr,
+    problem: '测试题',
+    breakdownText: 'title: 主场景\ntex: 主场景\n\ntitle: 另一种情形\ntex: 切换',
+    drawFrame: 'Draw.circle([state.ball.x, state.ball.y], 0.1);',
+  });
+  check('★ 零时刻场景 VIEW.duration = 3', /duration:\s*3/.test(zs.VIEW), zs.VIEW);
+  check('★ 零时刻场景 VIEW 在 1 s 标 branch', /t0:\s*1,\s*t1:\s*3,\s*branch:\s*true/.test(zs.VIEW), zs.VIEW);
+  check('★ setup 暴露 T_BRANCH_1 = 1', /T_BRANCH_1\s*=\s*1/.test(zs.setup), zs.setup);
+  check('★ stateAt 用 tf 钳到 3 s', /tf0 > 3/.test(zs.stateAt) || /tf0 = 3/.test(zs.stateAt), zs.stateAt);
 }
 
 /**

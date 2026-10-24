@@ -44,6 +44,7 @@ import { buildJudgementVocabV2, parseJudgementV2 } from '../knowledgecard/v2/pro
 import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
 import { parseAnswersSlot, parseStepsSlot } from '../../sdk/runtime/animation-runtime.mjs';
 import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, buildStepsText, parseBreakdownSteps, physicalTableFromEntries } from '../analysis/index.mjs';
+import { branchFilmTimes } from '../analysis/scenario.mjs';
 import { parseStepTimes, fallbackStepTimes } from '../couple/index.mjs';
 import { buildDisplayTiming } from '../timing/display-time.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
@@ -506,18 +507,7 @@ export async function* runPipeline(input) {
       scene_code: {
         problem: problem.text,
         analysisText: () => (analysisParsed ? formatAnalysis(analysisParsed) : ''),
-        branchTimes: () =>
-          analysisParsed?.elements
-            ? [
-                ...new Set(
-                  analysisParsed.elements.flatMap((el) =>
-                    el.segments.filter((s) => s.branch === true).map((s) => s.t0),
-                  ),
-                ),
-              ]
-                .filter((v) => Number.isFinite(v) && v >= 0)
-                .sort((a, b) => a - b)
-            : [],
+        branchTimes: () => (analysisParsed ? branchFilmTimes(analysisParsed) : []),
         readProblem: () => outputs.read_problem,
         ...(descriptionFor('scene_code') ? { description: descriptionFor('scene_code') } : {}),
         ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),
@@ -702,17 +692,7 @@ export async function* runPipeline(input) {
        */
       const steps = parseStepsSlot(buildStepsText(outputs.breakdown ?? '', analysisParsed, analysisParsed.tPhys));
       const tPhys = analysisParsed.tPhys;
-      const coupleBranchTimes = analysisParsed?.elements
-        ? [
-            ...new Set(
-              analysisParsed.elements.flatMap((el) =>
-                el.segments.filter((s) => s.branch === true).map((s) => s.t0),
-              ),
-            ),
-          ]
-            .filter((v) => Number.isFinite(v) && v >= 0)
-            .sort((a, b) => a - b)
-        : [];
+      const coupleBranchTimes = analysisParsed ? branchFilmTimes(analysisParsed) : [];
       let feedback = [];
       let lastText = '';
       let parsedOk = false;
@@ -1322,17 +1302,7 @@ export async function* runPipeline(input) {
             .filter((v) => Number.isFinite(v) && v >= 0)
             .sort((a, b) => a - b)
         : [];
-      const branchBoundaries = analysisParsed?.elements
-        ? [
-            ...new Set(
-              analysisParsed.elements.flatMap((el) =>
-                el.segments.filter((s) => s.branch === true).map((s) => s.t0),
-              ),
-            ),
-          ]
-            .filter((v) => Number.isFinite(v) && v >= 0)
-            .sort((a, b) => a - b)
-        : [];
+      const branchBoundaries = analysisParsed ? branchFilmTimes(analysisParsed) : [];
       return dryRunImpl({
         slots,
         entry,
@@ -1575,17 +1545,7 @@ export async function* runPipeline(input) {
       });
       const stageStarted = Date.now();
       const repairPrompt = getPrompt('repair', snapshot.rules);
-      const repairBranchTimes = analysisParsed?.elements
-        ? [
-            ...new Set(
-              analysisParsed.elements.flatMap((el) =>
-                el.segments.filter((s) => s.branch === true).map((s) => s.t0),
-              ),
-            ),
-          ]
-            .filter((v) => Number.isFinite(v) && v >= 0)
-            .sort((a, b) => a - b)
-        : [];
+      const repairBranchTimes = analysisParsed ? branchFilmTimes(analysisParsed) : [];
       const assembled = assemblePrompt({
         problem: {
           text: repairPrompt.buildUser({

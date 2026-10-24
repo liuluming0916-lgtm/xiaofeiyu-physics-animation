@@ -82,6 +82,7 @@ check('repair user 带分支时刻', repairUser.includes('3.82645'));
 
 const couple = getPrompt('couple');
 check('couple 只输出 step/sub/t0/t1', couple.system.includes('step / sub / t0 / t1') || couple.system.includes('step: 1'));
+check('couple 有“连续过程保持完整”的正面引导', couple.system.includes('同一个连续过程要保持完整'));
 const coupleUser = couple.buildUser({
   problem: 'p',
   analysisText: '=== 元件运动表 (MOTIONS) ===',

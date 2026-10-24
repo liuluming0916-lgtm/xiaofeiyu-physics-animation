@@ -31,6 +31,7 @@
  */
 
 import { compileT } from './expr.mjs';
+import { analysisFilmDuration } from './scenario.mjs';
 
 export const ANALYSIS_FORMAT = 'od-analysis';
 export const ANALYSIS_VERSION = 2;
@@ -427,6 +428,14 @@ export function parseAnalysisTable(text, opts = {}) {
     for (let i = 1; i < list.length; i += 1) {
       const prev = list[i - 1];
       const next = list[i];
+      /**
+       * 零时刻场景切换：`branch: true` + `t0: 0`，前面已有主过程。
+       * 这是“从 0 开始的另一种情形”，不是时间轴重叠；动画层会把它
+       * 首尾相接（主场景结束后切到新场景的 0 时刻）。
+       */
+      if (next.branch === true && Math.abs(Number(next.t0)) <= 1e-9 && prev.t1 > 0) {
+        continue;
+      }
       if (nearlyEqual(prev.t1, next.t0, 1e-9, 1e-9)) {
         /**
          * v1.1.19：`branch: true` 是**场景分支**，允许位置在分叉点重置
@@ -469,11 +478,12 @@ export function parseAnalysisTable(text, opts = {}) {
     }
   }
 
-  const tPhys = segments.length ? Math.max(...segments.map((s) => s.t1)) : null;
   const outElements = [...grouped.entries()].map(([id, list]) => {
     const types = [...new Set(list.map((s) => s.type).filter(Boolean))];
     return { id, type: types[0] ?? 'unknown', segments: list };
   });
+  /* 动画总时长：普通题 = 最晚 t1；零时刻场景切换 = 各场景时长首尾相接之和 */
+  const tPhys = segments.length ? analysisFilmDuration({ elements: outElements }) : null;
 
   return {
     format: ANALYSIS_FORMAT,
