@@ -14,12 +14,17 @@ from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 
 HERE = Path(__file__).resolve().parent
-SRC = HERE / "软件说明书.md"
-OUT = HERE / "软件说明书.docx"
+ROOT = HERE.parents[1]
 
 spec = importlib.util.spec_from_file_location("gpd", HERE / "gen-process-docs.py")
 gpd = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gpd)
+
+# 两份都要转：说明书（交软著）+ 用户手册（随包分发）
+TARGETS = [
+    ROOT / "docs" / "软著" / "软件说明书.md",
+    ROOT / "docs" / "用户手册.md",
+]
 
 
 def add_page_number(paragraph):
@@ -55,8 +60,8 @@ def add_placeholder(doc, text):
     r.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
 
 
-def build():
-    lines = SRC.read_text(encoding="utf-8").splitlines()
+def build(src: Path) -> Path:
+    lines = src.read_text(encoding="utf-8").splitlines()
     doc = gpd.new_doc()
     add_page_number(doc.sections[0].footer.paragraphs[0])
 
@@ -111,10 +116,16 @@ def build():
             gpd.add_para(doc, s)
         i += 1
 
-    doc.save(OUT)
-    print(f"✓ {OUT.name} · {OUT.stat().st_size / 1024:.0f} KB")
+    out = src.with_suffix(".docx")
+    doc.save(out)
+    return out
 
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
-    build()
+    for target in TARGETS:
+        if not target.exists():
+            print(f"跳过（不存在）：{target.name}")
+            continue
+        path = build(target)
+        print(f"✓ {path.relative_to(ROOT)} · {path.stat().st_size / 1024:.0f} KB")

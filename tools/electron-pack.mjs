@@ -121,6 +121,19 @@ function main() {
   }
   console.log('  ✓ 许可文件已放在 exe 旁边');
 
+  /**
+   * ④-2 用户手册（PDF）：由 docs/用户手册.md 排版后生成。
+   *   有就带上；没有**只告警不中断** —— 手册是发布前才定稿的，不该卡住打包。
+   *   但发布时一定要有，否则老师装完只有个 exe，连怎么用都不知道。
+   */
+  const manualPdf = join(PROJECT_ROOT, 'docs', '用户手册.pdf');
+  if (existsSync(manualPdf)) {
+    copyFileSync(manualPdf, join(APP_DIR, '用户手册.pdf'));
+    console.log('  ✓ 用户手册.pdf 已放入');
+  } else {
+    console.warn('  ⚠ 没有 docs/用户手册.pdf —— 本次发布包不带使用说明（发布前必须补）');
+  }
+
   /* ⑤ 冒烟：先 `--version`，再真跑一遍自检（服务 / 首页 / 账本 / Worker） */
   console.log('\n──────── ④ 冒烟 ────────');
   const ver = spawnSync(dstExe, ['--version'], { stdio: 'inherit', timeout: 60_000 });

@@ -1,5 +1,5 @@
 /**
- * 公测日志提示（v1.1.7）
+ * 公测日志提示（v1.1.7 起；v1.2 改口径）
  *
  * ── 为什么必须"第一次进解题页就说清楚" ──
  *
@@ -9,6 +9,10 @@
  *   ② 以为是垃圾文件随手删掉 —— 而它恰恰是出问题时唯一能自查/求助的东西。
  *
  * 所以口径写死三句：**自动导出、只在本机、不含 Key**。
+ *
+ * ── v1.2 改了两处 ──
+ *   ① 补上"联系方式在关于里"：日志再全，找不到人也是白搭（公测版最要命的一条）；
+ *   ② 文案口径与日志实际内容对齐（四样，不是三样）——**告知不能少于实收**。
  *
  * ── "不再弹出"为什么存在 ──
  *
@@ -22,7 +26,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 /** localStorage 键（带版本，改口径就换键） */
-export const NOTICE_KEY = 'od-open-log-notice-v1.1.7'
+export const NOTICE_KEY = 'od-open-log-notice-v1.2.0'
 
 /**
  * 本次启动是否已经提示过（**模块级**，刷新页面即重置）。
@@ -85,23 +89,23 @@ export function OpenLogNotice() {
       <div className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <h2 id="open-log-title" className="text-base font-medium text-slate-900">
-            公测版会自动导出运行日志
+            公测版会自动保留运行日志
           </h2>
           <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">v1.2 · 公测</span>
         </div>
 
         <p className="mt-2 text-sm text-slate-700">
-          从这一版开始，<strong>每跑完一道题都会自动留存一份现场</strong>（成功、报错、取消都留），
-          导出到 <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">{LOG_DIR_HINT}</code> 文件夹。
-          内容只有这四样：
+          <strong>每次跑完一道题（成功、报错、取消都会留）</strong>，软件会在
+          <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">{LOG_DIR_HINT}</code>
+          里留一份现场。内容只有这四样：
         </p>
 
         <ul className="mt-2 space-y-1 text-sm text-slate-700">
           <li>
-            · <strong>门禁拦在哪</strong>：C1–C9 里是哪一条没过、原话是什么
+            · <strong>出错原因</strong>：C1–C9 里是哪一条没过、原话是什么
           </li>
           <li>
-            · <strong>你与大模型的对话</strong>：发出去的提示词 + 模型的完整回答
+            · <strong>本次的提示词与模型回答</strong>：发出去的原话 + 返回的完整内容
           </li>
           <li>
             · <strong>动画代码</strong>：这次生成的 8 个槽位
@@ -112,10 +116,10 @@ export function OpenLogNotice() {
         </ul>
 
         <p className="mt-3 rounded bg-emerald-50 p-2 text-xs text-emerald-900">
-          <strong>只在本机</strong>：软件不会上传任何东西。
-          <strong>不含 Key</strong>：API Key 与绝对路径都会先抹掉再写文件。
-          每次是一对文件：<code>.html</code>（双击就能看）+ <code>.json</code>（给开发者排查用）。
-          遇到问题时，把整个「开源日志」文件夹打包发给开发者即可。
+          <strong>只在本机</strong>：软件不会上传任何内容，包括你的 API Key 与绝对路径——
+          写文件前会先抹掉。<strong>一次运行留下一对文件</strong>：<code>.html</code>（双击就能看）+
+          <code>.json</code>（给我排查用）。遇到问题时，把整个「开源日志」文件夹打包发给我，
+          <strong>联系方式在「关于」里</strong>。
         </p>
 
         <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
