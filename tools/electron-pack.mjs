@@ -8,8 +8,8 @@
  * 本沙箱禁止"捕获子进程输出"（EPERM），那条路走不通。
  * 而**绿色版根本不需要它**：Electron 运行时的布局是固定的 ——
  *
- *     物理解题动画/
- *       物理解题动画.exe            ← 就是 electron.exe，改名
+ *     小肥鱼物理动画/
+ *       小肥鱼物理动画.exe            ← 就是 electron.exe，改名
  *       resources/app.asar         ← 我们的代码（package.json 的 main 指 electron/main.cjs）
  *       resources/app.asar.unpacked/  ← 原生模块（*.node）
  *
@@ -40,7 +40,7 @@ import {
 const ELECTRON_VERSION = process.env.OD_ELECTRON_VERSION ?? '35.7.5';
 const ZIP = join(PROJECT_ROOT, '.cache-electron', `electron-v${ELECTRON_VERSION}-win32-x64.zip`);
 const OUT_ROOT = join(PROJECT_ROOT, 'release');
-const APP_DIR = join(OUT_ROOT, '物理解题动画');
+const APP_DIR = join(OUT_ROOT, '小肥鱼物理动画');
 const RES = join(APP_DIR, 'resources');
 const payloadDir = join(PROJECT_ROOT, '.tmp', 'payload-pack');
 
@@ -105,7 +105,7 @@ function main() {
     console.warn(`  ⚠ 诊断脚本没放进去：${e.message}`);
   }
   const srcExe = join(APP_DIR, 'electron.exe');
-  const dstExe = join(APP_DIR, '物理解题动画.exe');
+  const dstExe = join(APP_DIR, '小肥鱼物理动画.exe');
   if (existsSync(srcExe)) {
     rmSync(dstExe, { force: true });
     renameSync(srcExe, dstExe);
@@ -175,7 +175,7 @@ function main() {
   const must = [
     'resources/app.asar',
     'resources/app.asar.unpacked/node_modules/better-sqlite3/prebuilds/win32-x64.node',
-    '物理解题动画.exe',
+    '小肥鱼物理动画.exe',
     '启动并诊断.bat',
   ];
   let missing = 0;
@@ -192,9 +192,9 @@ function main() {
 
   if (process.argv.includes('--zip')) {
     console.log('\n打包成 zip（便于拷贝给别人）…');
-    const zipOut = join(OUT_ROOT, `物理解题动画-v${VERSION}-win-x64.zip`);
+    const zipOut = join(OUT_ROOT, `小肥鱼物理动画-v${VERSION}-win-x64.zip`);
     rmSync(zipOut, { force: true });
-    const r = spawnSync('tar', ['-a', '-c', '-f', zipOut, '-C', OUT_ROOT, '物理解题动画'], { stdio: 'inherit' });
+    const r = spawnSync('tar', ['-a', '-c', '-f', zipOut, '-C', OUT_ROOT, '小肥鱼物理动画'], { stdio: 'inherit' });
     console.log(r.status === 0 ? `  ✓ ${zipOut}` : `  ✗ 压缩失败（exit ${r.status}）`);
     if (r.status !== 0) process.exitCode = 1;
   }

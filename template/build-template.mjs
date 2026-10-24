@@ -222,7 +222,7 @@ function galleryHtml(items, meta) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>物理解题动画 · 第 1 期回归题集（15 道）</title>
+<title>小肥鱼物理动画 · 第 1 期回归题集（15 道）</title>
 <style>
   :root {
     --bg: oklch(98.2% 0.004 250); --surface: oklch(100% 0 0); --fg: oklch(25.5% 0.021 250);
@@ -256,7 +256,7 @@ function galleryHtml(items, meta) {
 <body>
 <header>
   <div class="wrap">
-    <h1>物理解题动画 · 第 1 期回归题集</h1>
+    <h1>小肥鱼物理动画 · 第 1 期回归题集</h1>
     <p class="sub">§19.5 手写 15 道题 · 模板 v${meta.templateVersion} · SDK v${meta.sdkVersion} · 契约 ${meta.contractHash.slice(0, 12)} · Dry-Run 判定：${meta.passCount}/${meta.total} 全通过</p>
   </div>
 </header>

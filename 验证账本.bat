@@ -3,16 +3,16 @@ chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 rem 账本/Worker 自检一键验证：
-rem   放在仓库根目录时，跑 release\物理解题动画\物理解题动画.exe；
+rem   放在仓库根目录时，跑 release\小肥鱼物理动画\小肥鱼物理动画.exe；
 rem   放在 exe 旁边时，直接跑当前目录的 exe。
-if exist "%~dp0物理解题动画.exe" (
+if exist "%~dp0小肥鱼物理动画.exe" (
   cd /d "%~dp0"
 ) else (
-  cd /d "%~dp0release\物理解题动画"
+  cd /d "%~dp0release\小肥鱼物理动画"
 )
 
-if not exist "物理解题动画.exe" (
-  echo [ERR] 找不到 物理解题动画.exe
+if not exist "小肥鱼物理动画.exe" (
+  echo [ERR] 找不到 小肥鱼物理动画.exe
   echo       当前目录：%CD%
   pause
   exit /b 1
@@ -24,7 +24,7 @@ echo   v1.1.19 账本自检（最多 90 秒）
 echo ==========================================
 echo   目录：%CD%
 echo.
-echo 请先关闭所有已打开的「物理解题动画」窗口，再继续。
+echo 请先关闭所有已打开的「小肥鱼物理动画」窗口，再继续。
 echo.
 
 set OD_SELFTEST=1
@@ -33,7 +33,7 @@ if exist "%TEMP%\od-selftest.txt" del "%TEMP%\od-selftest.txt" >nul 2>nul
 if exist "%TEMP%\od-shell.log" del "%TEMP%\od-shell.log" >nul 2>nul
 
 echo 正在启动自检（不打开窗口）...
-powershell -NoProfile -Command "$p = Start-Process -FilePath '.\物理解题动画.exe' -ArgumentList '--no-sandbox','--disable-gpu' -PassThru; if (-not $p.WaitForExit(90000)) { $p.Kill(); Write-Host 'TIMEOUT: 90 秒未退出，已结束进程' } else { Write-Host ('exit=' + $p.ExitCode) }"
+powershell -NoProfile -Command "$p = Start-Process -FilePath '.\小肥鱼物理动画.exe' -ArgumentList '--no-sandbox','--disable-gpu' -PassThru; if (-not $p.WaitForExit(90000)) { $p.Kill(); Write-Host 'TIMEOUT: 90 秒未退出，已结束进程' } else { Write-Host ('exit=' + $p.ExitCode) }"
 set OD_SELFTEST=
 set OD_SELFTEST_OUT=
 

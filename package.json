@@ -1,10 +1,10 @@
 {
-  "name": "physics-animation-studio",
+  "name": "xiaofeiyu-physics-animation",
   "version": "1.1.19",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
-  "description": "物理解题动画软件 v1.1.19 · 解题 → 动画 → 导出（v6 链路；方案二物理世界坐标 + 自动取景；每小问 4 秒；知识卡 v2；按阶段补充信息；发布载荷 app.asar）",
+  "description": "小肥鱼物理动画软件 v1.1.19 · 解题 → 动画 → 导出（v6 链路；方案二物理世界坐标 + 自动取景；每小问 4 秒；知识卡 v2；按阶段补充信息；发布载荷 app.asar）",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=20"
@@ -45,8 +45,8 @@
     "mathjax-full": "^3.2.2"
   },
   "build": {
-    "appId": "com.od.physics-animation",
-    "productName": "物理解题动画",
+    "appId": "com.xiaofeiyu.physics-animation",
+    "productName": "小肥鱼物理动画",
     "copyright": "v1.1.19 · 自研",
     "directories": {
       "output": "release",
@@ -81,7 +81,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "物理解题动画",
+      "shortcutName": "小肥鱼物理动画",
       "deleteAppDataOnUninstall": false
     }
   }

@@ -39,7 +39,7 @@ import {
 
 const NODE = resolveNodeBin().bin;
 const releaseDir = join(PROJECT_ROOT, 'release');
-const baseName = '物理解题动画';
+const baseName = '小肥鱼物理动画';
 /* 目录名跟 package.json 版本走 —— 写死版本会在发下一版时悄悄骗人 */
 const pkgJson = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf8'));
 const VERSION = pkgJson.version;
@@ -194,7 +194,7 @@ function report(mb) {
   console.log(`  绿色版：release\\${targetName}`);
   console.log(`  体积：${mb} MB（含运行时；载荷 ${(statSync(asarPath).size / 1024 / 1024).toFixed(1)} MB）`);
   console.log(`  源码形态：resources\\app.asar + app.asar.unpacked（**没有** resources\\app 目录）`);
-  console.log('  双击 物理解题动画.exe 即可运行。');
+  console.log('  双击 小肥鱼物理动画.exe 即可运行。');
 }
 
 function main() {

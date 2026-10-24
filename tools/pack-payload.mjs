@@ -307,13 +307,13 @@ const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(imp
 if (isMain) {
   const [cmd, dir] = process.argv.slice(2);
   if (cmd !== 'verify') {
-    console.error('用法：node tools/pack-payload.mjs verify <release\\物理解题动画-vX.Y.Z\\resources>');
+    console.error('用法：node tools/pack-payload.mjs verify <release\\小肥鱼物理动画-vX.Y.Z\\resources>');
     process.exitCode = 2;
   } else {
     try {
       const pkg = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf8'));
       const resources =
-        dir ?? join(PROJECT_ROOT, 'release', `物理解题动画-v${pkg.version}`, 'resources');
+        dir ?? join(PROJECT_ROOT, 'release', `小肥鱼物理动画-v${pkg.version}`, 'resources');
       const stats = verifyPackagedAsar(resources, { expectVersion: pkg.version });
       console.log(`✓ ${describeAsar(stats)}`);
       console.log('✓ 没有 resources/app 目录');

@@ -718,7 +718,7 @@ export function renderHtml(record) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>物理解题动画 · 运行日志 ${esc(r.runId ?? '')}</title>
+<title>小肥鱼物理动画 · 运行日志 ${esc(r.runId ?? '')}</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -758,7 +758,7 @@ export function renderHtml(record) {
 <body>
 <div class="wrap">
   <div class="head">
-    <h1>物理解题动画 · 运行日志 ${badge(`v${esc(record?.appVersion ?? '?')}`, 'slate')}</h1>
+    <h1>小肥鱼物理动画 · 运行日志 ${badge(`v${esc(record?.appVersion ?? '?')}`, 'slate')}</h1>
     <div class="meta">
       <span>运行号：<code>${esc(r.runId ?? '—')}</code></span>
       <span>开始：${esc(fmtTime(r.startedAt))}</span>
@@ -815,7 +815,7 @@ export function renderHtml(record) {
   ${imagesHtml ? `<h2>⑥ 图片（内嵌）</h2>${imagesHtml}` : ''}
 
   <footer>
-    由「物理解题动画 v${esc(record?.appVersion ?? '?')}」自动导出 · ${esc(fmtTime(record?.exportedAt))}<br>
+    由「小肥鱼物理动画 v${esc(record?.appVersion ?? '?')}」自动导出 · ${esc(fmtTime(record?.exportedAt))}<br>
     同一份数据见同名 <code>.json</code> 文件。日志里不含 API Key，路径已抹去。
   </footer>
 </div>

@@ -5,7 +5,7 @@
 > **哪个路径适用哪份协议，只看本文件**，不要从文件名猜。
 > 中文说明仅供参考；与许可证原文冲突时，以原文为准。
 
-物理解题动画（physics-animation-studio）
+小肥鱼物理动画（xiaofeiyu-physics-animation）
 Copyright (C) 2026 〔待填：著作权人〕
 
 ---
@@ -17,7 +17,7 @@ Copyright (C) 2026 〔待填：著作权人〕
 | **程序源码** | `core/`、`contracts/`、`sdk/`、`web/src/`、`electron/`、`tools/`、`tests/`、`template/`、`package.json`、根目录 `*.bat` | **AGPL-3.0-only**（[LICENSE](LICENSE)） | 能，但必须开源回流（见 §三） |
 | **文档** | `docs/`、`README.md`、`项目现状与路线.md`、`AGENTS.md` | **CC BY-NC-SA 4.0**（[LICENSE-DOCS](LICENSE-DOCS)） | **不能** |
 | **知识卡 / 提示词 / 词表** | `core/knowledgecard/data-v2/`、`core/prompts/`、`contracts/knowledgecard-vocab-v2.json` | **CC BY-NC-SA 4.0** | **不能** |
-| **名称与标识** | “物理解题动画”、Logo、应用图标 | 保留（[TRADEMARK.md](TRADEMARK.md)） | 需授权 |
+| **名称与标识** | “小肥鱼物理动画”、Logo、应用图标 | 保留（[TRADEMARK.md](TRADEMARK.md)） | 需授权 |
 | **你导出的东西** | 用本软件生成的网页 / GIF / 视频 / 截图 | **归你**，不受本文件限制（见 §四） | 能 |
 | **第三方组件** | `node_modules/`、Electron、Chromium | 各自协议（见 §五） | 各自协议 |
 
@@ -111,7 +111,26 @@ Copyright (C) 2026 〔待填：著作权人〕
 
 ---
 
-## 六、只想记一句话
+## 六、美术素材
+
+界面里的鱼形象（`web/public/fish/*.webp`，16 张）来源分两类。
+**这些图的许可跟着来源走，不由本文件授权**——本项目替原作者授不了权。
+
+| 素材 | 来源 | 现状 | 说明 |
+|---|---|---|---|
+| 阶段图 16 张 | 网络流传的开源表情包（“小肥鱼”，DeepSeek 网传梗的二次创作） | ⚠ **待补作者与协议** | 若原包为 CC0 / MIT → 可用；CC BY → 需署名；**CC BY-NC 或“仅可免费下载” → 不可用于商业分发** |
+| 其余插画、图标 | 本项目使用 AI 图像模型生成 | ✅ 可用 | 生成平台条款允许商用；保留生成记录与提示词，备权属举证 |
+
+**为什么单列**：这些图既不是程序也不是文档，著作权在第三方手里。
+本项目能声明“我按什么协议发布程序”，声明不了“别人画的图归我”。
+
+发布前必须把第一行的**作者与协议**补齐（见 [1.2 许可落地检查单](docs/1.2-许可落地检查单.md)）。
+补不上时最干净的做法：**换成自己生成或重画的版本**，整套素材都归你，
+也顺带避免替 DeepSeek 的鲸鱼图形背书（见 [TRADEMARK §四](TRADEMARK.md)）。
+
+---
+
+## 七、只想记一句话
 
 > 自己用、教学用、改着玩：**随便。**
 > 拿去卖、闭源集成、做成付费产品：**先看 [COMMERCIAL.md](COMMERCIAL.md)。**
@@ -119,7 +138,7 @@ Copyright (C) 2026 〔待填：著作权人〕
 
 ---
 
-## 七、本文件缺失时
+## 八、本文件缺失时
 
 如果发布包里没有 `NOTICE` / `LICENSE` / `LICENSE-DOCS`，说明这份分发**不符合本项目要求**，
 请到〔待填：仓库地址〕获取完整版本。
