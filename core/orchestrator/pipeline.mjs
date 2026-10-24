@@ -506,6 +506,18 @@ export async function* runPipeline(input) {
       scene_code: {
         problem: problem.text,
         analysisText: () => (analysisParsed ? formatAnalysis(analysisParsed) : ''),
+        branchTimes: () =>
+          analysisParsed?.elements
+            ? [
+                ...new Set(
+                  analysisParsed.elements.flatMap((el) =>
+                    el.segments.filter((s) => s.branch === true).map((s) => s.t0),
+                  ),
+                ),
+              ]
+                .filter((v) => Number.isFinite(v) && v >= 0)
+                .sort((a, b) => a - b)
+            : [],
         readProblem: () => outputs.read_problem,
         ...(descriptionFor('scene_code') ? { description: descriptionFor('scene_code') } : {}),
         ...(problem.knownConditions ? { knownConditions: problem.knownConditions } : {}),

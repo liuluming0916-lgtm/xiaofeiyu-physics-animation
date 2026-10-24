@@ -51,13 +51,17 @@ check('scene_code 只写 drawFrame', scene.system.includes('只输出 drawFrame 
 check('scene_code 不再要求 8 槽位标记', !scene.system.includes('@slot:'));
 check('scene_code 不写字', scene.system.includes('不写任何文字'));
 check('scene_code 不画 v/a', scene.system.includes('不要画 v/a'));
+check('scene_code 轨迹强制', scene.system.includes('每个有位移的运动元件都要用 `Draw.trace`'));
+check('scene_code 不画 force', !scene.system.includes('force'));
 const sceneUser = scene.buildUser({
   problem: 'p',
   analysisText: '=== 元件运动表 (MOTIONS) ===',
+  branchTimes: [3.82645],
   stateMap: [{ id: 'block_A', key: 'block_A' }],
 });
 check('scene_code user 带分析表', sceneUser.includes('物理分析'));
 check('scene_code user 带 state 映射', sceneUser.includes('block_A = block_A'));
+check('scene_code user 带分支时刻', sceneUser.includes('3.82645'));
 
 const repair = getPrompt('repair');
 check('repair 只修 drawFrame', repair.system.includes('新的 drawFrame 函数体') || repair.system.includes('只修 drawFrame 的函数体'));
