@@ -933,7 +933,7 @@ const STAGE_SAY: Record<string, string> = {
   scene_code: '小肥鱼正在努力画画…',
   dry_run: '小肥鱼正在检查…',
   repair: '小肥鱼正在完善…',
-  couple: '小肥鱼正在做最后对齐…',
+  couple: '小肥鱼正在对齐步骤…',
 }
 
 /** 阶段 → 漫画分镜（图来自「表情包」3×3 拼图，已裁成 512×512 webp） */
@@ -945,7 +945,7 @@ const STAGE_FISH: Record<string, string> = {
   scene_code: 'draw',
   dry_run: 'check',
   repair: 'repair',
-  couple: 'done',
+  couple: 'think',
 }
 
 /**
