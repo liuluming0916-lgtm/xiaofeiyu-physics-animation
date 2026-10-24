@@ -1,8 +1,11 @@
 /**
- * `repair` 阶段提示词（新链路）——只修 drawFrame。
+ * `repair` 阶段提示词（方案二：只修 drawFrame）。
  *
  * 旧 repair 会重写 VIEW/setup/stateAt/readouts；新链路这些由 analysis 生成，
  * 修它们等于改物理。所以 repair 只允许改 drawFrame。
+ *
+ * 方案二（2026-10-24）：画面用物理世界坐标（米），尺寸/比例由模型定，允许示意；
+ * 不再有 `cx/cy` / `anchor` / 固定 10×6 纸。
  */
 
 export const REPAIR_ROLE = [
@@ -17,10 +20,9 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【硬性边界】',
   '· 不要改 stateAt、VIEW、readouts、setup、STEPS、ANSWERS —— 它们由程序生成；',
-  '· **位置只用 `state.<key>.cx / .cy`（10×6 布局坐标）**；`state.<key>.x / .y` 是物理米，只给读数用，画图不许用；',
-  '· **尺寸（长度/半径/宽高）由你自己定**，用布局单位写数字即可；state 里没有 `w/h/r`；',
-  '· `state.<key>.anchor` 说明给定的点是底面/顶端/中心，摆元件时要按它偏移；',
-  '· 不要写像素坐标、不要写文字。',
+  '· **位置只用 `state.<key>.x / .y`（物理米，质心）**；没有 `cx/cy`、没有 `anchor`；',
+  '· **尺寸、地面/带/斜面长度、弹簧自然长度都由你定**，用米写数字；允许示意；',
+  '· 不要写像素坐标、不要写文字、不要画 v/a 箭头。',
   '',
   '【按失败检查修复】',
   '· C1（语法/白名单）：只修语法，不换画法；',
@@ -30,8 +32,8 @@ export const REPAIR_INSTRUCTION = [
   '',
   '【示例】只输出这样的函数体：',
   '```js',
-  'Draw.ground(-0.4, 10.4, 0);',
-  'Draw.box([state.block_A.cx, state.block_A.cy + 0.15], 0.4, 0.3);',
+  'Draw.ground(-2, 8, 0);',
+  'Draw.box([state.block_A.x, state.block_A.y], 0.6, 0.4);',
   '```',
 ].join('\n');
 
@@ -56,8 +58,7 @@ export function buildRepairUser({
     '【元件状态字段】',
     ...(stateMap.length
       ? stateMap.map(
-          (m) =>
-            `- ${m.key} = ${m.id}：位置用 state.${m.key}.cx / .cy（布局坐标）；尺寸自己定`,
+          (m) => `- ${m.key} = ${m.id}：位置用 state.${m.key}.x / .y（物理米，质心）；尺寸自己定`,
         )
       : ['（无运动元件）']),
     '',
@@ -80,7 +81,7 @@ export const REPAIR_PROMPT = Object.freeze({
   id: 'repair',
   label: '自愈修复',
   since: 'phase4',
-  duty: '只重画 drawFrame（不碰 analysis 生成的物理）',
+  duty: '只重画 drawFrame（物理世界坐标；不碰 analysis 生成的物理）',
   system: REPAIR_INSTRUCTION,
   buildUser: buildRepairUser,
 });

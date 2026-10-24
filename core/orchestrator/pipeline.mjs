@@ -43,7 +43,7 @@ import { parseJudgement, buildVocabIndex, summarizeUnknowns } from '../knowledge
 import { buildJudgementVocabV2, parseJudgementV2 } from '../knowledgecard/v2/prompt.mjs';
 import { KNOWLEDGECARD_CONCEPTS, SLOT_KEY_NAMES } from '../../contracts/spec/frozen-keys.mjs';
 import { parseAnswersSlot, parseStepsSlot } from '../../sdk/runtime/animation-runtime.mjs';
-import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, t0LayoutStates, anchorForType, buildStepsText, parseBreakdownSteps, physicalTableFromEntries } from '../analysis/index.mjs';
+import { parseAnalysisTable, formatAnalysis, generateProgramSlots, stateKeyMap, buildStepsText, parseBreakdownSteps, physicalTableFromEntries } from '../analysis/index.mjs';
 import { parseStepTimes, fallbackStepTimes } from '../couple/index.mjs';
 import { buildDisplayTiming } from '../timing/display-time.mjs';
 import { buildProgramFromText, mergeRepairOutput, ProgramBuildError, formatSplitDiagnostics } from '../cleaner/index.mjs';
@@ -483,18 +483,14 @@ export async function* runPipeline(input) {
        * 新链路第 5 段：AI 只写 drawFrame。
        * 物理由 analysis 生成，drawFrame 只负责“怎么画”。
        *
-       * 2026-10-24：除了位置与锚点，**尺寸不再由我们提供**（尺寸属于"怎么画"）。
-       * 同时把"第几步 / 这一步对应哪段时间 / t=0 各元件在哪"喂进来 ——
-       * 画图的人得知道自己在画哪一步，否则只能按 `t` 硬编码猜。
+       * 2026-10-24 方案二：state 只给物理 `x/y`；不再给 `cx/cy`、`anchor`、`t0States`。
+       * 画多大、布景怎么摆由 `drawFrame` 自己定；步骤时间仍只喂**通过校验**的表。
        */
       scene_code: {
         problem: problem.text,
         analysisText: () => (analysisParsed ? formatAnalysis(analysisParsed) : ''),
         readProblem: () => outputs.read_problem,
-        stateMap: () =>
-          analysisParsed
-            ? stateKeyMap(analysisParsed).map((m) => ({ ...m, anchor: anchorForType(m.type) }))
-            : [],
+        stateMap: () => (analysisParsed ? stateKeyMap(analysisParsed) : []),
         /* couple 的表：只有**通过校验**的表才喂给画图；兜底均分不进提示词。 */
         steps: () =>
           stepTimesValid && Array.isArray(stepTimes)
@@ -502,7 +498,6 @@ export async function* runPipeline(input) {
                 (s, i) => ({ title: s.title, t0: stepTimes[i]?.t0, t1: stepTimes[i]?.t1 }),
               )
             : [],
-        t0States: () => (analysisParsed ? t0LayoutStates(analysisParsed) : null),
       },
     };
     async function executeStage(stage, index, enqueue) {

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * 元件尺寸 / 锚点自检。
+ * 元件尺寸 / 锚点自检（方案二：物理世界坐标）。
  *
- * 2026-10-24 回滚动画契约后，这里分两件事：
- *   · **绘制**：`state` 只给布局坐标 `cx/cy` + `anchor`，**不给任何尺寸**（尺寸归 drawFrame）；
- *   · **物理**：`physical`（物理米）只喂 `analysis` 算接触点/质心高度，不再进 state。
+ * 2026-10-24 方案二后：
+ *   · **绘制**：`state` 只给 `x/y/type`（物理米、质心），**没有 cx/cy/anchor/尺寸**；
+ *   · **物理**：`physical`（物理米）只喂 `analysis` 算质心高度，不再进 state。
  *
  * 验：
  *   · 内置卡 physical 表：7 类运动元件齐全；
- *   · `state` 没有 `w/h/r`，但有 `cx/cy` 与 `anchor`；
+ *   · `state` 没有 `w/h/r`，也没有 `cx/cy` 与 `anchor`；
  *   · 删掉卡的 physical ⇒ 明确报错，不回退隐藏表；
  *   · 用户卡覆盖 physical ⇒ **不影响 state**（只影响 analysis）。
  */
@@ -70,22 +70,19 @@ console.log('『A』内置卡 → physical 表');
   check('未知类型没有尺寸', geometryFor(table.physical, 'nope').h === undefined);
 }
 
-console.log('\n『B』state 字段（只给布局坐标 + anchor，不给尺寸）');
+console.log('\n『B』state 字段（方案二：只给物理 x/y，不给 cx/cy/anchor/尺寸）');
 {
   const a = parseAnalysisTable(ANALYSIS_EXAMPLE);
   const s0 = stateAt(buildStateAt(a), 0);
   check('block 的 state 键是语义 key（block_A）', s0.block_A?.type === 'block', JSON.stringify(s0.block_A));
   check(
-    'block t=0：x=0、y=0.05（物理），另有布局坐标 cx/cy',
-    s0.block_A.x === 0 &&
-      s0.block_A.y === 0.05 &&
-      Number.isFinite(s0.block_A.cx) &&
-      Number.isFinite(s0.block_A.cy),
+    'block t=0：x=0、y=0.05（物理米，质心）',
+    s0.block_A.x === 0 && s0.block_A.y === 0.05,
     JSON.stringify(s0.block_A),
   );
   check(
-    'block 的 anchor = bottom（底面中心）',
-    s0.block_A.anchor === 'bottom',
+    '★ state 不再带 cx/cy/anchor（方案二）',
+    s0.block_A.cx === undefined && s0.block_A.cy === undefined && s0.block_A.anchor === undefined,
     JSON.stringify(s0.block_A),
   );
   check(
@@ -93,15 +90,10 @@ console.log('\n『B』state 字段（只给布局坐标 + anchor，不给尺寸�
     s0.block_A.w === undefined && s0.block_A.h === undefined && s0.block_A.r === undefined,
     JSON.stringify(s0.block_A),
   );
-  check(
-    '布局坐标落在 10×6 纸内',
-    s0.block_A.cx >= 0 && s0.block_A.cx <= 10 && s0.block_A.cy >= 0 && s0.block_A.cy <= 6,
-    `${s0.block_A.cx}, ${s0.block_A.cy}`,
-  );
 
   const view = buildView(a, a.tPhys);
-  check('VIEW 的 body 用 cx/cy（布局坐标）', view.includes('b.cx, b.cy'), view);
-  check('VIEW 的 stage 不带 s/cx/cy（否则 Draw 会二次折算）', !/"s":|"cx":|"cy":/.test(view), view);
+  check('★ VIEW 的 body 用物理 x/y', view.includes('b.x, b.y'), view);
+  check('★ VIEW 不再带 SIM.stage（方案二）', !view.includes('stage'), view);
 
   const ballText = [
     'element: ball_A',
@@ -120,8 +112,10 @@ console.log('\n『B』state 字段（只给布局坐标 + anchor，不给尺寸�
   ].join('\n');
   const sb = stateAt(buildStateAt(parseAnalysisTable(ballText)), 0);
   check(
-    'ball 只给位置 + anchor=bottom，不给 r/w/h',
-    sb.ball_A?.anchor === 'bottom' &&
+    'ball 只给物理位置，不给 anchor/r/w/h',
+    sb.ball_A?.x === 0 &&
+      sb.ball_A?.y === 0.05 &&
+      sb.ball_A?.anchor === undefined &&
       sb.ball_A?.r === undefined &&
       sb.ball_A?.w === undefined &&
       sb.ball_A?.h === undefined,
@@ -131,8 +125,8 @@ console.log('\n『B』state 字段（只给布局坐标 + anchor，不给尺寸�
   const unknown = parseAnalysisTable(ANALYSIS_EXAMPLE.replace(/^type: block\n/gm, ''));
   const su = stateAt(buildStateAt(unknown), 0);
   check(
-    '缺 type 退化为 unknown + anchor=center + 无尺寸',
-    su.block_A?.type === 'unknown' && su.block_A?.anchor === 'center' && su.block_A?.w === undefined,
+    '缺 type 退化为 unknown + 只给 x/y',
+    su.block_A?.type === 'unknown' && su.block_A?.x === 0 && su.block_A?.anchor === undefined,
     JSON.stringify(su.block_A),
   );
 }

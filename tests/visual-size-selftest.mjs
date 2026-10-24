@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
- * 布局坐标门禁（2026-10-24 回滚动画契约后）。
+ * 方案二绘制门禁（2026-10-24：物理世界坐标 + 相机自动取景）。
  *
  * 判什么：
- *   1. `state` **只给位置**（`cx/cy` + `anchor`），**不给尺寸**（没有 w/h/r）；
- *   2. `Draw` **不再折算坐标**：drwFrame 写的就是纸面单位，原样进命令缓冲；
- *   3. 相机固定拍 10×6 纸：**同一个 drawFrame 在 1.2 m 与 1.2×10⁶ m 的题里像素尺寸相同**
- *      —— 这条是"物块只剩 4 px"那个病的回归钉；
- *   4. 画到纸外仍要告警一次（不静默）；
- *   5. 老程序（无 `SIM.stage`）不受影响；手动放大只改相机，不动纸面与物理。
+ *   1. `state` 只给 `x/y/type`（物理米、质心）；**没有 cx/cy、anchor、w/h/r**；
+ *   2. `VIEW` **没有 SIM.stage**；`bodies.at` 返回物理 `[x,y]`；
+ *   3. `Draw` 不再折算坐标：drawFrame 写多少（米）就是多少；
+ *   4. 相机自动取景：世界跨度变了，像素比例跟着变（这是方案二接受的代价）；
+ *      主体仍在画布内；
+ *   5. 老程序（无 stage）行为不变；
+ *   6. 手动放大只改相机，不动物理与 state。
  */
 import { parseAnalysisTable } from '../core/analysis/parse.mjs';
 import { generateProgramSlots } from '../core/analysis/generate.mjs';
@@ -49,7 +50,7 @@ function build(span, drawFrame, type = 'block') {
   player.state.mask = { velocity: false, acceleration: false, force: false, aux: false, trace: false, grid: false };
   player.state.t = 0;
   const frame = player.render();
-  return { player, frame, canvas };
+  return { player, frame, canvas, slots };
 }
 
 const boxWidthOf = (player) => {
@@ -64,20 +65,22 @@ const fail = (msg) => {
   failed += 1;
 };
 
-/* ── ① state 只给位置，不给尺寸 ── */
-const DRAW = 'Draw.ground(-0.4, 10.4, 0);\nDraw.box([state.block_A.cx, state.block_A.cy], 0.4, 0.3);';
+/* ── ① state 只给物理位置，不给 cx/cy/anchor/尺寸 ── */
+const DRAW = 'Draw.ground(-2, 8, 0);\nDraw.box([state.block_A.x, state.block_A.y], 0.4, 0.3);';
 {
-  const { player } = build(1.2, DRAW);
+  const { player, slots } = build(1.2, DRAW);
   const st = player.program.stateAt(0);
   const b = st.block_A;
   console.log('state.block_A =', JSON.stringify(b));
-  if (!Number.isFinite(b.cx) || !Number.isFinite(b.cy)) fail('state 没有布局坐标 cx/cy');
-  if (b.w !== undefined || b.h !== undefined || b.r !== undefined) fail('state 仍然带尺寸（w/h/r 应已删除）');
-  if (b.anchor !== 'bottom') fail(`anchor 应为 bottom，实际 ${b.anchor}`);
-  if (!(b.cx >= 0 && b.cx <= 10 && b.cy >= 0 && b.cy <= 6)) fail('布局坐标不在 10×6 纸内');
+  if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) fail('state 没有物理坐标 x/y');
+  if (b.cx !== undefined || b.cy !== undefined) fail('state 仍带 cx/cy（方案二应删除）');
+  if (b.anchor !== undefined) fail('state 仍带 anchor（方案二应删除）');
+  if (b.w !== undefined || b.h !== undefined || b.r !== undefined) fail('state 仍带尺寸（w/h/r 应已删除）');
+  if (String(slots.VIEW).includes('stage')) fail('VIEW 仍带 SIM.stage（方案二应删除）');
+  if (!String(slots.VIEW).includes('b.x, b.y')) fail('VIEW 的 bodies 没有用物理 x/y');
 }
 
-/* ── ② Draw 不折算：写多少就是多少 ── */
+/* ── ② Draw 不折算：写多少米就是多少 ── */
 {
   const { player } = build(1.2, 'Draw.box([2, 3], 0.4, 0.3);');
   const box = player.buffer.records.find((r) => r.op === 'polygon' && r.points.length === 4);
@@ -85,39 +88,31 @@ const DRAW = 'Draw.ground(-0.4, 10.4, 0);\nDraw.box([state.block_A.cx, state.blo
   const ys = box.points.map((p) => p[1]);
   const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
   const cy = (Math.max(...ys) + Math.min(...ys)) / 2;
-  console.log(`\nDraw.box([2,3],0.4,0.3) → 中心 (${cx}, ${cy})、宽 ${(Math.max(...xs) - Math.min(...xs)).toFixed(3)}`);
-  if (Math.abs(cx - 2) > 1e-9 || Math.abs(cy - 3) > 1e-9) fail('Draw 把纸面坐标又折算了一次（位置被改）');
-  if (Math.abs(Math.max(...xs) - Math.min(...xs) - 0.4) > 1e-9) fail('Draw 把长度缩放了（长度应原样）');
+  console.log(`\nDraw.box([2,3],0.4,0.3) → 世界中心 (${cx}, ${cy})、宽 ${(Math.max(...xs) - Math.min(...xs)).toFixed(3)}`);
+  if (Math.abs(cx - 2) > 1e-9 || Math.abs(cy - 3) > 1e-9) fail('Draw 把坐标又折算了一次（位置被改）');
+  if (Math.abs(Math.max(...xs) - Math.min(...xs) - 0.4) > 1e-9) fail('Draw 把长度缩放了（长度应原样，单位米）');
 }
 
-/* ── ③ 跨量级像素一致：同一段画法在 1.2 m 与 1.2e6 m 的题里一样大 ── */
+/* ── ③ 相机自动取景：跨度变了像素比例跟着变，主体仍在画布内 ── */
 {
   const rows = SPANS.map((span) => {
     const { player, frame } = build(span, DRAW);
-    return { span, paper: boxWidthOf(player), scale: frame.transform.scale };
+    return { span, world: boxWidthOf(player), scale: frame.transform.scale, frame };
   });
-  console.log('\n跨度(m)\t纸面宽\tpx/纸面单位\t物块像素宽');
-  for (const r of rows) console.log(`${r.span}\t${r.paper.toFixed(3)}\t${r.scale.toFixed(2)}\t${(r.paper * r.scale).toFixed(2)}`);
-  if (!rows.every((r) => Math.abs(r.paper - 0.4) < 1e-9)) fail('不同量级的题里物块纸面宽不一致（尺寸被世界跨度影响了）');
-  const px = rows.map((r) => r.paper * r.scale);
-  if (Math.max(...px) - Math.min(...px) > 1e-6) fail('不同量级的题里物块像素宽不一致（"太小"的病回来了）');
-}
-
-/* ── ④ 画到纸外要告警一次 ── */
-{
-  const warns = [];
-  const orig = console.warn;
-  console.warn = (...args) => warns.push(args.join(' '));
-  try {
-    build(1.2, 'Draw.box([0, 0], 100, 100);');
-  } finally {
-    console.warn = orig;
+  console.log('\n跨度(m)\t世界宽(m)\tpx/m\t物块像素宽');
+  for (const r of rows) console.log(`${r.span}\t${r.world.toFixed(3)}\t${r.scale.toFixed(4)}\t${(r.world * r.scale).toFixed(2)}`);
+  if (!rows.every((r) => Math.abs(r.world - 0.4) < 1e-9)) fail('drawFrame 写死的 0.4 m 被改动了');
+  if (!rows.every((r) => r.scale > 0 && Number.isFinite(r.scale))) fail('相机没有给出有效比例');
+  const px = rows.map((r) => r.world * r.scale);
+  if (!(Math.max(...px) - Math.min(...px) > 1e-6)) fail('不同跨度像素比例相同（说明相机没有自动取景）');
+  /* 主体仍可见：物块世界中心在画布内 */
+  for (const r of rows) {
+    const c = r.frame.transform.worldToScreen(0, 0.05);
+    if (!(c.x >= 0 && c.x <= W && c.y >= 0 && c.y <= H)) fail(`跨度 ${r.span} 的主体被取景裁掉了`);
   }
-  console.log(`\n纸面溢出告警：${warns.length} 条`);
-  if (!warns.some((w) => w.includes('画面超出'))) fail('纸面溢出没有告警（超纸应提示一次）');
 }
 
-/* ── ⑤ 老程序（无 stage）不受影响：坐标与长度原样 ── */
+/* ── ④ 老程序（无 stage）不受影响：坐标与长度原样 ── */
 {
   const slots = {
     PROBLEM: 'p',
@@ -139,7 +134,7 @@ const DRAW = 'Draw.ground(-0.4, 10.4, 0);\nDraw.box([state.block_A.cx, state.blo
   if (Math.abs(width - 1) > 1e-9) fail('无 stage 的老程序被缩放了（回归题会坏）');
 }
 
-/* ── ⑥ 手动放大（v1.1.18）：只改相机，不动纸面与物理 ── */
+/* ── ⑤ 手动放大：只改相机，不动物理与 state ── */
 {
   const { player } = build(3, DRAW);
   player.state.t = 0;
@@ -168,12 +163,10 @@ const DRAW = 'Draw.ground(-0.4, 10.4, 0);\nDraw.box([state.block_A.cx, state.blo
   player.setView({ zoom: 1, panX: 0, panY: 0 });
   player.render();
   const st = player.program.stateAt(0);
-  if (!Number.isFinite(st.block_A.cx)) fail('放大把 state 弄坏了');
-  if (!(player.program.SIM.stage && player.program.SIM.stage.s === undefined)) {
-    fail('SIM.stage 不应带 s（带了 Draw 会二次折算）');
-  }
-  console.log(`\n手动放大：auto ${autoScale.toFixed(2)} px/纸面单位 → 2× ${z2.scale.toFixed(2)} · 平移 40/-25 px · 纸面宽 ${boxWidthOf(player).toFixed(3)}（不受影响）`);
+  if (!Number.isFinite(st.block_A.x)) fail('放大把 state 弄坏了');
+  if (player.program.SIM.stage !== undefined) fail('方案二不应有 SIM.stage');
+  console.log(`\n手动放大：auto ${autoScale.toFixed(2)} px/m → 2× ${z2.scale.toFixed(2)} · 平移 40/-25 px · 世界宽 ${boxWidthOf(player).toFixed(3)}（不受影响）`);
 }
 
-console.log(failed ? `\n✗ 布局坐标门禁：失败 ${failed} 条` : '\n✓ 布局坐标门禁：通过');
+console.log(failed ? `\n✗ 方案二绘制门禁：失败 ${failed} 条` : '\n✓ 方案二绘制门禁：通过');
 process.exitCode = failed ? 1 : 0;

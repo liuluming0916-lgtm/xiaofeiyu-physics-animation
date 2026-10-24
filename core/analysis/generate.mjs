@@ -13,8 +13,6 @@
  *   · STEPS 只留 title / tex（v6；时间轴由 analysis 负责，C5/C6 改读 analysis）。
  */
 
-import { anchorForType } from './geometry.mjs';
-import { computeStageFrame, stageOfAnalysis } from '../stage/frame.mjs';
 
 /**
  * 数学函数白名单（与 `core/analysis/expr.mjs` 的 `FUNCTIONS` 一一对应）。
@@ -211,38 +209,15 @@ export function buildStepsText(breakdownText, _analysis, _tPhys, fallbackTitle =
 }
 
 /**
- * 舞台常量（带 `uCenter/vCenter`，供生成代码直接内联）。
- *
- * **只折算位置**：世界框由 analysis 的轨迹决定，元件尺寸不参与 ——
- * 尺寸属于"怎么画"，由 `drawFrame` 自己定（2026-10-24 用户裁决）。
- */
-function stageOf(analysis) {
-  const info = stageOfAnalysis(analysis);
-  const base = info ? info.frame : computeStageFrame({ minX: 0, minY: 0, maxX: 10, maxY: 6 });
-  return {
-    ...base,
-    uCenter: base.frame.u1 / 2,
-    vCenter: base.frame.v1 / 2,
-  };
-}
-/**
  * 生成 `stateAt`：每个运动元件一个对象。
  *
- * 口径（2026-10-24 用户裁决 —— 动画契约回滚到 1.1.17 的"少约束"版）：
- *   · `x / y`  = 物理米，**只给读数**（C1 仍然禁止在 `drawFrame` 里用）；
- *   · `cx / cy` = 该元件在 10×6 布局纸上的坐标（0–10 / 0–6），**画图只用它**；
- *   · `anchor` = 这个点是元件的哪个部位（bottom / center / top），只表达语义、不含尺寸；
- *   · **不给任何尺寸**（没有 `w/h/r`）：画多大由 `drawFrame` 自己定。
- *
- * 为什么删尺寸：尺寸是"怎么画"的一部分。以前由卡片喂 `physical`（或视觉几何表），
- * 于是"物块多大"由我们决定、由题目的物理量级决定；q04 那道 25 m 的题物块只剩 4 px，
- * 就是因为尺寸跟着世界跨度缩放。放权之后，尺寸回到卡片的"可照抄写法"里当范例，
- * 由模型按画面需要选。
+ * 口径（2026-10-24 方案二）：
+ *   · `x / y` = 物理米（质心），**画图和读数都用它**；
+ *   · **不再给 `cx/cy`**（固定 10×6 纸已退役）、不再给 `anchor`（不承诺贴面）、不给尺寸；
+ *   · 画多大、地面/带/斜面画多长，由 `drawFrame` 自己定，允许示意。
  */
 export function buildStateAt(analysis) {
   const lines = ['// 由 analysis 运动表生成；不要手改', 'const state = {};'];
-  /* 舞台：由**物理分析表的位置轨迹**估世界框 → 折成 10×6 布局纸。 */
-  const stage = stageOf(analysis);
   const keys = stateKeys(analysis);
   keys.forEach(({ id, key, type }, i) => {
     const el = analysis.elements[i];
@@ -272,15 +247,9 @@ export function buildStateAt(analysis) {
       .join('');
     lines.push(`else { x${i} = ${lx}; y${i} = ${ly};${lastExtra} }`);
 
-    /* ── 布局坐标（2026-10-24 回滚到 1.1.17 口径）──
-     * `x/y` 仍是物理米（读数、C10 用）；`cx/cy` 是同一个点在 10×6 纸上的布局坐标。
-     * 只做**位置**换算：`anchor` 说明这个点是元件的哪一面，尺寸一律不给。 */
-    const cxExpr = `${fmt(stage.uCenter)} + (x${i} - ${fmt(stage.cx)}) * ${fmt(stage.s)}`;
-    const cyExpr = `${fmt(stage.vCenter)} + (y${i} - ${fmt(stage.cy)}) * ${fmt(stage.s)}`;
-    const anchor = JSON.stringify(anchorForType(type));
     const extras = extraKeys.map((k) => `${k}: ${k}${i}`).join(', ');
     lines.push(
-      `state.${key} = { x: x${i}, y: y${i}, cx: ${cxExpr}, cy: ${cyExpr}, anchor: ${anchor}, type: ${JSON.stringify(type)}` +
+      `state.${key} = { x: x${i}, y: y${i}, type: ${JSON.stringify(type)}` +
         (extras ? `, ${extras}` : '') +
         ' };',
     );
@@ -313,24 +282,17 @@ export function buildReadouts(analysis, tPhys) {
 }
 
 /**
- * 生成 VIEW 槽位正文：时长 + 刚体位置（v/a 箭头由此求导） + 阶段边界 + 纸面框。
+ * 生成 VIEW 槽位正文：时长 + 刚体位置（v/a 箭头由此求导） + 阶段边界。
  *
- * `stage` 只带 `u0/u1/v0/v1`（相机固定拍这张 10×6 的纸），**故意不带 `s/cx/cy`**：
- * 带了的话运行时的 `Draw` 会按 `s` 再折算一次位置，而 drawFrame 里已经是布局坐标了。
+ * 方案二（2026-10-24）：**不再给 `SIM.stage`**。`bodies.at` 直接返回物理 `[x,y]`，
+ * 相机走“无 stage ⇒ 自动取景”的旧路径；这样 v/a 箭头与 `drawFrame` 里的物理坐标一致。
  */
 export function buildView(analysis, tPhys) {
   const keys = stateKeys(analysis);
-  const st = stageOf(analysis);
-  const stageJson = JSON.stringify({
-    u0: st.frame.u0,
-    u1: st.frame.u1,
-    v0: st.frame.v0,
-    v1: st.frame.v1,
-  });
   const bodies = keys
     .map(
       ({ key }) =>
-        `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.cx, b.cy]; } }`,
+        `    { id: ${JSON.stringify(key)}, at: function (s) { const b = s.${key}; return [b.x, b.y]; } }`,
     )
     .join(',\n');
   const bounds = [...new Set((analysis.elements ?? []).flatMap((e) => e.segments.flatMap((s) => [s.t0, s.t1])))]
@@ -341,7 +303,6 @@ export function buildView(analysis, tPhys) {
   return [
     'SIM = {',
     `  duration: ${fmt(tPhys)},`,
-    '  stage: ' + stageJson + ',',
     '  bodies: [',
     bodies,
     '  ],',
@@ -392,31 +353,4 @@ export function generateProgramSlots({ analysis, problem, breakdownText, drawFra
 /** 给 drawFrame 提示词用的状态键映射 */
 export function stateKeyMap(analysis) {
   return stateKeys(analysis).map(({ id, key, type }) => ({ id, key, type }));
-}
-
-/**
- * t = 0 时每个元件的**布局坐标**（给 `scene_code` 摆静止件用）。
- *
- * 为什么单独算：静止件（地面、带、滑轮、斜面）要在"元件此刻在哪"上对齐，
- * 而 `drawFrame` 拿到的 `state` 是逐帧的；把 t=0 的位置直接写进 user，
- * 模型就不用猜，斜面也不会画歪。
- *
- * @returns {Record<string, {cx:number, cy:number, anchor:string}>}
- */
-export function t0LayoutStates(analysis) {
-  const stage = stageOf(analysis);
-  const out = {};
-  stateKeys(analysis).forEach(({ key, type }, i) => {
-    const el = analysis?.elements?.[i];
-    const seg = el?.segments?.[0];
-    const x = seg?.x?.fn?.(0);
-    const y = seg?.y?.fn?.(0);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    out[key] = {
-      cx: stage.uCenter + (x - stage.cx) * stage.s,
-      cy: stage.vCenter + (y - stage.cy) * stage.s,
-      anchor: anchorForType(type),
-    };
-  });
-  return out;
 }

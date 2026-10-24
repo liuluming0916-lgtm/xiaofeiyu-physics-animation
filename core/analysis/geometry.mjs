@@ -1,9 +1,9 @@
 /**
  * 元件的**物理**尺寸表（`physical`，物理米）—— 只给 `analysis` 用。
  *
- * 用途只有一个：算接触点/质心高度（`y0`）。**不参与绘制**：
- * 画多大由 `drawFrame` 自己定（2026-10-24 用户裁决），
- * 所以这张表不再喂给 `state.w/h/r`。
+ * 用途只有一个：算质心高度（`y0`）。**不参与绘制**：
+ * 画多大由 `drawFrame` 自己定（2026-10-24 方案二），
+ * 所以这张表不再喂给 `state.w/h/r`；`state` 只有物理 `x/y`。
  *
  * 校验策略：
  *   · 内置卡表启动时构建并硬校验（缺 `physical` / 冲突 ⇒ 明确抛错）；
@@ -16,35 +16,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { validatePhysical } from '../knowledgecard/v2/size.mjs';
-
-/**
- * 元件"给定点代表哪个部位"（2026-10-24 回滚动画契约后新增）。
- *
- * 只表达**语义**，不含任何尺寸：`state.<key>.cx / .cy` 是 analysis 给出的那个点，
- * 模型必须知道它是底面、中点还是顶端，否则物块会一半陷进带子里。
- *
- * 尺寸已经交给 `drawFrame` 自己定了，所以这里没有 `w/h/r` ——
- * 原来的 `contracts/element-geometry-v2.json`（"视觉尺寸 + 锚点"表）已随之删除。
- */
-export const ANCHOR_BY_TYPE = Object.freeze({
-  block: 'bottom',
-  board: 'bottom',
-  ball: 'bottom',
-  incline: 'bottom',
-  belt: 'top',
-  piston: 'bottom',
-  conductor_rod: 'center',
-  light_rod: 'center',
-  spring: 'center',
-  rope: 'center',
-  trace_path: 'center',
-  mercury: 'center',
-});
-
-/** 未知类型退化为"中心"，不让新元件直接报错。 */
-export function anchorForType(type) {
-  return ANCHOR_BY_TYPE[type] ?? 'center';
-}
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BUILTIN_CARDS_PATH = join(ROOT, 'core', 'knowledgecard', 'data-v2', '93-elements.json');

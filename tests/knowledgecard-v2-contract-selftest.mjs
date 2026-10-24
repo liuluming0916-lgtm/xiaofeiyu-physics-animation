@@ -212,9 +212,9 @@ console.log('\n『C』条目 v2 校验');
     const dir = mkdtempSync(join(tmpdir(), 'kc-size-'));
     const saved = saveV2Entry({ dir, entry: { ...base, id: 'card.size.demo', size, physical }, vocab: v2 });
     const stored = saved.ok ? JSON.parse(readFileSync(join(dir, saved.name), 'utf8')).entries[0] : null;
-    check('保存卡不丢 size（shape/rotatable）', saved.ok && stored?.size?.shape === 'box' && stored?.size?.rotatable === true, saved.issues?.join('；') ?? '');
-    check('保存卡不丢 physical', saved.ok && stored?.physical?.h === 0.1, saved.issues?.join('；') ?? '');
-    check('保存后 size 字段完整', JSON.stringify(stored?.size) === JSON.stringify(size), JSON.stringify(stored?.size));
+    check(saved.ok && stored?.size?.shape === 'box' && stored?.size?.rotatable === true, '保存卡不丢 size（shape/rotatable）', saved.issues?.join('；') ?? '');
+    check(saved.ok && stored?.physical?.h === 0.1, '保存卡不丢 physical', saved.issues?.join('；') ?? '');
+    check(JSON.stringify(stored?.size) === JSON.stringify(size), '保存后 size 字段完整', JSON.stringify(stored?.size));
     rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -366,6 +366,16 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
     }
     check(shapeProblems.length === 0, '31 张卡的小节/示例形状符合 v6（判据·画法·自检；示例裸代码）', shapeProblems.slice(0, 4).join('；'));
     check(exampleProblems.length === 0, '所有 v2 code_examples 都按 drawFrame 过 C1', exampleProblems.slice(0, 4).join('；'));
+
+    /* 方案二（2026-10-24）：启用中的卡不许再教旧的布局纸/cx/cy/anchor */
+    const scheme1Cards = lib.entries
+      .filter((e) => e.enabled !== false)
+      .filter((e) => {
+        const text = [e.content, ...(e.code_examples ?? [])].join('\n');
+        return /(^|[^A-Za-z])cx\b|\bcy\b|布局坐标|布局单位|anchor|10×6|纸面/.test(text);
+      })
+      .map((e) => e.id);
+    check(scheme1Cards.length === 0, '★ 启用卡不再教 cx/cy / 布局纸 / anchor（方案二）', scheme1Cards.join('；'));
   }
 
   const judgeText = '【动画元件】block\n【场景】belt\n【判定依据】水平传送带和物块';
@@ -381,15 +391,15 @@ console.log('\n『E』v2 运行时库 / 判定 / 触发');
     '【动画元件】\nblock\nball\n【场景】\nbelt\nground\n【判定依据】多选',
     { vocab: lib.vocab },
   );
-  check('★ 多行判定：block + ball 都收到', multi.elements.join(',') === 'block,ball', multi.elements.join(','));
-  check('★ 多行判定：belt + ground 都收到', multi.scenes.join(',') === 'belt,ground', multi.scenes.join(','));
-  check('★ 多行判定：没有把第二行当表外词', !multi.problems.some((p) => p.code.startsWith('unknown-')), multi.problems.map((p) => p.code).join(','));
+  check(multi.elements.join(',') === 'block,ball', '★ 多行判定：block + ball 都收到', multi.elements.join(','));
+  check(multi.scenes.join(',') === 'belt,ground', '★ 多行判定：belt + ground 都收到', multi.scenes.join(','));
+  check(!multi.problems.some((p) => p.code.startsWith('unknown-')), '★ 多行判定：没有把第二行当表外词', multi.problems.map((p) => p.code).join(','));
 
   const bullets = parseJudgementV2(
     '【动画元件】\n- block\n- ball\n【场景】\n- belt\n- ground\n【判定依据】多选',
     { vocab: lib.vocab },
   );
-  check('★ 列表符号（-）不影响多选', bullets.elements.join(',') === 'block,ball' && bullets.scenes.join(',') === 'belt,ground', `${bullets.elements.join(',')} / ${bullets.scenes.join(',')}`);
+  check(bullets.elements.join(',') === 'block,ball' && bullets.scenes.join(',') === 'belt,ground', '★ 列表符号（-）不影响多选', `${bullets.elements.join(',')} / ${bullets.scenes.join(',')}`);
 
   const sceneCard = {
     id: 'scene.conveyor-demo',

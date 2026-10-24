@@ -49,8 +49,8 @@ const REPLIES = {
   breakdown: ['title: 第 1 步 · 加速', 'tex: 物块受摩擦力加速', '', 'title: 第 2 步 · 匀速', 'tex: 共速后随带匀速'].join('\n'),
   analysis: ANALYSIS_EXAMPLE,
   scene_code: [
-    'Draw.ground(-0.5, 5.5, 0);',
-    'Draw.box([state.block_A.cx, state.block_A.cy + 0.15], 0.4, 0.3);',
+    'Draw.ground(-2, 8, 0);',
+    'Draw.box([state.block_A.x, state.block_A.y], 0.6, 0.4);',
   ].join('\n'),
   couple: ['step: 1', 't0: 0', 't1: 1', '', 'step: 2', 't0: 1', 't1: 3'].join('\n'),
 };
@@ -192,20 +192,23 @@ if (programEvent) {
   const slots = programEvent.slots ?? {};
   check('stateAt 由 analysis 生成（含 state.block_A）', String(slots.stateAt ?? '').includes('state.block_A'));
   check(
-    '★ stateAt 带 type、语义 key（block_A）与布局坐标 cx/cy；不带尺寸',
+    '★ stateAt 带 type、语义 key（block_A）与物理坐标 x/y；不带 cx/cy/anchor/尺寸',
     /type:\s*"block"/.test(String(slots.stateAt)) &&
       /state\.block_A\s*=/.test(String(slots.stateAt)) &&
-      /\bcx:/.test(String(slots.stateAt)) &&
-      /\bcy:/.test(String(slots.stateAt)) &&
-      /anchor:/.test(String(slots.stateAt)) &&
+      /\bx:/.test(String(slots.stateAt)) &&
+      /\by:/.test(String(slots.stateAt)) &&
+      !/\bcx:/.test(String(slots.stateAt)) &&
+      !/\bcy:/.test(String(slots.stateAt)) &&
+      !/anchor:/.test(String(slots.stateAt)) &&
       !/\bw:/.test(String(slots.stateAt)) &&
       !/\bh:/.test(String(slots.stateAt)),
     String(slots.stateAt).slice(-160),
   );
   check('VIEW 由 analysis 生成（duration=3）', String(slots.VIEW ?? '').includes('duration: 3'));
-  check('★ VIEW 的 body 用 cx/cy（布局坐标）', String(slots.VIEW ?? '').includes('b.cx, b.cy'), String(slots.VIEW));
+  check('★ VIEW 的 body 用物理 x/y', String(slots.VIEW ?? '').includes('b.x, b.y'), String(slots.VIEW));
+  check('★ VIEW 不再带 SIM.stage（方案二）', !String(slots.VIEW ?? '').includes('stage'), String(slots.VIEW));
   check('readouts 由 analysis 生成', String(slots.readouts ?? '').includes('block_A.x'));
-  check('drawFrame 是 AI 那段', String(slots.drawFrame ?? '').includes('Draw.ground(-0.5, 5.5, 0);'));
+  check('drawFrame 是 AI 那段', String(slots.drawFrame ?? '').includes('Draw.ground(-2, 8, 0);'));
   check('ANSWERS 为空', String(slots.ANSWERS ?? '') === '');
 } else {
   check('dryrun_done 带 program', false, '没有 program');
