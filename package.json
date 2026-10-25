@@ -1,10 +1,10 @@
 {
   "name": "xiaofeiyu-physics-animation",
-  "version": "1.1.19",
+  "version": "1.2.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
-  "description": "小肥鱼物理解题动画软件 v1.1.19 · 解题 → 动画 → 导出（v6 链路；方案二物理世界坐标 + 自动取景；每小问 4 秒；知识卡 v2；按阶段补充信息；发布载荷 app.asar）",
+  "description": "小肥鱼物理解题动画软件 v1.2.0 · 解题 → 动画 → 导出（v6 链路；方案二物理世界坐标 + 自动取景；每小问 4 秒；知识卡 v2；按阶段补充信息；发布载荷 app.asar）",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=20"
