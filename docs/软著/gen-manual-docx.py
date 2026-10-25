@@ -11,7 +11,7 @@ from pathlib import Path
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt, RGBColor
+from docx.shared import Cm, Pt, RGBColor
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -60,6 +60,25 @@ def add_placeholder(doc, text):
     r.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
 
 
+def add_image(doc, src: Path, rel: str, caption: str) -> None:
+    """插入真实图片 + 图注（相对路径按 md 所在目录解析）。"""
+    img = (src.parent / rel).resolve()
+    if not img.exists():
+        add_placeholder(doc, f"缺图：{rel}")
+        return
+    para = doc.add_paragraph()
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    para.paragraph_format.space_before = Pt(8)
+    para.add_run().add_picture(str(img), width=Cm(15.5))
+
+    cap = doc.add_paragraph()
+    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cap.paragraph_format.space_after = Pt(10)
+    r = cap.add_run(caption)
+    gpd.set_run(r, size=Pt(9))
+    r.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+
 def build(src: Path) -> Path:
     lines = src.read_text(encoding="utf-8").splitlines()
     doc = gpd.new_doc()
@@ -97,6 +116,12 @@ def build(src: Path) -> Path:
         m = re.match(r"^【(截图\s*\d+[^】]*)】$", s)
         if m:
             add_placeholder(doc, m.group(1))
+            i += 1
+            continue
+
+        img = re.match(r"^!\[(.*?)\]\((.+?)\)$", s)
+        if img:
+            add_image(doc, src, img.group(2), img.group(1))
             i += 1
             continue
 
