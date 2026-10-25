@@ -283,7 +283,7 @@ const STAGE_SAY = {
     repair: '小肥鱼正在完善…',
     couple: '小肥鱼正在对齐步骤…',
 };
-/** 阶段 → 漫画分镜（图来自「表情包」3×3 拼图，已裁成 512×512 webp） */
+/** 阶段 → 漫画分镜（图在 `web/public/fish/`，v1.2 起换成 1024×1024 的原创图；界面按 440px 见方显示） */
 const STAGE_FISH = {
     read_problem: 'read',
     solve: 'solve',
