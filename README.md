@@ -104,5 +104,5 @@ node tools\verify-all.mjs
 
 ## 联系
 
-- 一般问题 / bug：〔待填：仓库地址〕 的 Issues
+- 一般问题 / bug：https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation 的 Issues
 - 商业授权：1241640869@qq.com
