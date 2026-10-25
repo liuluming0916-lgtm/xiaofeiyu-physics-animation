@@ -60,16 +60,33 @@ def add_placeholder(doc, text):
     r.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
 
 
+def png_width(path: Path) -> int:
+    """读 PNG 头拿宽度（只为决定插图宽度，不引第三方库）。"""
+    with open(path, "rb") as fh:
+        head = fh.read(24)
+    if len(head) >= 24 and head[:8] == b"\x89PNG\r\n\x1a\n":
+        return int.from_bytes(head[16:20], "big")
+    return 1400
+
+
 def add_image(doc, src: Path, rel: str, caption: str) -> None:
-    """插入真实图片 + 图注（相对路径按 md 所在目录解析）。"""
+    """插入真实图片 + 图注（相对路径按 md 所在目录解析）。
+
+    宽度自适应：全屏截图（≥1400px）占满版心，局部面板截图缩到 9.5cm，
+    否则 745px 的截图被拉到 15.5cm 会明显发糊。
+    """
     img = (src.parent / rel).resolve()
     if not img.exists():
         add_placeholder(doc, f"缺图：{rel}")
         return
+
+    w = png_width(img)
+    width = Cm(15.5) if w >= 1400 else Cm(13.0) if w >= 900 else Cm(9.5)
+
     para = doc.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     para.paragraph_format.space_before = Pt(8)
-    para.add_run().add_picture(str(img), width=Cm(15.5))
+    para.add_run().add_picture(str(img), width=width)
 
     cap = doc.add_paragraph()
     cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
