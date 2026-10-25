@@ -38,7 +38,7 @@
 | 把知识卡 / 提示词用于商业产品 | **是** |
 | 把导出的动画放进付费课件 / 网课 | **否**——导出物归你 |
 
-判断口径的细节见 [帮助 · 许可](docs/帮助.md#五我能这么用吗)。
+判断口径的细节见 [用户手册 · 许可](docs/用户手册.md#十二版本与许可)。
 
 ---
 
@@ -75,7 +75,7 @@ node tools\verify-all.mjs
 | 想闭源商用 | [COMMERCIAL.md](COMMERCIAL.md) |
 | 名称与 Logo 能不能用 | [TRADEMARK.md](TRADEMARK.md) |
 | 软件里“关于”页写什么 | [docs/关于.md](docs/关于.md) |
-| 软件里“帮助”页写什么 | [docs/帮助.md](docs/帮助.md) |
+| 软件里“关于”页写什么 | [docs/关于.md](docs/关于.md) · [用户手册](docs/用户手册.md) |
 | 想提 PR | [docs/贡献指南.md](docs/贡献指南.md) + [docs/CLA.md](docs/CLA.md) |
 | 项目做到哪了（唯一权威） | [项目现状与路线.md](项目现状与路线.md) |
 
