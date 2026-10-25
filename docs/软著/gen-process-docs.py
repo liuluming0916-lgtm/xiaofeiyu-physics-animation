@@ -58,17 +58,38 @@ def add_heading(doc, text, level):
     set_run(run, cn=HEAD_CN, en=BODY_EN, size=size, bold=True)
 
 
+INLINE = re.compile(r"(\*\*.+?\*\*|`[^`]+`)")
+
+
+def add_runs(p, text, *, size=BODY_SIZE, bold=False):
+    """把行内 markdown 变成真正的格式：**粗体** → 粗体，`代码` → 等宽。
+
+    不解析的话，`**` 会原样印进 Word（v1.2.0 文档里曾出现 70+ 处），
+    看起来像没写完的草稿。
+    """
+    for part in INLINE.split(text):
+        if not part:
+            continue
+        if part.startswith("**") and part.endswith("**") and len(part) > 4:
+            run = p.add_run(part[2:-2])
+            set_run(run, size=size, bold=True)
+        elif part.startswith("`") and part.endswith("`") and len(part) > 2:
+            run = p.add_run(part[1:-1])
+            set_run(run, size=size, bold=bold, en=CODE_EN)
+        else:
+            run = p.add_run(part)
+            set_run(run, size=size, bold=bold)
+
+
 def add_bullet(doc, text, numbered=False):
     p = doc.add_paragraph(style="List Number" if numbered else "List Bullet")
     p.paragraph_format.space_after = Pt(2)
-    run = p.add_run(text)
-    set_run(run)
+    add_runs(p, text)
 
 
 def add_para(doc, text):
     p = doc.add_paragraph()
-    run = p.add_run(text)
-    set_run(run)
+    add_runs(p, text)
 
 
 def add_code(doc, lines):
@@ -86,16 +107,14 @@ def add_table(doc, rows):
     table.style = "Table Grid"
     for i, cell in enumerate(table.rows[0].cells):
         cell.text = ""
-        run = cell.paragraphs[0].add_run(header[i])
-        set_run(run, size=Pt(9.5), bold=True)
+        add_runs(cell.paragraphs[0], header[i], size=Pt(9.5), bold=True)
     for row in body:
         cells = table.add_row().cells
         for i, text in enumerate(row):
             if i >= len(cells):
                 break
             cells[i].text = ""
-            run = cells[i].paragraphs[0].add_run(text)
-            set_run(run, size=Pt(9.5))
+            add_runs(cells[i].paragraphs[0], text, size=Pt(9.5))
 
 
 def split_row(line):
