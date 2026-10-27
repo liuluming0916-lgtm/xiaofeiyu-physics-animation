@@ -84,12 +84,13 @@
     ctx.restore();
   }
 
-  function drawBackground() {
+  function drawBackground(o) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#fbfcff');
     g.addColorStop(1, '#eef3f9');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+    if (!o.grid) return;
     ctx.save();
     ctx.strokeStyle = 'rgba(52,84,140,0.07)';
     ctx.lineWidth = 1;
@@ -150,17 +151,20 @@
     ctx.restore();
   }
 
-  function draw(act, t) {
+  const ALL_ON = { vel: true, acc: true, force: true, trail: true, grid: true, panel: true };
+
+  function draw(act, t, rawOpts) {
+    const o = Object.assign({}, ALL_ON, rawOpts || {});
     const tt = Math.max(0, Math.min(t, act.physical));
     const s = Math.min(0.5 * act.a * tt * tt, LEN);
     const v = act.a * tt;
     const p = pos(s);
 
-    drawBackground();
+    drawBackground(o);
     drawGround();
     drawIncline();
 
-    if (s > 0.01) {
+    if (o.trail && s > 0.01) {
       const a0 = pos(0);
       const a1 = pos(s);
       ctx.save();
@@ -187,13 +191,13 @@
     ctx.stroke();
     ctx.restore();
 
-    if (v > 0.05) {
+    if (o.vel && v > 0.05) {
       const len = 26 + 90 * (v / (act.a * act.physical));
       arrow(p.x, p.y, DIR.x * len, DIR.y * len, '#12a594', 3.2);
       label('v', p.x + DIR.x * (len + 16), p.y + DIR.y * (len + 16), '#12a594', 16, 'center');
     }
 
-    if (s > 0.05) {
+    if (o.panel && s > 0.05) {
       const mid = { x: (TOP.x + p.x) / 2, y: (TOP.y + p.y) / 2 };
       label(`s = ${s.toFixed(2)} m`, mid.x - NRM.x * 74, mid.y - NRM.y * 74, '#243044', 15, 'center');
     }
@@ -207,7 +211,7 @@
     const a = G * (Math.sin(THETA) - cfg.mu * Math.cos(THETA));
     const physical = Math.sqrt((2 * LEN) / a);
     const act = { title: cfg.title, physical, a, mu: cfg.mu, color: cfg.color };
-    act.render = (t) => draw(act, t);
+    act.render = (t, opts) => draw(act, t, opts);
     act.sample = (t) => {
       const tt = Math.max(0, Math.min(t, physical));
       const s = Math.min(0.5 * a * tt * tt, LEN);

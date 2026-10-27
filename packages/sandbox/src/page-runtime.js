@@ -502,8 +502,8 @@
       hasSample: typeof a.sample === 'function',
     })),
 
-    /** 抓某一幕的 t 秒（物理时间） */
-    captureAct: (actIndex, tSec) => {
+    /** 抓某一幕的 t 秒（物理时间）；opts 是图层开关，交给 render 用 */
+    captureAct: (actIndex, tSec, opts) => {
       const acts = readActs();
       if (!acts.length) return legacyCapture(tSec * 1000);
       const i = Math.min(Math.max(0, actIndex | 0), acts.length - 1);
@@ -517,7 +517,7 @@
       renderTimeMs = tSec * 1000;
       if (typeof a.render === 'function') {
         try {
-          a.render(tSec);
+          a.render(tSec, opts || undefined);
         } catch (e) {
           noteError('XFY.acts.render', e);
         }

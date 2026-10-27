@@ -1,7 +1,10 @@
 /*
  * 宿主播放器（导出时自动注入，模型不需要写这个）
  *
- * 契约：window.XFY.render(t) / XFY.acts[i].render(t)，t 是**真实物理时间**（秒）。
+ * 契约：window.XFY.acts[i].render(t, opts)
+ *   t    = 真实物理时间（秒）
+ *   opts = { vel, acc, force, trail, grid, panel }，默认全 true
+ *
  * 时间归一化在这里完成：无论这一幕真实多长，播放一律 4.000 秒。
  * 所以模型完全不用关心"播多久"，它只管物理。
  */
@@ -11,6 +14,14 @@
   window.__XFY_PLAYER = true;
 
   const ACT_SECONDS = 4;
+  const FLAGS = [
+    ['vel', '速度', '#12a594'],
+    ['acc', '加速度', '#2f6feb'],
+    ['force', '受力', '#e5484d'],
+    ['trail', '轨迹', '#64748b'],
+    ['grid', '网格', '#94a3b8'],
+    ['panel', '数据', '#8e4ec6'],
+  ];
 
   function readActs() {
     const p = window.XFY;
@@ -27,6 +38,7 @@
 
   const acts = readActs();
   const multi = acts.length > 1;
+  const opts = { vel: true, acc: true, force: true, trail: true, grid: true, panel: true };
 
   let idx = 0;
   let tau = 0; // 0..ACT_SECONDS 的播放进度
@@ -38,6 +50,7 @@
   const bar = document.createElement('div');
   bar.id = 'xfy-bar';
   bar.innerHTML =
+    '<div class="xfy-row">' +
     (multi ? '<button class="xfy-btn xfy-ghost" data-act="prev" title="上一幕">‹</button>' : '') +
     '<button class="xfy-btn" data-act="play">播放</button>' +
     '<button class="xfy-btn xfy-ghost" data-act="replay">重播</button>' +
@@ -50,7 +63,15 @@
     '<button class="xfy-btn xfy-speed" data-speed="2">2×</button>' +
     '</span>' +
     (multi ? '<span class="xfy-act"></span>' : '') +
-    '<span class="xfy-phys"></span>';
+    '<span class="xfy-phys"></span>' +
+    '</div>' +
+    '<div class="xfy-row xfy-toggles">' +
+    FLAGS.map(
+      ([k, label, color]) =>
+        `<label class="xfy-tg"><input type="checkbox" data-flag="${k}" checked><i style="background:${color}"></i>${label}</label>`,
+    ).join('') +
+    '<span class="xfy-tip">取消勾选可以隐藏对应图层</span>' +
+    '</div>';
   document.body.appendChild(bar);
 
   const $play = bar.querySelector('[data-act="play"]');
@@ -62,6 +83,7 @@
   const $prev = bar.querySelector('[data-act="prev"]');
   const $next = bar.querySelector('[data-act="next"]');
   const $speeds = [...bar.querySelectorAll('.xfy-speed')];
+  const $flags = [...bar.querySelectorAll('[data-flag]')];
 
   if (!acts.length) {
     $play.disabled = true;
@@ -69,7 +91,7 @@
     $seek.disabled = true;
     $time.textContent = '缺少 XFY 契约';
     console.warn('[xfy] 没有找到 window.XFY.render(t) 或 XFY.acts，播放器无法控制画面。');
-        return;
+    return;
   }
 
   const fmt = (x) => x.toFixed(2);
@@ -80,7 +102,7 @@
     const act = current();
     if (act.render) {
       try {
-        act.render(physTime());
+        act.render(physTime(), { ...opts });
       } catch (e) {
         console.error('[xfy] render 出错：', e);
       }
@@ -157,6 +179,12 @@
     b.addEventListener('click', () => {
       speed = Number(b.dataset.speed) || 1;
       for (const o of $speeds) o.classList.toggle('is-on', o === b);
+    });
+  }
+  for (const f of $flags) {
+    f.addEventListener('change', () => {
+      opts[f.dataset.flag] = f.checked;
+      paint();
     });
   }
   window.addEventListener('keydown', (e) => {

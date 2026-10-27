@@ -1,7 +1,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, readFile, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'node:fs';
 import { loadEnv, cfg, apiUrl, configSummary, saveConfigFile } from '../../../packages/agent/src/config.ts';
 import { runProblem } from '../../../packages/agent/src/loop.ts';
 
@@ -21,6 +21,10 @@ interface Job {
   abort: AbortController;
   result?: any;
   startedAt: number;
+  problem: string;
+  solution: string;
+  imagePaths: string[];
+  writes: number;
 }
 
 const jobs = new Map<string, Job>();
@@ -77,13 +81,13 @@ function stamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-async function startJob(body: any): Promise<Job> {
+async function startJob(body: any, resumeFrom?: Job): Promise<Job> {
   const id = randomUUID().slice(0, 8);
   const outDir = path.join(OUT_ROOT, `${stamp()}-${id}`);
   mkdirSync(outDir, { recursive: true });
 
   const images: string[] = [];
-  const allImages = [...((body.images ?? []) as any[]), ...((body.solutionImages ?? []) as any[])];
+  const allImages = resumeFrom ? [] : [...((body.images ?? []) as any[]), ...((body.solutionImages ?? []) as any[])];
   for (const [i, img] of allImages.entries()) {
     const m = /^data:image\/(\w+);base64,(.+)$/.exec(String(img.data ?? ''));
     if (!m) continue;
@@ -92,13 +96,28 @@ async function startJob(body: any): Promise<Job> {
     images.push(file);
   }
 
+  // 接着改：把上一版的代码和会话搬过来
+  let resumeMessages: any[] | undefined;
+  let imagePaths = images;
+  if (resumeFrom) {
+    const prevHtml = path.join(resumeFrom.outDir, 'current.html');
+    if (existsSync(prevHtml)) copyFileSync(prevHtml, path.join(outDir, 'current.html'));
+    const prevMsgs = path.join(resumeFrom.outDir, 'messages.json');
+    if (existsSync(prevMsgs)) {
+      try {
+        resumeMessages = JSON.parse(readFileSync(prevMsgs, 'utf8'));
+      } catch (_) {}
+    }
+    imagePaths = resumeFrom.imagePaths;
+  }
+
   let text = String(body.text ?? '').trim();
   const solution = String(body.solution ?? '').trim();
   const note = String(body.note ?? '').trim();
   if (solution) {
     text += `\n\n【参考答案与解析（以此为准，不要另行推导，按它来画）】\n${solution}`;
   }
-  if (note) {
+  if (note && !resumeFrom) {
     text += `\n\n【教师对上一版的意见】\n${note}`;
   }
 
@@ -109,22 +128,30 @@ async function startJob(body: any): Promise<Job> {
     outDir,
     abort: new AbortController(),
     startedAt: Date.now(),
+    problem: String(body.text ?? ''),
+    solution,
+    imagePaths,
+    writes: resumeFrom?.writes ?? 0,
   };
   jobs.set(id, job);
 
   const push = (type: string, text: string) => {
     job.events.push({ type, text, at: Date.now() });
   };
-  push('start', `开始生成（${images.length ? `${images.length} 张图片 + ` : ''}文字）`);
+  push('start', resumeFrom ? `接着上一版改：${note || '（无具体意见）'}` : `开始生成（${images.length ? `${images.length} 张图片 + ` : ''}文字）`);
 
   runProblem(text, {
     outDir,
     images,
     signal: job.abort.signal,
+    resume: resumeMessages,
+    startWrites: resumeFrom?.writes ?? 0,
+    note,
     onEvent: (e) => push(e.type, e.text),
   })
     .then((r) => {
       job.state = r.ok ? 'done' : 'failed';
+      job.writes = r.writes;
       job.result = {
         ok: r.ok,
         reason: r.reason,
@@ -242,6 +269,13 @@ const server = http.createServer(async (req, res) => {
         job.abort.abort();
         job.state = 'canceled';
         return json(res, 200, { ok: true });
+      }
+      if (rest === '/revise' && req.method === 'POST') {
+        const body = await readBody(req);
+        const note = String(body.note ?? '').trim();
+        if (!note) return json(res, 400, { error: '意见不能为空' });
+        const next = await startJob({ text: job.problem, note }, job);
+        return json(res, 200, { id: next.id, outDir: next.outDir });
       }
       if (rest === '/artifact') {
         return serveFile(res, path.join(job.outDir, 'animation.html'));

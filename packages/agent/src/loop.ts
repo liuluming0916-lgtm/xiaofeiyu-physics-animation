@@ -14,6 +14,12 @@ export interface RunOptions {
   images?: string[];
   /** 取消信号（界面上点"取消"时用） */
   signal?: AbortSignal;
+  /** 接着上一轮改：带着之前的对话继续，不从头来 */
+  resume?: ChatMessage[];
+  /** 接着改时，上一轮已经写了几版（用于延续 3 轮上限） */
+  startWrites?: number;
+  /** 老师打回时写的意见 */
+  note?: string;
   onEvent?: (e: { type: string; text: string }) => void;
 }
 
@@ -37,6 +43,24 @@ const addUsage = (a: Usage, b: Usage): Usage => ({
   reasoning: a.reasoning + b.reasoning,
   total: a.total + b.total,
 });
+
+/** 早前的关键帧图片换成占位文字：保住上下文，丢掉重复的像素 */
+function slimMessages(msgs: ChatMessage[]): ChatMessage[] {
+  let lastImageIdx = -1;
+  msgs.forEach((m, i) => {
+    if (m.role === 'tool' && Array.isArray(m.content) && m.content.some((p: any) => p?.type === 'image_url')) {
+      lastImageIdx = i;
+    }
+  });
+  return msgs.map((m, i) => {
+    if (m.role !== 'tool' || !Array.isArray(m.content)) return m;
+    if (i === lastImageIdx) return m;
+    return {
+      ...m,
+      content: m.content.map((p: any) => (p?.type === 'image_url' ? { type: 'text', text: '［早前的截图已省略］' } : p)),
+    };
+  });
+}
 
 function readSource(file: string): string {
   try {
@@ -83,17 +107,27 @@ export async function runProblem(problem: string, opts: RunOptions): Promise<Run
   mkdirSync(opts.outDir, { recursive: true });
   const engine = new Engine(opts.outDir);
 
-  const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    {
-      role: 'user',
-      content: buildUserContent(problem, opts.images ?? []),
-    },
-  ];
+  const messages: ChatMessage[] = opts.resume?.length
+    ? [
+        ...opts.resume,
+        {
+          role: 'user',
+          content:
+            `老师看了上一版动画，提出意见：${opts.note ?? ''}\n\n` +
+            '请在这份代码的基础上修改（不要推倒重来），改完先 write_animation 交完整代码，再 run_checks。',
+        },
+      ]
+    : [
+        { role: 'system', content: SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: buildUserContent(problem, opts.images ?? []),
+        },
+      ];
 
   const transcript: any[] = [];
   let usage = ZERO;
-  let writes = 0;
+  let writes = opts.startWrites ?? 0;
   let failedChecks = 0;
   let done = false;
   let finishSummary = '';
@@ -210,7 +244,10 @@ export async function runProblem(problem: string, opts: RunOptions): Promise<Run
           content = look.content;
           emit({ type: 'look', text: `看了 ${look.images.length} 帧：${look.images.map((f) => path.basename(f)).join(', ')}` });
         } else if (name === 'finish') {
-          const v = await engine.verify(Array.isArray(args.checkpoints) ? args.checkpoints : []);
+          const v = await engine.verify(
+            Array.isArray(args.checkpoints) ? args.checkpoints : [],
+            Array.isArray(args.constraints) ? args.constraints : [],
+          );
           if (v.ok) {
             done = true;
             finishSummary = String(args.summary ?? '');
@@ -248,6 +285,11 @@ export async function runProblem(problem: string, opts: RunOptions): Promise<Run
     JSON.stringify({ problem, ok: done, reason, writes, failedChecks, usage, elapsedMs: Date.now() - t0, transcript, finishSummary }, null, 2),
     'utf8',
   );
+
+  // 存一份"可接着改"的会话：只保留最近一组截图，早前的图片替换成占位文字（记忆压缩）
+  try {
+    writeFileSync(path.join(opts.outDir, 'messages.json'), JSON.stringify(slimMessages(messages), null, 0), 'utf8');
+  } catch (_) {}
 
   return {
     ok: done,

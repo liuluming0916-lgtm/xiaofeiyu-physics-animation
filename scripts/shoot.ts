@@ -1,7 +1,7 @@
 /**
  * 给任意一个导出的动画网页截图（含宿主播放器）。
  *
- * 用法：node scripts/shoot.ts <html> <物理秒数> <输出png> [幕序号，从0开始]
+ * 用法：node scripts/shoot.ts <html> <物理秒数> <输出png> [幕序号，从 0 开始]
  */
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -15,7 +15,7 @@ if (!html || !out) {
 const t = Number(tArg) || 0;
 const actIndex = Number(actArg) || 0;
 
-const sb = await Sandbox.open(path.resolve(html), { height: 820, scale: 2 });
+const sb = await Sandbox.open(path.resolve(html), { height: 900, scale: 2 });
 const acts = await sb.acts();
 const act = acts[Math.min(actIndex, acts.length - 1)] ?? { physical: 4 };
 const physical = act.physical || 4;

@@ -141,12 +141,14 @@
     };
   }
 
+  const ALL_ON = { vel: true, acc: true, force: true, trail: true, grid: true, panel: true };
+
   window.XFY = {
     title: '光滑斜面上小球的下滑',
     physical: T_PHYS,
-    /* t 是真实物理时间（秒）；播放快慢由宿主播放器统一归一化到 4 秒 */
-    render(t) {
-      draw(Math.max(0, Math.min(t, T_PHYS)));
+    /* t 是真实物理时间（秒）；opts 是图层开关，默认全开 */
+    render(t, opts) {
+      draw(Math.max(0, Math.min(t, T_PHYS)), Object.assign({}, ALL_ON, opts || {}));
     },
     sample(t) {
       const st = state(t);
@@ -162,13 +164,14 @@
   };
 
   /* ============ 场景 ============ */
-  function drawBackground() {
+  function drawBackground(o) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#fbfcff');
     g.addColorStop(1, '#eef3f9');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
+    if (!o.grid) return;
     ctx.save();
     ctx.strokeStyle = 'rgba(52,84,140,0.07)';
     ctx.lineWidth = 1;
@@ -244,8 +247,8 @@
     ctx.restore();
   }
 
-  function drawTrace(s) {
-    if (s <= 0.01) return;
+  function drawTrace(s, o) {
+    if (!o.trail || s <= 0.01) return;
     const u = s * PX_PER_M;
     const x1 = TOP.x - NRM.x * 8;
     const y1 = TOP.y - NRM.y * 8;
@@ -279,37 +282,42 @@
     return p;
   }
 
-  function drawForces(p, st) {
+  function drawForces(p, st, o) {
     const gLen = 84;
     const nLen = gLen * Math.cos(THETA);
     const vLen = st.v > 0.05 ? 26 + 92 * (st.v / (A * T_PHYS)) : 0;
 
-    arrow(p.x, p.y, 0, gLen, C.gravity, 3.4);
-    label('mg', p.x, p.y + gLen + 16, C.gravity, 16, 'center');
+    if (o.force) {
+      arrow(p.x, p.y, 0, gLen, C.gravity, 3.4);
+      label('mg', p.x, p.y + gLen + 16, C.gravity, 16, 'center');
 
-    arrow(p.x, p.y, NRM.x * nLen, NRM.y * nLen, C.normal, 3.4);
-    label('N', p.x + NRM.x * (nLen + 18), p.y + NRM.y * (nLen + 18), C.normal, 16, 'center');
+      arrow(p.x, p.y, NRM.x * nLen, NRM.y * nLen, C.normal, 3.4);
+      label('N', p.x + NRM.x * (nLen + 18), p.y + NRM.y * (nLen + 18), C.normal, 16, 'center');
+    }
 
-    if (vLen > 0) {
+    if (o.vel && vLen > 0) {
       arrow(p.x, p.y, DIR.x * vLen, DIR.y * vLen, C.velocity, 3.4);
       label('v', p.x + DIR.x * (vLen + 16), p.y + DIR.y * (vLen + 16), C.velocity, 16, 'center');
     }
 
-    const ax = p.x + NRM.x * 44;
-    const ay = p.y + NRM.y * 44;
-    line(p.x, p.y, ax, ay, 'rgba(142,78,198,0.35)', 1.2, [4, 4]);
-    arrow(ax, ay, DIR.x * 56, DIR.y * 56, C.accel, 2.8);
-    label('a', ax + DIR.x * 72, ay + DIR.y * 72, C.accel, 15, 'center');
+    if (o.acc) {
+      const ax = p.x + NRM.x * 44;
+      const ay = p.y + NRM.y * 44;
+      line(p.x, p.y, ax, ay, 'rgba(142,78,198,0.35)', 1.2, [4, 4]);
+      arrow(ax, ay, DIR.x * 56, DIR.y * 56, C.accel, 2.8);
+      label('a', ax + DIR.x * 72, ay + DIR.y * 72, C.accel, 15, 'center');
+    }
   }
 
-  function drawMeasure(st) {
-    if (st.s <= 0.05) return;
+  function drawMeasure(st, o) {
+    if (!o.panel || st.s <= 0.05) return;
     const p = pointAt(st.s);
     const mid = { x: (TOP.x + p.x) / 2, y: (TOP.y + p.y) / 2 };
     chip(`s = ${st.s.toFixed(2)} m`, mid.x - NRM.x * 78, mid.y - NRM.y * 78);
   }
 
-  function drawCard() {
+  function drawCard(o) {
+    if (!o.panel) return;
     const x = 52;
     const y = 170;
     const w = 342;
@@ -376,21 +384,21 @@
     ctx.restore();
   }
 
-  function draw(t) {
+  function draw(t, o) {
     const st = state(t);
-    drawBackground();
+    drawBackground(o);
     drawGround();
     drawIncline();
-    drawCard();
-    drawTrace(st.s);
+    drawCard(o);
+    drawTrace(st.s, o);
     const p = drawBall(st);
-    drawForces(p, st);
-    drawMeasure(st);
+    drawForces(p, st, o);
+    drawMeasure(st, o);
     drawHUD(st);
   }
 
   /* 舞台契约：只负责"画出某一时刻"，播放交给宿主播放器 */
-  draw(0);
+  draw(0, ALL_ON);
 })();
 </script>
 </body>

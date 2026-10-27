@@ -11,10 +11,11 @@ body{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px
      font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;}
 #xfy-stage{position:relative;width:1280px;height:720px;overflow:hidden;background:#fff;
      border-radius:10px;box-shadow:0 8px 28px rgba(36,48,68,.13);}
-#xfy-bar{display:flex;align-items:center;gap:10px;width:1280px;height:54px;padding:0 16px;box-sizing:border-box;
+#xfy-bar{display:flex;flex-direction:column;gap:7px;width:1280px;padding:9px 16px;box-sizing:border-box;
      background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(36,48,68,.10);}
+#xfy-bar .xfy-row{display:flex;align-items:center;gap:10px;}
 #xfy-bar .xfy-btn{border:1px solid #cdd8e8;background:#f7f9fd;color:#243044;font-size:15px;
-     font-family:inherit;border-radius:8px;padding:7px 16px;cursor:pointer;line-height:1.2;transition:.15s;}
+     font-family:inherit;border-radius:8px;padding:6px 15px;cursor:pointer;line-height:1.2;transition:.15s;}
 #xfy-bar .xfy-btn:hover{background:#eaf1fd;border-color:#9fbcf0;}
 #xfy-bar .xfy-btn:disabled{opacity:.45;cursor:not-allowed;}
 #xfy-bar .xfy-ghost{background:#fff;}
@@ -22,9 +23,14 @@ body{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px
 #xfy-bar .xfy-time{font-size:14px;color:#4c5c74;font-variant-numeric:tabular-nums;min-width:132px;text-align:center;}
 #xfy-bar .xfy-phys{font-size:13px;color:#8593a8;min-width:118px;}
 #xfy-bar .xfy-speeds{display:flex;gap:4px;}
-#xfy-bar .xfy-speed{padding:5px 10px;font-size:13px;border-radius:7px;}
+#xfy-bar .xfy-speed{padding:4px 10px;font-size:13px;border-radius:7px;}
 #xfy-bar .xfy-speed.is-on{background:#2f6feb;border-color:#2f6feb;color:#fff;}
 #xfy-bar .xfy-speed.is-on:hover{background:#2a63d4;}
+#xfy-bar .xfy-toggles{gap:16px;padding-top:1px;}
+#xfy-bar .xfy-tg{display:flex;align-items:center;gap:6px;font-size:13px;color:#4c5c74;cursor:pointer;user-select:none;}
+#xfy-bar .xfy-tg input{accent-color:#2f6feb;cursor:pointer;margin:0;}
+#xfy-bar .xfy-tg i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+#xfy-bar .xfy-tip{margin-left:auto;font-size:12px;color:#9aa7ba;}
 </style>`;
 
 /**

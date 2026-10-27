@@ -127,6 +127,24 @@ export class Engine {
       }
       const sweep = await sb.sweepAct(act.index, 90);
       if (sweep?.length) issues.push(...checkSweep(sweep, null));
+
+      // 图层开关是否真的生效：逐个关掉，看画面有没有变化
+      const mid = act.physical * 0.5;
+      const base = await sb.captureAct(act.index, mid);
+      const allOn = { vel: true, acc: true, force: true, trail: true, grid: true, panel: true };
+      let honored = 0;
+      for (const f of Object.keys(allOn)) {
+        const c = await sb.captureAct(act.index, mid, { ...allOn, [f]: false });
+        if (Math.abs(c.shapes.length - base.shapes.length) > 2 || Math.abs(c.texts.length - base.texts.length) > 0) honored++;
+      }
+      if (honored === 0) {
+        issues.push({
+          id: 'toggles',
+          level: 'warn',
+          message: `${this.label(act)}：图层开关没生效——关掉速度/加速度/受力/轨迹/网格/数据中的任何一层，画面都没有变化。`,
+          hint: 'render(t, opts) 的 opts 里这六个开关要真的控制对应图层（默认都画）。',
+        });
+      }
     }
 
     if (sb.violations.length) {
@@ -217,15 +235,20 @@ export class Engine {
     return { text, content: [{ type: 'text', text }, ...content], images };
   }
 
-  /** 用探针核对模型申报的关键值 */
-  async verify(checkpoints: { act?: number; t: number; key: string; value: number }[]): Promise<{ ok: boolean; text: string }> {
-    if (!checkpoints?.length) return { ok: false, text: '没有申报关键数值。finish 时必须给 2~4 个抽查点。' };
+  /** 用探针核对模型申报的关键值；顺带核对它申报的物理关系 */
+  async verify(
+    checkpoints: { act?: number; t: number; key: string; value: number }[],
+    constraints: { name: string; left: number; right: number; tol?: number }[] = [],
+  ): Promise<{ ok: boolean; text: string }> {
+    const rows: string[] = [];
+    let ok = true;
+
+    if (!checkpoints?.length) {
+      return { ok: false, text: '没有申报关键数值。finish 时必须给 2~4 个抽查点。' };
+    }
     const sb = await this.ensure();
     const acts = this.actsInfo;
     if (!acts.length) return { ok: false, text: '缺少 XFY 契约，无法核对数值。' };
-
-    const rows: string[] = [];
-    let ok = true;
 
     for (const cp of checkpoints.slice(0, 8)) {
       const act = acts.find((a) => a.index === (cp.act ?? 0)) ?? acts[0];
@@ -246,7 +269,26 @@ export class Engine {
       );
     }
 
-    return { ok, text: `数值对账：\n${rows.join('\n')}` };
+    // 物理关系：让模型自己报"等号两边"，程序验算等式
+    if (constraints.length < 2) {
+      ok = false;
+      rows.push('✗ 约束太少：至少申报 2 条物理关系（例如 tan60° = vy/vx、vy = g·t）。');
+    }
+    for (const c of constraints.slice(0, 8)) {
+      const left = Number(c.left);
+      const right = Number(c.right);
+      if (!Number.isFinite(left) || !Number.isFinite(right)) {
+        ok = false;
+        rows.push(`✗ 约束「${c.name}」的值不是数字`);
+        continue;
+      }
+      const tol = Number(c.tol) > 0 ? Number(c.tol) : Math.max(0.02, Math.abs(left) * 0.01);
+      const pass = Math.abs(left - right) <= tol;
+      if (!pass) ok = false;
+      rows.push(`约束「${c.name}」：左边 ${left}，右边 ${right} ${pass ? '✓' : `✗ 差 ${Math.abs(left - right).toFixed(3)}`}`);
+    }
+
+    return { ok, text: `数值与约束对账：\n${rows.join('\n')}` };
   }
 
   async close(): Promise<void> {
@@ -330,6 +372,21 @@ export const TOOL_SCHEMAS = [
                 value: { type: 'number', description: '解析解应得的值' },
               },
               required: ['t', 'key', 'value'],
+            },
+          },
+          constraints: {
+            type: 'array',
+            description:
+              '至少 2 条物理关系，用等号两边的数值表示，程序会验算。例如 ｛name:"tan60°=vy/vx", left:1.732, right:1.5/0.866｝——right 也要写成算好的数。',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: '关系式，如 "vy = g·t"' },
+                left: { type: 'number', description: '等号左边的数值' },
+                right: { type: 'number', description: '等号右边的数值' },
+                tol: { type: 'number', description: '允许误差，默认 1%' },
+              },
+              required: ['name', 'left', 'right'],
             },
           },
         },

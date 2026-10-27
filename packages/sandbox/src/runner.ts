@@ -103,9 +103,14 @@ export class Sandbox {
     return (await this.page.evaluate(() => (window as any).__XFY_SB.acts())) as ActMeta[];
   }
 
-  /** 抓某一幕的 t 秒（物理时间） */
-  async captureAct(act: number, tSec: number): Promise<Capture> {
-    const cap = await this.page.evaluate((a: number, t: number) => (window as any).__XFY_SB.captureAct(a, t), act, tSec);
+  /** 抓某一幕的 t 秒（物理时间），可带图层开关 */
+  async captureAct(act: number, tSec: number, opts?: Record<string, boolean>): Promise<Capture> {
+    const cap = await this.page.evaluate(
+      (a: number, t: number, o: any) => (window as any).__XFY_SB.captureAct(a, t, o),
+      act,
+      tSec,
+      opts ?? null,
+    );
     return cap as Capture;
   }
 

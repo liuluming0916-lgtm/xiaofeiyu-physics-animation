@@ -44,7 +44,7 @@
 
   /* ---------- 输入页 ---------- */
   .input-left{
-    width:44%;flex:0 0 44%;background:var(--card);border-right:1px solid var(--line);
+    width:40%;flex:0 0 40%;background:var(--card);border-right:1px solid var(--line);
     display:flex;flex-direction:column;overflow:auto;padding:18px 22px;
   }
   .input-right{flex:1;padding:22px;overflow:auto;display:flex;flex-direction:column;}
@@ -110,9 +110,10 @@
 
   /* ---------- 动画页 ---------- */
   .anim-left{
-    width:36%;flex:0 0 36%;background:var(--card);border-right:1px solid var(--line);
-    overflow:auto;padding:18px 20px;
+    width:320px;flex:0 0 320px;background:var(--card);border-right:1px solid var(--line);
+    overflow:auto;padding:16px 18px;
   }
+  #view-anim.noleft .anim-left{display:none;}
   .anim-right{flex:1;min-width:0;padding:16px 18px;display:flex;flex-direction:column;gap:12px;}
   .anim-title{font-size:16px;font-weight:700;margin:0 0 4px;}
   .anim-sub{font-size:12px;color:var(--sub);}
@@ -127,7 +128,7 @@
   .act i{font-style:normal;font-size:11.5px;color:var(--sub);}
 
   .stagebox{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#dde5f0;border-radius:12px;overflow:hidden;position:relative;}
-  .stagebox iframe{border:0;width:1280px;height:820px;transform-origin:top left;background:#fff;}
+  .stagebox iframe{border:0;width:1280px;height:836px;transform-origin:top left;background:#fff;}
   .placeholder{color:#8b9ab0;font-size:14px;text-align:center;line-height:2;}
   .placeholder b{display:block;font-size:15px;color:#6b7a91;margin-bottom:4px;}
 
@@ -138,9 +139,10 @@
   }
   .redo input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,235,.12);}
 
-  .bar{padding:9px 14px;border-radius:9px;font-size:13px;background:#f4f7fb;border:1px solid var(--line);color:var(--sub);}
+  .bar{padding:9px 14px;border-radius:9px;font-size:13px;background:#f4f7fb;border:1px solid var(--line);color:var(--sub);display:flex;align-items:center;gap:10px;}
   .bar.ok{background:#eefaf4;border-color:#bfe6d6;color:var(--ok);}
   .bar.bad{background:#fff4f4;border-color:#f3c9c9;color:var(--bad);}
+  .bar .btn.small{padding:4px 10px;font-size:12px;}
 
   /* ---------- 设置页 ---------- */
   .settings{flex:1;display:flex;justify-content:center;padding:28px;overflow:auto;}
@@ -235,7 +237,10 @@
     </div>
 
     <div class="anim-right">
-      <div class="bar" id="animBar">还没有产物</div>
+      <div class="bar" id="animBar">
+        <span id="animBarText">还没有产物</span>
+        <button class="btn small" id="btnToggleLeft" style="margin-left:auto">收起解析</button>
+      </div>
       <div class="stagebox" id="stagebox">
         <div class="placeholder"><b>动画会出现在这里</b>生成成功后可以直接播放、拖动时间轴、切换幕</div>
       </div>
@@ -532,10 +537,19 @@
     stage.innerHTML = '';
     const f = document.createElement('iframe');
     f.src = `/api/jobs/${state.jobId}/artifact`;
-    f.onload = fitStage;
+    f.onload = () => {
+      try {
+        const h = f.contentWindow?.document?.documentElement?.scrollHeight;
+        if (h) {
+          f.dataset.h = String(h);
+          f.style.height = h + 'px';
+        }
+      } catch (_) {}
+      fitStage();
+    };
     stage.appendChild(f);
     $('animBar').className = 'bar ok';
-    $('animBar').textContent = `已交付 · ${state.result.writes} 版代码 · ${(state.result.elapsedMs / 1000).toFixed(0)} s`;
+    $('animBarText').textContent = `已交付 · ${state.result.writes} 版代码 · ${(state.result.elapsedMs / 1000).toFixed(0)} s`;
     $('btnRedo').disabled = false;
   }
 
@@ -543,33 +557,38 @@
     const f = $('stagebox')?.querySelector('iframe');
     if (!f) return;
     const box = $('stagebox').getBoundingClientRect();
-    const s = Math.min(box.width / 1280, box.height / 820);
+    const h = Number(f.dataset.h) || 836;
+    const s = Math.min(box.width / 1280, box.height / h);
     f.style.transform = `scale(${s})`;
   }
   window.addEventListener('resize', fitStage);
+
+  $('btnToggleLeft').addEventListener('click', () => {
+    const v = $('view-anim');
+    const hidden = v.classList.toggle('noleft');
+    $('btnToggleLeft').textContent = hidden ? '显示解析' : '收起解析';
+    setTimeout(fitStage, 0);
+  });
 
   /* ---------------- 打回 ---------------- */
   $('btnRedo').addEventListener('click', async () => {
     const note = $('redoNote').value.trim();
     if (!note) { $('redoNote').focus(); return; }
-    await fetch('/api/generate', {
+    if (!state.jobId) return;
+    $('btnRedo').disabled = true;
+    await fetch(`/api/jobs/${state.jobId}/revise`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        text: state.problem,
-        solution: state.solution,
-        note,
-        images: state.images,
-        solutionImages: state.solutionImages,
-      }),
+      body: JSON.stringify({ note }),
     }).then(r => r.json()).then(d => {
       state.jobId = d.id;
+      $('redoNote').value = '';
       location.hash = 'input';
       writes = 0;
       startFlow('repair');
       startTick();
       subscribe(d.id);
-    });
+    }).catch(() => { $('btnRedo').disabled = false; });
   });
 
   /* ---------------- 设置 ---------------- */

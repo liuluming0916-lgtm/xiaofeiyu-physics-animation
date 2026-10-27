@@ -22,7 +22,7 @@ const file = png.replace(/\.png$/, '.html');
 writeFileSync(file, wrapped, 'utf8');
 console.log(`已生成 ${file}（${(wrapped.length / 1024).toFixed(1)} KB）`);
 
-const sb = await Sandbox.open(file, { height: 820, scale: 2 });
+const sb = await Sandbox.open(file, { height: 900, scale: 2 });
 const acts = await sb.acts();
 const physical = acts[0]?.physical ?? 4;
 await sb.evaluate(
