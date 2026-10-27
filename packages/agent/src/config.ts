@@ -50,6 +50,15 @@ export function saveConfigFile(patch: Record<string, string>, file = CONFIG_PATH
   applyConfigFile(file);
 }
 
+/** 读界面的配置文件（不做任何解释，原样返回） */
+export function readConfigFile(file = CONFIG_PATH): Record<string, string> {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch (_) {
+    return {};
+  }
+}
+
 export const cfg = {
   get apiBase(): string {
     return get('XFY_API_BASE', 'https://api.deepseek.com').replace(/\/+$/, '');
@@ -78,12 +87,14 @@ export function apiUrl(path: string): string {
 }
 
 export function configSummary() {
+  const raw = readConfigFile();
   return {
     apiBase: cfg.apiBase,
     model: cfg.model,
     thinking: cfg.thinking,
     hasKey: Boolean(cfg.apiKey),
     keyHint: cfg.apiKey ? `${cfg.apiKey.slice(0, 4)}…${cfg.apiKey.slice(-4)}` : '',
+    guideDone: raw.guideDone === '1',
   };
 }
 

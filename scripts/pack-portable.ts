@@ -30,8 +30,12 @@ cpSync(ELEC, OUT, { recursive: true });
 console.log('复制应用…');
 cpSync(path.join(ROOT, 'electron'), path.join(APP, 'electron'), { recursive: true });
 cpSync(path.join(ROOT, 'dist', 'app'), path.join(APP, 'dist', 'app'), { recursive: true });
+
+// 许可文件统一收进 docs/，根目录只留 exe、resources 和启动说明
+const DOCS = path.join(APP, 'docs');
+mkdirSync(DOCS, { recursive: true });
 for (const f of ['LICENSE', 'NOTICE', 'COMMERCIAL.md', 'TRADEMARK.md']) {
-  if (existsSync(path.join(ROOT, f))) copyFileSync(path.join(ROOT, f), path.join(APP, f));
+  if (existsSync(path.join(ROOT, f))) copyFileSync(path.join(ROOT, f), path.join(DOCS, f));
 }
 
 // resources/app/package.json：Electron 靠它找入口

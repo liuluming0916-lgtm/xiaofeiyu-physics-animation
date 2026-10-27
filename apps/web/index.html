@@ -38,6 +38,32 @@
     font-size:11.5px;color:var(--sub);background:#f1f5fb;border:1px solid var(--line);
     padding:4px 10px;border-radius:999px;white-space:nowrap;
   }
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--sub);padding:8px 12px;}
+  .btn.ghost:hover{background:#f1f5fb;border-color:transparent;}
+
+  /* ---------- 弹窗 ---------- */
+  .mask{position:fixed;inset:0;background:rgba(20,30,45,.42);display:none;align-items:center;justify-content:center;z-index:50;}
+  .mask.on{display:flex;}
+  .modal{
+    width:560px;max-width:92vw;max-height:86vh;overflow:auto;background:#fff;border-radius:16px;
+    padding:26px 28px;box-shadow:0 24px 60px rgba(20,30,45,.28);
+  }
+  .modal h3{margin:0 0 6px;font-size:19px;}
+  .modal .sub{margin:0 0 18px;font-size:13px;color:var(--sub);line-height:1.7;}
+  .modal ol{margin:0 0 16px;padding-left:20px;font-size:13.5px;line-height:1.9;color:#3b4a5e;}
+  .modal a{color:var(--brand);text-decoration:none;}
+  .modal a:hover{text-decoration:underline;}
+  .modal .warn{background:#fff8e6;border:1px solid #f3e0b0;color:#8a5a00;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;margin-bottom:16px;}
+  .modal .row{display:flex;gap:10px;align-items:center;margin-top:14px;}
+  .modal .row input[type=password], .modal .row input[type=text]{
+    flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;
+  }
+  .modal .foot{display:flex;gap:10px;align-items:center;margin-top:20px;}
+  .modal .foot .spacer{flex:1;}
+  .modal .ok{color:var(--ok);font-size:12.5px;}
+  .modal .bad{color:var(--bad);font-size:12.5px;}
+  .modal .kv{font-size:13px;line-height:2;color:#3b4a5e;}
+  .modal .kv b{color:var(--ink);display:inline-block;width:76px;}
 
   main{flex:1;min-height:0;overflow:hidden;}
   .view{display:none;height:100%;}
@@ -183,13 +209,13 @@
     <span class="ver">2.0</span>
     <em class="slogan">开源的物理解题动画平台</em>
   </div>
-  <span class="chip" id="chipModel">…</span>
   <nav>
     <button data-view="input" class="on">输入</button>
     <button data-view="anim">动画</button>
     <button data-view="settings">设置</button>
     <button id="btnExport" disabled>导出</button>
   </nav>
+  <button class="btn ghost" id="btnAbout">关于</button>
 </header>
 
 <main>
@@ -331,9 +357,125 @@
   }
   window.addEventListener('hashchange', route);
 
+  /* ---------------- 弹窗 ---------------- */
+  // 弹窗容器在脚本之后才解析，这里一律按需查询，不提前缓存
+  function openModal(html) {
+    const m = document.getElementById('mask');
+    if (!m) return;
+    document.getElementById('modalBody').innerHTML = html;
+    m.classList.add('on');
+  }
+  function closeModal() {
+    const m = document.getElementById('mask');
+    if (!m) return;
+    m.classList.remove('on');
+    document.getElementById('modalBody').innerHTML = '';
+  }
+  document.addEventListener('click', (e) => {
+    const m = document.getElementById('mask');
+    if (!m || !m.classList.contains('on')) return;
+    const t = e.target;
+    if (t === m || (t.closest && t.closest('[data-close]'))) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    const m = document.getElementById('mask');
+    if (e.key === 'Escape' && m && m.classList.contains('on')) closeModal();
+  });
+  window.__xfyShowAbout = showAbout;
+
+  function showAbout() {
+    openModal(`
+      <h3>小肥鱼物理解题动画</h3>
+      <p class="sub">把一道物理题变成可以拖动时间轴的讲解动画。模型自己写代码，自己在沙盒里跑，自己看截图改。</p>
+      <div class="kv">
+        <b>版本</b>v2.0<br>
+        <b>邮箱</b><a href="mailto:1241640869@qq.com">1241640869@qq.com</a><br>
+        <b>QQ</b>1241640869<br>
+        <b>微信</b>AluneOfficial<br>
+        <b>仓库</b><a href="https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation" target="_blank">github.com/liuluming0916-lgtm / xiaofeiyu-physics-animation</a><br>
+        <b>协议</b>AGPL-3.0：免费导出用于教学的动画，商用需授权
+      </div>
+      <p class="sub" style="margin-top:14px">给小肥鱼提建议 / 加功能 / 报 bug，请发邮件。</p>
+      <div class="foot">
+        <button class="btn" id="aboutRepo">打开仓库</button>
+        <span class="spacer"></span>
+        <button class="btn primary" data-close>关闭</button>
+      </div>`);
+    $('aboutRepo').addEventListener('click', () => {
+      window.open('https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation', '_blank');
+    });
+  }
+  $('btnAbout').addEventListener('click', showAbout);
+
+  /* ---------------- 首次使用引导 ---------------- */
+  async function showGuide() {
+    openModal(`
+      <h3>先用一分钟，配好模型</h3>
+      <p class="sub">这个软件不含模型账号，需要你自己的 API Key 才能生成动画。</p>
+      <div class="warn">
+        <b>需要先充值。</b>调用大模型是按用量计费的，DeepSeek 的最低充值金额很小。<br>
+        本软件只提供平台，<b>不抽成、不代收</b>，费用直接付给 DeepSeek。
+      </div>
+      <ol>
+        <li>打开 <a href="https://www.deepseek.com/" target="_blank">deepseek.com</a>，注册并登录</li>
+        <li>进入「API 开放平台」→ 左侧「API keys」→ 创建，复制那串 <code>sk-</code> 开头的字符</li>
+        <li>粘贴到下面，点「保存并测试」</li>
+      </ol>
+      <div class="row">
+        <input type="password" id="guideKey" placeholder="粘贴 sk- 开头的 API Key">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" id="guideSave">保存并测试</button>
+        <span id="guideMsg" class="ok"></span>
+      </div>
+      <div class="foot">
+        <label style="font-size:12.5px;color:#7b8899">
+          <input type="checkbox" id="guideSkip" style="vertical-align:-2px"> 先跳过，下次启动再提醒
+        </label>
+        <span class="spacer"></span>
+        <button class="btn" id="guideLater">以后再说</button>
+      </div>`);
+
+    const done = () => fetch('/api/config', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ guideDone: '1' }),
+    });
+    $('guideLater').addEventListener('click', async () => {
+      if ($('guideSkip').checked) await done();
+      closeModal();
+    });
+    $('guideSave').addEventListener('click', async () => {
+      const key = $('guideKey').value.trim();
+      if (!key) return ($('guideMsg').className = 'bad'), ($('guideMsg').textContent = '先粘贴一个 Key');
+      $('guideMsg').className = '';
+      $('guideMsg').textContent = '测试中…';
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      const r = await fetch('/api/test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      }).then((x) => x.json());
+      if (!r.ok) {
+        $('guideMsg').className = 'bad';
+        $('guideMsg').textContent = '连不上：' + (r.error || '未知错误');
+        return;
+      }
+      $('guideMsg').className = 'ok';
+      $('guideMsg').textContent = `好了，${r.current?.name ?? r.base} 可用`;
+      await done();
+      await loadConfig();
+      setTimeout(closeModal, 900);
+    });
+  }
+
   /* ---------------- 模型信息 ---------------- */
   fetch('/api/health').then(r => r.json()).then(h => {
-    $('chipModel').textContent = `${h.model} · 思考 ${h.thinking}`;
+    state.health = h;
   }).catch(() => {});
 
   /* ---------------- 图片 ---------------- */
@@ -519,13 +661,39 @@
     });
   }
 
-  /* ---------------- 导出 ---------------- */
-  $('btnExport').addEventListener('click', () => {
+  /* ---------------- 导出：存到「文档\小肥鱼物理解题动画\导出」 ---------------- */
+  $('btnExport').addEventListener('click', async () => {
     if (!state.jobId) return;
-    const a = document.createElement('a');
-    a.href = `/api/jobs/${state.jobId}/artifact`;
-    a.download = '物理动画.html';
-    a.click();
+    $('btnExport').disabled = true;
+    $('btnExport').textContent = '导出中…';
+    try {
+      const r = await fetch(`/api/jobs/${state.jobId}/export`, { method: 'POST' }).then((x) => x.json());
+      if (!r.ok) {
+        openModal(`<h3>导出失败</h3><p class="sub">${r.error || '未知错误'}</p>
+          <div class="foot"><span class="spacer"></span><button class="btn" data-close>知道了</button></div>`);
+        return;
+      }
+      openModal(`
+        <h3>已导出</h3>
+        <p class="sub">动画已经保存成网页文件，双击就能在浏览器里播放，不需要联网，也可以直接发给学生。</p>
+        <div class="kv"><b>保存位置</b><br><span style="word-break:break-all;color:#2b3648">${r.file}</span></div>
+        <div class="foot">
+          <button class="btn primary" id="openExportDir">打开文件夹</button>
+          <span class="spacer"></span>
+          <button class="btn" data-close>关闭</button>
+        </div>`);
+      $('openExportDir').addEventListener('click', async () => {
+        const o = await fetch('/api/open-folder', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ dir: r.dir }),
+        }).then((x) => x.json());
+        if (!o.ok) alert('打不开文件夹：' + (o.error || '未知错误'));
+      });
+    } finally {
+      $('btnExport').disabled = false;
+      $('btnExport').textContent = '导出';
+    }
   });
 
   /* ---------------- 动画页 ---------------- */
@@ -610,12 +778,17 @@
   });
 
   /* ---------------- 设置 ---------------- */
+  let guideShown = false;
   async function loadConfig() {
     const c = await fetch('/api/config').then(r => r.json());
     $('cfgBase').value = c.apiBase;
     $('cfgModel').value = c.model;
     $('cfgThinking').value = c.thinking;
     $('keyHint').textContent = c.hasKey ? `已保存密钥 ${c.keyHint}；留空表示不改。` : '还没有保存密钥。';
+    if (!c.guideDone && !guideShown && !c.hasKey) {
+      guideShown = true;
+      showGuide();
+    }
   }
   $('btnSave').addEventListener('click', async () => {
     const body = {
@@ -624,8 +797,7 @@
       thinking: $('cfgThinking').value,
       apiKey: $('cfgKey').value.trim(),
     };
-    const c = await fetch('/api/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
-    $('chipModel').textContent = `${c.model} · 思考 ${c.thinking}`;
+    await fetch('/api/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
     $('cfgResult').className = 'result ok';
     $('cfgResult').textContent = '已保存。';
     $('cfgKey').value = '';
@@ -693,7 +865,14 @@
   // 调试用：?fish=read|solve|draw|check|repair|think|done|error 直接看某个状态
   const forced = new URLSearchParams(location.search).get('fish');
   if (forced && forced in FISH) setFish(forced);
+
+  // 调试用：?about=1 / ?guide=1 直接打开对应弹窗
+  const q = new URLSearchParams(location.search);
+  if (q.get('about') === '1') setTimeout(showAbout, 300);
+  if (q.get('guide') === '1') setTimeout(showGuide, 300);
 })();
 </script>
+
+<div class="mask" id="mask"><div class="modal" id="modalBody"></div></div>
 </body>
 </html>

@@ -56,9 +56,14 @@ async function startServer() {
   const dataDir = path.join(app.getPath('userData'), '开源日志');
   fs.mkdirSync(dataDir, { recursive: true });
 
+  // 老师能一眼找到的位置：文档\小肥鱼物理解题动画\导出
+  const exportDir = path.join(app.getPath('documents'), '小肥鱼物理解题动画', '导出');
+  fs.mkdirSync(exportDir, { recursive: true });
+
   process.env.XFY_PORT = String(port);
   process.env.XFY_NO_OPEN = '1';
   process.env.XFY_DATA_DIR = dataDir;
+  process.env.XFY_EXPORT_DIR = exportDir;
   process.env.XFY_CONFIG_PATH = path.join(app.getPath('userData'), 'xfy.config.json');
 
   if (!fs.existsSync(SERVER_ENTRY)) {
@@ -90,6 +95,14 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.loadURL(serverURL);
 
+  // 没有菜单栏时，保留开发者工具快捷键
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      mainWindow.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
+
   // 站外链接一律用系统浏览器打开，不在应用里开新窗口
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(serverURL)) shell.openExternal(url);
@@ -116,24 +129,22 @@ if (!gotLock) {
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
         {
-          label: '文件',
-          submenu: [{ role: 'quit', label: '退出' }],
-        },
-        {
-          label: '视图',
+          label: '关于',
           submenu: [
-            { role: 'reload', label: '刷新' },
-            { role: 'toggleDevTools', label: '开发者工具' },
+            {
+              label: '关于小肥鱼物理解题动画',
+              click: () => {
+                if (mainWindow) mainWindow.webContents.executeJavaScript('window.__xfyShowAbout && window.__xfyShowAbout()');
+              },
+            },
             { type: 'separator' },
-            { role: 'resetZoom', label: '实际大小' },
-            { role: 'zoomIn', label: '放大' },
-            { role: 'zoomOut', label: '缩小' },
-            { type: 'separator' },
-            { role: 'togglefullscreen', label: '全屏' },
+            { role: 'quit', label: '退出' },
           ],
         },
       ]),
     );
+
+    // 没有菜单栏时，仍保留开发者工具的快捷键
 
     try {
       await startServer();

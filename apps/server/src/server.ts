@@ -2,8 +2,8 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'node:fs';
-import { loadEnv, cfg, apiUrl, configSummary, saveConfigFile } from '../../../packages/agent/src/config.ts';
+import { spawn } from 'node:child_process';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'node:fs';import { loadEnv, cfg, apiUrl, configSummary, saveConfigFile } from '../../../packages/agent/src/config.ts';
 import { runProblem } from '../../../packages/agent/src/loop.ts';
 
 loadEnv();
@@ -17,7 +17,10 @@ const WEB_DIR = existsSync(path.join(ROOT, 'apps', 'web'))
 // 产物目录：开发态在仓库 开源日志/；打包态由主进程指到用户可写目录
 const DATA_ROOT = process.env.XFY_DATA_DIR ? path.resolve(process.env.XFY_DATA_DIR) : path.join(ROOT, '开源日志');
 const OUT_ROOT = path.join(DATA_ROOT, 'web');
+// 老师能一眼找到的导出位置（由主进程指到「文档\小肥鱼物理解题动画\导出」）
+const EXPORT_DIR = process.env.XFY_EXPORT_DIR ? path.resolve(process.env.XFY_EXPORT_DIR) : path.join(DATA_ROOT, '导出');
 mkdirSync(OUT_ROOT, { recursive: true });
+mkdirSync(EXPORT_DIR, { recursive: true });
 
 interface Job {
   id: string;
@@ -242,6 +245,20 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: false, error: friendly });
       }
     }
+    if (p === '/api/open-folder' && req.method === 'POST') {
+      const body = await readBody(req).catch(() => ({}) as any);
+      const want = path.resolve(String(body?.dir ?? EXPORT_DIR));
+      // 只允许打开我们自己的两个目录，避免被当成任意命令执行器
+      const allowed = [path.resolve(EXPORT_DIR), path.resolve(DATA_ROOT)].includes(want);
+      if (!allowed) return json(res, 403, { error: '不允许打开该目录' });
+      mkdirSync(want, { recursive: true });
+      try {
+        spawn('explorer.exe', [want], { detached: true, stdio: 'ignore' }).unref();
+      } catch (e: any) {
+        return json(res, 500, { error: String(e?.message ?? e) });
+      }
+      return json(res, 200, { ok: true, dir: want });
+    }
     if (p === '/api/generate' && req.method === 'POST') {
       const body = await readBody(req);
       const job = await startJob(body);
@@ -293,6 +310,20 @@ const server = http.createServer(async (req, res) => {
         if (!note) return json(res, 400, { error: '意见不能为空' });
         const next = await startJob({ text: job.problem, note }, job);
         return json(res, 200, { id: next.id, outDir: next.outDir });
+      }
+      if (rest === '/export' && req.method === 'POST') {
+        const src = path.join(job.outDir, 'animation.html');
+        if (!existsSync(src)) return json(res, 404, { error: '还没有可导出的动画' });
+        const raw = (job.problem || '物理动画').replace(/\s+/g, ' ').trim().slice(0, 24);
+        const safe = raw.replace(/[\\/:*?"<>|]/g, '').replace(/[，。、；：]/g, '') || '物理动画';
+        const d = new Date();
+        const p2 = (n: number) => String(n).padStart(2, '0');
+        const stamp = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}`;
+        let file = path.join(EXPORT_DIR, `${safe}-${stamp}.html`);
+        let n = 2;
+        while (existsSync(file)) file = path.join(EXPORT_DIR, `${safe}-${stamp}-${n++}.html`);
+        copyFileSync(src, file);
+        return json(res, 200, { ok: true, file, dir: EXPORT_DIR });
       }
       if (rest === '/artifact') {
         return serveFile(res, path.join(job.outDir, 'animation.html'));
