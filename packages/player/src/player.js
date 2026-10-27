@@ -253,7 +253,18 @@
   const stageEl = document.getElementById('xfy-stage');
   const COLORS = ['#e5484d', '#2f6feb', '#111827'];
   const WIDTHS = [2, 4, 7];
-  const ink = { canvas: null, ctx: null, on: false, color: COLORS[0], width: WIDTHS[1], erase: false, strokes: [], cur: null };
+  const ink = {
+    canvas: null,
+    ctx: null,
+    on: false,
+    color: COLORS[0],
+    width: WIDTHS[1],
+    erase: false,
+    eraseSize: 44, // 橡皮：一块 44×44 的逻辑像素，比笔粗一个数量级
+    strokes: [],
+    cur: null,
+    ghost: null,
+  };
 
   if (INK_ON && stageEl) {
     // 工具条：只在标注模式下出现
@@ -287,6 +298,35 @@
       'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;touch-action:none;z-index:5;';
     stageEl.appendChild(ink.canvas);
 
+    // 橡皮的方块光标：看到多大，就擦多大
+    ink.ghost = document.createElement('div');
+    ink.ghost.id = 'xfy-ink-ghost';
+    ink.ghost.style.cssText = 'display:none;';
+    stageEl.appendChild(ink.ghost);
+
+    function showGhost(show, e) {
+      const g = ink.ghost;
+      if (!g) return;
+      if (!show) {
+        g.style.display = 'none';
+        return;
+      }
+      const r = ink.canvas.getBoundingClientRect();
+      const s = ink.eraseSize * (r.width / 1280);
+      g.style.display = 'block';
+      g.style.width = `${s}px`;
+      g.style.height = `${s}px`;
+      if (e) {
+        g.style.left = `${e.clientX - r.left - s / 2}px`;
+        g.style.top = `${e.clientY - r.top - s / 2}px`;
+      }
+    }
+
+    function applyTool() {
+      ink.canvas.style.cursor = !ink.on ? 'default' : ink.erase ? 'none' : 'crosshair';
+      if (!ink.erase) showGhost(false);
+    }
+
     const resizeInk = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       ink.canvas.width = Math.round(1280 * dpr);
@@ -306,7 +346,26 @@
       c.lineCap = 'round';
       c.lineJoin = 'round';
       for (const s of ink.strokes) {
-        c.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+        if (s.erase) {
+          // 橡皮擦：沿路径连续盖方块，而不是把笔画涂成透明
+          const size = s.size;
+          const half = size / 2;
+          for (let i = 0; i < s.pts.length; i++) {
+            const p = s.pts[i];
+            c.clearRect(p[0] - half, p[1] - half, size, size);
+            if (i > 0) {
+              const q = s.pts[i - 1];
+              const dist = Math.hypot(p[0] - q[0], p[1] - q[1]);
+              const n = Math.ceil(dist / (size / 3));
+              for (let k = 1; k < n; k++) {
+                const t = k / n;
+                c.clearRect(q[0] + (p[0] - q[0]) * t - half, q[1] + (p[1] - q[1]) * t - half, size, size);
+              }
+            }
+          }
+          continue;
+        }
+        c.globalCompositeOperation = 'source-over';
         c.strokeStyle = s.color;
         c.lineWidth = s.width;
         c.beginPath();
@@ -326,11 +385,15 @@
       if (!ink.on) return;
       e.preventDefault();
       ink.canvas.setPointerCapture(e.pointerId);
-      ink.cur = { color: ink.color, width: ink.width, erase: ink.erase, pts: [toLogical(e)] };
+      ink.cur = ink.erase
+        ? { erase: true, size: ink.eraseSize, pts: [toLogical(e)] }
+        : { color: ink.color, width: ink.width, erase: false, pts: [toLogical(e)] };
       ink.strokes.push(ink.cur);
       redrawInk();
     });
     ink.canvas.addEventListener('pointermove', (e) => {
+      if (!ink.on) return;
+      if (ink.erase) showGhost(true, e);
       if (!ink.cur) return;
       const p = toLogical(e);
       const last = ink.cur.pts[ink.cur.pts.length - 1];
@@ -338,6 +401,10 @@
       ink.cur.pts.push(p);
       redrawInk();
     });
+    ink.canvas.addEventListener('pointerenter', (e) => {
+      if (ink.on && ink.erase) showGhost(true, e);
+    });
+    ink.canvas.addEventListener('pointerleave', () => showGhost(false));
     const stop = () => {
       ink.cur = null;
     };
@@ -350,8 +417,9 @@
       inkRow.hidden = !on;
       toggle.classList.toggle('is-on', on);
       ink.canvas.style.pointerEvents = on ? 'auto' : 'none';
-      ink.canvas.style.cursor = on ? 'crosshair' : 'default';
+      applyTool();
       if (on) pause();
+      if (!on) showGhost(false);
     }
     const clearInk = () => {
       ink.strokes.length = 0;
@@ -379,6 +447,7 @@
         for (const o of inkRow.querySelectorAll('[data-color]')) o.classList.toggle('is-on', o === b);
         for (const o of inkRow.querySelectorAll('[data-ink="pen"],[data-ink="erase"]'))
           o.classList.toggle('is-on', o.dataset.ink === 'pen');
+        applyTool();
         return;
       }
       if (b.dataset.width) {
@@ -389,6 +458,7 @@
       if (b.dataset.ink === 'pen' || b.dataset.ink === 'erase') {
         ink.erase = b.dataset.ink === 'erase';
         for (const o of inkRow.querySelectorAll('[data-ink="pen"],[data-ink="erase"]')) o.classList.toggle('is-on', o === b);
+        applyTool();
       }
     });
     window.addEventListener('keydown', (e) => {

@@ -19,6 +19,11 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
 #xfy-stage canvas:not(#xfy-ink){display:block;position:static !important;width:100% !important;height:100% !important;
      object-fit:contain;background:#fff;}
 #xfy-ink{position:absolute;left:0;top:0;width:100%;height:100%;z-index:5;}
+#xfy-ink-ghost{
+  position:absolute;z-index:6;pointer-events:none;border-radius:5px;
+  border:1.5px solid #6b7280;background:rgba(107,114,128,.14);
+  box-shadow:0 0 0 2px rgba(255,255,255,.75) inset;
+}
 #xfy-bar{display:flex;flex-direction:column;gap:7px;width:1280px;padding:9px 16px;box-sizing:border-box;
      background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(36,48,68,.10);
      position:relative;z-index:10;}
