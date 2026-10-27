@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小肥鱼物理动画 2.0</title>
+<style>
+  :root{
+    --ink:#1f2a3a; --sub:#66748a; --line:#dbe3ee; --bg:#eef2f8; --card:#fff;
+    --brand:#2f6feb; --ok:#12805c; --bad:#c62a2a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--ink);
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  }
+
+  /* ---------- 顶栏（四个页面共用，样式统一） ---------- */
+  header{
+    flex:0 0 auto;display:flex;align-items:center;gap:18px;
+    padding:0 22px;height:56px;background:var(--card);border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:baseline;gap:8px;}
+  .brand b{font-size:16px;letter-spacing:.2px;}
+  .brand span{font-size:11px;color:#9aa7ba;}
+  nav{display:flex;gap:4px;margin-left:auto;}
+  nav button{
+    border:none;background:transparent;font-family:inherit;font-size:14px;color:#4b5b70;
+    padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s;
+  }
+  nav button:hover{background:#f1f5fb;}
+  nav button.on{background:#22303f;color:#fff;font-weight:600;}
+  nav button:disabled{color:#b8c3d1;cursor:not-allowed;}
+  nav button:disabled:hover{background:transparent;}
+  .chip{
+    font-size:11.5px;color:var(--sub);background:#f1f5fb;border:1px solid var(--line);
+    padding:4px 10px;border-radius:999px;white-space:nowrap;
+  }
+
+  main{flex:1;min-height:0;overflow:hidden;}
+  .view{display:none;height:100%;}
+  .view.on{display:flex;}
+
+  /* ---------- 输入页 ---------- */
+  .input-left{
+    width:44%;flex:0 0 44%;background:var(--card);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;overflow:auto;padding:18px 22px;
+  }
+  .input-right{flex:1;padding:22px;overflow:auto;display:flex;flex-direction:column;}
+
+  .lbl{font-size:12.5px;color:var(--sub);font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+  .lbl .meta{font-weight:400;color:#9aa7ba;font-size:11.5px;margin-left:auto;}
+  .tagnew{font-size:10px;padding:1px 6px;border-radius:4px;background:#e9fbf1;color:var(--ok);font-weight:600;}
+
+  textarea{
+    width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+    font-family:inherit;font-size:14px;line-height:1.75;color:var(--ink);background:#fcfdff;
+    outline:none;resize:vertical;
+  }
+  textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,235,.12);}
+  .drop{
+    border:1.5px dashed #c9d5e6;border-radius:10px;background:#fbfcfe;
+    padding:14px;text-align:center;color:#8b98a8;font-size:13px;cursor:pointer;transition:.15s;
+  }
+  .drop:hover,.drop.over{border-color:var(--brand);background:#f3f7ff;color:var(--brand);}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .thumb{position:relative;width:84px;height:60px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#f4f7fb;}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .thumb button{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:11px;cursor:pointer;}
+
+  .btn{
+    border:1px solid var(--line);background:#f7f9fd;color:var(--ink);border-radius:8px;
+    padding:9px 18px;font-size:14px;font-family:inherit;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{background:#eaf1fd;border-color:#9fbcf0;}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;}
+  .btn.primary:hover{background:#2a63d4;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn.small{padding:6px 12px;font-size:13px;}
+
+  .actions{display:flex;align-items:center;gap:12px;margin-top:16px;}
+  .hint{font-size:12px;color:#9aa7ba;}
+
+  .status-card{
+    border:1px solid var(--line);border-radius:14px;background:var(--card);
+    padding:26px;text-align:center;flex:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;
+  }
+  .mascot{
+    width:212px;height:212px;border-radius:16px;margin-bottom:8px;object-fit:cover;
+    box-shadow:0 10px 28px rgba(31,42,58,.14);background:#e8eef8;
+  }
+  .status-card h3{margin:4px 0 0;font-size:19px;}
+  .status-card p{margin:0;font-size:13px;color:var(--sub);}
+
+  .steps{display:flex;gap:6px;margin-top:20px;width:100%;max-width:520px;}
+  .steps i{flex:1;height:6px;border-radius:3px;background:#e2e9f3;transition:.3s;}
+  .steps i.done{background:#9fc0f3;}
+  .steps i.now{background:var(--brand);}
+  .steps-lbl{display:flex;justify-content:space-between;width:100%;max-width:520px;font-size:11px;color:#9aa7ba;margin-top:6px;}
+  .waited{font-size:12px;color:#9aa7ba;margin-top:8px;font-variant-numeric:tabular-nums;min-height:16px;}
+
+  details{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--card);}
+  summary{cursor:pointer;padding:11px 14px;font-size:13px;color:var(--sub);list-style:none;}
+  summary::-webkit-details-marker{display:none;}
+  summary::before{content:"▸ ";color:#9aa7ba;}
+  details[open] summary::before{content:"▾ ";}
+  details .body{padding:0 14px 12px;font-size:12.5px;color:var(--sub);line-height:1.8;}
+
+  /* ---------- 动画页 ---------- */
+  .anim-left{
+    width:36%;flex:0 0 36%;background:var(--card);border-right:1px solid var(--line);
+    overflow:auto;padding:18px 20px;
+  }
+  .anim-right{flex:1;min-width:0;padding:16px 18px;display:flex;flex-direction:column;gap:12px;}
+  .anim-title{font-size:16px;font-weight:700;margin:0 0 4px;}
+  .anim-sub{font-size:12px;color:var(--sub);}
+
+  .act{
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fff;
+    margin-bottom:8px;cursor:pointer;transition:.15s;
+  }
+  .act:hover{border-color:#9fbcf0;background:#f7faff;}
+  .act.on{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,235,.10);}
+  .act b{display:block;font-size:13px;margin-bottom:3px;}
+  .act i{font-style:normal;font-size:11.5px;color:var(--sub);}
+
+  .stagebox{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#dde5f0;border-radius:12px;overflow:hidden;position:relative;}
+  .stagebox iframe{border:0;width:1280px;height:820px;transform-origin:top left;background:#fff;}
+  .placeholder{color:#8b9ab0;font-size:14px;text-align:center;line-height:2;}
+  .placeholder b{display:block;font-size:15px;color:#6b7a91;margin-bottom:4px;}
+
+  .redo{display:flex;gap:10px;}
+  .redo input{
+    flex:1;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:13px;
+    font-family:inherit;outline:none;background:#fff;
+  }
+  .redo input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,235,.12);}
+
+  .bar{padding:9px 14px;border-radius:9px;font-size:13px;background:#f4f7fb;border:1px solid var(--line);color:var(--sub);}
+  .bar.ok{background:#eefaf4;border-color:#bfe6d6;color:var(--ok);}
+  .bar.bad{background:#fff4f4;border-color:#f3c9c9;color:var(--bad);}
+
+  /* ---------- 设置页 ---------- */
+  .settings{flex:1;display:flex;justify-content:center;padding:28px;overflow:auto;}
+  .card{
+    width:640px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:22px 24px;height:fit-content;
+  }
+  .card h2{font-size:16px;margin:0 0 18px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12.5px;color:var(--sub);font-weight:600;margin-bottom:6px;}
+  .field input,.field select{
+    width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:14px;
+    font-family:inherit;outline:none;background:#fcfdff;color:var(--ink);
+  }
+  .field input:focus,.field select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,235,.12);}
+  .field .tip{font-size:11.5px;color:#9aa7ba;margin-top:5px;}
+  .result{margin-top:14px;font-size:12.5px;line-height:1.8;color:var(--sub);white-space:pre-wrap;}
+  .result.ok{color:var(--ok);}
+  .result.bad{color:var(--bad);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><b>小肥鱼物理动画</b><span>2.0</span></div>
+  <span class="chip" id="chipModel">…</span>
+  <nav>
+    <button data-view="input" class="on">输入</button>
+    <button data-view="anim">动画</button>
+    <button data-view="settings">设置</button>
+    <button id="btnExport" disabled>导出</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ================= 输入页 ================= -->
+  <section class="view on" id="view-input">
+    <div class="input-left">
+      <div class="lbl">题面文字</div>
+      <textarea id="problem" rows="6" placeholder="把题目粘贴到这里（支持 LaTeX）"></textarea>
+
+      <div class="lbl" style="margin-top:18px">题目图片<span class="meta">PNG / JPG / WebP　≤ 15 MB</span></div>
+      <div class="drop" id="drop">拖图片到这里，或点这里选择</div>
+      <input id="file" type="file" accept="image/*" multiple hidden>
+      <div class="thumbs" id="thumbs"></div>
+
+      <div class="lbl" style="margin-top:18px">参考答案 / 解析（可选）<span class="tagnew">可选</span></div>
+      <textarea id="solution" rows="4" placeholder="填了，模型就照这份解析画，不再自己推导。可以只写关键结论，也可以贴解析图片。"></textarea>
+      <div style="margin-top:8px">
+        <button class="btn small" id="btnSolutionImg">添加解析图片</button>
+        <input id="solutionFile" type="file" accept="image/*" multiple hidden>
+      </div>
+      <div class="thumbs" id="solutionThumbs"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="btnGo">生成动画</button>
+        <button class="btn" id="btnCancel" disabled>取消</button>
+        <span class="hint">至少给一样：题面文字，或一张题目图片</span>
+      </div>
+    </div>
+
+    <div class="input-right">
+      <div class="status-card">
+        <img class="mascot" id="mascot" src="assets/fish/idle.webp" alt="">
+        <h3 id="statusTitle">小肥鱼正在等你出题...</h3>
+        <p id="statusDesc">出一道题，把它叫醒</p>
+        <div class="waited" id="waited"></div>
+        <div class="steps"><i id="s1"></i><i id="s2"></i><i id="s3"></i><i id="s4"></i><i id="s5"></i></div>
+        <div class="steps-lbl"><span>读题</span><span>推导</span><span>画画</span><span>检查</span><span>交付</span></div>
+      </div>
+      <details>
+        <summary>过程记录（日志已自动存盘）</summary>
+        <div class="body" id="logBox">详细日志会写在 <code>开源日志/&lt;时间&gt;-&lt;题&gt;/run.json</code> 与 <code>animation.html</code>。</div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ================= 动画页 ================= -->
+  <section class="view" id="view-anim">
+    <div class="anim-left">
+      <h3 class="anim-title" id="animTitle">还没有动画</h3>
+      <div class="anim-sub" id="animSub">先在「输入」页生成一个</div>
+
+      <div class="lbl" style="margin-top:18px">题目原文</div>
+      <div id="animProblem" style="font-size:12.5px;color:var(--sub);line-height:1.8;white-space:pre-wrap;max-height:130px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe"></div>
+
+      <div class="lbl" style="margin-top:18px">分幕</div>
+      <div id="actList"></div>
+
+      <div class="lbl" style="margin-top:18px">答案解析</div>
+      <div id="animSolution" style="font-size:12.5px;color:var(--sub);line-height:1.8;white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe;min-height:40px"></div>
+    </div>
+
+    <div class="anim-right">
+      <div class="bar" id="animBar">还没有产物</div>
+      <div class="stagebox" id="stagebox">
+        <div class="placeholder"><b>动画会出现在这里</b>生成成功后可以直接播放、拖动时间轴、切换幕</div>
+      </div>
+      <div class="redo">
+        <input id="redoNote" placeholder="不满意？写一句：把箭头画大点 / 第二幕衔接太快 / 加速度方向反了">
+        <button class="btn" id="btnRedo" disabled>带意见重做</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 设置页 ================= -->
+  <section class="view" id="view-settings">
+    <div class="settings">
+      <div class="card">
+        <h2>模型连接</h2>
+        <div class="field">
+          <label>接口地址</label>
+          <input id="cfgBase" placeholder="https://api.deepseek.com">
+          <div class="tip">填到 /v1 或根地址都行，程序会自动补 /v1。</div>
+        </div>
+        <div class="field">
+          <label>模型名</label>
+          <input id="cfgModel" placeholder="deepseek-flash">
+        </div>
+        <div class="field">
+          <label>密钥</label>
+          <input id="cfgKey" type="password" placeholder="留空表示不改">
+          <div class="tip" id="keyHint">只存在本机 xfy.config.json，不会上传。</div>
+        </div>
+        <div class="field">
+          <label>思考强度</label>
+          <select id="cfgThinking">
+            <option value="low">low（快、省）</option>
+            <option value="high">high（默认）</option>
+            <option value="max">max（最慢、最贵）</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnSave">保存</button>
+          <button class="btn" id="btnTest">测试连接</button>
+        </div>
+        <div class="result" id="cfgResult"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    jobId: null,
+    result: null,
+    acts: [],
+    problem: '',
+    solution: '',
+    images: [],
+    solutionImages: [],
+  };
+
+  /* ---------------- 路由 ---------------- */
+  function route() {
+    const name = (location.hash.replace('#', '') || 'input');
+    for (const v of document.querySelectorAll('.view')) v.classList.toggle('on', v.id === 'view-' + name);
+    for (const b of document.querySelectorAll('nav button[data-view]')) b.classList.toggle('on', b.dataset.view === name);
+    if (name === 'anim') fitStage();
+  }
+  for (const b of document.querySelectorAll('nav button[data-view]')) {
+    b.addEventListener('click', () => (location.hash = b.dataset.view));
+  }
+  window.addEventListener('hashchange', route);
+
+  /* ---------------- 模型信息 ---------------- */
+  fetch('/api/health').then(r => r.json()).then(h => {
+    $('chipModel').textContent = `${h.model} · 思考 ${h.thinking}`;
+  }).catch(() => {});
+
+  /* ---------------- 图片 ---------------- */
+  function bindDrop(el, input, list, thumbs) {
+    el.addEventListener('click', () => input.click());
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('over');
+      addFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')), list, thumbs);
+    });
+    input.addEventListener('change', () => {
+      addFiles([...input.files], list, thumbs);
+      input.value = '';
+    });
+  }
+  function addFiles(files, list, thumbs) {
+    for (const f of files) {
+      const reader = new FileReader();
+      reader.onload = () => { list.push({ name: f.name, data: reader.result }); renderThumbs(list, thumbs); };
+      reader.readAsDataURL(f);
+    }
+  }
+  function renderThumbs(list, box) {
+    box.innerHTML = '';
+    list.forEach((img, i) => {
+      const d = document.createElement('div');
+      d.className = 'thumb';
+      d.innerHTML = `<img src="${img.data}" alt=""><button title="移除">×</button>`;
+      d.querySelector('button').onclick = () => { list.splice(i, 1); renderThumbs(list, box); };
+      box.appendChild(d);
+    });
+  }
+  bindDrop($('drop'), $('file'), state.images, $('thumbs'));
+  $('btnSolutionImg').addEventListener('click', () => $('solutionFile').click());
+  $('solutionFile').addEventListener('change', (e) => {
+    addFiles([...e.target.files], state.solutionImages, $('solutionThumbs'));
+    e.target.value = '';
+  });
+
+  /* ---------------- 状态（吉祥物 + 文案） ---------------- */
+  const FISH = {
+    idle:   { img: 'idle',   title: '小肥鱼正在等你出题...', desc: '出一道题，把它叫醒' },
+    read:   { img: 'read',   title: '小肥鱼正在认真读题...', desc: '正在读题面、认图片里的条件' },
+    solve:  { img: 'solve',  title: '小肥鱼正在偷看答案...', desc: '受力、过程、该用哪条公式' },
+    draw:   { img: 'draw',   title: '小肥鱼正在努力画画...', desc: '正在一帧一帧地画' },
+    check:  { img: 'check',  title: '小肥鱼正在检查画面...', desc: '快进跑一遍：穿模、压字、飞出去' },
+    repair: { img: 'repair', title: '小肥鱼发现了问题！',   desc: '正在重画' },
+    think:  { img: 'think',  title: '小肥鱼正在思考...',     desc: '它在琢磨，别急' },
+    done:   { img: 'done',   title: '小肥鱼画好啦！',       desc: '点右上角「动画」去看看' },
+    error:  { img: 'error',  title: '小肥鱼遇到了点问题...', desc: '原因写在下面；也可以打回让它再试' },
+  };
+  const PHASE_OF = { read: 0, solve: 1, draw: 2, check: 3, repair: 3, done: 4 };
+
+  let tick = null;
+  let fishTimer = null;
+  let writes = 0;
+
+  function setPhase(idx) {
+    for (let i = 1; i <= 5; i++) {
+      const el = $('s' + i);
+      el.className = i - 1 < idx ? 'done' : i - 1 === idx ? 'now' : '';
+    }
+  }
+
+  function setFish(key, desc) {
+    const f = FISH[key] ?? FISH.idle;
+    $('mascot').src = `assets/fish/${f.img}.webp`;
+    $('statusTitle').textContent = f.title;
+    $('statusDesc').textContent = desc ?? f.desc;
+    setPhase(PHASE_OF[key] ?? -1);
+  }
+
+  /** 读题态随机停 3~10 秒，再进"偷看答案"，让它看起来真的在动脑子 */
+  function startFlow(first = 'read') {
+    clearTimeout(fishTimer);
+    setFish(first);
+    fishTimer = setTimeout(() => setFish('solve'), 3000 + Math.random() * 7000);
+  }
+
+  function startTick() {
+    stopTick();
+    const t0 = Date.now();
+    $('waited').textContent = '已等待 0:00';
+    tick = setInterval(() => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      $('waited').textContent = `已等待 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }, 1000);
+  }
+  function stopTick() {
+    if (tick) clearInterval(tick);
+    tick = null;
+  }
+  function logLine(text) {
+    const box = $('logBox');
+    const div = document.createElement('div');
+    div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ---------------- 生成 ---------------- */
+  $('btnGo').addEventListener('click', async () => {
+    const problem = $('problem').value.trim();
+    const solution = $('solution').value.trim();
+    if (!problem && !state.images.length) {
+      setFish('idle', '至少给一段题面文字，或一张题目图片');
+      return;
+    }
+    if (!problem && state.images.length) {
+      // 纯图片题
+    }
+    state.problem = problem;
+    state.solution = solution;
+
+    $('btnGo').disabled = true;
+    $('btnCancel').disabled = false;
+    $('logBox').textContent = '';
+    writes = 0;
+    startFlow('read');
+    startTick();
+
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: problem,
+        solution,
+        images: state.images,
+        solutionImages: state.solutionImages,
+      }),
+    });
+    const data = await res.json();
+    state.jobId = data.id;
+    subscribe(data.id);
+  });
+
+  $('btnCancel').addEventListener('click', async () => {
+    if (!state.jobId) return;
+    await fetch(`/api/jobs/${state.jobId}/cancel`, { method: 'POST' });
+    stopTick();
+    clearTimeout(fishTimer);
+    $('btnGo').disabled = false;
+    $('btnCancel').disabled = true;
+    setFish('idle', '已取消，可以改改题目再试');
+  });
+
+  function subscribe(id) {
+    const es = new EventSource(`/api/jobs/${id}/events`);
+    es.onmessage = (ev) => {
+      let e;
+      try { e = JSON.parse(ev.data); } catch (_) { return; }
+      if (e.type === 'write') {
+        clearTimeout(fishTimer);
+        writes += 1;
+        if (writes === 1) setFish('draw');
+        else setFish('repair', `发现了问题，正在重画（第 ${writes} 版）`);
+      }
+      if (e.type === 'check') {
+        clearTimeout(fishTimer);
+        setFish('check');
+      }
+      if (e.type === 'look') setFish('check', '正在看关键帧，对着题目核运动方向');
+      if (e.type === 'retry' || e.type === 'truncated') setFish('think');
+      logLine(`[${e.type}] ${e.text}`);
+    };
+    es.addEventListener('end', async () => {
+      es.close();
+      stopTick();
+      const r = await fetch(`/api/jobs/${id}`).then(x => x.json());
+      state.result = r.result;
+      state.acts = r.result?.acts ?? [];
+      $('btnGo').disabled = false;
+      $('btnCancel').disabled = true;
+      if (r.state === 'done') {
+        setFish('done');
+        $('btnExport').disabled = false;
+        renderAnimView();
+      } else {
+        setFish('error', r.result?.reason ?? '这次没有交付成功');
+      }
+    });
+  }
+
+  /* ---------------- 导出 ---------------- */
+  $('btnExport').addEventListener('click', () => {
+    if (!state.jobId) return;
+    const a = document.createElement('a');
+    a.href = `/api/jobs/${state.jobId}/artifact`;
+    a.download = '物理动画.html';
+    a.click();
+  });
+
+  /* ---------------- 动画页 ---------------- */
+  function renderAnimView() {
+    $('animTitle').textContent = state.result?.title || '物理动画';
+    const n = state.acts.length;
+    $('animSub').textContent = n ? `${n} 幕 · 每幕 4.00 s · 共 ${(n * 4).toFixed(2)} s` : '';
+    $('animProblem').textContent = state.problem || '（图片题）';
+    $('animSolution').textContent = state.solution || '（未填写，模型自行推导）';
+
+    const list = $('actList');
+    list.innerHTML = '';
+    state.acts.forEach((a, i) => {
+      const d = document.createElement('div');
+      d.className = 'act' + (i === 0 ? ' on' : '');
+      d.innerHTML = `<b>第 ${i + 1} 幕 · ${a.title}</b><i>物理时长 ${a.physical.toFixed(2)} s</i>`;
+      d.onclick = () => {
+        for (const x of list.children) x.classList.remove('on');
+        d.classList.add('on');
+        const f = $('stagebox').querySelector('iframe');
+        f?.contentWindow?.postMessage({ xfy: 'goto', act: i }, '*');
+      };
+      list.appendChild(d);
+    });
+
+    const stage = $('stagebox');
+    stage.innerHTML = '';
+    const f = document.createElement('iframe');
+    f.src = `/api/jobs/${state.jobId}/artifact`;
+    f.onload = fitStage;
+    stage.appendChild(f);
+    $('animBar').className = 'bar ok';
+    $('animBar').textContent = `已交付 · ${state.result.writes} 版代码 · ${(state.result.elapsedMs / 1000).toFixed(0)} s`;
+    $('btnRedo').disabled = false;
+  }
+
+  function fitStage() {
+    const f = $('stagebox')?.querySelector('iframe');
+    if (!f) return;
+    const box = $('stagebox').getBoundingClientRect();
+    const s = Math.min(box.width / 1280, box.height / 820);
+    f.style.transform = `scale(${s})`;
+  }
+  window.addEventListener('resize', fitStage);
+
+  /* ---------------- 打回 ---------------- */
+  $('btnRedo').addEventListener('click', async () => {
+    const note = $('redoNote').value.trim();
+    if (!note) { $('redoNote').focus(); return; }
+    await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: state.problem,
+        solution: state.solution,
+        note,
+        images: state.images,
+        solutionImages: state.solutionImages,
+      }),
+    }).then(r => r.json()).then(d => {
+      state.jobId = d.id;
+      location.hash = 'input';
+      writes = 0;
+      startFlow('repair');
+      startTick();
+      subscribe(d.id);
+    });
+  });
+
+  /* ---------------- 设置 ---------------- */
+  async function loadConfig() {
+    const c = await fetch('/api/config').then(r => r.json());
+    $('cfgBase').value = c.apiBase;
+    $('cfgModel').value = c.model;
+    $('cfgThinking').value = c.thinking;
+    $('keyHint').textContent = c.hasKey ? `已保存密钥 ${c.keyHint}；留空表示不改。` : '还没有保存密钥。';
+  }
+  $('btnSave').addEventListener('click', async () => {
+    const body = {
+      apiBase: $('cfgBase').value.trim(),
+      model: $('cfgModel').value.trim(),
+      thinking: $('cfgThinking').value,
+      apiKey: $('cfgKey').value.trim(),
+    };
+    const c = await fetch('/api/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+    $('chipModel').textContent = `${c.model} · 思考 ${c.thinking}`;
+    $('cfgResult').className = 'result ok';
+    $('cfgResult').textContent = '已保存。';
+    $('cfgKey').value = '';
+    loadConfig();
+  });
+  $('btnTest').addEventListener('click', async () => {
+    $('cfgResult').className = 'result';
+    $('cfgResult').textContent = '正在连接…';
+    const r = await fetch('/api/test', { method: 'POST' }).then(x => x.json());
+    if (!r.ok) {
+      $('cfgResult').className = 'result bad';
+      $('cfgResult').textContent = '连接失败：' + (r.error || '未知错误');
+      return;
+    }
+    const c = r.current;
+    $('cfgResult').className = 'result ok';
+    $('cfgResult').textContent = c
+      ? `连接成功（${r.ms} ms）\n当前模型：${c.name}\n看图：${c.vision ? '支持' : '不支持'}　上下文：${c.context ? (c.context / 10000).toFixed(0) + ' 万' : '未知'}\n思考强度可选：${(c.effort || []).join(' / ') || '未知'}`
+      : `连接成功（${r.ms} ms），但没有找到模型 ${$('cfgModel').value}`;
+  });
+
+  route();
+  loadConfig();
+
+  // 调试用：?fish=read|solve|draw|check|repair|think|done|error 直接看某个状态
+  const forced = new URLSearchParams(location.search).get('fish');
+  if (forced && forced in FISH) setFish(forced);
+})();
+</script>
+</body>
+</html>

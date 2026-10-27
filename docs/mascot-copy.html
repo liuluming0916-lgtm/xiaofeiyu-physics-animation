@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>吉祥物 × 文案对照</title>
+<style>
+  :root{--ink:#1f2a3a;--sub:#66748a;--line:#dbe3ee;--card:#fff;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#eef2f8;font-family:"Microsoft YaHei",sans-serif;color:var(--ink);padding:22px 24px 30px;}
+  h1{font-size:17px;margin:0 0 4px;}
+  .lead{font-size:12.5px;color:var(--sub);margin:0 0 18px;}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
+  .card img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;}
+  .meta{padding:11px 13px 13px;display:flex;flex-direction:column;gap:4px;}
+  .key{font-size:10.5px;letter-spacing:.6px;color:#9aa7ba;text-transform:uppercase;}
+  .title{font-size:15px;font-weight:700;}
+  .desc{font-size:12.5px;color:var(--sub);line-height:1.6;}
+  .when{font-size:11px;color:#8b98a8;border-top:1px dashed var(--line);margin-top:6px;padding-top:6px;}
+  .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px;}
+  .row4 .card img{aspect-ratio:1/1;}
+  .card.wide{flex-direction:row;}
+  .card.wide img{width:44%;aspect-ratio:auto;height:100%;}
+  .card.wide .meta{justify-content:center;}
+</style>
+</head>
+<body>
+<h1>吉祥物 × 文案对照（草稿，等你改）</h1>
+<p class="lead">上排三张是“打开就看得到”的常态；下排是流程中会依次经过的状态。</p>
+
+<div class="grid">
+  <div class="card">
+    <img src="../apps/web/assets/fish/idle.webp" alt="">
+    <div class="meta">
+      <div class="key">idle</div>
+      <div class="title">小肥鱼在打盹…</div>
+      <div class="desc">把题目丢过来，它就醒。</div>
+      <div class="when">开页面、还没出题时</div>
+    </div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/read.webp" alt="">
+    <div class="meta">
+      <div class="key">read</div>
+      <div class="title">让我看看这道题</div>
+      <div class="desc">正在读题面、认图片里的条件。</div>
+      <div class="when">点了“生成动画”之后的第一秒</div>
+    </div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/solve.webp" alt="">
+    <div class="meta">
+      <div class="key">solve</div>
+      <div class="title">先算清楚，再动手</div>
+      <div class="desc">受力、过程、该用哪条公式。</div>
+      <div class="when">推导阶段（有解析时是按你的解析对一遍）</div>
+    </div>
+  </div>
+</div>
+
+<div class="row4">
+  <div class="card">
+    <img src="../apps/web/assets/fish/draw.webp" alt="">
+    <div class="meta">
+      <div class="key">draw</div>
+      <div class="title">开始动笔咯</div>
+      <div class="desc">正在一帧一帧地画。</div>
+      <div class="when">第一次交代码</div>
+    </div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/check.webp" alt="">
+    <div class="meta">
+      <div class="key">check</div>
+      <div class="title">拿放大镜检查</div>
+      <div class="desc">快进跑一遍：有没有穿模、压字、飞出去。</div>
+      <div class="when">沙盒试跑 / 看关键帧</div>
+    </div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/repair.webp" alt="">
+    <div class="meta">
+      <div class="key">repair</div>
+      <div class="title">这里得补一补</div>
+      <div class="desc">发现了问题，正在重画。</div>
+      <div class="when">第 2 版及以后（打回重做也用它）</div>
+    </div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/think.webp" alt="">
+    <div class="meta">
+      <div class="key">think</div>
+      <div class="title">卡了一下…</div>
+      <div class="desc">它在琢磨，别急。</div>
+      <div class="when">思考超长被截断、重试时</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px;grid-template-columns:repeat(2,1fr)">
+  <div class="card wide">
+    <img src="../apps/web/assets/fish/done.webp" alt="">
+    <div class="meta">
+      <div class="key">done</div>
+      <div class="title">画好啦！</div>
+      <div class="desc">点右上角「动画」去看看，不满意可以打回。</div>
+      <div class="when">交付成功</div>
+    </div>
+  </div>
+  <div class="card wide">
+    <img src="../apps/web/assets/fish/error.webp" alt="">
+    <div class="meta">
+      <div class="key">error</div>
+      <div class="title">这次没画成</div>
+      <div class="desc">下面写了原因；也可以打回让它再试一次。</div>
+      <div class="when">3 轮用尽 / 超时 / 接口出错</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

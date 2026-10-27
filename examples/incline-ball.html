@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>光滑斜面上小球的下滑</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #f4f7fb; overflow: hidden; }
+  canvas { display: block; width: 1280px; height: 720px; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script>
+(() => {
+  'use strict';
+
+  /* ============ 物理设定 ============ */
+  const THETA = Math.PI / 6;          // 倾角 30°
+  const G = 9.8;
+  const A = G * Math.sin(THETA);      // 4.9 m/s²
+  const LEN_M = 6;                    // 斜面长 6 m
+  const PX_PER_M = 110;
+  const BASE = { x: 1090, y: 590 };   // 斜面底端
+  const TOP = {
+    x: BASE.x - LEN_M * PX_PER_M * Math.cos(THETA),
+    y: BASE.y - LEN_M * PX_PER_M * Math.sin(THETA),
+  };
+  const DIR = { x: Math.cos(THETA), y: Math.sin(THETA) };   // 沿斜面向下
+  const NRM = { x: Math.sin(THETA), y: -Math.cos(THETA) };  // 垂直斜面向外
+  const R = 16;                                             // 小球半径
+  const T_PHYS = Math.sqrt((2 * LEN_M) / A);                // 到底端所需物理时间 ≈1.565 s
+
+  const C = {
+    ink: '#243044',
+    sub: '#66748a',
+    line: '#9fb0c8',
+    face: '#e6edf7',
+    ground: '#c7cfdb',
+    ball1: '#ffb08a',
+    ball2: '#e8590c',
+    gravity: '#e5484d',
+    normal: '#2f6feb',
+    velocity: '#12a594',
+    accel: '#8e4ec6',
+  };
+
+  /* ============ 画布 ============ */
+  const canvas = document.getElementById('stage');
+  const W = 1280;
+  const H = 720;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  /* ============ 工具 ============ */
+  function line(x1, y1, x2, y2, color, width, dash) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function arrow(x, y, dx, dy, color, width) {
+    const len = Math.hypot(dx, dy);
+    if (len < 0.5) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    const head = Math.min(17, Math.max(10, len * 0.3));
+    const tipX = x + dx;
+    const tipY = y + dy;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(tipX - ux * head * 0.7, tipY - uy * head * 0.7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - ux * head + uy * head * 0.42, tipY - uy * head - ux * head * 0.42);
+    ctx.lineTo(tipX - ux * head - uy * head * 0.42, tipY - uy * head + ux * head * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function label(text, x, y, color, size, align, weight) {
+    ctx.save();
+    ctx.font = `${weight || 600} ${size || 16}px "Microsoft YaHei", "PingFang SC", sans-serif`;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function chip(text, x, y) {
+    ctx.save();
+    ctx.font = '600 14px "Microsoft YaHei", sans-serif';
+    const w = ctx.measureText(text).width + 18;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = 'rgba(159,176,200,0.75)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2, y - 13, w, 26, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.ink;
+    ctx.fillText(text, x, y + 0.5);
+    ctx.restore();
+  }
+
+  /* ============ 运动学（解析解） ============ */
+  function state(t) {
+    const tt = Math.max(0, Math.min(t, T_PHYS));
+    const s = Math.min(0.5 * A * tt * tt, LEN_M);
+    const v = A * tt;
+    return { t: tt, s, v, a: A };
+  }
+  function pointAt(s) {
+    const u = s * PX_PER_M;
+    return {
+      x: TOP.x + DIR.x * u + NRM.x * R,
+      y: TOP.y + DIR.y * u + NRM.y * R,
+    };
+  }
+
+  window.XFY = {
+    title: '光滑斜面上小球的下滑',
+    physical: T_PHYS,
+    /* t 是真实物理时间（秒）；播放快慢由宿主播放器统一归一化到 4 秒 */
+    render(t) {
+      draw(Math.max(0, Math.min(t, T_PHYS)));
+    },
+    sample(t) {
+      const st = state(t);
+      const p = pointAt(st.s);
+      return {
+        t: st.t,
+        s: st.s,
+        v: st.v,
+        a: st.a,
+        ball: { x: p.x, y: p.y, vx: st.v * DIR.x, vy: st.v * DIR.y },
+      };
+    },
+  };
+
+  /* ============ 场景 ============ */
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#fbfcff');
+    g.addColorStop(1, '#eef3f9');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(52,84,140,0.07)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= H; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGround() {
+    line(130, BASE.y, 1215, BASE.y, C.ground, 3);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(199,207,219,0.9)';
+    ctx.lineWidth = 1.5;
+    for (let x = 140; x < 1215; x += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x, BASE.y + 3);
+      ctx.lineTo(x - 9, BASE.y + 15);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawIncline() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(TOP.x, TOP.y);
+    ctx.lineTo(BASE.x, BASE.y);
+    ctx.lineTo(TOP.x, BASE.y);
+    ctx.closePath();
+    ctx.fillStyle = C.face;
+    ctx.fill();
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    line(TOP.x, TOP.y, BASE.x, BASE.y, '#54657f', 4.5);
+
+    // 倾角圆弧与标注
+    ctx.save();
+    ctx.strokeStyle = C.sub;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(BASE.x, BASE.y, 76, Math.PI, Math.PI + THETA);
+    ctx.stroke();
+    ctx.restore();
+    const bA = Math.PI + THETA / 2;
+    label('30°', BASE.x + Math.cos(bA) * 58, BASE.y + Math.sin(bA) * 58, C.sub, 17, 'center');
+
+    // 斜面上的刻度
+    ctx.save();
+    ctx.font = '400 13px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = '#8b98aa';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let m = 0; m <= LEN_M; m++) {
+      const u = m * PX_PER_M;
+      const px = TOP.x + DIR.x * u;
+      const py = TOP.y + DIR.y * u;
+      line(px, py, px - NRM.x * 13, py - NRM.y * 13, '#b6c2d2', 1.5);
+      if (m < LEN_M) ctx.fillText(String(m), px - NRM.x * 34, py - NRM.y * 34);
+    }
+    ctx.restore();
+  }
+
+  function drawTrace(s) {
+    if (s <= 0.01) return;
+    const u = s * PX_PER_M;
+    const x1 = TOP.x - NRM.x * 8;
+    const y1 = TOP.y - NRM.y * 8;
+    const x2 = TOP.x + DIR.x * u - NRM.x * 8;
+    const y2 = TOP.y + DIR.y * u - NRM.y * 8;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(18,165,148,0.34)';
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBall(st) {
+    const p = pointAt(st.s);
+    ctx.save();
+    const g = ctx.createRadialGradient(p.x - 6, p.y - 7, 2, p.x, p.y, R);
+    g.addColorStop(0, C.ball1);
+    g.addColorStop(1, C.ball2);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+    ctx.restore();
+    return p;
+  }
+
+  function drawForces(p, st) {
+    const gLen = 84;
+    const nLen = gLen * Math.cos(THETA);
+    const vLen = st.v > 0.05 ? 26 + 92 * (st.v / (A * T_PHYS)) : 0;
+
+    arrow(p.x, p.y, 0, gLen, C.gravity, 3.4);
+    label('mg', p.x, p.y + gLen + 16, C.gravity, 16, 'center');
+
+    arrow(p.x, p.y, NRM.x * nLen, NRM.y * nLen, C.normal, 3.4);
+    label('N', p.x + NRM.x * (nLen + 18), p.y + NRM.y * (nLen + 18), C.normal, 16, 'center');
+
+    if (vLen > 0) {
+      arrow(p.x, p.y, DIR.x * vLen, DIR.y * vLen, C.velocity, 3.4);
+      label('v', p.x + DIR.x * (vLen + 16), p.y + DIR.y * (vLen + 16), C.velocity, 16, 'center');
+    }
+
+    const ax = p.x + NRM.x * 44;
+    const ay = p.y + NRM.y * 44;
+    line(p.x, p.y, ax, ay, 'rgba(142,78,198,0.35)', 1.2, [4, 4]);
+    arrow(ax, ay, DIR.x * 56, DIR.y * 56, C.accel, 2.8);
+    label('a', ax + DIR.x * 72, ay + DIR.y * 72, C.accel, 15, 'center');
+  }
+
+  function drawMeasure(st) {
+    if (st.s <= 0.05) return;
+    const p = pointAt(st.s);
+    const mid = { x: (TOP.x + p.x) / 2, y: (TOP.y + p.y) / 2 };
+    chip(`s = ${st.s.toFixed(2)} m`, mid.x - NRM.x * 78, mid.y - NRM.y * 78);
+  }
+
+  function drawCard() {
+    const x = 52;
+    const y = 170;
+    const w = 342;
+    const h = 258;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.strokeStyle = 'rgba(159,176,200,0.6)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    ctx.font = '700 15px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = C.ink;
+    ctx.fillText('已知', x + 24, y + 36);
+
+    ctx.font = '400 14px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = C.sub;
+    ctx.fillText('θ = 30°      g = 9.8 m/s²', x + 24, y + 66);
+    ctx.fillText('斜面长 L = 6 m', x + 24, y + 92);
+    ctx.fillText('小球由静止开始下滑', x + 24, y + 118);
+
+    ctx.font = '700 15px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = C.ink;
+    ctx.fillText('推导', x + 24, y + 156);
+
+    ctx.font = '400 14px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = C.sub;
+    ctx.fillText('a = g·sinθ = 4.9 m/s²', x + 24, y + 186);
+    ctx.fillText('v = a·t', x + 24, y + 212);
+    ctx.fillText('s = ½·a·t²', x + 24, y + 238);
+    ctx.restore();
+  }
+
+  function drawHUD(st) {
+    label('光滑斜面 · 小球由静止下滑', 48, 52, C.ink, 25, 'left', 700);
+    label('忽略摩擦，时间已按 4 秒归一化', 48, 86, C.sub, 14, 'left', 400);
+
+    const items = [
+      [C.velocity, '速度 v'],
+      [C.normal, '支持力 N'],
+      [C.gravity, '重力 mg'],
+      [C.accel, '加速度 a'],
+    ];
+    let x = 48;
+    const y = H - 34;
+    ctx.save();
+    ctx.font = '400 13px "Microsoft YaHei", sans-serif';
+    for (const [color, text] of items) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(x, y - 5, 16, 10, 3);
+      ctx.fill();
+      ctx.fillStyle = C.sub;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + 22, y + 1);
+      x += ctx.measureText(text).width + 54;
+    }
+    ctx.restore();
+  }
+
+  function draw(t) {
+    const st = state(t);
+    drawBackground();
+    drawGround();
+    drawIncline();
+    drawCard();
+    drawTrace(st.s);
+    const p = drawBall(st);
+    drawForces(p, st);
+    drawMeasure(st);
+    drawHUD(st);
+  }
+
+  /* 舞台契约：只负责"画出某一时刻"，播放交给宿主播放器 */
+  draw(0);
+})();
+</script>
+</body>
+</html>

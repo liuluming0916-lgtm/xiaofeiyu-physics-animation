@@ -1,0 +1,24 @@
+{
+  "name": "xfy-2.0",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "小肥鱼物理动画 2.0 —— 自主 Agent + 物理沙盒闭环",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "web": "node apps/server/src/server.ts",
+    "m0": "node scripts/m0-demo.ts",
+    "run": "node scripts/run-problem.ts",
+    "probe": "node scripts/probe-api.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}

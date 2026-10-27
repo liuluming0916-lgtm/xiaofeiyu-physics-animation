@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>吉祥物 × 文案（定稿候选）</title>
+<style>
+  :root{--ink:#1f2a3a;--sub:#66748a;--line:#dbe3ee;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#eef2f8;font-family:"Microsoft YaHei",sans-serif;color:var(--ink);padding:20px 22px 26px;}
+  .head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;}
+  .head h1{font-size:17px;margin:0;}
+  .head span{font-size:12.5px;color:var(--sub);}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;}
+  .txt{padding:11px 13px 13px;}
+  .k{font-size:10px;letter-spacing:.7px;color:#9aa7ba;margin-bottom:3px;}
+  .t{font-size:15px;font-weight:700;margin-bottom:3px;}
+  .d{font-size:12.5px;color:var(--sub);line-height:1.55;}
+  .w{font-size:11px;color:#8b98a8;margin-top:7px;padding-top:6px;border-top:1px dashed var(--line);}
+</style>
+</head>
+<body>
+<div class="head"><h1>吉祥物 × 文案</h1><span>九个状态，按流程排；下面这版是我建议的定稿</span></div>
+<div class="grid">
+  <div class="card">
+    <img src="../apps/web/assets/fish/idle.webp" alt="">
+    <div class="txt"><div class="k">1 · IDLE</div><div class="t">小肥鱼在打盹…</div><div class="d">出一道题，把它叫醒。</div><div class="w">打开页面 / 还没出题</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/read.webp" alt="">
+    <div class="txt"><div class="k">2 · READ</div><div class="t">让我看看这道题</div><div class="d">正在读题面、认图片里的条件。</div><div class="w">点「生成动画」之后</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/solve.webp" alt="">
+    <div class="txt"><div class="k">3 · SOLVE</div><div class="t">先算清楚，再动手</div><div class="d">受力、过程、该用哪条公式。</div><div class="w">推导阶段（给了解析就按你的对一遍）</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/draw.webp" alt="">
+    <div class="txt"><div class="k">4 · DRAW</div><div class="t">开始动笔咯</div><div class="d">正在一帧一帧地画。</div><div class="w">第一次交代码</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/check.webp" alt="">
+    <div class="txt"><div class="k">5 · CHECK</div><div class="t">拿放大镜检查</div><div class="d">快进跑一遍：穿模、压字、飞出去。</div><div class="w">沙盒试跑 / 看关键帧</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/repair.webp" alt="">
+    <div class="txt"><div class="k">6 · REPAIR</div><div class="t">这里得补一补</div><div class="d">发现了问题，正在重画（第 2 版）。</div><div class="w">第 2 版起 / 打回重做</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/think.webp" alt="">
+    <div class="txt"><div class="k">7 · THINK</div><div class="t">再想想…</div><div class="d">它在琢磨，别急。</div><div class="w">思考被截断 / 重试时</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/done.webp" alt="">
+    <div class="txt"><div class="k">8 · DONE</div><div class="t">画好啦！</div><div class="d">点右上角「动画」去看看。</div><div class="w">交付成功</div></div>
+  </div>
+  <div class="card">
+    <img src="../apps/web/assets/fish/error.webp" alt="">
+    <div class="txt"><div class="k">9 · ERROR</div><div class="t">这次没画好</div><div class="d">原因在下面；也可以打回让它再试。</div><div class="w">3 轮用尽 / 超时 / 接口出错</div></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>同一斜面：无摩擦 vs 有摩擦（多幕示例）</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #f4f7fb; }
+  canvas { display: block; width: 1280px; height: 720px; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script>
+(() => {
+  'use strict';
+
+  const W = 1280, H = 720;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cv = document.getElementById('stage');
+  cv.width = W * dpr;
+  cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const THETA = Math.PI / 6;
+  const G = 9.8;
+  const LEN = 6;
+  const PX = 100;
+  const BASE = { x: 1040, y: 600 };
+  const TOP = { x: BASE.x - LEN * PX * Math.cos(THETA), y: BASE.y - LEN * PX * Math.sin(THETA) };
+  const DIR = { x: Math.cos(THETA), y: Math.sin(THETA) };
+  const NRM = { x: Math.sin(THETA), y: -Math.cos(THETA) };
+  const R = 15;
+
+  const pos = (s) => ({ x: TOP.x + DIR.x * s * PX + NRM.x * R, y: TOP.y + DIR.y * s * PX + NRM.y * R });
+
+  function line(x1, y1, x2, y2, color, width, dash) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function arrow(x, y, dx, dy, color, width) {
+    const len = Math.hypot(dx, dy);
+    if (len < 0.5) return;
+    const ux = dx / len, uy = dy / len;
+    const head = Math.min(16, Math.max(9, len * 0.3));
+    const tx = x + dx, ty = y + dy;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(tx - ux * head * 0.7, ty - uy * head * 0.7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - ux * head + uy * head * 0.42, ty - uy * head - ux * head * 0.42);
+    ctx.lineTo(tx - ux * head - uy * head * 0.42, ty - uy * head + ux * head * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function label(text, x, y, color, size, align, weight) {
+    ctx.save();
+    ctx.font = `${weight || 600} ${size || 15}px "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#fbfcff');
+    g.addColorStop(1, '#eef3f9');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(52,84,140,0.07)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= H; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGround() {
+    line(150, BASE.y, 1180, BASE.y, '#c7cfdb', 3);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(199,207,219,0.9)';
+    ctx.lineWidth = 1.5;
+    for (let x = 160; x < 1180; x += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x, BASE.y + 3);
+      ctx.lineTo(x - 9, BASE.y + 15);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawIncline() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(TOP.x, TOP.y);
+    ctx.lineTo(BASE.x, BASE.y);
+    ctx.lineTo(TOP.x, BASE.y);
+    ctx.closePath();
+    ctx.fillStyle = '#e6edf7';
+    ctx.fill();
+    ctx.strokeStyle = '#9fb0c8';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    line(TOP.x, TOP.y, BASE.x, BASE.y, '#54657f', 4.5);
+    ctx.save();
+    ctx.font = '400 13px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle = '#8b98aa';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let m = 0; m < LEN; m++) {
+      const px = TOP.x + DIR.x * m * PX;
+      const py = TOP.y + DIR.y * m * PX;
+      line(px, py, px - NRM.x * 13, py - NRM.y * 13, '#b6c2d2', 1.5);
+      ctx.fillText(String(m), px - NRM.x * 34, py - NRM.y * 34);
+    }
+    ctx.restore();
+  }
+
+  function draw(act, t) {
+    const tt = Math.max(0, Math.min(t, act.physical));
+    const s = Math.min(0.5 * act.a * tt * tt, LEN);
+    const v = act.a * tt;
+    const p = pos(s);
+
+    drawBackground();
+    drawGround();
+    drawIncline();
+
+    if (s > 0.01) {
+      const a0 = pos(0);
+      const a1 = pos(s);
+      ctx.save();
+      ctx.strokeStyle = act.color + '55';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(a0.x - NRM.x * 8, a0.y - NRM.y * 8);
+      ctx.lineTo(a1.x - NRM.x * 8, a1.y - NRM.y * 8);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    const g = ctx.createRadialGradient(p.x - 5, p.y - 6, 2, p.x, p.y, R);
+    g.addColorStop(0, '#ffb08a');
+    g.addColorStop(1, act.color);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+    ctx.restore();
+
+    if (v > 0.05) {
+      const len = 26 + 90 * (v / (act.a * act.physical));
+      arrow(p.x, p.y, DIR.x * len, DIR.y * len, '#12a594', 3.2);
+      label('v', p.x + DIR.x * (len + 16), p.y + DIR.y * (len + 16), '#12a594', 16, 'center');
+    }
+
+    if (s > 0.05) {
+      const mid = { x: (TOP.x + p.x) / 2, y: (TOP.y + p.y) / 2 };
+      label(`s = ${s.toFixed(2)} m`, mid.x - NRM.x * 74, mid.y - NRM.y * 74, '#243044', 15, 'center');
+    }
+
+    label('同一斜面 30°，长 6 m — ' + act.title, 48, 50, '#243044', 24, 'left', 700);
+    label(`a = ${act.a.toFixed(2)} m/s²   t_总 = ${act.physical.toFixed(2)} s`, 48, 84, '#66748a', 15, 'left', 400);
+    label(act.mu > 0 ? `μ = ${act.mu}，摩擦使加速度变小` : '光滑，无摩擦', 48, 112, act.color, 15, 'left', 600);
+  }
+
+  function makeAct(cfg) {
+    const a = G * (Math.sin(THETA) - cfg.mu * Math.cos(THETA));
+    const physical = Math.sqrt((2 * LEN) / a);
+    const act = { title: cfg.title, physical, a, mu: cfg.mu, color: cfg.color };
+    act.render = (t) => draw(act, t);
+    act.sample = (t) => {
+      const tt = Math.max(0, Math.min(t, physical));
+      const s = Math.min(0.5 * a * tt * tt, LEN);
+      const v = a * tt;
+      const p = pos(s);
+      return { t: tt, s, v, a, ball: { x: p.x, y: p.y, vx: v * DIR.x, vy: v * DIR.y } };
+    };
+    return act;
+  }
+
+  window.XFY = {
+    acts: [
+      makeAct({ title: '第一幕：无摩擦', mu: 0, color: '#e8590c' }),
+      makeAct({ title: '第二幕：有摩擦 μ = 0.2', mu: 0.2, color: '#2f6feb' }),
+    ],
+  };
+
+  window.XFY.acts[0].render(0);
+})();
+</script>
+</body>
+</html>

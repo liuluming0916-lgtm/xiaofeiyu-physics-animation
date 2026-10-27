@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>2.0 界面线框</title>
+<style>
+  :root{--ink:#2a3546;--sub:#7b8899;--line:#c9d3e0;--fill:#eef2f8;--brand:#2f6feb;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#f7f9fc;font-family:"Microsoft YaHei",sans-serif;color:var(--ink);padding:18px 20px 26px;}
+  .frame{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:18px;overflow:hidden;}
+  .top{display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--line);background:#fbfcfe;}
+  .logo{font-weight:700;font-size:15px;}
+  .ver{font-size:11px;color:var(--sub);}
+  .nav{margin-left:auto;display:flex;gap:6px;}
+  .nav span{font-size:12px;padding:4px 10px;border-radius:6px;color:var(--sub);}
+  .nav .on{background:#22303f;color:#fff;}
+  .body{display:flex;min-height:300px;}
+  .col{padding:14px 16px;}
+  .left{width:44%;border-right:1px solid var(--line);}
+  .right{flex:1;background:#f4f7fb;}
+  .lbl{font-size:12px;color:var(--sub);margin:0 0 6px;font-weight:600;}
+  .box{border:1px dashed var(--line);border-radius:8px;background:var(--fill);color:#8b98a8;font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.6;}
+  .ta{height:86px;align-items:flex-start;justify-content:flex-start;padding:8px 10px;}
+  .drop{height:52px;margin-bottom:12px;}
+  .grow{flex:1;}
+  .btn{display:inline-block;font-size:12px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);color:var(--ink);background:#fff;}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600;}
+  .mini{font-size:11px;color:#9aa6b6;margin-top:6px;line-height:1.6;}
+  .steps{display:flex;gap:6px;margin:14px 0 6px;}
+  .step{flex:1;height:6px;border-radius:3px;background:#dde5f0;}
+  .step.done{background:#9fc0f3;}
+  .step.now{background:var(--brand);}
+  .step-lbl{display:flex;justify-content:space-between;font-size:10px;color:#9aa6b6;}
+  .status{margin-top:14px;border:1px dashed var(--line);border-radius:10px;background:#fbfcff;padding:16px;text-align:center;}
+  .mascot{width:120px;height:120px;border-radius:12px;background:repeating-linear-gradient(45deg,#e8eef8,#e8eef8 8px,#f2f6fc 8px,#f2f6fc 16px);margin:0 auto 10px;}
+  .status b{display:block;font-size:15px;margin-bottom:6px;}
+  .status span{font-size:12px;color:var(--sub);}
+  .panel{border:1px solid var(--line);border-radius:8px;margin-top:10px;padding:10px 12px;font-size:12px;color:var(--sub);background:#fff;}
+  .rowline{display:flex;align-items:center;gap:8px;}
+  .stag{font-size:11px;color:var(--sub);}
+  .acts{display:flex;flex-direction:column;gap:8px;}
+  .act{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;font-size:12px;}
+  .act.on{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,235,.10);}
+  .act b{font-size:12px;display:block;margin-bottom:3px;}
+  .act i{font-style:normal;color:var(--sub);font-size:11px;}
+  .stage{height:238px;border:1px solid var(--line);border-radius:10px;background:repeating-linear-gradient(0deg,#fff,#fff 19px,#f1f5fb 19px,#f1f5fb 20px),repeating-linear-gradient(90deg,#fff,#fff 19px,#f1f5fb 19px,#f1f5fb 20px);display:flex;align-items:center;justify-content:center;color:#a9b5c6;font-size:12px;}
+  .player{margin-top:10px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;}
+  .track{position:relative;height:8px;border-radius:4px;background:#e4eaf3;margin:8px 0 6px;}
+  .track .fill{position:absolute;left:0;top:0;bottom:0;width:41%;background:var(--brand);border-radius:4px;}
+  .tick{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;}
+  .segs{display:flex;font-size:10px;color:#8b98a8;}
+  .segs div{flex:1;text-align:center;border-right:1px dashed #dfe6f0;}
+  .ctl{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--sub);}
+  .ctl .b{border:1px solid var(--line);border-radius:6px;padding:3px 9px;background:#f8fafd;}
+  .redo{margin-top:10px;display:flex;gap:8px;}
+  .redo input{flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;}
+  .callout{position:absolute;font-size:11px;color:#c0392b;}
+  .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;background:#eef4ff;color:#2f6feb;margin-left:6px;}
+  .tag.new{background:#e9fbf1;color:#12805c;}
+  .tag.del{background:#fdeeee;color:#c0392b;}
+</style>
+</head>
+<body>
+
+<script>
+  // 用 #solve / #anim 只显示其中一页，便于分别截图
+  addEventListener('DOMContentLoaded', () => {
+    const only = location.hash.replace('#', '');
+    if (only !== 'solve' && only !== 'anim') return;
+    document.querySelectorAll('.frame').forEach((f, i) => {
+      f.style.display = (only === 'solve' ? i === 0 : i === 1) ? '' : 'none';
+    });
+    document.body.style.padding = '0';
+  });
+</script>
+
+<!-- ============ 解题页 ============ -->
+<div class="frame">
+  <div class="top">
+    <div class="logo">小肥鱼物理动画 <span class="ver">2.0</span></div>
+    <div class="nav"><span class="on">解题</span><span>动画</span><span>设置</span><span>导出</span></div>
+  </div>
+  <div class="body">
+    <div class="col left">
+      <div class="lbl">题面文字</div>
+      <div class="box ta">把题目粘贴到这里（支持 LaTeX）</div>
+      <div style="height:12px"></div>
+      <div class="lbl">题目图片 <span class="stag">PNG / JPG / WebP　≤ 15 MB</span></div>
+      <div class="box drop">拖图片到这里，或点「选择图片」</div>
+      <div class="lbl">参考答案 / 解析（可选） <span class="tag new">2.0 新增</span></div>
+      <div class="box ta" style="height:70px">填了就按你的答案画，模型不再自己推导；也可以贴解析图片</div>
+      <div style="height:10px"></div>
+      <div class="rowline">
+        <span class="btn">开始生成动画</span>
+        <span class="mini">至少给一样：题面文字，或一张题目图片</span>
+      </div>
+      <div class="mini" style="margin-top:14px">补充信息（按阶段）、知识卡 —— 已删除</div>
+    </div>
+    <div class="col right">
+      <div class="status">
+        <div class="mascot"></div>
+        <b>小肥鱼在等你出题…</b>
+        <span>老师只要给题，剩下的交给它</span>
+      </div>
+      <div class="mini" style="text-align:center;margin-top:6px">文案 + 吉祥物图（四段状态：出题 → 写码 → 试跑 → 看图）</div>
+      <div class="steps">
+        <div class="step done"></div><div class="step done"></div><div class="step now"></div><div class="step"></div>
+      </div>
+      <div class="step-lbl"><span>写代码</span><span>试跑质检</span><span>看截图</span><span>交付</span></div>
+      <div class="panel">▸ 过程记录（折叠）<span class="tag del">前端不再显示日志</span><br>详细日志自动存到 开源日志/…/run.json 与 .html</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 动画页 ============ -->
+<div class="frame">
+  <div class="top">
+    <div class="logo">物块水平滑行的位移问题</div>
+    <div class="ver">3 幕 · 每幕 4.00 s · 共 12.00 s</div>
+    <div class="nav"><span>打开动画页</span><span>导出 HTML</span><span>设置</span></div>
+  </div>
+  <div class="body">
+    <div class="col left" style="width:38%">
+      <div class="lbl">题目原文</div>
+      <div class="box ta" style="height:64px">……（可折叠）</div>
+      <div class="lbl" style="margin-top:14px">分幕 <span class="stag">按小问顺序，点一下即跳到那一幕</span></div>
+      <div class="acts">
+        <div class="act on"><b>第 1 幕 · 2 m/s 滑行</b><i>t = 0 → 2 s，位移 4.0 m</i></div>
+        <div class="act"><b>第 2 幕 · 初速改为 4 m/s</b><i>同样的 2 s，位移变成 8.0 m</i></div>
+        <div class="act"><b>第 3 幕 · 摩擦力作用</b><i>μ = 0.2，滑行 2.0 m 后停下</i></div>
+      </div>
+      <div class="lbl" style="margin-top:14px">答案解析 <span class="tag new">来自你填的解析</span></div>
+      <div class="box ta" style="height:56px">(1) x = 4 m　(2) x = 8 m　(3) x = 2 m</div>
+    </div>
+    <div class="col right">
+      <div class="stage">动画画布 1280 × 720（缩放显示）</div>
+      <div class="player">
+        <div class="ctl">
+          <span class="b">⏮</span><span class="b">▶</span><span class="b">⏭</span>
+          <span class="b">↻</span>
+          <span style="margin-left:auto">第 2 / 3 幕</span>
+          <span class="b">1×</span>
+        </div>
+        <div class="track">
+          <div class="fill"></div>
+          <div class="tick" style="left:33.3%"></div>
+          <div class="tick" style="left:66.6%"></div>
+        </div>
+        <div class="segs"><div>第 1 幕</div><div>第 2 幕</div><div>第 3 幕</div></div>
+        <div class="ctl" style="margin-top:6px">
+          <span>播放 1.66 / 12.00 s</span>
+          <span style="margin-left:auto">物理 t = 0.83 s</span>
+        </div>
+      </div>
+      <div class="redo">
+        <input placeholder="不满意？写一句：把箭头画大点 / 第二幕衔接太快 / 加速度方向反了">
+        <span class="btn">打回重做</span>
+      </div>
+      <div class="mini">打回后接着上一轮改，不是从头重来；最多 3 轮。</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
