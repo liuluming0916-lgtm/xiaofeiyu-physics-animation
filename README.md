@@ -67,6 +67,28 @@ docs/             需求、方案、里程碑
 - 本机 Chrome 或 Edge 其一
 - Git 2.55 / Windows，主分支 `main`
 
+## 桌面版（免安装）
+
+```powershell
+npm run app:portable      # 构建 + 组装，产出 release/portable/
+```
+
+产物是一个文件夹，压缩后即可分发（约 117 MB）：
+
+```
+小肥鱼物理解题动画.exe
+resources\app\...
+启动说明.txt
+```
+
+- **不需要**安装 Node、也不需要另装浏览器（沙盒用系统自带的 Edge/Chrome）。
+- 生成的文件与配置保存在 `%APPDATA%\小肥鱼物理解题动画\`。
+- 首次运行会有 Windows 的“未知发布者”提示（未买代码签名证书），点“更多信息 → 仍要运行”。
+
+> 状态：2026-10-27 在 Windows 上实测可正常启动并生成动画。
+
+安装包（NSIS）那条路用 `npm run app:build`，需要联网下载打包工具，网络受限时会超时。
+
 ## 许可
 
 本项目按 **[AGPL-3.0-only](LICENSE)** 开源，**整仓一个协议**（含提示词与文档）。
