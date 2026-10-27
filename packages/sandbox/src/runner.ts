@@ -9,6 +9,7 @@ import type { Capture } from './types.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIME_SRC = readFileSync(path.join(here, 'page-runtime.js'), 'utf8');
+const CLEAN_SRC = readFileSync(path.join(here, '..', '..', 'shared', 'text-clean.js'), 'utf8');
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -84,7 +85,8 @@ export class Sandbox {
 
     const sandbox = new Sandbox(browser, proc, page, profileDir, violations, width, height);
 
-    // 关键：在页面脚本之前注入虚拟时钟与绘图探针
+    // 关键：在页面脚本之前注入文本框面清洗 + 虚拟时钟与绘图探针
+    await page.evaluateOnNewDocument(CLEAN_SRC);
     await page.evaluateOnNewDocument(RUNTIME_SRC);
     await page.goto(pathToFileURL(path.resolve(htmlPath)).href, { waitUntil: 'load', timeout: 30000 });
     await page.waitForFunction('!!window.__XFY_SB', { timeout: 10000 });

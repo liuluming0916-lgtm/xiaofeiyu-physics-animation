@@ -15,7 +15,7 @@ let done = 0;
 for (const root of targets) {
   if (!existsSync(root)) continue;
   const dirs = statSync(root).isDirectory() ? readdirSync(root) : [];
-  const list = dirs.map((d) => path.join(root, d)).filter((d) => {
+  const list = [root, ...dirs.map((d) => path.join(root, d))].filter((d) => {
     try {
       return statSync(d).isDirectory();
     } catch (_) {

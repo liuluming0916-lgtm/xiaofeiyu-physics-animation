@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PLAYER_SRC = readFileSync(path.join(here, 'player.js'), 'utf8');
+const CLEAN_SRC = readFileSync(path.join(here, '..', '..', 'shared', 'text-clean.js'), 'utf8');
 
 const STYLE = `<style id="xfy-player-style">
 html,body{margin:0;padding:0;background:#e9eef6;overflow:hidden;}
@@ -57,7 +58,10 @@ export function wrapWithPlayer(html: string): string {
     out = close >= 0 ? out.slice(0, close) + '</div></div>' + out.slice(close) : out + '</div></div>';
   }
 
-  const tail = STYLE + `<script id="xfy-player">${PLAYER_SRC}</script>`;
+  const tail =
+    STYLE +
+    `<script id="xfy-text-clean">${CLEAN_SRC}</script>` +
+    `<script id="xfy-player">${PLAYER_SRC}</script>`;
   const bodyClose = out.toLowerCase().lastIndexOf('</body>');
   return bodyClose >= 0 ? out.slice(0, bodyClose) + tail + out.slice(bodyClose) : out + tail;
 }
