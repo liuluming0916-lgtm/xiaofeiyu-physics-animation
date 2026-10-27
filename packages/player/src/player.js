@@ -23,21 +23,12 @@
     ['panel', '数据', '#8e4ec6'],
   ];
 
-  function readActs() {
-    const p = window.XFY;
-    if (!p) return [];
-    const norm = (a, i) => ({
-      title: String((a && a.title) || `第 ${i + 1} 幕`),
-      physical: Number(a && a.physical) > 0 ? Number(a.physical) : 4,
-      render: a && typeof a.render === 'function' ? a.render.bind(a) : null,
-    });
-    if (Array.isArray(p.acts) && p.acts.length) return p.acts.map(norm);
-    if (typeof p.render === 'function') return [norm(p, 0)];
-    return [];
-  }
+  // 2.1：模型页面跑在 iframe 里，幕信息由它通过 postMessage 发过来
+  let acts = [];
+  let ready = false;
+  const frame = document.getElementById('xfy-frame');
 
-  const acts = readActs();
-  const multi = acts.length > 1;
+  let multi = false;
   const opts = { vel: true, acc: true, force: true, trail: true, grid: true, panel: true };
 
   let idx = 0;
@@ -51,10 +42,10 @@
   bar.id = 'xfy-bar';
   bar.innerHTML =
     '<div class="xfy-row">' +
-    (multi ? '<button class="xfy-btn xfy-ghost" data-act="prev" title="上一幕">‹</button>' : '') +
+    '<button class="xfy-btn xfy-ghost" data-act="prev" title="上一幕">‹</button>' +
     '<button class="xfy-btn" data-act="play">播放</button>' +
     '<button class="xfy-btn xfy-ghost" data-act="replay">重播</button>' +
-    (multi ? '<button class="xfy-btn xfy-ghost" data-act="next" title="下一幕">›</button>' : '') +
+    '<button class="xfy-btn xfy-ghost" data-act="next" title="下一幕">›</button>' +
     '<input class="xfy-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="时间轴">' +
     '<span class="xfy-time">0.00 / 4.00 s</span>' +
     '<span class="xfy-speeds">' +
@@ -63,7 +54,7 @@
     '<button class="xfy-btn xfy-speed" data-speed="2">2×</button>' +
     '</span>' +
     '<button class="xfy-btn xfy-ghost" data-act="full" title="全屏（Esc 退出）">全屏</button>' +
-    (multi ? '<span class="xfy-act"></span>' : '') +
+    (true ? '<span class="xfy-act"></span>' : '') +
     '<span class="xfy-phys"></span>' +
     '</div>' +
     '<div class="xfy-row xfy-toggles">' +
@@ -85,31 +76,31 @@
   const $next = bar.querySelector('[data-act="next"]');
   const $speeds = [...bar.querySelectorAll('.xfy-speed')];
   const $flags = [...bar.querySelectorAll('[data-flag]')];
-  if (!acts.length) {
-    $play.disabled = true;
-    $replay.disabled = true;
-    $seek.disabled = true;
-    $time.textContent = '缺少 XFY 契约';
-    console.warn('[xfy] 没有找到 window.XFY.render(t) 或 XFY.acts，播放器无法控制画面。');
+  if (!frame) {
+    $time.textContent = '缺少画框';
+    console.warn('[xfy] 找不到 #xfy-frame，播放器无法工作。');
     return;
   }
+  $play.disabled = true;
+  $replay.disabled = true;
+  $seek.disabled = true;
 
   const fmt = (x) => x.toFixed(2);
-  const current = () => acts[Math.min(idx, acts.length - 1)];
+  const current = () => acts[Math.min(idx, acts.length - 1)] || { title: '', physical: 4 };
   const physTime = () => (tau / ACT_SECONDS) * current().physical;
 
+  function post(msg) {
+    try {
+      frame.contentWindow.postMessage(msg, '*');
+    } catch (_) {}
+  }
+
   function paint() {
-    const act = current();
-    if (act.render) {
-      try {
-        act.render(physTime(), { ...opts });
-      } catch (e) {
-        console.error('[xfy] render 出错：', e);
-      }
-    }
+    if (!ready) return;
+    post({ xfy: 'render', act: idx, t: physTime(), opts: { ...opts } });
     $time.textContent = `${fmt(tau)} / 4.00 s`;
     $phys.textContent = `物理 t = ${fmt(physTime())} s`;
-    if ($act) $act.textContent = `第 ${idx + 1}/${acts.length} 幕 · ${act.title}`;
+    if ($act) $act.textContent = `第 ${idx + 1}/${acts.length} 幕 · ${current().title}`;
     if (!seeking) $seek.value = String(Math.round((tau / ACT_SECONDS) * 1000));
   }
 
@@ -496,9 +487,40 @@
   }
   window.addEventListener('resize', fit);
   document.addEventListener('fullscreenchange', fit);
+  /* 等 iframe 里的模型报告"我准备好了" */
+  window.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.xfy === 'hello') {
+      acts = Array.isArray(d.acts) ? d.acts : [];
+      multi = acts.length > 1;
+      ready = acts.length > 0;
+      if (!ready) {
+        $time.textContent = '动画没有可播放的内容';
+        return;
+      }
+      $play.disabled = false;
+      $replay.disabled = false;
+      $seek.disabled = false;
+      if ($prev) $prev.style.display = multi ? '' : 'none';
+      if ($next) $next.style.display = multi ? '' : 'none';
+      paint();
+      play();
+    } else if (d.xfy === 'error') {
+      console.error('[xfy] 模型渲染出错：', d.message);
+    }
+  });
+
+  setTimeout(() => {
+    if (!ready) {
+      $time.textContent = '动画没有响应';
+      $seek.disabled = true;
+      console.warn('[xfy] iframe 5 秒内没有发来 hello，可能是模型页面自身报错。');
+    }
+  }, 5000);
+
+  // 监听器装好之后再放 srcdoc，否则 iframe 的 hello 可能先到、被丢掉
+  if (window.__XFY_MODEL_HTML) frame.srcdoc = window.__XFY_MODEL_HTML;
+
   fit();
   setTimeout(fit, 60);
-
-  paint();
-  play();
 })();

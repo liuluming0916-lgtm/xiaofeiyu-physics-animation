@@ -74,7 +74,7 @@ if (existsSync(RCEDIT) && existsSync(ICO) && existsSync(exeOld)) {
       '--set-file-version', pkg.version,
       '--set-product-version', pkg.version,
       '--set-version-string', 'ProductName', '小肥鱼物理解题动画',
-      '--set-version-string', 'FileDescription', '小肥鱼物理解题动画 2.0',
+      '--set-version-string', 'FileDescription', `小肥鱼物理解题动画 ${pkg.version}`,
       '--set-version-string', 'CompanyName', '小肥鱼物理解题动画项目组',
       '--set-version-string', 'LegalCopyright', 'AGPL-3.0-only',
     ],
