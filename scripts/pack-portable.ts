@@ -5,6 +5,7 @@
  * 产物：release/portable/小肥鱼物理解题动画.exe
  */
 import { cpSync, existsSync, mkdirSync, rmSync, renameSync, copyFileSync, writeFileSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 const ROOT = process.cwd();
@@ -58,8 +59,33 @@ writeFileSync(
   'utf8',
 );
 
-// 把 electron.exe 改成应用名（Electron 按 exe 所在目录找 resources）
+// 图标与版本信息：在改名前写入（rcedit 对中文路径不友好，先用 electron.exe 这个名字）
+cpSync(path.join(ROOT, 'build-resources'), path.join(APP, 'build-resources'), { recursive: true });
+const RCEDIT = path.join(ROOT, 'node_modules', 'electron-winstaller', 'vendor', 'rcedit.exe');
+const ICO = path.join(ROOT, 'build-resources', 'icon.ico');
 const exeOld = path.join(OUT, 'electron.exe');
+if (existsSync(RCEDIT) && existsSync(ICO) && existsSync(exeOld)) {
+  console.log('写入图标与版本信息…');
+  const r = spawnSync(
+    RCEDIT,
+    [
+      exeOld,
+      '--set-icon', ICO,
+      '--set-file-version', pkg.version,
+      '--set-product-version', pkg.version,
+      '--set-version-string', 'ProductName', '小肥鱼物理解题动画',
+      '--set-version-string', 'FileDescription', '小肥鱼物理解题动画 2.0',
+      '--set-version-string', 'CompanyName', '小肥鱼物理解题动画项目组',
+      '--set-version-string', 'LegalCopyright', 'AGPL-3.0-only',
+    ],
+    { stdio: 'inherit' },
+  );
+  if (r.status !== 0) console.warn('rcedit 返回非零，图标可能没写进去');
+} else {
+  console.warn('找不到 rcedit / icon.ico / electron.exe，跳过图标写入');
+}
+
+// 把 electron.exe 改成应用名（Electron 按 exe 所在目录找 resources）
 const exeNew = path.join(OUT, '小肥鱼物理解题动画.exe');
 if (existsSync(exeOld)) renameSync(exeOld, exeNew);
 

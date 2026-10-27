@@ -83,6 +83,7 @@ function createWindow() {
     minHeight: 720,
     backgroundColor: '#eef2f8',
     title: '小肥鱼物理解题动画',
+    icon: path.join(APP_ROOT, 'build-resources', 'icon.ico'),
     show: false,
     webPreferences: {
       contextIsolation: true,
