@@ -207,8 +207,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/test' && req.method === 'POST') {
       const t0 = Date.now();
       try {
-        const r = await fetch(apiUrl('models'), {
-          headers: { authorization: `Bearer ${cfg.apiKey}` },
+        // 允许用表单里还没保存的值来试，省得“先保存再看效果”
+        const body = await readBody(req).catch(() => ({}) as any);
+        const base = String(body?.apiBase ?? '').trim() || cfg.apiBase;
+        const key = String(body?.apiKey ?? '').trim() || cfg.apiKey;
+        const b = base.replace(/\/+$/, '');
+        const url = /\/v\d+$/i.test(b) ? `${b}/models` : `${b}/v1/models`;
+        const r = await fetch(url, {
+          headers: { authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(20000),
         });
         const j: any = await r.json();
@@ -219,10 +225,15 @@ const server = http.createServer(async (req, res) => {
           context: m.context_window ?? null,
           effort: m.effort?.supported_levels ?? null,
         }));
-        const mine = list.find((m: any) => m.id === cfg.model) ?? null;
-        return json(res, 200, { ok: r.ok, ms: Date.now() - t0, models: list.slice(0, 12), current: mine });
+        const mine = list.find((m: any) => m.id === (String(body?.model ?? '').trim() || cfg.model)) ?? null;
+        return json(res, 200, { ok: r.ok, ms: Date.now() - t0, base, models: list.slice(0, 30), current: mine });
       } catch (e: any) {
-        return json(res, 200, { ok: false, error: String(e?.message ?? e) });
+        const raw = String(e?.message ?? e);
+        const friendly =
+          /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT/i.test(raw)
+            ? `连不上这个地址（${raw}）——可能是网络不通、被限制，或地址写错`
+            : raw;
+        return json(res, 200, { ok: false, error: friendly });
       }
     }
     if (p === '/api/generate' && req.method === 'POST') {

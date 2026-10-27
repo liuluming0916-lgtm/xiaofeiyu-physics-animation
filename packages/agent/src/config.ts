@@ -58,7 +58,7 @@ export const cfg = {
     return get('XFY_API_KEY');
   },
   get model(): string {
-    return get('XFY_MODEL', 'deepseek-chat');
+    return get('XFY_MODEL', 'deepseek-flash');
   },
   /** 推理强度：high / medium / low / off */
   get thinking(): string {

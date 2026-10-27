@@ -1,9 +1,10 @@
 {
   "name": "xfy-2.0",
-  "version": "0.0.1",
+  "version": "2.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
-  "description": "小肥鱼物理动画 2.0 —— 自主 Agent + 物理沙盒闭环",
+  "description": "小肥鱼物理解题动画 2.0 · 自主 Agent + 物理沙盒闭环",
   "engines": {
     "node": ">=22.18"
   },
