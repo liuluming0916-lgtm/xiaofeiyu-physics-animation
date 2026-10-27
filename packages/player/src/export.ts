@@ -16,8 +16,9 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
      border-radius:10px;box-shadow:0 8px 28px rgba(36,48,68,.13);transform:translateZ(0);}
 /* 模型常用 position:fixed / 100vw 让画面铺满窗口；这里把 fixed 的参照内缩到舞台，
    并把画布尺寸钉死在 1280×720（!important 压过内联样式），否则会盖住控制条或被裁切。 */
-#xfy-stage canvas{display:block;position:static !important;width:100% !important;height:100% !important;
+#xfy-stage canvas:not(#xfy-ink){display:block;position:static !important;width:100% !important;height:100% !important;
      object-fit:contain;background:#fff;}
+#xfy-ink{position:absolute;left:0;top:0;width:100%;height:100%;z-index:5;}
 #xfy-bar{display:flex;flex-direction:column;gap:7px;width:1280px;padding:9px 16px;box-sizing:border-box;
      background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(36,48,68,.10);
      position:relative;z-index:10;}
@@ -39,6 +40,15 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
 #xfy-bar .xfy-tg input{accent-color:#2f6feb;cursor:pointer;margin:0;}
 #xfy-bar .xfy-tg i{width:10px;height:10px;border-radius:3px;display:inline-block;}
 #xfy-bar .xfy-tip{margin-left:auto;font-size:12px;color:#9aa7ba;}
+#xfy-bar .xfy-inkbar{gap:8px;padding-top:2px;border-top:1px dashed #e3e9f2;margin-top:2px;}
+#xfy-bar .xfy-sw{display:inline-flex;align-items:center;gap:5px;}
+#xfy-bar .xfy-dot{
+  width:19px;height:19px;padding:0;border-radius:50%;cursor:pointer;
+  border:2px solid transparent;box-shadow:inset 0 0 0 2px #fff, 0 0 0 1px #d3dcea;
+}
+#xfy-bar .xfy-dot.is-on{border-color:#2f6feb;box-shadow:inset 0 0 0 2px #fff, 0 0 0 1px #2f6feb;}
+#xfy-bar .xfy-dot.xfy-w{background:#fff;display:inline-flex;align-items:center;justify-content:center;}
+#xfy-bar .xfy-dot.xfy-w i{display:block;border-radius:50%;background:#334155;}
 </style>`;
 
 /**

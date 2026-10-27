@@ -85,7 +85,6 @@
   const $next = bar.querySelector('[data-act="next"]');
   const $speeds = [...bar.querySelectorAll('.xfy-speed')];
   const $flags = [...bar.querySelectorAll('[data-flag]')];
-
   if (!acts.length) {
     $play.disabled = true;
     $replay.disabled = true;
@@ -111,7 +110,7 @@
     $time.textContent = `${fmt(tau)} / 4.00 s`;
     $phys.textContent = `物理 t = ${fmt(physTime())} s`;
     if ($act) $act.textContent = `第 ${idx + 1}/${acts.length} 幕 · ${act.title}`;
-    if (document.activeElement !== $seek) $seek.value = String(Math.round((tau / ACT_SECONDS) * 1000));
+    if (!seeking) $seek.value = String(Math.round((tau / ACT_SECONDS) * 1000));
   }
 
   function loop(ts) {
@@ -123,6 +122,7 @@
       if (idx < acts.length - 1) {
         idx += 1;
         tau = 0;
+        if (window.__xfyClearInk) window.__xfyClearInk();
       } else {
         tau = ACT_SECONDS;
         playing = false;
@@ -174,6 +174,31 @@
     tau = (Number($seek.value) / 1000) * ACT_SECONDS;
     paint();
   });
+
+  /*
+   * 拖拽时间轴：先把播放停住，松手再继续。
+   * 不停的话播放循环每帧都在改 tau，用户的手和循环会互相抢，看起来就是"拖不动、自己播到完"。
+   */
+  let resumeAfterSeek = false;
+  let seeking = false;
+  const beginSeek = () => {
+    seeking = true;
+    resumeAfterSeek = playing;
+    if (playing) pause();
+  };
+  const endSeek = () => {
+    seeking = false;
+    if (resumeAfterSeek) {
+      resumeAfterSeek = false;
+      if (tau < ACT_SECONDS) play();
+    }
+  };
+  $seek.addEventListener('pointerdown', beginSeek);
+  $seek.addEventListener('keydown', beginSeek);
+  $seek.addEventListener('pointerup', endSeek);
+  $seek.addEventListener('keyup', endSeek);
+  $seek.addEventListener('change', endSeek);
+  window.addEventListener('pointerup', endSeek);
   $prev?.addEventListener('click', () => gotoAct(idx - 1));
   $next?.addEventListener('click', () => gotoAct(idx + 1));
   bar.querySelector('[data-act="full"]')?.addEventListener('click', () => {
@@ -222,6 +247,169 @@
     paint();
     if (d.play) play();
   });
+
+  /* ================= 标注层（导出文件里才有；预览用 ?ink=0 关掉） ================= */
+  const INK_ON = new URLSearchParams(location.search).get('ink') !== '0';
+  const stageEl = document.getElementById('xfy-stage');
+  const COLORS = ['#e5484d', '#2f6feb', '#111827'];
+  const WIDTHS = [2, 4, 7];
+  const ink = { canvas: null, ctx: null, on: false, color: COLORS[0], width: WIDTHS[1], erase: false, strokes: [], cur: null };
+
+  if (INK_ON && stageEl) {
+    // 工具条：只在标注模式下出现
+    const inkRow = document.createElement('div');
+    inkRow.className = 'xfy-row xfy-inkbar';
+    inkRow.hidden = true;
+    inkRow.innerHTML =
+      '<button class="xfy-btn xfy-ghost is-on" data-ink="pen">笔</button>' +
+      '<button class="xfy-btn xfy-ghost" data-ink="erase">橡皮</button>' +
+      '<span class="xfy-sw">' +
+      COLORS.map((c, i) => `<button class="xfy-dot${i === 0 ? ' is-on' : ''}" data-color="${c}" style="background:${c}"></button>`).join('') +
+      '</span>' +
+      '<span class="xfy-sw">' +
+      WIDTHS.map((w, i) => `<button class="xfy-dot xfy-w${i === 1 ? ' is-on' : ''}" data-width="${w}"><i style="width:${w + 2}px;height:${w + 2}px"></i></button>`).join('') +
+      '</span>' +
+      '<button class="xfy-btn xfy-ghost" data-ink="undo">撤销</button>' +
+      '<button class="xfy-btn xfy-ghost" data-ink="clear">清除</button>' +
+      '<span class="xfy-tip">按 Esc 退出标注</span>';
+    bar.appendChild(inkRow);
+
+    const toggle = document.createElement('button');
+    toggle.className = 'xfy-btn xfy-ghost';
+    toggle.dataset.act = 'ink';
+    toggle.textContent = '标注';
+    toggle.title = '在画面上写画（不影响播放条）';
+    bar.querySelector('.xfy-row').insertBefore(toggle, $seek);
+
+    ink.canvas = document.createElement('canvas');
+    ink.canvas.id = 'xfy-ink';
+    ink.canvas.style.cssText =
+      'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;touch-action:none;z-index:5;';
+    stageEl.appendChild(ink.canvas);
+
+    const resizeInk = () => {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      ink.canvas.width = Math.round(1280 * dpr);
+      ink.canvas.height = Math.round(720 * dpr);
+      ink.ctx = ink.canvas.getContext('2d');
+      ink.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      redrawInk();
+    };
+
+    function redrawInk() {
+      const c = ink.ctx;
+      if (!c) return;
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, ink.canvas.width, ink.canvas.height);
+      const dpr = ink.canvas.width / 1280;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      for (const s of ink.strokes) {
+        c.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+        c.strokeStyle = s.color;
+        c.lineWidth = s.width;
+        c.beginPath();
+        s.pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
+        if (s.pts.length === 1) c.lineTo(s.pts[0][0] + 0.01, s.pts[0][1]);
+        c.stroke();
+      }
+      c.globalCompositeOperation = 'source-over';
+    }
+
+    function toLogical(e) {
+      const r = ink.canvas.getBoundingClientRect();
+      return [((e.clientX - r.left) / r.width) * 1280, ((e.clientY - r.top) / r.height) * 720];
+    }
+
+    ink.canvas.addEventListener('pointerdown', (e) => {
+      if (!ink.on) return;
+      e.preventDefault();
+      ink.canvas.setPointerCapture(e.pointerId);
+      ink.cur = { color: ink.color, width: ink.width, erase: ink.erase, pts: [toLogical(e)] };
+      ink.strokes.push(ink.cur);
+      redrawInk();
+    });
+    ink.canvas.addEventListener('pointermove', (e) => {
+      if (!ink.cur) return;
+      const p = toLogical(e);
+      const last = ink.cur.pts[ink.cur.pts.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 1.2) return; // 去掉抖动，点太密没意义
+      ink.cur.pts.push(p);
+      redrawInk();
+    });
+    const stop = () => {
+      ink.cur = null;
+    };
+    ink.canvas.addEventListener('pointerup', stop);
+    ink.canvas.addEventListener('pointercancel', stop);
+    ink.canvas.addEventListener('pointerleave', stop);
+
+    function setInk(on) {
+      ink.on = on;
+      inkRow.hidden = !on;
+      toggle.classList.toggle('is-on', on);
+      ink.canvas.style.pointerEvents = on ? 'auto' : 'none';
+      ink.canvas.style.cursor = on ? 'crosshair' : 'default';
+      if (on) pause();
+    }
+    const clearInk = () => {
+      ink.strokes.length = 0;
+      ink.cur = null;
+      redrawInk();
+    };
+    window.__xfyClearInk = clearInk;
+
+    toggle.addEventListener('click', () => setInk(!ink.on));
+    inkRow.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.ink === 'undo') {
+        ink.strokes.pop();
+        redrawInk();
+        return;
+      }
+      if (b.dataset.ink === 'clear') {
+        clearInk();
+        return;
+      }
+      if (b.dataset.color) {
+        ink.color = b.dataset.color;
+        ink.erase = false;
+        for (const o of inkRow.querySelectorAll('[data-color]')) o.classList.toggle('is-on', o === b);
+        for (const o of inkRow.querySelectorAll('[data-ink="pen"],[data-ink="erase"]'))
+          o.classList.toggle('is-on', o.dataset.ink === 'pen');
+        return;
+      }
+      if (b.dataset.width) {
+        ink.width = Number(b.dataset.width);
+        for (const o of inkRow.querySelectorAll('[data-width]')) o.classList.toggle('is-on', o === b);
+        return;
+      }
+      if (b.dataset.ink === 'pen' || b.dataset.ink === 'erase') {
+        ink.erase = b.dataset.ink === 'erase';
+        for (const o of inkRow.querySelectorAll('[data-ink="pen"],[data-ink="erase"]')) o.classList.toggle('is-on', o === b);
+      }
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && ink.on) setInk(false);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && ink.on) {
+        e.preventDefault();
+        ink.strokes.pop();
+        redrawInk();
+      }
+    });
+
+    resizeInk();
+    window.addEventListener('resize', resizeInk);
+    // 换幕就清空：每一幕是一张新板书
+    const origGoto = gotoAct;
+    gotoAct = function (i) {
+      clearInk();
+      origGoto(i);
+      resizeInk();
+    };
+  }
 
   // 整页等比缩放到窗口：窗口再小（或系统缩放再大），控制条也不会被挤出屏幕
   const app = document.getElementById('xfy-app');

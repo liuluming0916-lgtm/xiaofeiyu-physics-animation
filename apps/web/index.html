@@ -720,7 +720,7 @@
     const stage = $('stagebox');
     stage.innerHTML = '';
     const f = document.createElement('iframe');
-    f.src = `/api/jobs/${state.jobId}/artifact`;
+    f.src = `/api/jobs/${state.jobId}/artifact?ink=0`;
     f.onload = () => {
       try {
         const h = f.contentWindow?.document?.documentElement?.scrollHeight;
