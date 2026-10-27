@@ -12,6 +12,8 @@
   },
   "scripts": {
     "app:dev": "node scripts/build-app.ts && electron .",
+    "build:app": "node scripts/build-app.ts",
+    "app:portable": "node scripts/build-app.ts && node scripts/pack-portable.ts",
     "app:build": "node scripts/build-app.ts && electron-builder --win",
     "web": "node apps/server/src/server.ts",
     "m0": "node scripts/m0-demo.ts",
