@@ -53,8 +53,6 @@
     '<button class="xfy-btn xfy-speed is-on" data-speed="1">1×</button>' +
     '<button class="xfy-btn xfy-speed" data-speed="2">2×</button>' +
     '</span>' +
-    '<button class="xfy-btn xfy-ghost" data-act="full" title="全屏（Esc 退出）">全屏</button>' +
-    (true ? '<span class="xfy-act"></span>' : '') +
     '<span class="xfy-phys"></span>' +
     '</div>' +
     '<div class="xfy-row xfy-toggles">' +
@@ -71,7 +69,6 @@
   const $seek = bar.querySelector('.xfy-seek');
   const $time = bar.querySelector('.xfy-time');
   const $phys = bar.querySelector('.xfy-phys');
-  const $act = bar.querySelector('.xfy-act');
   const $prev = bar.querySelector('[data-act="prev"]');
   const $next = bar.querySelector('[data-act="next"]');
   const $speeds = [...bar.querySelectorAll('.xfy-speed')];
@@ -100,7 +97,6 @@
     post({ xfy: 'render', act: idx, t: physTime(), opts: { ...opts } });
     $time.textContent = `${fmt(tau)} / 4.00 s`;
     $phys.textContent = `物理 t = ${fmt(physTime())} s`;
-    if ($act) $act.textContent = `第 ${idx + 1}/${acts.length} 幕 · ${current().title}`;
     if (!seeking) $seek.value = String(Math.round((tau / ACT_SECONDS) * 1000));
   }
 
@@ -192,10 +188,6 @@
   window.addEventListener('pointerup', endSeek);
   $prev?.addEventListener('click', () => gotoAct(idx - 1));
   $next?.addEventListener('click', () => gotoAct(idx + 1));
-  bar.querySelector('[data-act="full"]')?.addEventListener('click', () => {
-    if (document.fullscreenElement) document.exitFullscreen?.();
-    else document.documentElement.requestFullscreen?.().catch(() => {});
-  });
   for (const b of $speeds) {
     b.addEventListener('click', () => {
       speed = Number(b.dataset.speed) || 1;
@@ -258,23 +250,23 @@
   };
 
   if (INK_ON && stageEl) {
-    // 工具条：只在标注模式下出现
+    // 工具面板：贴在屏幕左侧，竖着排。老师上课手在左边，够得着；
+    // 放下面一排容易点不到，也占掉控制条的地方。
     const inkRow = document.createElement('div');
-    inkRow.className = 'xfy-row xfy-inkbar';
-    inkRow.hidden = true;
+    inkRow.id = 'xfy-panel';
     inkRow.innerHTML =
-      '<button class="xfy-btn xfy-ghost is-on" data-ink="pen">笔</button>' +
-      '<button class="xfy-btn xfy-ghost" data-ink="erase">橡皮</button>' +
-      '<span class="xfy-sw">' +
-      COLORS.map((c, i) => `<button class="xfy-dot${i === 0 ? ' is-on' : ''}" data-color="${c}" style="background:${c}"></button>`).join('') +
-      '</span>' +
-      '<span class="xfy-sw">' +
-      WIDTHS.map((w, i) => `<button class="xfy-dot xfy-w${i === 1 ? ' is-on' : ''}" data-width="${w}"><i style="width:${w + 2}px;height:${w + 2}px"></i></button>`).join('') +
-      '</span>' +
-      '<button class="xfy-btn xfy-ghost" data-ink="undo">撤销</button>' +
-      '<button class="xfy-btn xfy-ghost" data-ink="clear">清除</button>' +
-      '<span class="xfy-tip">按 Esc 退出标注</span>';
-    bar.appendChild(inkRow);
+      '<button data-ink="pen" class="is-on" title="画笔">笔</button>' +
+      '<button data-ink="erase" title="橡皮（44 像素方块）">橡皮</button>' +
+      '<div class="xfy-row2">' +
+      COLORS.map((c, i) => `<button class="xfy-dot${i === 0 ? ' is-on' : ''}" data-color="${c}" style="background:${c}" title="${c}"></button>`).join('') +
+      '</div>' +
+      '<div class="xfy-row2">' +
+      WIDTHS.map((w, i) => `<button class="xfy-dot xfy-w${i === 1 ? ' is-on' : ''}" data-width="${w}" title="笔宽 ${w}"><i style="width:${w + 2}px;height:${w + 2}px"></i></button>`).join('') +
+      '</div>' +
+      '<button data-ink="undo" title="撤销（Ctrl+Z）">撤销</button>' +
+      '<button data-ink="clear" title="清除全部">清除</button>' +
+      '<button data-ink="exit" title="退出标注（Esc）">退出</button>';
+    document.body.appendChild(inkRow);
 
     const toggle = document.createElement('button');
     toggle.className = 'xfy-btn xfy-ghost';
@@ -409,10 +401,12 @@
 
     function setInk(on) {
       ink.on = on;
-      inkRow.hidden = !on;
+      inkRow.classList.toggle('on', on);
       toggle.classList.toggle('is-on', on);
       ink.canvas.style.pointerEvents = on ? 'auto' : 'none';
       applyTool();
+      document.body.classList.toggle('xfy-inking', on);
+      fit();
       if (on) pause();
       if (!on) showGhost(false);
     }
@@ -450,6 +444,10 @@
         for (const o of inkRow.querySelectorAll('[data-width]')) o.classList.toggle('is-on', o === b);
         return;
       }
+      if (b.dataset.ink === 'exit') {
+        setInk(false);
+        return;
+      }
       if (b.dataset.ink === 'pen' || b.dataset.ink === 'erase') {
         ink.erase = b.dataset.ink === 'erase';
         for (const o of inkRow.querySelectorAll('[data-ink="pen"],[data-ink="erase"]')) o.classList.toggle('is-on', o === b);
@@ -480,10 +478,12 @@
   const app = document.getElementById('xfy-app');
   function fit() {
     if (!app) return;
-    const w = document.documentElement.clientWidth;
+    // 标注面板占左侧 96px：开着的时候整体右移并略微缩小，别挡住画面
+    const reserve = document.body.classList.contains('xfy-inking') ? 96 : 0;
+    const w = document.documentElement.clientWidth - reserve;
     const h = document.documentElement.clientHeight;
     const s = Math.min(w / app.offsetWidth, h / app.offsetHeight);
-    app.style.transform = `translate(-50%, -50%) scale(${Math.min(s, 1.6)})`;
+    app.style.transform = `translate(calc(-50% + ${reserve / 2}px), -50%) scale(${Math.min(s, 1.6)})`;
   }
   window.addEventListener('resize', fit);
   document.addEventListener('fullscreenchange', fit);

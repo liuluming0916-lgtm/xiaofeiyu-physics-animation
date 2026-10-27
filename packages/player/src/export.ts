@@ -51,15 +51,28 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
 #xfy-bar .xfy-tg input{accent-color:#2f6feb;cursor:pointer;margin:0;}
 #xfy-bar .xfy-tg i{width:10px;height:10px;border-radius:3px;display:inline-block;}
 #xfy-bar .xfy-tip{margin-left:auto;font-size:12px;color:#9aa7ba;}
-#xfy-bar .xfy-inkbar{gap:8px;padding-top:2px;border-top:1px dashed #e3e9f2;margin-top:2px;}
-#xfy-bar .xfy-sw{display:inline-flex;align-items:center;gap:5px;}
-#xfy-bar .xfy-dot{
-  width:19px;height:19px;padding:0;border-radius:50%;cursor:pointer;
-  border:2px solid transparent;box-shadow:inset 0 0 0 2px #fff, 0 0 0 1px #d3dcea;
+/* 标注工具面板：贴在屏幕左侧，竖排；老师上课手在左边，够得着 */
+#xfy-panel{
+  position:fixed;left:12px;top:50%;transform:translateY(-50%);display:none;
+  flex-direction:column;gap:6px;background:#fff;border:1px solid #dde5f0;border-radius:14px;
+  padding:10px 8px;box-shadow:0 10px 28px rgba(36,48,68,.16);z-index:60;
+  font-family:"Microsoft YaHei","PingFang SC",sans-serif;
 }
-#xfy-bar .xfy-dot.is-on{border-color:#2f6feb;box-shadow:inset 0 0 0 2px #fff, 0 0 0 1px #2f6feb;}
-#xfy-bar .xfy-dot.xfy-w{background:#fff;display:inline-flex;align-items:center;justify-content:center;}
-#xfy-bar .xfy-dot.xfy-w i{display:block;border-radius:50%;background:#334155;}
+#xfy-panel.on{display:flex;}
+#xfy-panel>button{
+  width:58px;height:42px;border-radius:10px;border:1px solid #e2e9f4;background:#f7f9fd;
+  color:#33415c;font-size:13px;font-family:inherit;cursor:pointer;transition:.12s;
+}
+#xfy-panel>button:hover{border-color:#9fbcf0;background:#eef4ff;}
+#xfy-panel>button.is-on{background:#2f6feb;border-color:#2f6feb;color:#fff;font-weight:600;}
+#xfy-panel .xfy-row2{display:flex;gap:4px;justify-content:center;padding:1px 0;}
+#xfy-panel .xfy-dot{
+  width:18px;height:18px;padding:0;border-radius:50%;cursor:pointer;border:2px solid transparent;
+  box-shadow:inset 0 0 0 2px #fff, 0 0 0 1px #d3dcea;
+}
+#xfy-panel .xfy-dot.is-on{border-color:#2f6feb;}
+#xfy-panel .xfy-dot.xfy-w{background:#fff;display:inline-flex;align-items:center;justify-content:center;}
+#xfy-panel .xfy-dot.xfy-w i{display:block;border-radius:50%;background:#334155;}
 </style>`;
 
 /**
