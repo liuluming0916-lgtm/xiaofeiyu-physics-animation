@@ -6,11 +6,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const PLAYER_SRC = readFileSync(path.join(here, 'player.js'), 'utf8');
 
 const STYLE = `<style id="xfy-player-style">
-html,body{margin:0;padding:0;background:#e9eef6;}
-body{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 0 16px;
-     font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;}
+html,body{margin:0;padding:0;background:#e9eef6;overflow:hidden;}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased;}
+#xfy-app{position:absolute;left:50%;top:50%;display:flex;flex-direction:column;align-items:center;gap:10px;
+     transform-origin:center center;transform:translate(-50%,-50%);}
 #xfy-stage{position:relative;width:1280px;height:720px;overflow:hidden;background:#fff;
      border-radius:10px;box-shadow:0 8px 28px rgba(36,48,68,.13);}
+#xfy-stage > canvas{display:block;width:100% !important;height:100% !important;object-fit:contain;background:#fff;}
 #xfy-bar{display:flex;flex-direction:column;gap:7px;width:1280px;padding:9px 16px;box-sizing:border-box;
      background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(36,48,68,.10);}
 #xfy-bar .xfy-row{display:flex;align-items:center;gap:10px;}
@@ -40,7 +42,7 @@ body{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px
  * 好处是每个动画的交互一致，而且画布不会被按钮占掉一块。
  */
 export function wrapWithPlayer(html: string): string {
-  const marker = '<div id="xfy-stage">';
+  const marker = '<div id="xfy-app"><div id="xfy-stage">';
   let out = html;
 
   if (!out.includes(marker)) {
@@ -52,7 +54,7 @@ export function wrapWithPlayer(html: string): string {
       out = marker + out;
     }
     const close = out.toLowerCase().lastIndexOf('</body>');
-    out = close >= 0 ? out.slice(0, close) + '</div>' + out.slice(close) : out + '</div>';
+    out = close >= 0 ? out.slice(0, close) + '</div></div>' + out.slice(close) : out + '</div></div>';
   }
 
   const tail = STYLE + `<script id="xfy-player">${PLAYER_SRC}</script>`;

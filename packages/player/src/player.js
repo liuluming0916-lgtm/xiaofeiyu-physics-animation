@@ -62,6 +62,7 @@
     '<button class="xfy-btn xfy-speed is-on" data-speed="1">1×</button>' +
     '<button class="xfy-btn xfy-speed" data-speed="2">2×</button>' +
     '</span>' +
+    '<button class="xfy-btn xfy-ghost" data-act="full" title="全屏（Esc 退出）">全屏</button>' +
     (multi ? '<span class="xfy-act"></span>' : '') +
     '<span class="xfy-phys"></span>' +
     '</div>' +
@@ -72,7 +73,7 @@
     ).join('') +
     '<span class="xfy-tip">取消勾选可以隐藏对应图层</span>' +
     '</div>';
-  document.body.appendChild(bar);
+  (document.getElementById('xfy-app') || document.body).appendChild(bar);
 
   const $play = bar.querySelector('[data-act="play"]');
   const $replay = bar.querySelector('[data-act="replay"]');
@@ -175,6 +176,10 @@
   });
   $prev?.addEventListener('click', () => gotoAct(idx - 1));
   $next?.addEventListener('click', () => gotoAct(idx + 1));
+  bar.querySelector('[data-act="full"]')?.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+  });
   for (const b of $speeds) {
     b.addEventListener('click', () => {
       speed = Number(b.dataset.speed) || 1;
@@ -217,6 +222,20 @@
     paint();
     if (d.play) play();
   });
+
+  // 整页等比缩放到窗口：窗口再小（或系统缩放再大），控制条也不会被挤出屏幕
+  const app = document.getElementById('xfy-app');
+  function fit() {
+    if (!app) return;
+    const w = document.documentElement.clientWidth;
+    const h = document.documentElement.clientHeight;
+    const s = Math.min(w / app.offsetWidth, h / app.offsetHeight);
+    app.style.transform = `translate(-50%, -50%) scale(${Math.min(s, 1.6)})`;
+  }
+  window.addEventListener('resize', fit);
+  document.addEventListener('fullscreenchange', fit);
+  fit();
+  setTimeout(fit, 60);
 
   paint();
   play();
