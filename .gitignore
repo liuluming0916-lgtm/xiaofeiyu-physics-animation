@@ -28,6 +28,10 @@ coverage/
 .chrome-profile-*/
 .chrome-probe*/
 
+# ---- 本地工具临时目录（pip / 探测用）----
+.tmp/
+.pylibs/
+
 # ---- 产物目录（动画与日志，本地产物不入库）----
 开源日志/
 npm-debug.log*
