@@ -312,13 +312,17 @@
         return;
       }
       const r = ink.canvas.getBoundingClientRect();
-      const s = ink.eraseSize * (r.width / 1280);
+      const scale = r.width / 1280; // 屏幕像素 / 逻辑像素
+      const s = ink.eraseSize; // 逻辑像素，方块光标在舞台坐标系里就是这个大小
       g.style.display = 'block';
       g.style.width = `${s}px`;
       g.style.height = `${s}px`;
       if (e) {
-        g.style.left = `${e.clientX - r.left - s / 2}px`;
-        g.style.top = `${e.clientY - r.top - s / 2}px`;
+        // 指针位置换算回舞台坐标（舞台整体被 transform 缩放过，不能直接用屏幕像素）
+        const x = (e.clientX - r.left) / scale;
+        const y = (e.clientY - r.top) / scale;
+        g.style.left = `${x - s / 2}px`;
+        g.style.top = `${y - s / 2}px`;
       }
     }
 

@@ -18,7 +18,11 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
    并把画布尺寸钉死在 1280×720（!important 压过内联样式），否则会盖住控制条或被裁切。 */
 #xfy-stage canvas:not(#xfy-ink){display:block;position:static !important;width:100% !important;height:100% !important;
      object-fit:contain;background:#fff;}
-#xfy-ink{position:absolute;left:0;top:0;width:100%;height:100%;z-index:5;}
+#xfy-ink{
+  position:absolute;left:0;top:0;width:100%;height:100%;z-index:5;
+  /* 模型常写 canvas{background:...}，会连标注层一起刷成不透明，必须强制透明 */
+  background:transparent !important;box-shadow:none !important;border:0 !important;border-radius:0 !important;
+}
 #xfy-ink-ghost{
   position:absolute;z-index:6;pointer-events:none;border-radius:5px;
   border:1.5px solid #6b7280;background:rgba(107,114,128,.14);
