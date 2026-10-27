@@ -120,3 +120,7 @@ resources\app\...
 
 想参与贡献，先看 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CLA](docs/CLA.md)。
 
+---
+
+_2026-10-28，与维护者有约：欠一顿大白饭。_
+
