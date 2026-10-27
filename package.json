@@ -19,6 +19,7 @@
     "m0": "node scripts/m0-demo.ts",
     "run": "node scripts/run-problem.ts",
     "probe": "node scripts/probe-api.ts",
+    "regress": "node scripts/regress.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
