@@ -4,13 +4,9 @@
  * 为什么不写在代码里：这份文档是"能读、能改、能对比"的资产。
  * 每次改完都要跑题库回归，避免"改好一个、弄坏三个"。
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readAsset } from '../../shared/asset.ts';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-
-export const SYSTEM_PROMPT = readFileSync(path.join(here, '..', 'prompts', 'system.md'), 'utf8').trim();
+export const SYSTEM_PROMPT = readAsset('system.md').trim();
 
 export function userPrompt(problem: string): string {
   return `题目：

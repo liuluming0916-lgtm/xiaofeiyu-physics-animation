@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAsset } from '../../shared/asset.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const PLAYER_SRC = readFileSync(path.join(here, 'player.js'), 'utf8');
-const CLEAN_SRC = readFileSync(path.join(here, '..', '..', 'shared', 'text-clean.js'), 'utf8');
+const PLAYER_SRC = readAsset('player.js');
+const CLEAN_SRC = readAsset('text-clean.js');
 
 const STYLE = `<style id="xfy-player-style">
 html,body{margin:0;padding:0;background:#e9eef6;overflow:hidden;}

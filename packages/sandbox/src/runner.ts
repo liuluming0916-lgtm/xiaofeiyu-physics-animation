@@ -5,11 +5,12 @@ import { randomBytes } from 'node:crypto';
 import type { Browser, Page } from 'puppeteer-core';
 import type { ChildProcess } from 'node:child_process';
 import { launchBrowser, closeBrowser } from './browser.ts';
+import { readAsset } from '../../shared/asset.ts';
 import type { Capture } from './types.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const RUNTIME_SRC = readFileSync(path.join(here, 'page-runtime.js'), 'utf8');
-const CLEAN_SRC = readFileSync(path.join(here, '..', '..', 'shared', 'text-clean.js'), 'utf8');
+const RUNTIME_SRC = readAsset('page-runtime.js');
+const CLEAN_SRC = readAsset('text-clean.js');
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

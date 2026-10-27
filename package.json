@@ -5,10 +5,13 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "description": "小肥鱼物理解题动画 2.0 · 自主 Agent + 物理沙盒闭环",
+  "main": "electron/main.cjs",
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
+    "app:dev": "node scripts/build-app.ts && electron .",
+    "app:build": "node scripts/build-app.ts && electron-builder --win",
     "web": "node apps/server/src/server.ts",
     "m0": "node scripts/m0-demo.ts",
     "run": "node scripts/run-problem.ts",
@@ -21,6 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "electron": "^35.7.5",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
   }
 }

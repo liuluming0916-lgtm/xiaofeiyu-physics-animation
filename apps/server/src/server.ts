@@ -1,5 +1,6 @@
 import http from 'node:http';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'node:fs';
 import { loadEnv, cfg, apiUrl, configSummary, saveConfigFile } from '../../../packages/agent/src/config.ts';
@@ -9,8 +10,13 @@ loadEnv();
 
 const PORT = Number(process.env.XFY_PORT ?? 8787);
 const ROOT = process.cwd();
-const WEB_DIR = path.join(ROOT, 'apps', 'web');
-const OUT_ROOT = path.join(ROOT, '开源日志', 'web');
+// 开发态用仓库里的 apps/web；打包态用 bundle 旁边的 web/
+const WEB_DIR = existsSync(path.join(ROOT, 'apps', 'web'))
+  ? path.join(ROOT, 'apps', 'web')
+  : path.join(path.dirname(fileURLToPath(import.meta.url)), 'web');
+// 产物目录：开发态在仓库 开源日志/；打包态由主进程指到用户可写目录
+const DATA_ROOT = process.env.XFY_DATA_DIR ? path.resolve(process.env.XFY_DATA_DIR) : path.join(ROOT, '开源日志');
+const OUT_ROOT = path.join(DATA_ROOT, 'web');
 mkdirSync(OUT_ROOT, { recursive: true });
 
 interface Job {
