@@ -5,6 +5,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "description": "小肥鱼物理解题动画 2.0 · 自主 Agent + 物理沙盒闭环",
+  "author": "小肥鱼物理解题动画项目组 <1241640869@qq.com>",
   "main": "electron/main.cjs",
   "engines": {
     "node": ">=22.18"
@@ -25,7 +26,50 @@
   "devDependencies": {
     "@types/node": "^24.10.1",
     "electron": "^35.7.5",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.xiaofeiyu.physics-animation",
+    "productName": "小肥鱼物理解题动画",
+    "copyright": "小肥鱼物理解题动画项目组 · AGPL-3.0",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/app/**/*",
+      "package.json",
+      "LICENSE",
+      "NOTICE",
+      "COMMERCIAL.md",
+      "TRADEMARK.md"
+    ],
+    "extraResources": [
+      "LICENSE",
+      "NOTICE",
+      "COMMERCIAL.md",
+      "TRADEMARK.md"
+    ],
+    "asar": false,
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "小肥鱼物理解题动画",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

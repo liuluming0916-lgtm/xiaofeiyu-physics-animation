@@ -58,6 +58,9 @@ secrets/
 xfy.config.json
 
 # ---- 构建产物 ----
+release/
+dist/
+.eb-cache/
 *.exe
 *.dll
 *.pdb
