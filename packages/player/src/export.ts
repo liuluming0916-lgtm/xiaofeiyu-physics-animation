@@ -13,10 +13,14 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
 #xfy-app{position:absolute;left:50%;top:50%;display:flex;flex-direction:column;align-items:center;gap:10px;
      transform-origin:center center;transform:translate(-50%,-50%);}
 #xfy-stage{position:relative;width:1280px;height:720px;overflow:hidden;background:#fff;
-     border-radius:10px;box-shadow:0 8px 28px rgba(36,48,68,.13);}
-#xfy-stage > canvas{display:block;width:100% !important;height:100% !important;object-fit:contain;background:#fff;}
+     border-radius:10px;box-shadow:0 8px 28px rgba(36,48,68,.13);transform:translateZ(0);}
+/* 模型常用 position:fixed / 100vw 让画面铺满窗口；这里把 fixed 的参照内缩到舞台，
+   并把画布尺寸钉死在 1280×720（!important 压过内联样式），否则会盖住控制条或被裁切。 */
+#xfy-stage canvas{display:block;position:static !important;width:100% !important;height:100% !important;
+     object-fit:contain;background:#fff;}
 #xfy-bar{display:flex;flex-direction:column;gap:7px;width:1280px;padding:9px 16px;box-sizing:border-box;
-     background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(36,48,68,.10);}
+     background:#fff;border-radius:10px;box-shadow:0 4px 16px rgba(36,48,68,.10);
+     position:relative;z-index:10;}
 #xfy-bar .xfy-row{display:flex;align-items:center;gap:10px;}
 #xfy-bar .xfy-btn{border:1px solid #cdd8e8;background:#f7f9fd;color:#243044;font-size:15px;
      font-family:inherit;border-radius:8px;padding:6px 15px;cursor:pointer;line-height:1.2;transition:.15s;}

@@ -116,6 +116,23 @@ export class Engine {
       };
     }
 
+    // 源头检查：画面若按窗口尺寸自适应，交付后会被裁切或盖住控制条
+    try {
+      const src = readFileSync(this.htmlPath, 'utf8');
+      const bad: string[] = [];
+      if (/\b100vw\b/.test(src)) bad.push('100vw');
+      if (/\b100vh\b/.test(src)) bad.push('100vh');
+      if (/position\s*:\s*fixed/i.test(src)) bad.push('position:fixed');
+      if (bad.length) {
+        issues.push({
+          id: 'viewport-sizing',
+          level: 'error',
+          message: `画面用了 ${bad.join(' / ')} —— 动画会被裁切，或盖住下方的控制条。`,
+          hint: '画布固定 1280×720，CSS 宽高写死 1280px / 720px；不要用 100vw、100vh、position:fixed 跟随窗口。',
+        });
+      }
+    } catch (_) {}
+
     for (const act of acts) {
       const marks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * act.physical);
       for (const t of marks) {
