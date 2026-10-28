@@ -551,17 +551,17 @@
 
   /* ---------------- 状态（吉祥物 + 文案） ---------------- */
   const FISH = {
-    idle:   { img: 'idle',   title: '小肥鱼正在deepsleep...', desc: '写一句话，把它叫醒' },
-    read:   { img: 'read',   title: '小肥鱼正在认真读题...', desc: '正在读你给的内容、认图片里的条件' },
-    solve:  { img: 'solve',  title: '小肥鱼正在偷看答案...', desc: '受力、过程、该用哪条公式' },
-    draw:   { img: 'draw',   title: '小肥鱼正在努力画画...', desc: '正在一帧一帧地画' },
-    check:  { img: 'check',  title: '小肥鱼正在检查画面...', desc: '快进跑一遍：穿模、压字、飞出去' },
-    repair: { img: 'repair', title: '小肥鱼发现了问题！',   desc: '正在重画' },
-    think:  { img: 'think',  title: '小肥鱼正在思考...',     desc: '它在琢磨，别急' },
-    done:   { img: 'done',   title: '小肥鱼画好啦！',       desc: '点右上角「动画」去看看' },
-    error:  { img: 'error',  title: '小肥鱼遇到了点问题...', desc: '原因写在下面；也可以打回让它再试' },
+    idle:   { img: 'idle',   title: '小肥鱼正在deepsleep...',    desc: '写一句话，把它叫醒' },
+    read:   { img: 'read',   title: '小肥鱼正在认真查看你的需求...', desc: '' },
+    solve:  { img: 'solve',  title: '小肥鱼正在查阅资料...',      desc: '' },
+    draw:   { img: 'draw',   title: '小肥鱼正在努力画画...',      desc: '' },
+    check:  { img: 'check',  title: '小肥鱼正在检查画面...',      desc: '' },
+    repair: { img: 'repair', title: '小肥鱼发现了问题！',        desc: '' },
+    think:  { img: 'think',  title: '小肥鱼正在思考...',          desc: '' },
+    done:   { img: 'done',   title: '小肥鱼画好啦！',            desc: '点右上角「动画」去看看' },
+    error:  { img: 'error',  title: '小肥鱼遇到了点问题...',      desc: '原因写在下面；也可以打回让它再试' },
   };
-  const PHASE_OF = { read: 0, solve: 0, draw: 1, check: 2, repair: 2, done: 3 };
+  const PHASE_OF = { read: 0, solve: 0, think: 0, draw: 1, check: 2, repair: 2, done: 3 };
 
   let tick = null;
   let fishTimer = null;
@@ -578,7 +578,10 @@
     const f = FISH[key] ?? FISH.idle;
     $('mascot').src = `assets/fish/${f.img}.webp`;
     $('statusTitle').textContent = f.title;
-    $('statusDesc').textContent = desc ?? f.desc;
+    const sub = desc ?? f.desc;
+    // 没有说明文字时把那一行收起来，省得留个空行
+    $('statusDesc').textContent = sub;
+    $('statusDesc').style.display = sub ? '' : 'none';
     setPhase(PHASE_OF[key] ?? -1);
   }
 
