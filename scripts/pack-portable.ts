@@ -2,7 +2,7 @@
  * 组装免安装版（绿色版）：直接拿 electron 的 dist 当运行环境，把我们的 app 放进 resources/app。
  * 不依赖 electron-builder，也就不需要联网下载 winCodeSign / NSIS。
  *
- * 产物：release/portable/小肥鱼物理解题动画.exe
+ * 产物：release/portable/小肥鱼物理动画.exe
  */
 import { cpSync, existsSync, mkdirSync, rmSync, renameSync, copyFileSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -59,7 +59,7 @@ writeFileSync(
   JSON.stringify(
     {
       name: 'xiaofeiyu-physics-animation',
-      productName: '小肥鱼物理解题动画',
+      productName: '小肥鱼物理动画',
       version: pkg.version,
       description: pkg.description,
       license: pkg.license,
@@ -86,9 +86,9 @@ if (existsSync(RCEDIT) && existsSync(ICO) && existsSync(exeOld)) {
       '--set-icon', ICO,
       '--set-file-version', pkg.version,
       '--set-product-version', pkg.version,
-      '--set-version-string', 'ProductName', '小肥鱼物理解题动画',
-      '--set-version-string', 'FileDescription', `小肥鱼物理解题动画 ${pkg.version}`,
-      '--set-version-string', 'CompanyName', '小肥鱼物理解题动画项目组',
+      '--set-version-string', 'ProductName', '小肥鱼物理动画',
+      '--set-version-string', 'FileDescription', `小肥鱼物理动画 ${pkg.version}`,
+      '--set-version-string', 'CompanyName', '小肥鱼物理动画项目组',
       '--set-version-string', 'LegalCopyright', 'AGPL-3.0-only',
     ],
     { stdio: 'inherit' },
@@ -99,23 +99,23 @@ if (existsSync(RCEDIT) && existsSync(ICO) && existsSync(exeOld)) {
 }
 
 // 把 electron.exe 改成应用名（Electron 按 exe 所在目录找 resources）
-const exeNew = path.join(OUT, '小肥鱼物理解题动画.exe');
+const exeNew = path.join(OUT, '小肥鱼物理动画.exe');
 if (existsSync(exeOld)) renameSync(exeOld, exeNew);
 
 // 说明文件
 writeFileSync(
   path.join(OUT, '启动说明.txt'),
   [
-    `小肥鱼物理解题动画 ${pkg.version}（免安装版）`,
+    `小肥鱼物理动画 ${pkg.version}（免安装版）`,
     '',
-    '双击「小肥鱼物理解题动画.exe」即可运行，不需要安装 Node 或浏览器。',
+    '双击「小肥鱼物理动画.exe」即可运行，不需要安装 Node 或浏览器。',
     '首次运行会被 Windows 提示「未知发布者」，点「更多信息 → 仍要运行」。',
     '',
     '想先看看成品：双击「演示案例\\index.html」，里面是 10 个已经做好的动画，',
     '不需要联网，也不用填 API Key。',
     '',
-    '生成的文件保存在：%APPDATA%\\小肥鱼物理解题动画\\开源日志\\',
-    '配置与密钥保存在：%APPDATA%\\小肥鱼物理解题动画\\xfy.config.json',
+    '导出的动画保存在：文档\\小肥鱼物理动画\\导出\\',
+    '配置与密钥保存在：%APPDATA%\\小肥鱼物理动画\\xfy.config.json',
     '',
     '协议：AGPL-3.0（见 LICENSE）；商业授权与名称使用见 COMMERCIAL.md、TRADEMARK.md。',
     '本项目不收录第三方教辅内容。',

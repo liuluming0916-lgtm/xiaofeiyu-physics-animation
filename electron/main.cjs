@@ -23,6 +23,29 @@ const DEV = !app.isPackaged;
 const APP_ROOT = DEV ? path.join(__dirname, '..') : path.join(process.resourcesPath, 'app');
 const SERVER_ENTRY = path.join(APP_ROOT, 'dist', 'app', 'server.mjs');
 
+/**
+ * 2.1 起产品改名「小肥鱼物理动画」，但数据目录不能跟着换——
+ * 换了就等于老师的 API Key 和以前的导出全丢。所以先把旧目录搬过来，
+ * 再让 Electron 用新目录。任何一步失败都不影响启动，只是回到"新装"状态。
+ */
+const NEW_NAME = '小肥鱼物理动画';
+const OLD_NAME = '小肥鱼物理解题动画';
+
+function migrateDir(base, oldName, newName) {
+  try {
+    const from = path.join(base, oldName);
+    const to = path.join(base, newName);
+    if (!fs.existsSync(to) && fs.existsSync(from)) fs.renameSync(from, to);
+  } catch (_) {}
+}
+
+migrateDir(app.getPath('appData'), OLD_NAME, NEW_NAME);
+migrateDir(app.getPath('documents'), OLD_NAME, NEW_NAME);
+app.setName(NEW_NAME);
+try {
+  app.setPath('userData', path.join(app.getPath('appData'), NEW_NAME));
+} catch (_) {}
+
 let mainWindow = null;
 let serverURL = '';
 
@@ -56,8 +79,8 @@ async function startServer() {
   const dataDir = path.join(app.getPath('userData'), '开源日志');
   fs.mkdirSync(dataDir, { recursive: true });
 
-  // 老师能一眼找到的位置：文档\小肥鱼物理解题动画\导出
-  const exportDir = path.join(app.getPath('documents'), '小肥鱼物理解题动画', '导出');
+  // 老师能一眼找到的位置：文档\小肥鱼物理动画\导出
+  const exportDir = path.join(app.getPath('documents'), NEW_NAME, '导出');
   fs.mkdirSync(exportDir, { recursive: true });
 
   process.env.XFY_PORT = String(port);
@@ -82,7 +105,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: '#eef2f8',
-    title: '小肥鱼物理解题动画',
+    title: '小肥鱼物理动画',
     icon: path.join(APP_ROOT, 'build-resources', 'icon.ico'),
     show: false,
     webPreferences: {
@@ -133,7 +156,7 @@ if (!gotLock) {
           label: '关于',
           submenu: [
             {
-              label: '关于小肥鱼物理解题动画',
+              label: '关于小肥鱼物理动画',
               click: () => {
                 if (mainWindow) mainWindow.webContents.executeJavaScript('window.__xfyShowAbout && window.__xfyShowAbout()');
               },
