@@ -76,8 +76,9 @@
   }
   .input-right{flex:1;padding:22px;overflow:auto;display:flex;flex-direction:column;}
 
-  .lbl{font-size:12.5px;color:var(--sub);font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+  .lbl{font-size:13.5px;color:var(--ink);font-weight:600;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
   .lbl .meta{font-weight:400;color:#9aa7ba;font-size:11.5px;margin-left:auto;}
+  .lblsub{font-size:12px;color:#93a1b5;line-height:1.65;margin:0 0 9px;}
   .tagnew{font-size:10px;padding:1px 6px;border-radius:4px;background:#e9fbf1;color:var(--ok);font-weight:600;}
 
   textarea{
@@ -221,18 +222,21 @@
   <!-- ================= 输入页 ================= -->
   <section class="view on" id="view-input">
     <div class="input-left">
-      <div class="lbl">题面文字</div>
-      <textarea id="problem" rows="6" placeholder="把题目粘贴到这里（支持 LaTeX）"></textarea>
+      <div class="lbl">小肥鱼要画什么</div>
+      <div class="lblsub">可以输入具体题面，也可以输入想演示的知识点，小肥鱼来帮你画动画</div>
+      <textarea id="problem" rows="6" placeholder="例：人船模型，人从船尾走到船头，船退了多远？"></textarea>
 
-      <div class="lbl" style="margin-top:18px">题目图片<span class="meta">PNG / JPG / WebP　≤ 15 MB</span></div>
-      <div class="drop" id="drop">拖图片到这里，或点这里选择</div>
+      <div class="lbl" style="margin-top:18px">给小肥鱼看图<span class="meta">PNG / JPG / WebP　≤ 15 MB</span></div>
+      <div class="lblsub">给小肥鱼看参考图片，小肥鱼会画得更好。图片直接拖进来，或者点击打开</div>
+      <div class="drop" id="drop">拖进来，或点击选择</div>
       <input id="file" type="file" accept="image/*" multiple hidden>
       <div class="thumbs" id="thumbs"></div>
 
-      <div class="lbl" style="margin-top:18px">参考答案 / 解析（可选）</div>
-      <textarea id="solution" rows="4" placeholder="填了，模型就照这份解析画，不再自己推导。可以只写关键结论，也可以贴解析图片。"></textarea>
+      <div class="lbl" style="margin-top:18px">还要告诉小肥鱼的事情</div>
+      <div class="lblsub">标准答案、解析或补充条件，每一样都能让小肥鱼更快更好地完成</div>
+      <textarea id="solution" rows="4" placeholder="例：标准答案 1.33 m；不计水的阻力"></textarea>
       <div style="margin-top:8px">
-        <button class="btn small" id="btnSolutionImg">添加解析图片</button>
+        <button class="btn small" id="btnSolutionImg">添加参考图片</button>
         <input id="solutionFile" type="file" accept="image/*" multiple hidden>
       </div>
       <div class="thumbs" id="solutionThumbs"></div>
@@ -240,21 +244,21 @@
       <div class="actions">
         <button class="btn primary" id="btnGo">生成动画</button>
         <button class="btn" id="btnCancel" disabled>取消</button>
-        <span class="hint">至少给一样：题面文字，或一张题目图片</span>
+        <span class="hint">至少给一样：要画什么，或一张图</span>
       </div>
     </div>
 
     <div class="input-right">
       <div class="status-card">
         <img class="mascot" id="mascot" src="assets/fish/idle.webp" alt="">
-        <h3 id="statusTitle">小肥鱼正在等你出题...</h3>
-        <p id="statusDesc">出一道题，把它叫醒</p>
+        <h3 id="statusTitle">小肥鱼正在等你说要画什么...</h3>
+        <p id="statusDesc">写一句话，把它叫醒</p>
         <div class="waited" id="waited"></div>
         <div class="steps"><i id="s1"></i><i id="s2"></i><i id="s3"></i><i id="s4"></i><i id="s5"></i></div>
         <div class="steps-lbl"><span>读题</span><span>推导</span><span>画画</span><span>检查</span><span>交付</span></div>
       </div>
       <details>
-        <summary>过程记录（日志已自动存盘）</summary>
+        <summary>过程记录（自动存盘）</summary>
         <div class="body" id="logBox">详细日志会写在 <code>开源日志/&lt;时间&gt;-&lt;题&gt;/run.json</code> 与 <code>animation.html</code>。</div>
       </details>
     </div>
@@ -266,20 +270,20 @@
       <h3 class="anim-title" id="animTitle">还没有动画</h3>
       <div class="anim-sub" id="animSub">先在「输入」页生成一个</div>
 
-      <div class="lbl" style="margin-top:18px">题目原文</div>
+      <div class="lbl" style="margin-top:18px">你给的内容</div>
       <div id="animProblem" style="font-size:12.5px;color:var(--sub);line-height:1.8;white-space:pre-wrap;max-height:130px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe"></div>
 
       <div class="lbl" style="margin-top:18px">分幕</div>
       <div id="actList"></div>
 
-      <div class="lbl" style="margin-top:18px">答案解析</div>
+      <div class="lbl" style="margin-top:18px">你给的参考</div>
       <div id="animSolution" style="font-size:12.5px;color:var(--sub);line-height:1.8;white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe;min-height:40px"></div>
     </div>
 
     <div class="anim-right">
       <div class="bar" id="animBar">
         <span id="animBarText">还没有产物</span>
-        <button class="btn small" id="btnToggleLeft" style="margin-left:auto">收起解析</button>
+        <button class="btn small" id="btnToggleLeft" style="margin-left:auto">收起参考</button>
       </div>
       <div class="stagebox" id="stagebox">
         <div class="placeholder"><b>动画会出现在这里</b>生成成功后可以直接播放、拖动时间轴、切换幕</div>
@@ -542,8 +546,8 @@
 
   /* ---------------- 状态（吉祥物 + 文案） ---------------- */
   const FISH = {
-    idle:   { img: 'idle',   title: '小肥鱼正在等你出题...', desc: '出一道题，把它叫醒' },
-    read:   { img: 'read',   title: '小肥鱼正在认真读题...', desc: '正在读题面、认图片里的条件' },
+    idle:   { img: 'idle',   title: '小肥鱼正在等你说要画什么...', desc: '写一句话，把它叫醒' },
+    read:   { img: 'read',   title: '小肥鱼正在认真读题...', desc: '正在读你给的内容、认图片里的条件' },
     solve:  { img: 'solve',  title: '小肥鱼正在偷看答案...', desc: '受力、过程、该用哪条公式' },
     draw:   { img: 'draw',   title: '小肥鱼正在努力画画...', desc: '正在一帧一帧地画' },
     check:  { img: 'check',  title: '小肥鱼正在检查画面...', desc: '快进跑一遍：穿模、压字、飞出去' },
@@ -606,7 +610,7 @@
     const problem = $('problem').value.trim();
     const solution = $('solution').value.trim();
     if (!problem && !state.images.length) {
-      setFish('idle', '至少给一段题面文字，或一张题目图片');
+      setFish('idle', '先告诉小肥鱼要画什么，或者给一张图');
       return;
     }
     if (!problem && state.images.length) {
@@ -644,7 +648,7 @@
     clearTimeout(fishTimer);
     $('btnGo').disabled = false;
     $('btnCancel').disabled = true;
-    setFish('idle', '已取消，可以改改题目再试');
+    setFish('idle', '已取消，改一改再试');
   });
 
   function subscribe(id) {
@@ -662,7 +666,7 @@
         clearTimeout(fishTimer);
         setFish('check');
       }
-      if (e.type === 'look') setFish('check', '正在看关键帧，对着题目核运动方向');
+      if (e.type === 'look') setFish('check', '正在看关键帧，对着你给的内容核运动方向');
       if (e.type === 'retry' || e.type === 'truncated') setFish('think');
       logLine(`[${e.type}] ${e.text}`);
     };
@@ -775,7 +779,7 @@
   $('btnToggleLeft').addEventListener('click', () => {
     const v = $('view-anim');
     const hidden = v.classList.toggle('noleft');
-    $('btnToggleLeft').textContent = hidden ? '显示解析' : '收起解析';
+    $('btnToggleLeft').textContent = hidden ? '显示参考' : '收起参考';
     setTimeout(fitStage, 0);
   });
 
