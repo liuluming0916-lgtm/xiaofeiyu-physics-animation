@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>小肥鱼物理动画 2.1</title>
+<title>小肥鱼物理动画 2.5</title>
 <style>
   :root{
     --ink:#1f2a3a; --sub:#66748a; --line:#dbe3ee; --bg:#eef2f8; --card:#fff;
@@ -208,7 +208,7 @@
 <header>
   <div class="brand">
     <b>小肥鱼物理动画</b>
-    <span class="ver">2.1</span>
+    <span class="ver">2.5</span>
     <em class="slogan">开源的高中物理交互演示平台</em>
   </div>
   <nav>
@@ -555,7 +555,7 @@
     solve:  { img: 'solve',  title: '小肥鱼正在查阅资料...',      desc: '' },
     draw:   { img: 'draw',   title: '小肥鱼正在努力画画...',      desc: '' },
     check:  { img: 'check',  title: '小肥鱼正在检查画面...',      desc: '' },
-    repair: { img: 'repair', title: '小肥鱼发现了问题！',        desc: '' },
+    repair: { img: 'repair', title: '小肥鱼正在修复画面...',      desc: '' },
     think:  { img: 'think',  title: '小肥鱼正在思考...',          desc: '' },
     done:   { img: 'done',   title: '小肥鱼画好啦！',            desc: '点右上角「动画」去看看' },
     error:  { img: 'error',  title: '小肥鱼遇到了点问题...',      desc: '原因写在下面；也可以打回让它再试' },
@@ -563,7 +563,6 @@
   const PHASE_OF = { read: 0, solve: 0, think: 0, draw: 1, check: 2, repair: 2, done: 3 };
 
   let tick = null;
-  let fishTimer = null;
   let writes = 0;
 
   function setPhase(idx) {
@@ -573,7 +572,7 @@
     }
   }
 
-  function setFish(key, desc) {
+  function setFish(key, desc, opts) {
     const f = FISH[key] ?? FISH.idle;
     $('mascot').src = `assets/fish/${f.img}.webp`;
     $('statusTitle').textContent = f.title;
@@ -581,14 +580,57 @@
     // 没有说明文字时把那一行收起来，省得留个空行
     $('statusDesc').textContent = sub;
     $('statusDesc').style.display = sub ? '' : 'none';
-    setPhase(PHASE_OF[key] ?? -1);
+    if (!opts || opts.phase !== false) setPhase(PHASE_OF[key] ?? -1);
   }
 
-  /** 读题态随机停 3~10 秒，再进"偷看答案"，让它看起来真的在动脑子 */
+  /* ---------------- 吉祥物演出 ----------------
+   * 真实事件来得又快又碎，照实显示的话有些图只闪一两秒甚至不出现。
+   * 所以分开：进度条照真实进度走，画面上的小肥鱼按下面的节奏演。
+   */
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const COS_ROTATE = ['solve', 'think', 'draw']; // 检查段之前轮播这三张
+  let cosTimer = null;
+  let cosIdx = 0;
+
+  function stopCos() {
+    clearTimeout(cosTimer);
+    cosTimer = null;
+  }
+
+  /** 读题之后：solve / think / draw 轮流出现，每张 5~25 秒 */
+  function rotateCos() {
+    const key = COS_ROTATE[cosIdx % COS_ROTATE.length];
+    cosIdx += 1;
+    setFish(key, '', { phase: false }); // 轮播不改进度条
+    cosTimer = setTimeout(rotateCos, rand(5000, 25000));
+  }
+
+  /** 真实事件：check / repair 每次至少停留 3 秒，避免一闪而过 */
+  let lastReal = { key: '', at: 0 };
+  let pendingFish = null;
+  function showReal(key, desc) {
+    const now = Date.now();
+    const MIN = 3000;
+    const held = now - lastReal.at;
+    if (lastReal.key && held < MIN && (lastReal.key === 'check' || lastReal.key === 'repair')) {
+      clearTimeout(pendingFish);
+      pendingFish = setTimeout(() => {
+        lastReal = { key, at: Date.now() };
+        setFish(key, desc);
+      }, MIN - held);
+      return;
+    }
+    lastReal = { key, at: now };
+    setFish(key, desc);
+  }
+
+  /** 读题态随机停 10~20 秒，然后开始轮播；进度条停在「思考」 */
   function startFlow(first = 'read') {
-    clearTimeout(fishTimer);
+    stopCos();
+    cosIdx = 0;
+    lastReal = { key: '', at: 0 };
     setFish(first);
-    fishTimer = setTimeout(() => setFish('solve'), 3000 + Math.random() * 7000);
+    cosTimer = setTimeout(rotateCos, rand(10000, 20000));
   }
 
   function startTick() {
@@ -652,7 +694,7 @@
     if (!state.jobId) return;
     await fetch(`/api/jobs/${state.jobId}/cancel`, { method: 'POST' });
     stopTick();
-    clearTimeout(fishTimer);
+    stopCos();
     $('btnGo').disabled = false;
     $('btnCancel').disabled = true;
     setFish('idle', '已取消，改一改再试');
@@ -664,22 +706,24 @@
       let e;
       try { e = JSON.parse(ev.data); } catch (_) { return; }
       if (e.type === 'write') {
-        clearTimeout(fishTimer);
         writes += 1;
-        if (writes === 1) setFish('draw');
-        else setFish('repair', `发现了问题，正在重画（第 ${writes} 版）`);
+        // 第一次写代码 = 进入「画画」段；画面上的鱼继续按节奏轮播，不打断
+        if (writes === 1) setPhase(1);
+        else showReal('repair', `发现了问题，正在重画（第 ${writes} 版）`);
       }
       if (e.type === 'check') {
-        clearTimeout(fishTimer);
-        setFish('check');
+        stopCos(); // 进入检查段，轮播到此为止
+        showReal('check');
       }
-      if (e.type === 'look') setFish('check', '正在看关键帧，对着你给的内容核运动方向');
-      if (e.type === 'retry' || e.type === 'truncated') setFish('think');
+      if (e.type === 'look') showReal('check', '正在看关键帧，对着你给的内容核运动方向');
+      if (e.type === 'retry' || e.type === 'truncated') showReal('think');
       logLine(`[${e.type}] ${e.text}`);
     };
     es.addEventListener('end', async () => {
       es.close();
       stopTick();
+      stopCos();
+      clearTimeout(pendingFish);
       const r = await fetch(`/api/jobs/${id}`).then(x => x.json());
       state.result = r.result;
       state.acts = r.result?.acts ?? [];
