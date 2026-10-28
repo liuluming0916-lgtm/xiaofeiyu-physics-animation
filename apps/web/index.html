@@ -217,6 +217,7 @@
     <button data-view="settings">设置</button>
     <button id="btnExport" disabled>导出</button>
   </nav>
+  <button class="btn ghost" id="btnAboutAuthor" title="联系方式与开源协议">关于作者</button>
 </header>
 
 <main>
@@ -389,6 +390,7 @@
     if (e.key === 'Escape' && m && m.classList.contains('on')) closeModal();
   });
   window.__xfyShowAbout = showAbout;
+  document.getElementById('btnAboutAuthor')?.addEventListener('click', showAbout);
 
   // 「关于」卡片：内容和样式都来自 /api/about，与导出页水印点开的是同一份
   function showAbout() {
