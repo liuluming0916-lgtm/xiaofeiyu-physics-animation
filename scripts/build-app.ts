@@ -10,6 +10,7 @@
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, rmSync, copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { ABOUT_HTML, ABOUT_CSS } from '../packages/shared/about.ts';
 import { ABOUT_VERSION } from '../packages/shared/about.ts';
 
 const OUT = path.resolve('dist/app');
@@ -83,7 +84,27 @@ if (demoIds.length > 0) {
   const index = path.join(DEMO_SRC, 'index.html');
   if (existsSync(index)) {
     // 总览页的卡片原本链到 ./Q01/animation.html，摊平后改成 ./Q01.html
-    const html = readFileSync(index, 'utf8').replace(/\.\/(Q\d+)\/animation\.html/g, './$1.html');
+    let html = readFileSync(index, 'utf8').replace(/\.\/(Q\d+)\/animation\.html/g, './$1.html');
+    // 页面底部加一张「关于作者」卡片：内容与软件里、导出页水印共用同一份
+    const list = ABOUT_HTML.replace(/<div class="xfy-about-foot">[\s\S]*?<\/div>/, '');
+    const block = `
+<section id="xfy-author">
+  <h2>关于作者</h2>
+  <p class="sub">上面这些动画，都是软件用大模型自动生成、并在沙盒里自检过的，没有人工画关键帧。</p>
+  ${list}
+</section>
+<style>
+#xfy-author{box-sizing:border-box;max-width:960px;margin:30px auto 48px;padding:24px 28px;background:#fff;
+  border:1px solid #dbe3ee;border-radius:14px;box-shadow:0 8px 24px rgba(36,48,68,.08);
+  font-family:"Microsoft YaHei","PingFang SC",sans-serif;}
+#xfy-author h2{margin:0 0 6px;font-size:16px;color:#1f2a3a;}
+#xfy-author h3{margin:2px 0 8px;font-size:15px;color:#1f2a3a;}
+#xfy-author h3 span{margin-left:8px;font-size:11.5px;color:#8b98a8;font-weight:400;}
+#xfy-author .sub{margin:0 0 14px;font-size:12.5px;color:#8b98a8;line-height:1.7;}
+#xfy-author .xfy-about-list{font-size:13px;}
+${ABOUT_CSS}
+</style>`;
+    html = html.replace(/<\/body>/i, block + '</body>');
     writeFileSync(path.join(DEMO_OUT, 'index.html'), html, 'utf8');
   }
   console.log(`asset: demos/（${demoIds.length} 个案例 ${demoIds[0]}–${demoIds.at(-1)} + index.html）`);
