@@ -4,7 +4,7 @@
  *
  * 产物：release/portable/小肥鱼物理解题动画.exe
  */
-import { cpSync, existsSync, mkdirSync, rmSync, renameSync, copyFileSync, writeFileSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync, renameSync, copyFileSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -31,6 +31,19 @@ cpSync(ELEC, OUT, { recursive: true });
 console.log('复制应用…');
 cpSync(path.join(ROOT, 'electron'), path.join(APP, 'electron'), { recursive: true });
 cpSync(path.join(ROOT, 'dist', 'app'), path.join(APP, 'dist', 'app'), { recursive: true });
+
+// 离线演示：11 个网页（总览 + Q01–Q10）放成根目录下一个文件夹，老师双击 index.html 就能看。
+// 注意：Windows 上 fs.cpSync 复制到中文目标目录会把名字写成乱码（实测 Node 22），
+// 所以这里先建目录、再逐个文件复制。
+const DEMO_SRC = path.join(ROOT, 'dist', 'app', 'demos');
+const DEMOS = path.join(OUT, '演示案例');
+if (existsSync(DEMO_SRC)) {
+  mkdirSync(DEMOS, { recursive: true });
+  for (const f of readdirSync(DEMO_SRC)) {
+    copyFileSync(path.join(DEMO_SRC, f), path.join(DEMOS, f));
+  }
+  console.log('演示案例 →', DEMOS);
+}
 
 // 许可文件统一收进 docs/，根目录只留 exe、resources 和启动说明
 const DOCS = path.join(APP, 'docs');
@@ -93,10 +106,13 @@ if (existsSync(exeOld)) renameSync(exeOld, exeNew);
 writeFileSync(
   path.join(OUT, '启动说明.txt'),
   [
-    '小肥鱼物理解题动画 2.0（免安装版）',
+    `小肥鱼物理解题动画 ${pkg.version}（免安装版）`,
     '',
     '双击「小肥鱼物理解题动画.exe」即可运行，不需要安装 Node 或浏览器。',
     '首次运行会被 Windows 提示「未知发布者」，点「更多信息 → 仍要运行」。',
+    '',
+    '想先看看成品：双击「演示案例\\index.html」，里面是 10 个已经做好的动画，',
+    '不需要联网，也不用填 API Key。',
     '',
     '生成的文件保存在：%APPDATA%\\小肥鱼物理解题动画\\开源日志\\',
     '配置与密钥保存在：%APPDATA%\\小肥鱼物理解题动画\\xfy.config.json',

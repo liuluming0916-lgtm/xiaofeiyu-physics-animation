@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'node:fs';import { loadEnv, cfg, apiUrl, configSummary, saveConfigFile } from '../../../packages/agent/src/config.ts';
 import { runProblem } from '../../../packages/agent/src/loop.ts';
+import { ABOUT_CSS, ABOUT_HTML, ABOUT_VERSION } from '../../../packages/shared/about.ts';
 
 loadEnv();
 
@@ -199,6 +200,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/health') {
       return json(res, 200, { ok: true, model: cfg.model, thinking: cfg.thinking });
+    }
+    // 「关于」卡片：和导出页水印用的是同一份内容（shared/about.ts）
+    if (p === '/api/about') {
+      return json(res, 200, { version: ABOUT_VERSION, html: ABOUT_HTML, css: ABOUT_CSS });
     }
     if (p === '/api/config') {
       if (req.method === 'GET') return json(res, 200, configSummary());

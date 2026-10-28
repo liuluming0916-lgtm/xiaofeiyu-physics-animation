@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>小肥鱼物理动画 2.0</title>
+<title>小肥鱼物理解题动画 2.1</title>
 <style>
   :root{
     --ink:#1f2a3a; --sub:#66748a; --line:#dbe3ee; --bg:#eef2f8; --card:#fff;
@@ -382,27 +382,52 @@
   });
   window.__xfyShowAbout = showAbout;
 
+  // 「关于」卡片：内容和样式都来自 /api/about，与导出页水印点开的是同一份
   function showAbout() {
-    openModal(`
-      <h3>小肥鱼物理解题动画</h3>
-      <p class="sub">把一道物理题变成可以拖动时间轴的讲解动画。模型自己写代码，自己在沙盒里跑，自己看截图改。</p>
-      <div class="kv">
-        <b>版本</b>v2.1<br>
-        <b>邮箱</b><a href="mailto:1241640869@qq.com">1241640869@qq.com</a><br>
-        <b>QQ</b>1241640869<br>
-        <b>微信</b>AluneOfficial<br>
-        <b>仓库</b><a href="https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation" target="_blank">github.com/liuluming0916-lgtm / xiaofeiyu-physics-animation</a><br>
-        <b>协议</b>AGPL-3.0：免费导出用于教学的动画，商用需授权
-      </div>
-      <p class="sub" style="margin-top:14px">给小肥鱼提建议 / 加功能 / 报 bug，请发邮件。</p>
-      <div class="foot">
-        <button class="btn" id="aboutRepo">打开仓库</button>
-        <span class="spacer"></span>
-        <button class="btn primary" data-close>关闭</button>
-      </div>`);
-    $('aboutRepo').addEventListener('click', () => {
-      window.open('https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation', '_blank');
-    });
+    fetch('/api/about')
+      .then((r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(({ html, css }) => {
+        let style = document.getElementById('xfy-about-style');
+        if (!style) {
+          style = document.createElement('style');
+          style.id = 'xfy-about-style';
+          document.head.appendChild(style);
+        }
+        style.textContent = css;
+
+        const old = document.getElementById('xfy-about');
+        if (old) old.remove();
+
+        const mask = document.createElement('div');
+        mask.id = 'xfy-about';
+        mask.className = 'xfy-about-mask on';
+        mask.setAttribute('role', 'dialog');
+        mask.innerHTML = `<div class="xfy-about-card">${html}</div>`;
+        document.body.appendChild(mask);
+
+        const close = () => {
+          mask.remove();
+          document.removeEventListener('keydown', onKey);
+        };
+        const onKey = (e) => {
+          if (e.key === 'Escape') close();
+        };
+        mask.addEventListener('click', (e) => {
+          if (e.target === mask) close();
+        });
+        const btn = mask.querySelector('[data-xfy-close]');
+        if (btn) btn.addEventListener('click', close);
+        document.addEventListener('keydown', onKey);
+      })
+      .catch(() => {
+        openModal(`
+          <h3>小肥鱼物理解题动画</h3>
+          <p class="sub">版本信息没读出来（本地服务可能还没起来），稍后再试。</p>
+          <div class="foot"><span class="spacer"></span><button class="btn" data-close>关闭</button></div>`);
+      });
   }
 
   /* ---------------- 首次使用引导 ---------------- */

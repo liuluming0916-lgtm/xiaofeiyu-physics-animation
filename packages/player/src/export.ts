@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readAsset } from '../../shared/asset.ts';
+import { ABOUT_CSS, ABOUT_HTML } from '../../shared/about.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PLAYER_SRC = readAsset('player.js');
@@ -51,6 +52,15 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
 #xfy-bar .xfy-tg input{accent-color:#2f6feb;cursor:pointer;margin:0;}
 #xfy-bar .xfy-tg i{width:10px;height:10px;border-radius:3px;display:inline-block;}
 #xfy-bar .xfy-tip{margin-left:auto;font-size:12px;color:#9aa7ba;}
+/* 页脚水印：浅灰小字，落在页面最底端；点它打开「关于 / 联系作者」卡片 */
+#xfy-mark{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);z-index:20;white-space:nowrap;
+     border:0;background:none;padding:0;font-family:inherit;font-size:11.5px;line-height:1.2;
+     letter-spacing:.4px;color:rgba(110,124,145,.5);cursor:pointer;
+     user-select:none;-webkit-user-select:none;transition:color .15s;}
+#xfy-mark:hover{color:rgba(55,70,92,.85);text-decoration:underline;}
+
+/* 关于卡片：样式和内容来自 shared/about.ts，软件端用的是同一份 */
+${ABOUT_CSS}
 /* 标注工具面板：贴在屏幕左侧，竖排；老师上课手在左边，够得着 */
 #xfy-panel{
   position:fixed;left:12px;top:50%;transform:translateY(-50%);display:none;
@@ -107,6 +117,14 @@ function injectIntoModel(html: string): string {
 }
 
 /**
+ * 页脚水印。
+ *
+ * 水印只在导出的独立页面出现（被 iframe 嵌在应用里预览时会自动隐藏）。
+ * 点它弹出「关于」卡片：内容与样式来自 shared/about.ts，软件端菜单点开的是同一份。
+ */
+const MARK_TEXT = 'powered by 小肥鱼物理解题动画';
+
+/**
  * 把一个"只有舞台"的动画网页，包成"舞台(iframe) + 宿主播放器"。
  *
  * 模型的产物不需要（也不应该）自己画控制条；控制条由这里统一注入，
@@ -124,6 +142,11 @@ export function wrapWithPlayer(html: string): string {
     `</head><body>` +
     `<div id="xfy-app"><div id="xfy-stage">` +
     `<iframe id="xfy-frame" allowfullscreen scrolling="no" title="动画画面"></iframe>` +
+    `</div></div>` +
+    `<button id="xfy-mark" type="button" title="关于 / 联系作者">${MARK_TEXT}</button>` +
+    `<div id="xfy-about" class="xfy-about-mask" role="dialog" aria-modal="true" aria-label="关于小肥鱼物理解题动画">` +
+    `<div class="xfy-about-card">` +
+    ABOUT_HTML +
     `</div></div>` +
     `<script id="xfy-model">window.__XFY_MODEL_HTML=${payload};</script>` +
     `<script id="xfy-player">${PLAYER_SRC}</script>` +

@@ -476,14 +476,16 @@
 
   // 整页等比缩放到窗口：窗口再小（或系统缩放再大），控制条也不会被挤出屏幕
   const app = document.getElementById('xfy-app');
+  // 底部水印占位：留一条，别让控制条压到「powered by」上
+  const MARK_H = 34;
   function fit() {
     if (!app) return;
     // 标注面板占左侧 96px：开着的时候整体右移并略微缩小，别挡住画面
     const reserve = document.body.classList.contains('xfy-inking') ? 96 : 0;
     const w = document.documentElement.clientWidth - reserve;
-    const h = document.documentElement.clientHeight;
+    const h = document.documentElement.clientHeight - MARK_H;
     const s = Math.min(w / app.offsetWidth, h / app.offsetHeight);
-    app.style.transform = `translate(calc(-50% + ${reserve / 2}px), -50%) scale(${Math.min(s, 1.6)})`;
+    app.style.transform = `translate(calc(-50% + ${reserve / 2}px), calc(-50% - ${MARK_H / 2}px)) scale(${Math.min(s, 1.6)})`;
   }
   window.addEventListener('resize', fit);
   document.addEventListener('fullscreenchange', fit);
@@ -520,6 +522,27 @@
 
   // 监听器装好之后再放 srcdoc，否则 iframe 的 hello 可能先到、被丢掉
   if (window.__XFY_MODEL_HTML) frame.srcdoc = window.__XFY_MODEL_HTML;
+
+  // 页脚水印：只在导出的独立页面显示；被应用内 iframe 嵌着预览时藏起来
+  const mark = document.getElementById('xfy-mark');
+  const about = document.getElementById('xfy-about');
+  if (mark) {
+    if (window.self !== window.top) mark.style.display = 'none';
+    if (about) {
+      const closeAbout = () => about.classList.remove('on');
+      mark.addEventListener('click', () => about.classList.add('on'));
+      about.addEventListener('click', (e) => {
+        if (e.target === about) closeAbout();
+      });
+      const closeBtn = about.querySelector('[data-xfy-close]');
+      if (closeBtn) closeBtn.addEventListener('click', closeAbout);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAbout();
+      });
+      // 方便截图 / 分享时直接打开：#about
+      if (location.hash === '#about') about.classList.add('on');
+    }
+  }
 
   fit();
   setTimeout(fit, 60);
