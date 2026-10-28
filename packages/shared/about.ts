@@ -9,7 +9,7 @@ export const ABOUT_VERSION = '2.1.0';
 const REPO = 'https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation';
 
 export const ABOUT_HTML =
-  `<h3>小肥鱼物理解题动画<span>v${ABOUT_VERSION}</span></h3>` +
+  `<h3>小肥鱼物理动画<span>v${ABOUT_VERSION}</span></h3>` +
   `<ul class="xfy-about-list">` +
   `<li><b>邮箱</b><a href="mailto:1241640869@qq.com">1241640869@qq.com</a></li>` +
   `<li><b>QQ</b>1241640869</li>` +

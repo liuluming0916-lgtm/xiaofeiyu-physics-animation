@@ -137,7 +137,7 @@ export function wrapWithPlayer(html: string): string {
   return (
     `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width,initial-scale=1">` +
-    `<title>小肥鱼物理解题动画</title>` +
+    `<title>小肥鱼物理动画</title>` +
     STYLE +
     `</head><body>` +
     `<div id="xfy-app"><div id="xfy-stage">` +
