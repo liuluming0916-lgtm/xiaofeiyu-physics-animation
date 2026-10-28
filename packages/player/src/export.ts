@@ -122,7 +122,7 @@ function injectIntoModel(html: string): string {
  * 水印只在导出的独立页面出现（被 iframe 嵌在应用里预览时会自动隐藏）。
  * 点它弹出「关于」卡片：内容与样式来自 shared/about.ts，软件端菜单点开的是同一份。
  */
-const MARK_TEXT = 'powered by 小肥鱼物理解题动画';
+const MARK_TEXT = 'powered by 小肥鱼物理动画';
 
 /**
  * 把一个"只有舞台"的动画网页，包成"舞台(iframe) + 宿主播放器"。
@@ -144,7 +144,7 @@ export function wrapWithPlayer(html: string): string {
     `<iframe id="xfy-frame" allowfullscreen scrolling="no" title="动画画面"></iframe>` +
     `</div></div>` +
     `<button id="xfy-mark" type="button" title="关于 / 联系作者">${MARK_TEXT}</button>` +
-    `<div id="xfy-about" class="xfy-about-mask" role="dialog" aria-modal="true" aria-label="关于小肥鱼物理解题动画">` +
+    `<div id="xfy-about" class="xfy-about-mask" role="dialog" aria-modal="true" aria-label="关于小肥鱼物理动画">` +
     `<div class="xfy-about-card">` +
     ABOUT_HTML +
     `</div></div>` +

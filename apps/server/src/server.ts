@@ -18,7 +18,7 @@ const WEB_DIR = existsSync(path.join(ROOT, 'apps', 'web'))
 // 产物目录：开发态在仓库 开源日志/；打包态由主进程指到用户可写目录
 const DATA_ROOT = process.env.XFY_DATA_DIR ? path.resolve(process.env.XFY_DATA_DIR) : path.join(ROOT, '开源日志');
 const OUT_ROOT = path.join(DATA_ROOT, 'web');
-// 老师能一眼找到的导出位置（由主进程指到「文档\小肥鱼物理解题动画\导出」）
+// 老师能一眼找到的导出位置（由主进程指到「文档\小肥鱼物理动画\导出」）
 const EXPORT_DIR = process.env.XFY_EXPORT_DIR ? path.resolve(process.env.XFY_EXPORT_DIR) : path.join(DATA_ROOT, '导出');
 mkdirSync(OUT_ROOT, { recursive: true });
 mkdirSync(EXPORT_DIR, { recursive: true });
