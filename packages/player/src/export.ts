@@ -17,10 +17,6 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
 #xfy-stage{position:relative;width:1280px;height:720px;overflow:hidden;background:#fff;
      border-radius:10px;box-shadow:0 8px 28px rgba(36,48,68,.13);transform:translateZ(0);}
 #xfy-frame{display:block;width:1280px;height:720px;border:0;background:#fff;}
-/* 模型常用 position:fixed / 100vw 让画面铺满窗口；这里把 fixed 的参照内缩到舞台，
-   并把画布尺寸钉死在 1280×720（!important 压过内联样式），否则会盖住控制条或被裁切。 */
-#xfy-stage canvas:not(#xfy-ink){display:block;position:static !important;width:100% !important;height:100% !important;
-     object-fit:contain;background:#fff;}
 #xfy-ink{
   position:absolute;left:0;top:0;width:100%;height:100%;z-index:5;
   /* 模型常写 canvas{background:...}，会连标注层一起刷成不透明，必须强制透明 */
@@ -141,7 +137,7 @@ export function wrapWithPlayer(html: string): string {
     STYLE +
     `</head><body>` +
     `<div id="xfy-app"><div id="xfy-stage">` +
-    `<iframe id="xfy-frame" allowfullscreen scrolling="no" title="动画画面"></iframe>` +
+    `<iframe id="xfy-frame" sandbox="allow-scripts" allowfullscreen scrolling="no" title="动画画面"></iframe>` +
     `</div></div>` +
     `<button id="xfy-mark" type="button" title="关于 / 联系作者">${MARK_TEXT}</button>` +
     `<div id="xfy-about" class="xfy-about-mask" role="dialog" aria-modal="true" aria-label="关于小肥鱼物理动画">` +

@@ -223,6 +223,8 @@
     if (typeof d.act === 'number') {
       idx = Math.max(0, Math.min(acts.length - 1, d.act));
       tau = 0;
+      // 换幕要清掉上一幕的板书（和 gotoAct 保持一致）
+      if (window.__xfyClearInk) window.__xfyClearInk();
     }
     if (typeof d.t === 'number') {
       tau = Math.max(0, Math.min(ACT_SECONDS, (d.t / current().physical) * ACT_SECONDS));

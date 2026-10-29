@@ -101,7 +101,7 @@ function buildUserContent(problem: string, images: string[]): any {
 export async function runProblem(problem: string, opts: RunOptions): Promise<RunResult> {
   const t0 = Date.now();
   const maxWrites = opts.maxWrites ?? 4;
-  const deadline = t0 + (opts.timeoutMs ?? 20 * 60 * 1000);
+  const deadline = t0 + (opts.timeoutMs ?? 25 * 60 * 1000); // 总预算 25 分钟（1500 s）
   const emit = opts.onEvent ?? (() => {});
 
   mkdirSync(opts.outDir, { recursive: true });
@@ -153,7 +153,8 @@ export async function runProblem(problem: string, opts: RunOptions): Promise<Run
       let r: Awaited<ReturnType<typeof chat>>;
       try {
         r = await chat(messages, TOOL_SCHEMAS, {
-          timeoutMs: Math.max(60000, Math.min(600000, deadline - Date.now())),
+          // 单次调用最多等 15 分钟；同时不超过总预算的剩余时间
+          timeoutMs: Math.max(60000, Math.min(900000, deadline - Date.now())),
           signal: opts.signal,
           onRetry: (attempt, why) => emit({ type: 'retry', text: `第 ${attempt} 次重试（${why}）` }),
         });
