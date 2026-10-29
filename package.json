@@ -23,7 +23,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "pdfjs-dist": "^6.4.299",
     "puppeteer-core": "^25.16.0"
   },
   "devDependencies": {
@@ -31,6 +30,7 @@
     "electron": "^35.7.5",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
+    "pdfjs-dist": "^6.4.299",
     "typescript": "^5.9.3"
   },
   "build": {
