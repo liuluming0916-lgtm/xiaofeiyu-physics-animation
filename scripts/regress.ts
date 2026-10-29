@@ -122,6 +122,21 @@ async function checkOne(browser: Browser, c: Case): Promise<Result> {
       });
       if ('error' in blank) failures.push(`画面：${blank.error}`);
       else if ((blank.ratio ?? 0) < 0.01) failures.push(`画面近乎空白（非空白 ${((blank.ratio ?? 0) * 100).toFixed(1)}%）`);
+
+      /*
+       * 还要看"画布在页面上有没有尺寸"。
+       * 2.6.0 踩过一次：画布内容画得好好的，但模型自己的 fit() 在布局前跑，
+       * 把 CSS 宽高设成 0，于是整个画面看不见——只量像素是发现不了的。
+       */
+      const box = await frame.evaluate(() => {
+        const c = document.querySelector('canvas') as HTMLCanvasElement | null;
+        if (!c) return { w: 0, h: 0 };
+        const r = c.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      });
+      if (box.w < 800 || box.h < 450) {
+        failures.push(`画布显示尺寸 ${box.w}×${box.h}，几乎不可见（模型的 fit() 可能算错了）`);
+      }
     }
 
     /* ② 控制条在、按钮能点 */

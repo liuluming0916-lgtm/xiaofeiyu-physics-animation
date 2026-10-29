@@ -82,7 +82,8 @@
   $replay.disabled = true;
   $seek.disabled = true;
 
-  const fmt = (x) => x.toFixed(2);
+  // 注意别显示成 -0.00：rAF 的首次时间戳可能比 play() 记的 lastTs 略早
+  const fmt = (x) => (x <= 0 ? 0 : x).toFixed(2);
   const current = () => acts[Math.min(idx, acts.length - 1)] || { title: '', physical: 4 };
   const physTime = () => (tau / ACT_SECONDS) * current().physical;
 
@@ -104,7 +105,7 @@
     if (!playing) return;
     const dt = Math.min(0.05, (ts - lastTs) / 1000) * speed;
     lastTs = ts;
-    tau += dt;
+    tau = Math.max(0, tau + dt);
     if (tau >= ACT_SECONDS) {
       if (idx < acts.length - 1) {
         idx += 1;

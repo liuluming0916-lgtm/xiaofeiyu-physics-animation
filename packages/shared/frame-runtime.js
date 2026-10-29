@@ -51,6 +51,20 @@
   // 告诉外层：我准备好了，这是我的幕信息
   parent.postMessage({ xfy: 'hello', acts: got.acts }, '*');
 
+  /*
+   * 关键补丁：模型通常自己写一个 fit()，按 window 尺寸算画布大小。
+   * 这个 fit() 往往在 iframe 还没完成布局时就跑了一次，读到 0，于是把画布设成 0×0；
+   * 之后 iframe 里不会自己触发 resize，画面就永远是空白。
+   * （加 sandbox 之后更容易踩到，因为文档加载得更早。）
+   * 这里在文档就绪后主动派发两次 resize，让模型自己把尺寸算回来。
+   */
+  function kick() {
+    try {
+      window.dispatchEvent(new Event('resize'));
+    } catch (_) {}
+  }
+  [0, 60, 250].forEach((ms) => setTimeout(kick, ms));
+
   // 先画一帧，避免出现空白
   try {
     callRender(0, 0, { vel: true, acc: true, force: true, trail: true, grid: true, panel: true });
