@@ -127,6 +127,28 @@ function createWindow() {
     }
   });
 
+  // 右键菜单：Electron 不像浏览器那样自带，必须自己弹一个
+  mainWindow.webContents.on('context-menu', (_event, p) => {
+    const items = [];
+    if (p.isEditable) {
+      items.push(
+        { label: '撤销', role: 'undo' },
+        { label: '重做', role: 'redo' },
+        { type: 'separator' },
+        { label: '剪切', role: 'cut' },
+        { label: '复制', role: 'copy' },
+        { label: '粘贴', role: 'paste' },
+        { type: 'separator' },
+        { label: '全选', role: 'selectAll' },
+      );
+    } else if (p.selectionText && p.selectionText.trim()) {
+      items.push({ label: '复制', role: 'copy' }, { label: '全选', role: 'selectAll' });
+    } else {
+      return; // 空白处不弹菜单
+    }
+    Menu.buildFromTemplate(items).popup({ window: mainWindow });
+  });
+
   // 站外链接一律用系统浏览器打开，不在应用里开新窗口
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(serverURL)) shell.openExternal(url);

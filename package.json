@@ -1,10 +1,10 @@
 {
   "name": "xfy-2.0",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
-  "description": "小肥鱼物理动画 2.6.1 · 自主 Agent + 物理沙盒闭环",
+  "description": "小肥鱼物理动画 2.6.2 · 自主 Agent + 物理沙盒闭环",
   "author": "小肥鱼物理动画项目组 <1241640869@qq.com>",
   "main": "electron/main.cjs",
   "engines": {
