@@ -25,6 +25,14 @@
 | `pdf-text.ts` | 从 PDF 抽题面文字 |
 | `probe-api.ts` / `probe-tools.ts` / `probe-image.ts` | 单独验证模型接口、工具调用、图片输入 |
 
+## 课件素材
+
+| 脚本 | 用途 |
+|---|---|
+| `extract-catalog.py` | 把考点 docx 抽成 markdown，便于改写 |
+| `build-catalog-docx.py` | 把 `开源日志/_check/catalog-part*.md` 合成一份考点 docx |
+| `check-catalog-docx.py` | 校验生成的 docx：表格数、考点数、有没有空行、有没有残留英文 |
+
 ## 一次性探针（留着备查，别当正式入口）
 
 `shoot.ts`（早期截图）、`build-player-demo.ts`、`run-problem.ts` 的调试分支等。
