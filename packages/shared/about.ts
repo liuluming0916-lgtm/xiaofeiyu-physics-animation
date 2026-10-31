@@ -4,7 +4,7 @@
  * 只负责内容与样式；遮罩容器、开关逻辑由各自的宿主（app 的 showAbout / 导出页的 player.js）负责。
  * 版本号与 package.json 对齐（build-app 构建时会校验）。
  */
-export const ABOUT_VERSION = '2.6.5';
+export const ABOUT_VERSION = '2.6.6';
 
 const REPO = 'https://github.com/liuluming0916-lgtm/xiaofeiyu-physics-animation';
 
