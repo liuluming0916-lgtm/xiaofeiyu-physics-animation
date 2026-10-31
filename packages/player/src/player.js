@@ -114,11 +114,17 @@
       } else {
         tau = ACT_SECONDS;
         playing = false;
-        $play.textContent = '播放';
+        syncPlayBtn();
       }
     }
     paint();
     if (playing) rafId = requestAnimationFrame(loop);
+  }
+
+  // 播放按钮：▶ 播放 / ⏸ 暂停，外加主色，一眼能找到
+  function syncPlayBtn() {
+    $play.textContent = playing ? '⏸ 暂停' : '▶ 播放';
+    $play.classList.toggle('is-primary', !playing);
   }
 
   function play() {
@@ -132,14 +138,14 @@
       }
     }
     playing = true;
-    $play.textContent = '暂停';
+    syncPlayBtn();
     lastTs = performance.now();
     rafId = requestAnimationFrame(loop);
   }
 
   function pause() {
     playing = false;
-    $play.textContent = '播放';
+    syncPlayBtn();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
   }
@@ -508,8 +514,9 @@
       $seek.disabled = false;
       if ($prev) $prev.style.display = multi ? '' : 'none';
       if ($next) $next.style.display = multi ? '' : 'none';
+      // 默认不自动播放：先停在首帧，老师点「▶ 播放」再开始
+      syncPlayBtn();
       paint();
-      play();
     } else if (d.xfy === 'error') {
       console.error('[xfy] 模型渲染出错：', d.message);
     }

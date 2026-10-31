@@ -35,6 +35,8 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothi
      font-family:inherit;border-radius:8px;padding:6px 15px;cursor:pointer;line-height:1.2;transition:.15s;}
 #xfy-bar .xfy-btn:hover{background:#eaf1fd;border-color:#9fbcf0;}
 #xfy-bar .xfy-btn:disabled{opacity:.45;cursor:not-allowed;}
+#xfy-bar .xfy-btn.is-primary{background:#2f6feb;border-color:#2f6feb;color:#fff;font-weight:600;}
+#xfy-bar .xfy-btn.is-primary:hover{background:#2a63d4;border-color:#2a63d4;}
 #xfy-bar .xfy-ghost{background:#fff;}
 #xfy-bar .xfy-seek{flex:1;min-width:160px;height:6px;accent-color:#2f6feb;cursor:pointer;}
 #xfy-bar .xfy-time{font-size:14px;color:#4c5c74;font-variant-numeric:tabular-nums;min-width:132px;text-align:center;}
